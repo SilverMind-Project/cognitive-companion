@@ -204,7 +204,7 @@ Every admin list view follows this structure:
 
 ### Dialog pattern
 
-Dialogs use a solid elevated surface (`--cc-bg-elevated`), not the translucent `--cc-surface` used by cards. Use plain `<v-card>` with no custom class:
+Dialogs use a solid elevated surface (`--cc-bg-elevated`), not the `--cc-surface` used by cards. Detail and form modals use `AppDialog` (next section); the plain `v-dialog` + `<v-card>` below is for the `useConfirm()` confirmation dialog only:
 
 ```html
 <v-dialog v-model="showDialog" max-width="600" persistent>
@@ -348,11 +348,7 @@ Do not copy-paste these rules into a scoped `<style>` block. If a one-off overri
 
 #### Transparency and surface
 
-Drawers use `--cc-drawer-glass` which is near-opaque by design:
-- **Dark mode**: `rgba(18, 18, 22, 0.96)`, deep and essentially solid
-- **Light mode**: `rgba(248, 248, 252, 0.97)`, near-white so page content does not bleed through
-
-The backdrop-filter blur is kept for subtle depth even at high opacity. Never increase transparency; a translucent drawer is distracting, especially in light mode where the page background shows through.
+Drawers use `--cc-drawer-glass`, a solid surface in the single `ccWarm` theme (Marauders overrides it in `marauders.css`). Never add transparency; page content must not bleed through a drawer.
 
 #### Rules
 
@@ -369,7 +365,7 @@ The backdrop-filter blur is kept for subtle depth even at high opacity. Never in
 
 ### Table visual wrapper (mandatory)
 
-Every `v-data-table` must be wrapped in `<v-card class="glass-card">`. This gives the table the frosted-glass surface, border, and shadow consistent with all other cards in the app.
+Every `v-data-table` must be wrapped in `<v-card class="glass-card">`. This gives the table the warm-paper card surface, border, and shadow consistent with all other cards in the app.
 
 ```html
 <v-card class="glass-card">
@@ -383,7 +379,7 @@ For tables that are tool/workbench views (not CRUD list views), `density="compac
 
 ### Server-side pagination (mandatory for all list views)
 
-Every `v-data-table` must use server-side pagination. The pattern:
+Every list view's `v-data-table` uses server-side pagination; the only exception is a small tool/workbench table, as stated above. The pattern:
 
 **State variables:**
 ```js
@@ -518,8 +514,8 @@ Every `v-data-table` must include a `#no-data` slot with a consistent empty-stat
 <template #no-data>
   <div class="pa-6 text-center">
     <v-card flat>
-      <v-card-text class="text-grey text-h6">No X yet</v-card-text>
-      <v-card-text class="text-grey">
+      <v-card-text class="text-medium-emphasis text-h6">No X yet</v-card-text>
+      <v-card-text class="text-medium-emphasis">
         Brief sentence about when data will appear.
       </v-card-text>
     </v-card>
@@ -530,7 +526,7 @@ Every `v-data-table` must include a `#no-data` slot with a consistent empty-stat
 - Always use `#no-data`, never `#bottom` for empty-state messages (`#bottom` overrides the pagination footer)
 - The text should be descriptive and reassuring
 - The `v-card flat` keeps it visually subtle
-- Use `text-grey` for both lines to match the muted empty-state aesthetic
+- Use `text-medium-emphasis` for both lines (never a material color class such as `text-grey`)
 
 ### Tab layout pattern
 
@@ -645,7 +641,7 @@ sites keep working. Do not add methods to it.
 
 `tests/services/one_request_core.spec.js` enforces the above (no `fetch` outside `http.ts`, no
 module reading the API key itself, no `contracts.js`), as does `r4_bypass_guard.spec.js` for
-components. M19 converts both to ESLint rules.
+components; `eslint.config.js` now enforces both rules.
 
 ### One endpoint owns each fact; no cross-contract fallbacks
 
@@ -825,7 +821,7 @@ The final output should contain only test results, not Vue, Vue Router, unresolv
 2a. **Vuetify material color names on `color=`**: never `color="green|orange|purple|deep-purple|blue|red"` on `v-icon`/`v-chip`/`v-btn` -- those are Vuetify's material palette, not the DS. Map to DS semantic theme colors: `green`->`success`, `orange`/`amber`->`warning`, `red`->`error`, `blue`/`deep-purple`->`info` (or `secondary` for a warm accent like a capability badge). For a neutral/muted chip, **remove** the `color` attr so `variant="tonal"` falls back to the warm `--cc-surface-2`; do not invent a `--cc-grey` token. For a muted icon use `color="var(--cc-text-3)"`.
 2b. **Undefined `--cc-*` token names** silently fall back (to the fallback arg, or to an invalid value -> default). The real tokens: brand is `--cc-brand` (not `--cc-primary`); secondary/tertiary text is `--cc-text-2` / `--cc-text-3` (not `--cc-text-secondary`/`--cc-text-primary`). When in doubt, grep the name against `theme.css`. A quick audit: collect `var(--cc-*)` names used vs. the names defined in `theme.css`/`marauders.css` and diff -- any "used but not defined" is a bug (component-local CSS vars defined in the same scoped block are the only legitimate exception).
 3. **Scoped `<style>` blocks with surface/text colors**: use global utility classes and Vuetify variants instead.
-3. **Static `:items-per-page`** on data tables: use server-side pagination with `:items-length`.
+3a. **Static `:items-per-page`** on data tables: use server-side pagination with `:items-length`.
 4. **Not resetting `page = 1` on filter changes**: causes empty pages when filters narrow results.
 5. **`item-title="title"` on layout selects**: layout objects use `display_name`, not `title`.
 6. **Sending fields not in the backend schema**: check the Pydantic model for allowed fields (many schemas use `extra="forbid"`).
@@ -865,7 +861,7 @@ This pattern applies to any drawer that shows detail for a selected list row and
 
 2. **Tabs split heavy sections.** Use `v-tabs` + `v-window` inside the drawer to split: Summary (always visible), Evidence/Observations (lazy), History/Revisions (lazy), Actions. This prevents loading all sections on every row click.
 
-3. **Six-component decomposition.** For any inspector with 4+ distinct data sections, extract each section into its own component. The naming convention is `{Domain}{Section}.vue`. Example: `PHObservationsTimeline.vue`, `PHRevisionsFeed.vue`, `PHTrailMiniFloorPlan.vue`, `PHCorrectionForm.vue`, `PHPeopleSummary.vue`, `PHListPanel.vue`. Do not inline these sections in the drawer.
+3. **Six-component decomposition.** For any inspector with 4+ distinct data sections, extract each section into its own component. The naming convention is `{Domain}{Section}.vue`. Example (`components/cts/ph/`): `PHObservationsTimeline.vue`, `PHRevisionsFeed.vue`, `PHTrailMiniFloorPlan.vue`, `PHLifecycleActions.vue`, `PHPosteriorPanel.vue`, `PHKeyframeStrip.vue`, `PHListPanel.vue`. Do not inline these sections in the drawer.
 
 4. **Confirmation on all destructive actions.** Any action that is hard to reverse (merge, split, delete, reassign) must call `useConfirm()` before proceeding. Never allow an irreversible action without a dialog confirmation.
 
@@ -911,7 +907,7 @@ This pattern applies to any drawer that shows detail for a selected list row and
         <v-window v-model="tab">
           <v-window-item value="summary">
             <PHTrailMiniFloorPlan :trail-points="state.trail" />
-            <PHPeopleSummary :co-present="state.coPresent" />
+            <PHPosteriorPanel :item-id="selectedItem.id" />
           </v-window-item>
           <v-window-item value="observations">
             <PHObservationsTimeline :item-id="selectedItem.id" />
@@ -920,7 +916,7 @@ This pattern applies to any drawer that shows detail for a selected list row and
             <PHRevisionsFeed :item-id="selectedItem.id" />
           </v-window-item>
           <v-window-item value="actions">
-            <PHCorrectionForm :item-id="selectedItem.id" @corrected="onCorrected" />
+            <PHLifecycleActions :item-id="selectedItem.id" @corrected="onCorrected" />
           </v-window-item>
         </v-window>
       </div>
@@ -1197,7 +1193,7 @@ All chart and dashboard components live in `frontend/src/components/`. Use them;
 |-----------|---------|
 | `CcMetricTile.vue` | Single KPI tile with label, value, trend arrow |
 | `CcProvenanceBadge.vue` | Source/quality badge rendered from `source` + `quality` envelope fields |
-| `CcSectionCard.vue` | Frosted-glass section wrapper with optional header slot |
+| `CcSectionCard.vue` | Warm-paper section wrapper with optional header slot |
 
 **Process (`components/process/`)**
 
@@ -1320,7 +1316,7 @@ Shipped file inventory:
 |--------------------|-------|---------|
 | `cc_marauders` | `"1"` | Marauder's mode is active |
 | `cc_marauders` | `"0"` | Marauder's mode is off |
-| `cc_theme` | `"ccDark"` or `"ccLight"` | User's preferred base theme (managed by the existing theme toggle, separate from `cc_marauders`) |
+| `cc_theme` | `"ccWarm"` or `"ccMarauders"` | The active Vuetify theme; `main.js` reads it at startup |
 
 On enable, the composable captures the current theme name as the restore target before switching to `ccMarauders`. On disable, it restores that captured value so toggling off always returns the user to their prior `ccDark` / `ccLight` preference.
 

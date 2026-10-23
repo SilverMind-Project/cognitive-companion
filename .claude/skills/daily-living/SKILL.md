@@ -8,7 +8,7 @@ description: "Use when implementing or changing daily-living detection, the acti
 Patterns for the Daily Living program: countable daily-life facts (medication, meals, TV,
 hygiene, task intent), the shadow-mode detectors that produce them, and the inference budget
 that keeps them cheap on a single DGX Spark. Full decision ledger and findings inventory:
-`/home/sriram/code/nanai/daily-living-m00-program-overview-and-findings.md`. For naming,
+`/home/sriram/code/nanai/notes/guided-companion-and-identity-hardening/daily-living-m00-program-overview-and-findings.md`. For naming,
 layering, testing, logging, time, and DB rules, follow
 `/home/sriram/code/nanai/cognitive-companion/.claude/skills/engineering-standards/SKILL.md`.
 For guided-session memory writes specifically, also load

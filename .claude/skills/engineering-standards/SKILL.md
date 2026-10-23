@@ -42,9 +42,9 @@ Production-quality standards for every agent working in `cognitive-companion`. T
 
 | What | Convention | Example |
 |---|---|---|
-| Components | `PascalCase` in `PascalCase.vue` files | `RuleDetailView.vue`, `StepCard.vue` |
-| Composables | `use<Name>.js` | `useNotify.js`, `useConfirm.js` |
-| Service modules | `camelCase.js` | `api.js`, `timezone.js` |
+| Components | `PascalCase` in `PascalCase.vue` files | `RuleDetailView.vue`, `RoutineStepCard.vue` |
+| Composables | `use<Name>.ts` for new code (existing `.js` stays until touched) | `useFaceCalibrationReview.ts`, `useNotify.js` |
+| Service modules | `services/modules/<snake_case>.ts` (endpoint calls); `services/<camelCase>.js` for helpers | `face_calibration.ts`, `timezone.js` |
 | Props / events | `camelCase` in `<script setup>`, `kebab-case` in templates | `:items-length`, `@update:options` |
 | Ref/reactive state | `camelCase` | `const totalItems = ref(0)` |
 
@@ -154,7 +154,7 @@ from backend.core.exceptions import (
 
 1. **Raise AppError subclasses from services and routers.** The global handler in `core/exceptions.py` converts them to JSON.
 2. **Never catch AppError subclasses in routers.** Let them bubble to the handler.
-3. **Optional integration clients return explicit zero values on failure**, never raise unexpected transport exceptions. This applies only when the endpoint is genuinely optional and the caller documents the degraded behavior. Pattern:
+3. **Optional integration clients return explicit zero values on failure**, never raise unexpected transport exceptions. This applies only when the endpoint is genuinely optional and the caller documents the degraded behavior, and the broad `except Exception` below is allowed only in the BLE001 allowlist paths of `backend/pyproject.toml` (`integrations/`, `channels/builtin/`, `websocket/`, `mcp/server.py`, `mcp/middleware.py`, tests); anywhere else it needs a narrower exception or a `# noqa: BLE001` with a reason (section 22). Pattern:
    ```python
    async def analyze(self, ...) -> SceneAnalyzeResult | None:
        try:
@@ -169,7 +169,7 @@ from backend.core.exceptions import (
    logger.warning("rule_not_found", rule_id=rule_id)
    raise NotFoundError("Rule", rule_id)
    ```
-5. **Use `logger.exception()` in except blocks** (includes traceback). Use `logger.error()` for known error conditions that aren't exceptions.
+6. **Use `logger.exception()` in except blocks** (includes traceback). Use `logger.error()` for known error conditions that aren't exceptions.
 
 ### Semantic-memory writes (DL8, DL-M02)
 
@@ -417,7 +417,7 @@ the read-check, so the calling contract does not change. See
 
 ### Query conventions
 
-- Use SQLAlchemy 2.0-style queries: `db.query(Model).filter(...)`.
+- Queries use the session Query API the codebase is written in: `db.query(Model).filter(...)`.
 - Use `.options(joinedload(...))` for eager loading relationships.
 - Use `func.count()` for pagination totals.
 - Filter conditions should be explicit column comparisons, never raw SQL strings.
@@ -435,8 +435,8 @@ the read-check, so the calling contract does not change. See
 ### Authentication and authorization
 
 - Every new endpoint must have an `auth.yaml` permission entry.
-- Use `require_permission("METHOD /path")` on every route.
-- Keys resolve from `X-API-Key` header, `?api_key` query param, or `device_key` in body.
+- Use `require_permission(...)` on every route. New routes name a `<resource>:<action>` token (program decision D4, for example `rooms:read`); the legacy `METHOD /path`, dotted, and role-name styles migrate in EG-M14.
+- Keys come from the `X-API-Key` header. Only device endpoints (`get_auth_context_device`, opted into per route) also accept a `?api_key` query parameter or a body `device_key`; never add those key paths to a browser-facing route (section 6).
 
 ### Input validation
 
@@ -753,7 +753,7 @@ Before opening a PR, verify:
 | `print("debug", x)` | `logger.debug("event", value=x)` |
 | `from structlog import get_logger` | `from backend.core.logging import get_logger` |
 | `except Exception: pass` | Log and return zero value, or re-raise as AppError |
-| `dict["key"]` without check | `dict.get("key", default)` or validate with Pydantic |
+| `dict["key"]` without check | Validate with Pydantic; `.get("key", default)` only for a documented optional field, never for required upstream data (section 4 rule 4) |
 | `str(datetime.now())` | `datetime.now(UTC).isoformat()` |
 | Instantiating services in routers | `request.app.state.<service>` |
 | `from typing import Dict, List` | Use built-in `dict`, `list` (Python 3.9+) |
@@ -957,7 +957,7 @@ Never return a fabricated `{}` or `[]` to hide a missing upstream. A missing req
 
 These apply to all code under `backend/services/cts/`, `backend/routers/cts*.py`, and `backend/websocket/connection_manager.py`.
 
-### 16.1 Shared utilities (do not duplicate)
+### 17.1 Shared utilities (do not duplicate)
 
 Three files are the single authoritative source for previously-duplicated functions:
 
@@ -974,7 +974,7 @@ Import `PerCameraRateLimiter`, `CooldownTracker`, and `CameraBufferState` from
 `backend.services.aggregation`; do not reimplement per-camera token buckets or
 cooldown deadline math.
 
-### 16.2 Protocol-based dependency injection
+### 17.2 Protocol-based dependency injection
 
 CTS subscribers and services accept their dependencies through `__init__`. Use the protocol types from `backend.services.cts._types`, never `Any`:
 
@@ -994,11 +994,11 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
 
 `DBSessionFactory` is `Callable[[], Session]`. Use it for `db_factory` parameters.
 
-### 16.3 StreamConsumer contract
+### 17.3 StreamConsumer contract
 
 All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle()` signatures must match the base class exactly. The `decode` parameter `fields` uses `dict[bytes | str, bytes | str]` because Redis returns bytes keys and values when `decode_responses=False`.
 
-### 16.4 CTS isolation
+### 17.4 CTS isolation
 
 - CTS tables (`dementia_signals`, `cts_cameras`) are written only inside `services/cts/`.
 - **R2 / M33:** The four CTS filters (`room`, `room_transition`, `person_presence`, `scene_trend`) were migrated to `PersonLocationService` as the single source of truth (`presence_segments` / `location_observations`). The legacy tables (`person_location_state`, `person_location_history`, `person_sightings`), step-level write flags (`record_presence`, `record_sightings`), and `LocationWriter` were fully decommissioned and dropped in **M33**. No code may reference those deleted tables or writer.
@@ -1013,7 +1013,7 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 - All browser and MCP traffic to `rtsp-ingress` or `tracking-orchestrator` goes through CC routers. No direct access.
 - The `CtsEventBucketizer` (in-memory per-camera recent-frame buffer) is built by `CTSRuntime` and fed by `TrackingEventSubscriber.ingest` from the `tracking.events` stream (no new stream, no DB read, so it respects the isolation boundary). It reaches the `media_window_poll` step (CTS source) via `ServiceContainer.bucketizer`, injected **after** CTS bootstrap through the `PipelineExecutor.bucketizer` property (the executor is constructed before `CTSRuntime`; `backend/bootstrap/cts.py` sets `pipeline_executor.bucketizer = cts_runtime.bucketizer`). This is the same post-construction injection pattern as `_scheduler`. Steps read it via typed direct access (`services.bucketizer`), never `getattr`.
 
-### 16.5 Per-camera image rate limiting
+### 17.5 Per-camera image rate limiting
 
 - Rate limiting gates images only. CTS metadata remains full fidelity for trigger evaluation, location state, live views, and summaries.
 - Mark CTS frames with `image_eligible`; image consumers filter to eligible frames before per-rule downsampling.
@@ -1022,7 +1022,7 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 - Keep CTS frame references in memory. Never persist CTS-owned frame references to `MediaCache`.
 - Cognitive Companion deletes only its own reCamera objects. It never deletes CTS-owned MinIO objects.
 
-### 16.6 WebSocket security
+### 17.6 WebSocket security
 
 - The `/ws/cts` WebSocket reads the API key from `sec-websocket-protocol` header, not from a query parameter.
 - Frame image URLs (`GET /api/v1/cts/frames/{key}`) use query-param auth as a known limitation (browser `<img>` tags cannot set headers).
@@ -1041,7 +1041,7 @@ Extract duplicated view logic into composables under `frontend/src/composables/`
 | `useCtsWebSocket.js` | Ad-hoc WebSocket lifecycle with no reconnection; adds 3-second exponential backoff |
 | `usePHList.js` | PH list fetch, pagination, WS update handling |
 | `usePHDetail.js` | PH detail fetch (observations, trail, co-present) with `Promise.allSettled` |
-| `usePHCorrection.js` | PH correction/merge/split mutations with notify injection |
+| `useIdentityCorrection.js` | Identity correction targets, segment proposal, apply, compensation, and job polling for the Keyframes surface and the PH inspector |
 | `usePresenceTimeline.js` | Presence timeline fetch, dwell totals, WS live update, active segment timer |
 | `useWorldSnapshot.js` | World snapshot WS subscription, PH marker map, 30s trail buffer, inferred rooms |
 
@@ -1070,7 +1070,7 @@ export function useMyResource() {
 }
 ```
 
-**Never return flat named refs from a composable** (`return { items, total, loading, fetchItems }`). The `{ state, actions }` shape:
+**Return `state` and `actions`; read-only `computed` values may also be returned at the top level. Never return a raw `ref`, or a function outside `actions`** (`return { items, total, loading, fetchItems }` is wrong). The `{ state, actions }` shape:
 - Makes destructuring explicit: `const { state, actions } = useMyResource()`
 - Groups reactive data vs. functions clearly
 - Prevents naming collisions when multiple composables are used in the same view
@@ -1083,7 +1083,7 @@ export function useMyResource() {
   computed, object, or function under multiple names.
 - WS subscriptions are wired inside the composable body (not in the view)
 - Cleanup (timers, WS unsubscribe) uses `onUnmounted()` inside the composable
-- Composables never call `useNotify()` internally; they accept a `notify` callback if feedback is needed, or they export an `error` state field and let the view decide how to show it. Exception: `usePHCorrection.js` injects `useNotify()` directly since correction feedback is always immediate.
+- Composables never call `useNotify()` internally; they accept a `notify` callback if feedback is needed, or they export an `error` state field and let the view decide how to show it.
 
 Use design tokens (`var(--cc-*)`) or Vuetify theme colors for all CSS color values. Never hardcode hex values like `'#4CAF50'` or `'#fff'` in templates.
 

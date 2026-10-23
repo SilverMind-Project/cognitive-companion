@@ -6,7 +6,7 @@ description: "Use when implementing or changing the guided task companion: routi
 # Guided Companion
 
 Patterns for the always-on guided task companion (see
-`/home/sriram/code/nanai/cognitive-companion/guided-companion-m00-overview.md` for
+`/home/sriram/code/nanai/notes/cc/guided-companion/guided-companion-m00-overview.md` for
 the full decision ledger). This skill adds only what is specific to guided tasks.
 For naming, layering, testing, logging, time, and DB rules, follow
 `/home/sriram/code/nanai/cognitive-companion/.claude/skills/engineering-standards/SKILL.md`.
@@ -136,7 +136,7 @@ Select cameras for a vision check in this order: explicit `RoutineStep.camera_id
 
 **Never use `cts_camera.visibility_polygon` as a runtime correctness input**: it is normalised [0,1] image space and is wall-contaminated until Track G lands. Zone polygons are floor meters, the same space as `location_observation.floor_x_m/floor_y_m`; never compare a meter polygon against a normalised one without converting through the camera `homography_matrix`.
 
-**A floor point is written only when the source event carries real coordinates (M28, G15).** Absence of floor data is `None`, never `(0, 0)`: a synthetic origin point must not masquerade as a real floor position and silently poison zone lookup, zone-based camera selection, `zone_presence` completion, or the safety watch's expected-room check. Every ingestion path that can write a `FloorPoint` (`recamera_observation_subscriber.py`, `world_observation_subscriber.py`, and any future source) gates construction on an explicit `is not None` check of the real coordinate fields, never a `.get(key, 0.0)` default. `PersonLocationService.ingest_room_transition` has no floor-point parameters; a transition event's floor coordinates are dead data until a milestone actually persists them.
+**A floor point is written only when the source event carries real coordinates (M28, G15).** Absence of floor data is `None`, never `(0, 0)`: a synthetic origin point must not masquerade as a real floor position and silently poison zone lookup, zone-based camera selection, `zone_presence` completion, or the safety watch's expected-room check. Every ingestion path that can write a `FloorPoint` (`services/cts/world_observation_subscriber.py`, and any future source; the reCamera path, `services/person_location/face_sighting_ingest.py`, never writes floor points) gates construction on an explicit `is not None` check of the real coordinate fields, never a `.get(key, 0.0)` default. `PersonLocationService.ingest_room_transition` has no floor-point parameters; a transition event's floor coordinates are dead data until a milestone actually persists them.
 
 **`max_cameras` and `max_frames` are independent budgets (M28, G11).** The camera-cascade cap comes from `guided_task.vision.max_cameras` (default 3, overridable per profile via `vision.confirm.max_cameras` / `vision.watch.max_cameras`, resolved through `resolve_vision_override`). `max_frames` is the per-camera frame budget passed to the `GateProfile` for the poll nodes. Never pass one where the other belongs: many frames from few good cameras beats one frame from many cameras for VLM reasoning.
 

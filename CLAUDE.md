@@ -104,6 +104,7 @@ the hook test table; it is part of `make check` and CI.
 ```bash
 uv run --project backend uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 cd frontend && npm run dev
+make install-hooks  # once per clone: versioned git hooks (.githooks/) incl. Git LFS
 make check
 make check-all
 make test-integration

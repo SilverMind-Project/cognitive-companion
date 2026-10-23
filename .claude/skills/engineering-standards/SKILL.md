@@ -1217,6 +1217,8 @@ All CTS routers follow the same pattern:
 - `frontend/package-lock.json` is committed and used in CI via `npm ci` (never `npm install`).
 - `backend/uv.lock` is committed and used in CI via `uv sync --frozen --extra dev`.
 - Neither lock file is edited by hand. Update the lock with `npm install` (frontend) or `uv lock --upgrade` (backend), then commit the change.
+- The version bump on commits to `main` (`.githooks/pre-commit`, installed by `make install-hooks`) re-locks offline and stages `backend/uv.lock` with the bumped `pyproject.toml`, so the lock never trails the version. `frontend/openapi.json` pins `info.version` to `"contract"` (`backend/scripts/export_openapi.py`), so a bump never trips the contract drift gate.
+- Markdown has no em-dashes, enforced by `scripts/check-no-em-dash.sh` in the pre-commit hook, `make check-md` (in `make check`/`check-all`), and CI.
 - When the Node latest LTS patch changes, update `frontend/.nvmrc`, `frontend/package.json` engines, `frontend/Dockerfile`, and `frontend/package-lock.json` together. Verify with `nvm use $(cat frontend/.nvmrc)`, `npm run build`, `npm run test -- --reporter=dot`, and `npm audit --audit-level=high`.
 
 ### Dependency scanning

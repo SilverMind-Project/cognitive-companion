@@ -80,7 +80,7 @@ The card receives one batched server summary and shows:
 The card shows only effective identity after correction. The detail dialog shows original inference
 and revision history.
 
-### Authority-to-badge mapping (M07)
+### Authority-to-badge mapping
 
 `authority` is the bounded `IdentityAuthority` vocabulary produced by CTS
 (`operator | direct_face | posterior | temporal_prior | none`, plus `reid_gallery` reserved for a
@@ -145,7 +145,7 @@ The UI connects to the BFF's visitor endpoints, not the ReID endpoints. It displ
 ## Face calibration review surface
 
 `/admin/face-calibration` (People, Face Calibration) labels the faces person-id samples for
-household calibration (IR-M06). It is a biometric-admin surface, separate from visitor review:
+household calibration. It is a biometric-admin surface, separate from visitor review:
 
 - Every BFF route under `/api/v1/face-calibration` requires the strict token
   `face_calibration.review` (granted to `caregiver_admin` only). Do not widen it to a caregiver

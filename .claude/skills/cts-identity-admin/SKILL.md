@@ -96,10 +96,10 @@ alone:
 | `direct_face` | calibrated-face badge (`ArcFace`) |
 | `posterior` | face/ReID badge, chosen by `decision_source` |
 | `temporal_prior` | `Prior` |
-| `none` | no badge (deferred — `sourceBadge()` still falls back to the `decision_source` string rather than rendering nothing; the F9 leak-prevention property holds either way since `decision_source` is itself a bounded value, never an identity id) |
+| `none` | no badge (deferred: `sourceBadge()` still falls back to the `decision_source` string rather than rendering nothing; the F9 leak-prevention property holds either way since `decision_source` is itself a bounded value, never an identity id) |
 | `unknown` / `height_proxy` / `reid_gallery` | not handled as distinct cases; falls through to the `decision_source` string like `none` above. Never emitted by the current producer, so this is dormant, not untested-in-practice. |
 
-Never render an `authority` string verbatim as a person label — that was the F9 bug
+Never render an `authority` string verbatim as a person label; that was the F9 bug
 (`authority: "amma"`). `IdentityRevisionRange.authority` (`RevisionAuthority`: `operator | inferred`)
 is a distinct vocabulary from decision `authority` and must not be normalized through the same
 fallback path.

@@ -73,7 +73,7 @@ it (`memory_bridge` uses `ctx.now()`, the CTS subscriber uses the keyframe's `ca
 five frames produces five `person` detections in the flattened `scene_detections` list, so
 adding them reports five people. Use `person_count_from_frames()`
 (`backend/services/scene_intel/types.py`), which counts per frame and returns
-`(max, per_frame_counts)` — the max is an honest floor ("at least N present"). True dedup
+`(max, per_frame_counts)`: the max is an honest floor ("at least N present"). True dedup
 would need ReID across frames, which this path does not have. `None` means not counted and
 must stay distinguishable from `0` ("counted, room empty").
 

@@ -71,8 +71,8 @@ applies:
 18. Composables return `state` and `actions` (plus optional read-only `computed` values); never a
     raw `ref` or a function outside `actions`; one canonical key per value; test mocks reproduce
     the real return shape.
-19. Composables accept a `notify` callback or expose `state.error`; they do not call `useNotify()`
-    themselves.
+19. Composables accept a `notify` callback (checked with `requireNotify`) or expose `state.error`;
+    they do not call `useNotify()` themselves.
 20. Signal kinds come only from the generated vocabulary; presentation extras live in
     `constants/signalKinds.js` with a generic fallback for unknown kinds.
 

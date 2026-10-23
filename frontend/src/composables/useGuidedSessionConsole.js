@@ -1,6 +1,6 @@
 import { reactive, readonly, onUnmounted } from "vue";
 import { api } from "@/services/api.js";
-import { useNotify } from "@/composables/useNotify.js";
+import { requireNotify } from "@/composables/useNotify.js";
 import { openPipelineSocket } from "@/services/api.js";
 
 /**
@@ -8,8 +8,8 @@ import { openPipelineSocket } from "@/services/api.js";
  * Subscribes to guided_session_update / guided_escalation events via
  * the /ws/pipeline WebSocket (same reconnection pattern as useCtsWebSocket).
  */
-export function useGuidedSessionConsole(sessionId) {
-  const { notify } = useNotify();
+export function useGuidedSessionConsole(sessionId, { notify } = {}) {
+  requireNotify("useGuidedSessionConsole", notify);
 
   const state = reactive({
     loading: false,

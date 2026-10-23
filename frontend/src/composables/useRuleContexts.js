@@ -1,6 +1,6 @@
 import { ref, watch } from "vue";
 import { api } from "@/services/api.js";
-import { useNotify } from "@/composables/useNotify.js";
+import { requireNotify } from "@/composables/useNotify.js";
 
 export const CONTEXT_TYPE_ITEMS = [
   { label: "Room", value: "room" },
@@ -129,8 +129,8 @@ function seedCtxConfig(type) {
 }
 
 /** Context-filter dialog state and CRUD for a rule's context list. */
-export function useRuleContexts(ruleId, { onChanged } = {}) {
-  const { notify } = useNotify();
+export function useRuleContexts(ruleId, { onChanged, notify } = {}) {
+  requireNotify("useRuleContexts", notify);
 
   const ctxDialog = ref(false);
   const ctxForm = ref({ context_type: "room", config: {}, negate: false });

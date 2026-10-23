@@ -99,6 +99,7 @@ import RuleDependenciesPanel from "../../components/rules/RuleDependenciesPanel.
 import RuleExecutionsPanel from "../../components/rules/RuleExecutionsPanel.vue";
 import { useRuleDetail, TRIGGER_TYPES } from "../../composables/useRuleDetail.js";
 import { useRuleExecutions } from "../../composables/useRuleExecutions.js";
+import { useNotify } from "@/composables/useNotify.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -106,6 +107,7 @@ const ruleId = computed(() => Number(route.params.id));
 
 const tab = ref(route.query.tab === "liverun" ? "executions" : route.query.tab || "settings");
 
+const { notify } = useNotify();
 const {
   rule,
   form,
@@ -122,7 +124,7 @@ const {
   saveSettings,
   executeRule,
   exportRule,
-} = useRuleDetail(ruleId, router);
+} = useRuleDetail(ruleId, router, { notify });
 
 const { executions, execLoading, execHeaders, formatDate, openExecution } = useRuleExecutions(
   ruleId,

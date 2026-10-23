@@ -2,7 +2,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { cts } from "@/services/cts";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket.js";
 import { useLiveIdentityCache } from "@/composables/useLiveIdentityCache.js";
-import { useNotify } from "@/composables/useNotify.js";
+import { requireNotify } from "@/composables/useNotify.js";
 
 const STALE_THRESHOLD_S = 15;
 const SNAPSHOT_POLL_MS = 5_000;
@@ -22,8 +22,8 @@ function loadSelectedFromStorage() {
  * and staleness. `layout` is a ref to the current grid layout (1/4/9/16), read by
  * cameraIdForSlot for the per-layout slot-selection map.
  */
-export function useCtsLiveCameras(layout) {
-  const { notify } = useNotify();
+export function useCtsLiveCameras(layout, { notify } = {}) {
+  requireNotify("useCtsLiveCameras", notify);
   const { mergeIdentityCache, smoothKeypoints } = useLiveIdentityCache();
 
   const cameras = ref({});

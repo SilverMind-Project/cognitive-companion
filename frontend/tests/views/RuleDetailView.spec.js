@@ -48,7 +48,8 @@ vi.mock("@/services/api.js", () => ({
   },
 }));
 
-vi.mock("@/composables/useNotify.js", () => ({
+vi.mock("@/composables/useNotify.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   useNotify: () => ({ notify: mocks.notify }),
 }));
 

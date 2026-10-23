@@ -274,6 +274,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from "vue";
 import { useRoutineBuilder } from "@/composables/useRoutineBuilder.js";
+import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { api } from "@/services/api.js";
 import RoutineStepCard from "@/components/routines/RoutineStepCard.vue";
@@ -283,7 +284,8 @@ const props = defineProps({
   id: { type: String, required: true },
 });
 
-const { state, actions } = useRoutineBuilder();
+const { notify } = useNotify();
+const { state, actions } = useRoutineBuilder({ notify });
 const { confirmDialog, confirmText, require: confirmRequire, onConfirm, onCancel } = useConfirm();
 
 const rooms = ref([]);

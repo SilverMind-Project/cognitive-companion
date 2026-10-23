@@ -1,11 +1,11 @@
 import { reactive } from "vue";
 import { api } from "@/services/api.js";
-import { useNotify } from "@/composables/useNotify.js";
+import { requireNotify } from "@/composables/useNotify.js";
 
 export const POSITION_SAVE_DEBOUNCE_MS = 800;
 
-export function useCanvasPipeline(ruleId) {
-  const { notify } = useNotify();
+export function useCanvasPipeline(ruleId, { notify } = {}) {
+  requireNotify("useCanvasPipeline", notify);
 
   const state = reactive({
     nodes: [],

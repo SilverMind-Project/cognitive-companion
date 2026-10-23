@@ -1,6 +1,6 @@
 import { ref, computed, watch } from "vue";
 import { api } from "@/services/api.js";
-import { useNotify } from "@/composables/useNotify.js";
+import { requireNotify } from "@/composables/useNotify.js";
 import { getAppTimezone } from "@/services/timezone.js";
 
 export const TRIGGER_TYPES = [
@@ -25,8 +25,8 @@ export function sensorIcon(type) {
 }
 
 /** Rule settings, reference data (sensors/rooms/rules/persons), and the settings-tab actions. */
-export function useRuleDetail(ruleId, router) {
-  const { notify } = useNotify();
+export function useRuleDetail(ruleId, router, { notify } = {}) {
+  requireNotify("useRuleDetail", notify);
 
   const rule = ref(null);
   const form = ref({});

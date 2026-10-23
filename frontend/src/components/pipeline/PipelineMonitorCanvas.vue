@@ -81,6 +81,7 @@ import {
   useCanvasPipeline,
 } from "@/composables/useCanvasPipeline.js";
 import { useLivePipeline } from "@/composables/useLivePipeline.js";
+import { useNotify } from "@/composables/useNotify.js";
 import { api } from "@/services/api.js";
 import StepNode from "./nodes/StepNode.vue";
 import { useCanvasMiniMapSize } from "./useCanvasMiniMapSize.js";
@@ -110,8 +111,9 @@ const historicState = reactive({
 const historicDetail = ref(null);
 const historicGraphAvailable = ref(true);
 
+const { notify } = useNotify();
 const liveCanvas =
-  props.source === "live" ? useCanvasPipeline(props.ruleId) : { state: historicState };
+  props.source === "live" ? useCanvasPipeline(props.ruleId, { notify }) : { state: historicState };
 const livePipeline =
   props.source === "live"
     ? useLivePipeline()

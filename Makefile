@@ -158,16 +158,29 @@ frontend-lint:
 test-integration:
 	$(PYTEST) -m integration backend/tests/integration -v
 
+# Markdown has no em-dashes (self-test, then every tracked .md).
+.PHONY: check-md
+check-md:
+	bash scripts/check-no-em-dash.sh --self-test
+	bash scripts/check-no-em-dash.sh
+
+# Versioned git hooks (.githooks/): the version bump with re-lock, and the em-dash check.
+# git lfs update --force writes the Git LFS hooks into the same directory.
+.PHONY: install-hooks
+install-hooks:
+	git config core.hooksPath .githooks
+	git lfs update --force
+
 # Claude Code hook test table (.claude/hooks/tests/run.sh); needs bash, jq, and git.
 .PHONY: hooks-test
 hooks-test:
 	bash .claude/hooks/tests/run.sh
 
 .PHONY: check
-check: lint typecheck-core typecheck-ratchet test-core hooks-test
+check: lint typecheck-core typecheck-ratchet test-core hooks-test check-md
 
 .PHONY: check-all
-check-all: lint import-lint typecheck-core typecheck-ratchet test hooks-test frontend-lint frontend-typecheck frontend-test
+check-all: lint import-lint typecheck-core typecheck-ratchet test hooks-test check-md frontend-lint frontend-typecheck frontend-test
 
 .PHONY: migrate
 migrate:

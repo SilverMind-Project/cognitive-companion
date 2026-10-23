@@ -18,12 +18,18 @@ by the determinism test).
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_PATH = REPO_ROOT / "frontend" / "openapi.json"
+
+# The committed document's info.version. The app version changes on every commit to main
+# (the version-bump git hook), so embedding it made the contract drift gate fail after every
+# commit. The browser reads the running version from the app-info endpoint, not from here.
+CONTRACT_DOCUMENT_VERSION = "contract"
 
 # Allow running as `python backend/scripts/export_openapi.py` (adds the script's own
 # directory to sys.path, not the repo root) as well as `-m` / pytest-style invocation.
@@ -38,7 +44,9 @@ def build_spec() -> dict:
     """
     from backend.main import app
 
-    return app.openapi()
+    spec = copy.deepcopy(app.openapi())
+    spec["info"]["version"] = CONTRACT_DOCUMENT_VERSION
+    return spec
 
 
 def render(spec: dict) -> str:

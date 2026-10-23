@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Versioned pre-commit hook (installed by `make install-hooks`, which sets core.hooksPath).
+#
+# 1. On every commit: refuse staged markdown containing an em-dash (before any side effect).
+# 2. On commits to main: bump the patch component of __version__ in backend/_version.py and
+#    backend/pyproject.toml, re-lock (only the project's own version line in uv.lock changes;
+#    offline, so it needs no network), and stage all three, so the bump never leaves uv.lock
+#    behind for the next `uv run` to rewrite.
+
+set -euo pipefail
+
+# The em-dash check runs first, so a refused commit leaves no version bump behind.
+mapfile -t staged_md < <(git diff --cached --name-only --diff-filter=ACM -- '*.md')
+if [[ "${#staged_md[@]}" -gt 0 ]]; then
+  bash scripts/check-no-em-dash.sh "${staged_md[@]}"
+fi
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || true)
+if [[ "$branch" == "main" ]]; then
+  VERSION_FILE="backend/_version.py"
+  PYPROJECT="backend/pyproject.toml"
+  LOCK="backend/uv.lock"
+
+  current=$(grep -oP '(?<=__version__ = ")[^"]+' "$VERSION_FILE")
+  if [[ -z "$current" ]]; then
+    echo "pre-commit: could not read version from $VERSION_FILE" >&2
+    exit 1
+  fi
+
+  IFS='.' read -r major minor patch <<< "$current"
+  patch=$((patch + 1))
+  new="${major}.${minor}.${patch}"
+
+  sed -i "s/__version__ = \"${current}\"/__version__ = \"${new}\"/" "$VERSION_FILE"
+  sed -i "s/^version = \"${current}\"/version = \"${new}\"/" "$PYPROJECT"
+
+  if ! uv lock --offline --project backend >/dev/null 2>&1; then
+    echo "pre-commit: uv lock --offline --project backend failed after the version bump;" >&2
+    echo "pre-commit: run it by hand to see why (the bump was applied but not committed)." >&2
+    exit 1
+  fi
+
+  git add "$VERSION_FILE" "$PYPROJECT" "$LOCK"
+  echo "pre-commit: version bumped ${current} -> ${new} (uv.lock re-locked)"
+fi

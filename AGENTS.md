@@ -14,6 +14,13 @@ Load and follow these skills from `.claude/skills/` when the work matches the sc
 | `front-end` | Any Vue, Vuetify, router, layout, drawer, dialog, or CSS change | Use `--cc-*` design tokens, stable layouts, real router tests, right drawer standards, no hardcoded colors |
 | `data-visualization` | Charts, execution graphs, monitoring panels, spatial overlays, or data-heavy UI | Use shared ECharts components for charts, `useChartTheme`, explicit loading, empty, and error states. Vue Flow is only for the interactive pipeline canvas |
 | `bff-api-design` | Any browser-visible API endpoint, BFF schema, or UI data contract | Define one Pydantic envelope, implement service logic once, expose router and MCP from the same service function when applicable, add auth and parity tests |
+| `cts-identity-admin` | CTS keyframe identity displays, Person Hypothesis correction workflows, ReID review, identity provenance APIs | Server-owned identity semantics, explicit `Set to Unknown`, one correction-target endpoint |
+| `daily-living` | Daily-living detection, the activity ledger, hygiene and intent signals, semantic-memory writes, rule bundles, inference load | Typed ledger rows not captions, one semantic-memory write seam, shadow-first detectors |
+| `guided-companion` | Routines, the guided-task state machine, interactive sessions, completion evaluators, safety watch, escalation, guided MCP tools | Deterministic state machine, injectable clock, reuse the interactive-session primitives |
+
+Each skill's `SKILL.md` holds its rules as one-liners; `engineering-standards` and `front-end`
+keep the detail in a `reference/` directory beside it. Cross-cutting rules (markdown, comments,
+time, the Python environment, migrations) live in `.claude/rules/` and load for matching files.
 
 ## Mission and scope
 

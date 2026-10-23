@@ -22,7 +22,7 @@ Operational telemetry endpoints still use one service function but are exempt fr
 
 ### 1. Define the response envelope
 
-Create or extend a Pydantic v2 model in `backend/schemas/`. If the data carries quality metadata from CTS, add the four standard fields (see engineering-standards skill section 21):
+Create or extend a Pydantic v2 model in `backend/schemas/`. If the data carries quality metadata from CTS, add the four standard fields (see the engineering-standards skill, `reference/layering-and-wiring.md`, "Unified envelope pattern"):
 
 ```python
 # backend/schemas/my_resource.py
@@ -101,7 +101,7 @@ route that omits it. A route returning 204 has no body and needs none.
 
 Two routes may not share a `(path, method)`: Starlette serves the first registered and the
 second becomes unreachable while its own tests, which mount the router in isolation, stay green
-(C17). `backend/tests/routers/test_route_uniqueness.py` gates this against the composed app.
+. `backend/tests/routers/test_route_uniqueness.py` gates this against the composed app.
 
 ### 5. Export the contract artifacts
 

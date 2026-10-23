@@ -22,6 +22,11 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 | `.claude/skills/guided-companion/SKILL.md` | Guided routines, the guided-task state machine, interactive sessions, completion evaluators, the safety watch, escalation, and guided-task MCP tools |
 | `/home/sriram/code/nanai/.claude/skills/nanai-workspace/SKILL.md` | Any change spanning more than one repository: repo map, gates, proto two-repo rule, milestone workflow |
 
+Each `SKILL.md` lists its rules as one-liners; `engineering-standards` and `front-end` keep the
+detail in `reference/` beside it and say which file to read when. Cross-cutting rules (markdown,
+comments, time, the Python environment, migrations) are in `.claude/rules/` and load for matching
+files.
+
 ## Current stack
 
 - Backend: Python 3.14, FastAPI, SQLAlchemy 2.0, Pydantic 2.

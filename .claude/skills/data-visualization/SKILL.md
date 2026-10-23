@@ -1,6 +1,7 @@
 ---
 name: data-visualization
 description: "Use when presenting charts, mobility trends, dashboards, execution graphs, spatial overlays, provenance, or other data-heavy Cognitive Companion UI."
+paths: ["**/frontend/**"]
 ---
 
 # Data Visualisation
@@ -140,7 +141,7 @@ export function usePresenceTimeline() {
 }
 ```
 
-### 5. Display quality and provenance (D5)
+### 5. Display quality and provenance
 
 Whenever the data has a `quality`, `confidence`, `source`, or `staleness_seconds` field from a `PersonLocationEnvelope`, display it with `CcProvenanceBadge`. Never compute these values client-side.
 

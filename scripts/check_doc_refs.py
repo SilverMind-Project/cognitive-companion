@@ -63,7 +63,7 @@ EXTENSIONS = (
 BACKTICK = re.compile(r"`([^`\n]+)`")
 ABSOLUTE = re.compile(r"(/home/sriram/code/nanai/[A-Za-z0-9_./-]+)")
 PLACEHOLDER = re.compile(
-    r"NNNN|\bmy_|my-resource|Foo|NewResource|PascalCase|camelCase|snake_case|<[^>]*>|[*{}$]|"
+    r"NNNN|my_|my-resource|Foo|NewResource|PascalCase|camelCase|snake_case|<[^>]*>|[*{}$]|"
     r"\.\.\.|_hooktest|\bxxx\b|example",
 )
 
@@ -111,8 +111,8 @@ def candidate(token: str) -> str | None:
     for alias, target in ALIASES.items():
         if token.startswith(alias):
             token = target + token[len(alias) :]
-    if token.startswith(".") and "/" not in token:
-        return None  # a bare extension such as `.py` or `.up.sql`
+    if token.startswith((".", "_")) and "/" not in token:
+        return None  # a bare extension or suffix such as `.py`, `.up.sql`, or `_pb2.py`
     if Path(token).name in ALLOWED_MISSING:
         return None
     if token.startswith("/") and not token.startswith(WORKSPACE_PREFIX):
@@ -122,7 +122,7 @@ def candidate(token: str) -> str | None:
     return token
 
 
-def resolves(token: str, root: Path, names: set[str]) -> bool | None:
+def resolves(token: str, root: Path, names: set[str], doc: Path) -> bool | None:
     """True if found, False if missing, None if it cannot be checked here."""
     if token.startswith(WORKSPACE_PREFIX):
         return Path(token).exists() if Path(WORKSPACE_PREFIX).is_dir() else None
@@ -131,11 +131,22 @@ def resolves(token: str, root: Path, names: set[str]) -> bool | None:
         sibling = root.parent / first
         return (root.parent / token).exists() if sibling.is_dir() else None
     if token.startswith("../"):
+        if (doc.parent / token).exists():
+            return True
         target = (root / token).resolve()
         return target.exists() if target.parent.parent.is_dir() else None
     for base in RESOLVE_ROOTS:
         if (root / base / token).exists():
             return True
+    # Relative to the referring document, its skill directory, or any skill (a skill's
+    # `reference/` files are cited from sibling skills as `reference/<file>.md`).
+    local_bases = [doc.parent, *[p for p in doc.parents if (p / "SKILL.md").is_file()]]
+    if any((base / token).exists() for base in local_bases):
+        return True
+    if any(
+        (skill / token).exists() for skill in (root / ".claude" / "skills").glob("*")
+    ):
+        return True
     if "/" not in token:
         return token in names
     # A path written relative to some nested package directory: accept a unique suffix match.
@@ -176,7 +187,7 @@ def check(root: Path) -> list[str]:
                 token = candidate(raw)
                 if token is None:
                     continue
-                if resolves(token, root, names) is False:
+                if resolves(token, root, names, doc) is False:
                     problems.append(f"{doc.relative_to(root)}:{lineno}: {token}")
     return sorted(set(problems))
 

@@ -14,7 +14,7 @@ layering, testing, logging, time, and DB rules, follow
 For guided-session memory writes specifically, also load
 `/home/sriram/code/nanai/cognitive-companion/.claude/skills/guided-companion/SKILL.md` section 13a.
 
-## 1. The three-layer memory architecture (DL2)
+## 1. The three-layer memory architecture
 
 Three stores, three jobs. Never let one answer another's question:
 
@@ -34,7 +34,7 @@ answered by semantic search over captions. The MCP tools `get_daily_report`,
 
 ## 2. Writing memory
 
-### The `scene_intel` seam (DL8, DL-M02)
+### The `scene_intel` seam
 
 Every CC write to semantic memory goes through `backend/services/scene_intel/`
 (`SceneIntelService.persist_observation` / `persist_movements`, or the composed `persist` for
@@ -95,11 +95,11 @@ forbidden; they would blur search with noise no caregiver query needs. The descr
 deterministic template (`build_episode_description`): outcome, duration, local start hour,
 step ordinals by outcome, retries, escalation count.
 
-### The completed-only ledger rule (DL9)
+### The completed-only ledger rule
 
 A guided session writes an `ActivitySession` row (`_write_ledger`) only when
 `session.status == "completed"` **and** `routine.activity_type` is set. An abandoned or failed
-session never writes a ledger row, even if the routine has an `activity_type`. Rationale (DL9):
+session never writes a ledger row, even if the routine has an `activity_type`. Rationale:
 a false "she took her medication" from an interrupted session is a care-safety hazard, not a
 data-quality nicety; honesty about evidence grade is load-bearing. The same rule applies to
 rule-bundle-driven ledger writes (`activity_session_start`/`_end` steps): they open/close
@@ -142,7 +142,7 @@ dropped `closed_via` for exactly the rows that carry metadata. Both sites now re
 
 ## 3. Detectors
 
-### Rule-bundle mechanism and placeholder convention (DL-M04)
+### Rule-bundle mechanism and placeholder convention
 
 Detectors ship as importable single-rule `RuleBundle` JSON documents under
 `config/rule_bundles/` (one file per rule; the schema is single-rule, so a milestone's "one
@@ -154,7 +154,7 @@ into a checked-in bundle. Existing examples:
 `config/rule_bundles/daily_living_tv_open.json`, `daily_living_meal_open.json`,
 `daily_living_tea_intent_shadow.json`, `daily_living_hygiene_confirm.json`.
 
-### Shadow-first lifecycle and flip gates (DL10)
+### Shadow-first lifecycle and flip gates
 
 Every new detector ships notify-only or emission-off, with a measurement path in the same
 milestone, and flips on only after measurement supports it. Flips are config changes, never
@@ -199,7 +199,7 @@ Accurate/Inaccurate/Unsure feedback buttons persist (`SignalStore.acknowledge()`
 feedback for that grade). Current registry (`CC_LOCAL_SIGNAL_KINDS`):
 `inferred_dwell_exceeded`, `tea_intent_suspected`, `hygiene_routine_missed`.
 
-### The prefilter-confirm-join shape (DL-M08)
+### The prefilter-confirm-join shape
 
 Cross-system detectors that combine a cheap CTS-side signal with a CC-side confirmation follow
 one shape: cheap upstream signal (CTS emits a wire kind, e.g. `same_clothes_suspected`) -> one
@@ -212,14 +212,14 @@ notification; it is calibration data for the CTS-side threshold, not a code path
 around. `daily_living_hygiene_confirm.json` is the reference bundle; it is also the first
 `dementia_signal`-triggered rule with real pipeline steps, which is why
 `PipelineExecutor.fire_event()` and `resolve_person_id()`'s `trigger_event` fallback tier exist
-(see engineering-standards skill section 27).
+(see the engineering-standards skill, `reference/pipelines-and-plugins.md`, "CC-local signals and shadow-mode detectors").
 
 ## 4. Signal kinds table
 
 | Kind | Producer | Vocabulary | Evidence contract | Feedback |
 | --- | --- | --- | --- | --- |
 | `tea_intent_suspected` | CC, `daily_living_tea_intent_shadow` rule bundle (`signal_emit`) | CC-local | Notification with a snapshot frame URL interpolated into the message text (no Telegram image attachment path built for this kind) | Accurate/Not agitation/Unsure via `SignalsPanel.vue`; precision SQL above |
-| `same_clothes_suspected` | CTS, daily appearance-profile evaluator (DL-M07) | `cts_contracts.DementiaSignalKind` (wire) | Day-over-day quality-weighted PH `gallery_mean` centroid cosine similarity above `hygiene.same_clothes.similarity_threshold` (0.90 default); requires `hygiene.same_clothes.min_samples_per_day` (5 default) quality-weighted samples per day or emits no verdict | Backtested against historical data before live emission (DL-M07); live flip blocked on the backtest data gap as of the last verified state, re-check `daily-living-m07-*.md`'s own dated notes before assuming it is flipped |
+| `same_clothes_suspected` | CTS, daily appearance-profile evaluator | `cts_contracts.DementiaSignalKind` (wire) | Day-over-day quality-weighted PH `gallery_mean` centroid cosine similarity above `hygiene.same_clothes.similarity_threshold` (0.90 default); requires `hygiene.same_clothes.min_samples_per_day` (5 default) quality-weighted samples per day or emits no verdict | Backtested against historical data before live emission; live flip blocked on the backtest data gap as of the last verified state, re-check `daily-living-m07-*.md`'s own dated notes before assuming it is flipped |
 | `hygiene_routine_missed` | CC, `daily_living_hygiene_confirm` rule bundle (`signal_emit`, joins CTS's signal with the shower proxy) | CC-local | VLM comparison of the two days' best keyframe crops (`media_presign` step) plus the bathroom-dwell shower proxy (`presence_query`'s `room_dwell_history` mode over `PersonLocationService.dwell_episodes`); alert fires only when clothes match AND no qualifying bathroom dwell in the lookback window (`hygiene.shower.window_hours`, 26h default) | Same generic experimental-grade feedback path as any CC-local kind |
 
 `ALL_SIGNAL_KINDS` (`backend/services/cts/signal_config.py`) derives dynamically from
@@ -227,7 +227,7 @@ around. `daily_living_hygiene_confirm.json` is the reference bundle; it is also 
 one of those two places, never both, and preset profile membership guard tests assert every
 profile member is in `ALL_SIGNAL_KINDS`.
 
-## 5. Inference budget (DL5)
+## 5. Inference budget
 
 One DGX Spark serves the whole model zoo for 9-12 cameras. Cheap-first, admission-controlled:
 
@@ -306,8 +306,8 @@ building on either.
    generic fallback for an unknown kind.
 3. **Charts**: shared `Cc*` components (`frontend/src/components/charts/`) with
    `useChartTheme`; never a hand-rolled ECharts option.
-4. **Admin cards**: mirror `CcDailyLivingHealthCard.vue` (DL-M01) and
-   `CcInferenceTelemetryCard.vue` (DL-M09) -- a `use<Name>.js` composable, `CcSectionCard`
+4. **Admin cards**: mirror `CcDailyLivingHealthCard.vue` and
+   `CcInferenceTelemetryCard.vue` -- a `use<Name>.js` composable, `CcSectionCard`
    wrapper, `CcMetricTile` with a `status` prop for stale/error states.
 5. **Modals** use `AppDialog`; **tests** are Vitest specs under `frontend/tests/` mirroring the
    `src/` path, not a build-only justification, for any component or composable with logic.

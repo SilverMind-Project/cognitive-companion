@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Export backend-canonical controlled vocabularies to a generated frontend artifact.
 
-The backend is the single source of truth for step types, filter types, channel types, and CTS
-signal kinds (`ALL_SIGNAL_KINDS`). This script writes `frontend/src/generated/vocabularies.json`
+The backend is the single source of truth for step types, filter types, channel types, CTS
+signal kinds (`ALL_SIGNAL_KINDS`, with the CTS wire subset `WIRE_SIGNAL_KINDS`), and MCP tools with the permission token each requires.
+The public documentation site reads `mcp_tools` from this file to check its tool counts. This script writes `frontend/src/generated/vocabularies.json`
 for frontend code paths that need synchronous constants (palette fallbacks, select options,
 tests) and cannot await a network call. Output is deterministic (sorted keys, sorted lists,
 `indent=2`, trailing newline) so `make vocabularies` followed by `git diff --exit-code` is a
@@ -27,7 +28,8 @@ if str(REPO_ROOT) not in sys.path:
 def build_vocabularies() -> dict:
     from backend.channels import ChannelRegistry
     from backend.filters import FilterRegistry
-    from backend.services.cts.signal_config import ALL_SIGNAL_KINDS
+    from backend.mcp.server import _tool_handlers, tool_token
+    from backend.services.cts.signal_config import ALL_SIGNAL_KINDS, WIRE_SIGNAL_KINDS
     from backend.steps import StepRegistry
 
     StepRegistry.discover()
@@ -51,6 +53,9 @@ def build_vocabularies() -> dict:
         "filter_types": sorted(FilterRegistry.all_names()),
         "channel_types": sorted(ChannelRegistry.all_names()),
         "signal_kinds": sorted(ALL_SIGNAL_KINDS),
+        "wire_signal_kinds": sorted(WIRE_SIGNAL_KINDS),
+        "mcp_tools": sorted(_tool_handlers),
+        "mcp_tool_tokens": {name: tool_token(name) for name in sorted(_tool_handlers)},
     }
 
 

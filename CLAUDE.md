@@ -87,6 +87,19 @@ The admin UI surface is `/admin/executions`. `/admin/workflows` and `/admin/acti
 Use `GET /api/v1/media/aggregators` and `/admin/camera-media` for live camera
 buffer and rate-limit telemetry across both aggregation paths.
 
+## Cross-repository contracts
+
+- **Proto:** CTS owns `continuous-tracking/proto/`; its `make proto` regenerates
+  `backend/integrations/proto/`. A proto change updates producers and consumers in both
+  repositories in one change set; never hand-edit the bindings.
+- **Settings coupling:** `cts.revision_horizon_s` mirrors CTS `resolver.revision_horizon_s`;
+  change both together.
+- **Face wire contract:** `backend/integrations/person_id_client.py` consumes
+  person-identification-service; a `FaceDetection` field change lands in both repositories
+  together.
+- **Signal kinds:** wire kinds come from `cts-contracts`; CC-local kinds live in
+  `backend/services/cts/signal_config.py`.
+
 ## Claude Code guardrails
 
 Start sessions in this directory (or `/cd` here): `.claude/settings.json` applies only from the

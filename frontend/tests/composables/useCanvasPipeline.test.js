@@ -12,17 +12,12 @@ const mocks = vi.hoisted(() => ({
     deleteRuleStep: vi.fn(),
     batchUpdateStepPositions: vi.fn(),
   },
-  notify: {
-    error: vi.fn(),
-  },
+  // Same shape as useNotify().notify: callable, with per-severity methods.
+  notify: Object.assign(vi.fn(), { error: vi.fn() }),
 }));
 
 vi.mock("@/services/api.js", () => ({
   api: mocks.api,
-}));
-
-vi.mock("@/composables/useNotify.js", () => ({
-  useNotify: () => ({ notify: mocks.notify }),
 }));
 
 import {
@@ -53,7 +48,7 @@ function mountComposable(ruleId = 42) {
   let result;
   const Wrapper = defineComponent({
     setup() {
-      result = useCanvasPipeline(ruleId);
+      result = useCanvasPipeline(ruleId, { notify: mocks.notify });
       return () => h("div");
     },
   });

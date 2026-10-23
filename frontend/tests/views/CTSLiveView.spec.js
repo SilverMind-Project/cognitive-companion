@@ -48,8 +48,12 @@ vi.mock("@/composables/useAnnotationStyle.js", () => ({
   postureColor: () => "red",
 }));
 
-vi.mock("@/composables/useNotify.js", () => ({
-  useNotify: () => ({ notify: { info: mocks.notifyInfo, error: vi.fn(), success: vi.fn() } }),
+vi.mock("@/composables/useNotify.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  // Same shape as useNotify().notify: callable, with per-severity methods.
+  useNotify: () => ({
+    notify: Object.assign(vi.fn(), { info: mocks.notifyInfo, error: vi.fn(), success: vi.fn() }),
+  }),
 }));
 
 vi.mock("@/components/marauders/MaraudersInkBox.vue", () => ({

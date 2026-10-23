@@ -75,6 +75,7 @@
 <script setup>
 import { toRef } from "vue";
 import { useRuleDependencies } from "@/composables/useRuleDependencies.js";
+import { useNotify } from "@/composables/useNotify.js";
 
 const props = defineProps({
   ruleId: { type: Number, required: true },
@@ -85,7 +86,9 @@ const props = defineProps({
 const emit = defineEmits(["changed"]);
 
 const ruleId = toRef(props, "ruleId");
+const { notify } = useNotify();
 const { depDialog, depForm, addDep, deleteDep } = useRuleDependencies(ruleId, {
   onChanged: () => emit("changed"),
+  notify,
 });
 </script>

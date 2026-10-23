@@ -61,6 +61,7 @@
 import { toRef } from "vue";
 import ContextFilterDialog from "./ContextFilterDialog.vue";
 import { useRuleContexts, ctxIcon, ctxSummary } from "@/composables/useRuleContexts.js";
+import { useNotify } from "@/composables/useNotify.js";
 
 const props = defineProps({
   ruleId: { type: Number, required: true },
@@ -71,6 +72,10 @@ const props = defineProps({
 const emit = defineEmits(["changed"]);
 
 const ruleId = toRef(props, "ruleId");
+const { notify } = useNotify();
 const { ctxDialog, ctxForm, ctxConfigStr, openCtxDialog, addContext, deleteContext } =
-  useRuleContexts(ruleId, { onChanged: () => emit("changed") });
+  useRuleContexts(ruleId, {
+    onChanged: () => emit("changed"),
+    notify,
+  });
 </script>

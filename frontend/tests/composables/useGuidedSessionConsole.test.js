@@ -31,9 +31,8 @@ vi.mock("@/services/api.js", () => ({
   },
 }));
 
-vi.mock("@/composables/useNotify.js", () => ({
-  useNotify: () => ({ notify: { success: vi.fn(), error: vi.fn() } }),
-}));
+// Same shape as useNotify().notify: callable, with per-severity methods.
+const notify = Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() });
 
 import { useGuidedSessionConsole } from "../../src/composables/useGuidedSessionConsole.js";
 
@@ -41,7 +40,7 @@ function mountComposable(sessionId = "7") {
   let result;
   const Wrapper = defineComponent({
     setup() {
-      result = useGuidedSessionConsole(sessionId);
+      result = useGuidedSessionConsole(sessionId, { notify });
       return () => h("div");
     },
   });

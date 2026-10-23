@@ -18,6 +18,13 @@ import eslintConfigPrettier from "eslint-config-prettier";
 // applies to its file set; selectors are named constants below so the same
 // selector object is reused (not retyped) everywhere it needs to apply.
 
+const NO_USE_NOTIFY_IN_COMPOSABLE = {
+  selector: "CallExpression[callee.name='useNotify']",
+  message:
+    "Composables take the view's notifier: accept { notify } and check it with " +
+    "requireNotify(...). The view calls useNotify() and passes notify in.",
+};
+
 const NO_LOCALSTORAGE_API_KEY = {
   selector:
     "CallExpression[callee.object.name='localStorage']" +
@@ -115,9 +122,26 @@ export default withVueTs(
     },
   },
   {
+    // Front-end rule 19: feedback belongs to the view, so a composable never calls useNotify().
+    files: ["src/composables/**/*.{js,ts}"],
+    ignores: ["src/composables/useNotify.js"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        NO_REQUIRE_ECHARTS,
+        NO_LOCALSTORAGE_API_KEY,
+        NO_USE_NOTIFY_IN_COMPOSABLE,
+      ],
+    },
+  },
+  {
     // Rule 17 (was tests/r4_bypass_guard.spec.js): components and views must go
     // through services/cts.js, never raw fetch(), inside the CTS admin surface.
-    files: ["src/components/cts/**/*.vue", "src/views/admin/**/*.vue", "src/views/medical/**/*.vue"],
+    files: [
+      "src/components/cts/**/*.vue",
+      "src/views/admin/**/*.vue",
+      "src/views/medical/**/*.vue",
+    ],
     rules: {
       "no-restricted-syntax": [
         "error",

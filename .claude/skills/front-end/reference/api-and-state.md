@@ -55,7 +55,7 @@ export function useMyResource() {
   computed, object, or function under multiple names.
 - WS subscriptions are wired inside the composable body (not in the view)
 - Cleanup (timers, WS unsubscribe) uses `onUnmounted()` inside the composable
-- Composables never call `useNotify()` internally; they accept a `notify` callback if feedback is needed, or they export an `error` state field and let the view decide how to show it.
+- Composables never call `useNotify()` internally; they accept a `notify` callback if feedback is needed (`useThing(id, { notify })`, checked with `requireNotify("useThing", notify)` from `useNotify.js` so a missing notifier fails at construction), or they export an `error` state field and let the view decide how to show it. The view calls `const { notify } = useNotify();` and passes it. Test fakes keep the real shape: `Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() })`.
 
 Use design tokens (`var(--cc-*)`) or Vuetify theme colors for all CSS color values. Never hardcode hex values like `'#4CAF50'` or `'#fff'` in templates.
 

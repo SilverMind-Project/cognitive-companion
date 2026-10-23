@@ -1,14 +1,14 @@
 import { reactive, readonly } from "vue";
 import { api } from "@/services/api.js";
-import { useNotify } from "@/composables/useNotify.js";
+import { requireNotify } from "@/composables/useNotify.js";
 
 /**
  * State + actions for the Routine Builder view.
  * Manages a single routine with its ordered steps as a local edit buffer.
  * Persists steps via PUT /routines/{id}/steps.
  */
-export function useRoutineBuilder() {
-  const { notify } = useNotify();
+export function useRoutineBuilder({ notify } = {}) {
+  requireNotify("useRoutineBuilder", notify);
 
   const state = reactive({
     loading: false,

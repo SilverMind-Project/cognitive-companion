@@ -1,10 +1,10 @@
 import { ref } from "vue";
 import { api } from "@/services/api.js";
-import { useNotify } from "@/composables/useNotify.js";
+import { requireNotify } from "@/composables/useNotify.js";
 
 /** Dependency dialog state and CRUD for a rule's dependency list. */
-export function useRuleDependencies(ruleId, { onChanged } = {}) {
-  const { notify } = useNotify();
+export function useRuleDependencies(ruleId, { onChanged, notify } = {}) {
+  requireNotify("useRuleDependencies", notify);
 
   const depDialog = ref(false);
   const depForm = ref({ parent_rule_id: 0, lookback_minutes: 30, require_success: true });

@@ -21,9 +21,8 @@ const mockApi = vi.hoisted(() => ({
 }));
 
 vi.mock("@/services/api.js", () => ({ api: mockApi }));
-vi.mock("@/composables/useNotify.js", () => ({
-  useNotify: () => ({ notify: { success: vi.fn(), error: vi.fn() } }),
-}));
+// Same shape as useNotify().notify: callable, with per-severity methods.
+const notify = Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() });
 
 import { useRoutineBuilder } from "../../src/composables/useRoutineBuilder.js";
 
@@ -31,7 +30,7 @@ function mountComposable() {
   let result;
   const Wrapper = defineComponent({
     setup() {
-      result = useRoutineBuilder();
+      result = useRoutineBuilder({ notify });
       return () => h("div");
     },
   });

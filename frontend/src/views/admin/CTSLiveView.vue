@@ -83,6 +83,7 @@ import { ref, computed } from "vue";
 import { useDisplaySrc, useBlurMode } from "@/composables/useBlurMode.js";
 import { useMaraudersMode } from "@/composables/useMaraudersMode.js";
 import { useCtsLiveCameras } from "@/composables/useCtsLiveCameras.js";
+import { useNotify } from "@/composables/useNotify.js";
 import { useMultiCameraLinks } from "@/composables/useMultiCameraLinks.js";
 import { cts } from "@/services/cts";
 import LiveToolbar from "@/components/cts/live/LiveToolbar.vue";
@@ -114,6 +115,7 @@ const showPosture = ref(true);
 const { blurMode } = useBlurMode();
 const { displaySrc } = useDisplaySrc(blurMode);
 
+const { notify } = useNotify();
 const {
   cameras,
   snapshotUrls,
@@ -125,7 +127,7 @@ const {
   onFrameError,
   isCameraStale,
   staleLabel,
-} = useCtsLiveCameras(layout);
+} = useCtsLiveCameras(layout, { notify });
 
 const {
   multiCameraIdentities,

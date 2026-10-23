@@ -207,7 +207,7 @@ async function validateGate() {
   }
 }
 const { notify } = useNotify();
-const { state, actions } = useCanvasPipeline(props.ruleId);
+const { state, actions } = useCanvasPipeline(props.ruleId, { notify });
 const { fitView, screenToFlowCoordinate, onNodesInitialized } = useVueFlow();
 
 // Node geometry (matches StepNode width and approximate height) used to centre

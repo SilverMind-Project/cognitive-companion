@@ -216,13 +216,15 @@
 <script setup>
 import { ref, computed } from "vue";
 import { useGuidedSessionConsole } from "@/composables/useGuidedSessionConsole.js";
+import { useNotify } from "@/composables/useNotify.js";
 import { formatTimeOnly } from "@/services/timezone.js";
 
 const props = defineProps({
   id: { type: String, required: true },
 });
 
-const { state, actions } = useGuidedSessionConsole(props.id);
+const { notify } = useNotify();
+const { state, actions } = useGuidedSessionConsole(props.id, { notify });
 
 const sayText = ref("");
 

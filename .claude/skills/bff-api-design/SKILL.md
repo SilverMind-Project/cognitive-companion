@@ -61,12 +61,12 @@ async def get_my_resource(resource_id: str) -> MyResourceEnvelope:
     )
 ```
 
-### 3. Wire the service in the lifespan
+### 3. Wire the service in a bootstrap phase
 
-Add an attribute to `app.state` in `backend/main.py` (lifespan). Set it to `None` in every branch so the attribute always exists:
+Services are constructed in the `backend/bootstrap/` phase module matching their dependencies (orchestrated by `bootstrap/lifespan.py`; `backend/main.py` only builds the app). Set the attribute to `None` in every branch so it always exists, then add it to the `backend/bootstrap/README.md` inventory and the `backend/tests/test_bootstrap_wiring.py` attribute pin:
 
 ```python
-# backend/main.py (lifespan)
+# backend/bootstrap/<phase>.py
 app.state.my_service = MyService(...)
 ```
 
@@ -121,14 +121,14 @@ Every new endpoint needs coverage in `config/auth.yaml`. The file has two layers
 ```yaml
 # config/auth.yaml
 permission_map:
-  "my_resource.read":
+  "my_resource:read":
     - "GET /api/v1/my-resource/*"
 
   caregiver:
-    - "my_resource.read"
+    - "my_resource:read"
 ```
 
-Use the permission token in `require_permission("my_resource.read")`. If the route uses a concrete `"METHOD /path"` token instead, add that exact pattern to the intended role. Verify both the token definition and role assignment. Add a focused router test that expects `403` without the permission and success with it. `backend/tests/routers/test_route_auth_coverage.py` proves every route carries a permission and every named token exists in `auth.yaml`; `backend/tests/core/test_auth.py` covers expansion mechanics.
+Use the permission token in `require_permission("my_resource:read")`; new tokens use the `<resource>:<action>` form (program decision D4). Legacy `"METHOD /path"` tokens still exist; for one of those, add that exact pattern to the intended role. Verify both the token definition and role assignment. Add a focused router test that expects `403` without the permission and success with it. `backend/tests/routers/test_route_auth_coverage.py` proves every route carries a permission and every named token exists in `auth.yaml`; `backend/tests/core/test_auth.py` covers expansion mechanics.
 
 ### 7. Add the MCP tool
 
@@ -167,7 +167,7 @@ Run `make import-lint` to verify.
 
 ### 9. Add the parity test
 
-There is no single `backend/tests/mcp/test_parity.py`. Put the test beside the closest existing pattern:
+There is no single parity test file. Put the test beside the closest existing pattern:
 
 - `backend/tests/integrations/test_mcp_bff_parity.py` for shared read envelopes.
 - `backend/tests/integrations/test_gait_mcp_bff_parity.py` for a domain-specific endpoint.
@@ -242,7 +242,7 @@ make import-lint
 backend/.venv/bin/pytest backend/tests/mcp/ -v
 
 # Auth coverage: no endpoint without a permission
-grep -n "my_resource.read\\|GET /api/v1/my-resource" config/auth.yaml
+grep -n "my_resource:read\\|GET /api/v1/my-resource" config/auth.yaml
 grep "my_resource" backend/routers/my_resource.py
 ```
 

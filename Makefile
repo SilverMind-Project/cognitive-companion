@@ -164,6 +164,11 @@ check-md:
 	bash scripts/check-no-em-dash.sh --self-test
 	bash scripts/check-no-em-dash.sh
 
+# Instruction files (CLAUDE.md, AGENTS.md, skills, rules) name only files that exist.
+.PHONY: docs-check
+docs-check:
+	$(PY) scripts/check_doc_refs.py
+
 # Versioned git hooks (.githooks/): the version bump with re-lock, and the em-dash check.
 # git lfs update --force writes the Git LFS hooks into the same directory.
 .PHONY: install-hooks
@@ -177,10 +182,10 @@ hooks-test:
 	bash .claude/hooks/tests/run.sh
 
 .PHONY: check
-check: lint typecheck-core typecheck-ratchet test-core hooks-test check-md
+check: lint typecheck-core typecheck-ratchet test-core hooks-test check-md docs-check
 
 .PHONY: check-all
-check-all: lint import-lint typecheck-core typecheck-ratchet test hooks-test check-md frontend-lint frontend-typecheck frontend-test
+check-all: lint import-lint typecheck-core typecheck-ratchet test hooks-test check-md docs-check frontend-lint frontend-typecheck frontend-test
 
 .PHONY: migrate
 migrate:

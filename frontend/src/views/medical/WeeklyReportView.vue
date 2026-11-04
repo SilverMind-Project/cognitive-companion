@@ -152,12 +152,12 @@
             {{ (h.kind || "").replace(/_/g, " ") }}
           </v-chip>
           <span class="text-caption text-medium-emphasis">{{
-            (h.fired_at || "").slice(0, 16)
+            formatDateTimeShort(h.fired_at)
           }}</span>
         </div>
 
         <div class="text-caption text-medium-emphasis mt-6 pt-4 report-footer">
-          Generated {{ new Date().toISOString().slice(0, 10) }} &middot; Cognitive Companion
+          Generated {{ formatCalendarDate(todayInAppTimezone()) }} &middot; Cognitive Companion
           &middot; For clinical review only &middot; Not a diagnosis
         </div>
       </div>
@@ -172,6 +172,11 @@
 <script>
 import { ref, computed } from "vue";
 import { cts } from "@/services/cts.js";
+import {
+  formatCalendarDate,
+  formatDateTimeShort,
+  todayInAppTimezone,
+} from "@/services/timezone.js";
 
 // DS data-viz palette in salience order (mirrors --cc-chart-1..6). Hardcoded so
 // the print sheet renders the brand colours even without computed-style access.
@@ -242,6 +247,9 @@ export default {
       dwellPct,
       fetch: loadReport,
       window,
+      formatCalendarDate,
+      formatDateTimeShort,
+      todayInAppTimezone,
     };
   },
 };

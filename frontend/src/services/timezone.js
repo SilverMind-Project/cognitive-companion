@@ -186,6 +186,66 @@ export function formatDateTimeFull(iso) {
 }
 
 // ---------------------------------------------------------------------------
+// Calendar dates ("YYYY-MM-DD": a day on the household's calendar, not an instant)
+// ---------------------------------------------------------------------------
+
+/**
+ * Today in the app timezone, as "YYYY-MM-DD".  `toISOString()` gives the UTC date, which is
+ * already tomorrow during a US evening.
+ *
+ * @returns {string}
+ */
+export function todayInAppTimezone() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: getAppTimezone(),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+/**
+ * A calendar date for display: "Nov 4, 2026".  Formatted in UTC because the value names a day, so
+ * no timezone may move it.
+ *
+ * @param {string|null|undefined} ymd  "YYYY-MM-DD".
+ * @returns {string}
+ */
+export function formatCalendarDate(ymd) {
+  if (!ymd) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(`${ymd}T00:00:00Z`));
+}
+
+/**
+ * A calendar date as the Date a Vuetify date picker expects: midnight in the browser's zone.
+ *
+ * @param {string} ymd  "YYYY-MM-DD".
+ * @returns {Date}
+ */
+export function calendarDateToPicker(ymd) {
+  const [year, month, day] = ymd.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/**
+ * The "YYYY-MM-DD" a Vuetify date picker chose.  The picker works in the browser's zone, so the
+ * chosen day is read from the local fields.
+ *
+ * @param {Date} date
+ * @returns {string}
+ */
+export function pickerToCalendarDate(date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+// ---------------------------------------------------------------------------
 // Step-config helpers (verification step fixed-window time inputs)
 // ---------------------------------------------------------------------------
 

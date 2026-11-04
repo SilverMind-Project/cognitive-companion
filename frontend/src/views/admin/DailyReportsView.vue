@@ -33,11 +33,7 @@
     <v-card class="glass-card">
       <template v-if="selectedPerson">
         <v-card-text class="pa-6">
-          <DailyReportCard
-            ref="reportRef"
-            :person-id="selectedPerson"
-            :include-room-trends="includeRoomTrends"
-          />
+          <DailyReportCard :person-id="selectedPerson" :include-room-trends="includeRoomTrends" />
         </v-card-text>
       </template>
       <template v-else>
@@ -52,7 +48,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
 import DailyReportCard from "../../components/person/DailyReportCard.vue";
 
@@ -63,7 +59,6 @@ defineProps({
 const persons = ref([]);
 const selectedPerson = ref(null);
 const includeRoomTrends = ref(false);
-const reportRef = ref(null);
 
 async function loadPersons() {
   try {
@@ -73,12 +68,6 @@ async function loadPersons() {
     console.error("Failed to load persons:", e);
   }
 }
-
-watch(selectedPerson, () => {
-  if (selectedPerson.value && reportRef.value) {
-    reportRef.value.load();
-  }
-});
 
 onMounted(() => {
   loadPersons();

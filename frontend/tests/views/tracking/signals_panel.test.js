@@ -127,6 +127,13 @@ describe("SignalsPanel", () => {
     expect(w.vm.kindBars.map((b) => b.kind)).toContain("sundowning_index");
   });
 
+  it("passes the counts in the series key CcBarChart reads", async () => {
+    const w = mount(SignalsPanel, { global: { stubs } });
+    await flushPromises();
+    const [series] = w.findComponent({ name: "CcBarChart" }).props("series");
+    expect(series.values.length).toBeGreaterThan(0);
+  });
+
   it("signal table rows show CcProvenanceBadge (D5)", async () => {
     const w = mount(SignalsPanel, { global: { stubs } });
     await flushPromises();

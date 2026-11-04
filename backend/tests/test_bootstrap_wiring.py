@@ -73,6 +73,8 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "cts_runtime",
         "daily_living_health",
         "daily_report_service",
+        "medication_schedule_service",
+        "medication_safety",
         "dementia_signal_subscriber",
         "eink_renderer",
         "embedding_client",
@@ -285,6 +287,11 @@ def test_lifespan_wires_exactly_the_frozen_app_state_attributes(
             )
             assert not missing, drift_message
             assert not extra, drift_message
+
+            # A safety job that is written but never scheduled fails silently: the session
+            # sweep went unscheduled for this reason, and open sessions then never closed.
+            scheduled = {job.id for job in main_module.app.state.scheduler.get_jobs()}
+            assert {"activity_session_timeout_sweep", "medication_safety_tick"} <= scheduled
 
             # PersonLocationService is un-gated from cts.enabled --
             # this boot runs with cts.enabled=false, so a None here would mean

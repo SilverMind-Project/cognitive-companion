@@ -222,6 +222,17 @@ export function formatCalendarDate(ymd) {
 }
 
 /**
+ * A wall-clock time for display: "08:00" reads "8:00 AM".  It is already in the app timezone.
+ *
+ * @param {string} hhmm  "HH:MM", 24-hour.
+ * @returns {string}
+ */
+export function formatWallClock(hhmm) {
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${hours < 12 ? "AM" : "PM"}`;
+}
+
+/**
  * A calendar date as the Date a Vuetify date picker expects: midnight in the browser's zone.
  *
  * @param {string} ymd  "YYYY-MM-DD".

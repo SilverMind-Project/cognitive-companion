@@ -16,8 +16,13 @@ CC_LOCAL_SIGNAL_KINDS: tuple[str, ...] = (
     "inferred_dwell_exceeded",
     "tea_intent_suspected",
     "hygiene_routine_missed",
+    "medication_excess",
 )
 ALL_SIGNAL_KINDS: tuple[str, ...] = WIRE_SIGNAL_KINDS + CC_LOCAL_SIGNAL_KINDS
+
+# Safety kinds a per-person config cannot switch off. Setting a medication schedule is the opt-in,
+# and a stored ``enabled_kinds`` list predating a kind would otherwise silently omit it.
+ALWAYS_ON_KINDS: frozenset[str] = frozenset({"medication_excess"})
 
 # Presence-only kinds that are relevant for everyone regardless of profile.
 _PRESENCE_KINDS: frozenset[str] = frozenset({"absence"})
@@ -61,7 +66,7 @@ def is_signal_enabled(
         severity: Signal severity string: ``"info"``, ``"warning"``, or
             ``"emergency"``.
     """
-    if cts_alert_config is None:
+    if cts_alert_config is None or signal_type in ALWAYS_ON_KINDS:
         return True
 
     if signal_type not in ALL_SIGNAL_KINDS:

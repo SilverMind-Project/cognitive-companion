@@ -352,7 +352,7 @@ class ActivitySessionService:
     def close_timed_out_sessions(self, now: datetime | None = None) -> list[CloseSessionResult]:
         """Close all sessions that have exceeded their timeout.
 
-        Called by the timeout sweeper background job (every 15 minutes).
+        Called every minute by the ``activity_session_timeout_sweep`` job.
 
         Args:
             now: Current time (UTC). Defaults to datetime.now(UTC).

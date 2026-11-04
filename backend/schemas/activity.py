@@ -103,4 +103,3 @@ class DailyReportQueryParams(BaseModel):
 
     include_llm_summary: bool = False
     include_room_trends: bool = False
-    tz_name: str = "UTC"

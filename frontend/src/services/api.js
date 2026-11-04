@@ -37,6 +37,7 @@ import * as occupancyModule from "./modules/occupancy";
 import * as personsModule from "./modules/persons";
 import * as pipelineModule from "./modules/pipeline";
 import * as quizzesModule from "./modules/quizzes";
+import * as medicationModule from "./modules/medication";
 import * as roomsModule from "./modules/rooms";
 import * as routinesModule from "./modules/routines";
 import * as rulesModule from "./modules/rules";
@@ -76,6 +77,7 @@ export const api = {
   ...personsModule,
   ...pipelineModule,
   ...quizzesModule,
+  ...medicationModule,
   ...roomsModule,
   ...routinesModule,
   ...rulesModule,

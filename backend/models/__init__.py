@@ -29,6 +29,7 @@ from backend.models.knowledge import (
 )
 from backend.models.location_observation import LocationObservation
 from backend.models.media_cache import MediaCache
+from backend.models.medication import MedicationScheduleEntry
 from backend.models.occupancy import RoomOccupancyState
 from backend.models.person import (
     ActivitySession,
@@ -75,6 +76,7 @@ __all__ = [
     "KnowledgeDocumentImage",
     "LocationObservation",
     "MediaCache",
+    "MedicationScheduleEntry",
     "PersonActivity",
     "PipelineEdge",
     "PipelineStep",

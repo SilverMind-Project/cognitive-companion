@@ -61,6 +61,7 @@ class MCPServices:
     activity_timeline: Any = None
     activity_session: Any = None
     daily_report: Any = None
+    medication_schedule: Any = None
     interactive_response: Any = None
     semantic_memory_client: Any = None
     cts_runtime: Any = None
@@ -92,6 +93,7 @@ def init_services(
     activity_timeline=None,
     activity_session=None,
     daily_report=None,
+    medication_schedule=None,
     interactive_response=None,
     semantic_memory_client=None,
     cts_runtime=None,
@@ -115,6 +117,7 @@ def init_services(
     _svc.activity_timeline = activity_timeline
     _svc.activity_session = activity_session
     _svc.daily_report = daily_report
+    _svc.medication_schedule = medication_schedule
     _svc.interactive_response = interactive_response
     _svc.semantic_memory_client = semantic_memory_client
     _svc.cts_runtime = cts_runtime
@@ -948,6 +951,31 @@ async def get_person_timeline(
 
 
 @_register(token=TOOLS_READ)
+async def get_medication_schedule(person_id: str) -> dict:
+    """Get a person's current medication schedule.
+
+    Args:
+        person_id: Household member ID.
+
+    Returns:
+        ``doses``: each scheduled dose's label, time (HH:MM in the household's timezone), and
+        days of the week (0 is Monday). Empty when no schedule is set.
+    """
+    if not _svc.medication_schedule:
+        return {"error": "Medication schedule service not available"}
+    return {
+        "doses": [
+            {
+                "label": entry.label,
+                "dose_time": entry.dose_time.strftime("%H:%M"),
+                "days_of_week": entry.days_of_week,
+            }
+            for entry in _svc.medication_schedule.list_entries(person_id)
+        ]
+    }
+
+
+@_register(token=TOOLS_READ)
 async def get_daily_report(
     person_id: str,
     date: str,
@@ -964,21 +992,20 @@ async def get_daily_report(
     if not _svc.daily_report:
         return {"error": "Daily report service not available"}
 
-    report = _svc.daily_report.get_report(person_id=person_id, date=date)
-    if report:
-        return report
-
-    # No existing report: generate one on demand
-
-    from backend.core.config import settings
-
     tz_name = settings.as_str("app.timezone")
-    report = await _svc.daily_report.generate_daily_report(
+    # A past day is settled, so its stored report stands. Today is still happening: answering
+    # "has she taken her medication?" from this morning's report would be wrong by afternoon.
+    today = datetime.now(ZoneInfo(tz_name)).date().isoformat()
+    if date != today:
+        report = _svc.daily_report.get_report(person_id=person_id, date=date)
+        if report:
+            return report
+
+    return await _svc.daily_report.generate_daily_report(
         person_id=person_id,
         date=date,
         tz_name=tz_name,
     )
-    return report
 
 
 @_register(token=TOOLS_READ)

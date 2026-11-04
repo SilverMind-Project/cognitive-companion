@@ -124,6 +124,7 @@ class SignalsService:
         context: dict[str, Any] | None = None,
         dedupe_minutes: int = 60,
         now: datetime | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Write a CC-local signal (see ``signal_config.CC_LOCAL_SIGNAL_KINDS``).
 
@@ -148,8 +149,12 @@ class SignalsService:
         gives would be silently dropped and the precision measurement this
         signal exists for would never have any labeled data.
 
+        ``idempotency_key`` names one real-world event, for callers that re-evaluate the same
+        facts. It replaces the time-based dedup: the key makes the row's identity, so a second
+        emission for that event is refused while a different event inside the window is kept.
+
         Returns ``{"emitted": bool, "reason": str | None, "signal_row_id": int | None}``.
-        ``reason`` is ``"invalid_kind"`` or ``"deduped"`` when ``emitted`` is
+        ``reason`` is ``"invalid_kind"``, ``"deduped"``, or ``"duplicate"`` when ``emitted`` is
         ``False``.
         """
         if signal_kind not in CC_LOCAL_SIGNAL_KINDS:
@@ -158,7 +163,11 @@ class SignalsService:
         now = now or datetime.now(UTC)
         store = SignalStore(db_factory=self._db_factory)
 
-        if dedupe_minutes > 0:
+        if idempotency_key is not None:
+            signal_id = derive_signal_id(person_id, signal_kind, idempotency_key, idempotency_key)
+            if await store.exists(signal_id):
+                return {"emitted": False, "reason": "duplicate", "signal_row_id": None}
+        elif dedupe_minutes > 0:
             # window_hours only bounds the SQL-side lookback (against the
             # store's own, uninjectable received_at clock); a just-written
             # row's received_at is always "now" in wall-clock terms, so any
@@ -182,7 +191,8 @@ class SignalsService:
                     return {"emitted": False, "reason": "deduped", "signal_row_id": None}
 
         now_iso = now.isoformat()
-        signal_id = derive_signal_id(person_id, signal_kind, now_iso, now_iso)
+        if idempotency_key is None:
+            signal_id = derive_signal_id(person_id, signal_kind, now_iso, now_iso)
         row_id, _action = await store.upsert(
             {
                 "signal_id": signal_id,

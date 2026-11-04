@@ -5,8 +5,10 @@ get_open_sessions).
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -66,7 +68,7 @@ def _sample_report(person_id: str, date: str) -> dict:
         "generated_at": datetime.now(UTC),
         "sleep": {"total_minutes": 0, "session_count": 0, "quality_score": 0.0, "disruptions": 0},
         "meals": {"prep_count": 0, "eating_count": 0, "avg_duration_minutes": None},
-        "medication": {"doses_taken": 0, "doses_due": 3, "adherence_pct": 0.0},
+        "medication": {"doses_taken": 0, "doses_due": None, "adherence_pct": None, "doses": []},
         "bathroom_visits": {"visit_count": 0, "total_minutes": 0},
         "exercise": {"session_count": 0, "total_minutes": 0},
         "tv": {"session_count": 1, "total_minutes": 45},
@@ -75,6 +77,46 @@ def _sample_report(person_id: str, date: str) -> dict:
         "wellness_score": 80.0,
         "wellness_alerts": [],
     }
+
+
+class TestGetDailyReportFreshness:
+    async def test_today_is_never_answered_from_a_stale_stored_report(self, daily_report_service):
+        from backend.mcp.server import get_daily_report
+
+        today = datetime.now(ZoneInfo(settings.as_str("app.timezone"))).date().isoformat()
+        fresh = _sample_report("mom", today)
+        daily_report_service.get_report.return_value = _sample_report("mom", today) | {"old": True}
+        daily_report_service.generate_daily_report = AsyncMock(return_value=fresh)
+
+        assert await get_daily_report(person_id="mom", date=today) == fresh
+        daily_report_service.get_report.assert_not_called()
+
+    async def test_a_past_day_uses_the_stored_report(self, daily_report_service):
+        from backend.mcp.server import get_daily_report
+
+        stored = _sample_report("mom", "2020-01-01")
+        daily_report_service.get_report.return_value = stored
+        daily_report_service.generate_daily_report = AsyncMock()
+
+        assert await get_daily_report(person_id="mom", date="2020-01-01") == stored
+        daily_report_service.generate_daily_report.assert_not_called()
+
+
+class TestGetMedicationSchedule:
+    async def test_reads_through_the_schedule_service(self, monkeypatch):
+        from backend.mcp import server
+
+        entry = SimpleNamespace(label="Morning", dose_time=time(8), days_of_week=[0, 1])
+        service = MagicMock()
+        service.list_entries.return_value = [entry]
+        monkeypatch.setattr(server._svc, "medication_schedule", service)
+
+        result = await server.get_medication_schedule(person_id="mom")
+
+        service.list_entries.assert_called_once_with("mom")
+        assert result == {
+            "doses": [{"label": "Morning", "dose_time": "08:00", "days_of_week": [0, 1]}]
+        }
 
 
 class TestGetDailyReportParity:
@@ -105,13 +147,13 @@ class TestGetDailyReportParity:
             _auth=None,
         )
 
-        # Both adapters read the same service method with the same
-        # identifying args; only the BFF also passes tz_name/include_* from
-        # query params and returns a validated envelope.
+        # Both adapters read the same service method with the same identifying args, and the
+        # day is always the household's: a report never runs on a client-chosen timezone.
         assert daily_report_service.generate_daily_report.call_count == 2
         for call in daily_report_service.generate_daily_report.call_args_list:
             assert call.kwargs["person_id"] == "mom"
             assert call.kwargs["date"] == "2026-06-01"
+            assert call.kwargs["tz_name"] == settings.as_str("app.timezone")
         assert router_result.tv == {"session_count": 1, "total_minutes": 45}
 
     async def test_mcp_cached_report_shape_validates_against_wire_schema(
@@ -176,9 +218,7 @@ class TestGetOpenSessionsParity:
         from backend.mcp.server import get_open_sessions as mcp_get_open_sessions
         from backend.routers.activities import list_open_sessions as router_list_open_sessions
 
-        activity_session_service.get_open_sessions.return_value = [
-            {"activity_type": "watching_tv"}
-        ]
+        activity_session_service.get_open_sessions.return_value = [{"activity_type": "watching_tv"}]
 
         import backend.main as main_module
 

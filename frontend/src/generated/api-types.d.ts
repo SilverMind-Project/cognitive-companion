@@ -4003,6 +4003,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/persons/{person_id}/medication-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Medication Schedule */
+        get: operations["list_medication_schedule"];
+        put?: never;
+        /** Create Medication Entry */
+        post: operations["create_medication_entry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/persons/{person_id}/medication-schedule/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Medication Entry */
+        delete: operations["delete_medication_entry"];
+        options?: never;
+        head?: never;
+        /** Update Medication Entry */
+        patch: operations["update_medication_entry"];
+        trace?: never;
+    };
     "/api/v1/persons/{person_id}/presence-history": {
         parameters: {
             query?: never;
@@ -8647,6 +8683,52 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** MedicationEntryCreate */
+        MedicationEntryCreate: {
+            /** Days Of Week */
+            days_of_week?: number[];
+            /**
+             * Dose Time
+             * Format: time
+             */
+            dose_time: string;
+            /** Label */
+            label: string;
+        };
+        /** MedicationEntryOut */
+        MedicationEntryOut: {
+            /** Days Of Week */
+            days_of_week: number[];
+            /** Dose Time */
+            dose_time: string;
+            /** Id */
+            id: number;
+            /** Label */
+            label: string;
+            /** Person Id */
+            person_id: string;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+        };
+        /** MedicationEntryUpdate */
+        MedicationEntryUpdate: {
+            /** Days Of Week */
+            days_of_week?: number[] | null;
+            /** Dose Time */
+            dose_time?: string | null;
+            /** Label */
+            label?: string | null;
+        };
+        /** MedicationScheduleOut */
+        MedicationScheduleOut: {
+            /** Items */
+            items: components["schemas"]["MedicationEntryOut"][];
+            /** Total */
+            total: number;
+        };
         /** MergeRequest */
         MergeRequest: {
             /**
@@ -11922,7 +12004,6 @@ export interface operations {
             query?: {
                 include_llm_summary?: boolean;
                 include_room_trends?: boolean;
-                tz_name?: string;
             };
             header?: never;
             path: {
@@ -11958,7 +12039,6 @@ export interface operations {
             query?: {
                 include_llm_summary?: boolean;
                 include_room_trends?: boolean;
-                tz_name?: string;
             };
             header?: never;
             path: {
@@ -18923,6 +19003,138 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_medication_schedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MedicationScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_medication_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MedicationEntryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MedicationEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_medication_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_medication_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MedicationEntryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MedicationEntryOut"];
                 };
             };
             /** @description Validation Error */

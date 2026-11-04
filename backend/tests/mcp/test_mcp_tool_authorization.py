@@ -38,7 +38,7 @@ _MUTATING_TOOL_TOKENS = {
     "request_caregiver_help": "resident_session:act",
     "record_resident_preference": "resident_session:act",
 }
-_READ_TOOL_COUNT = 49
+_READ_TOOL_COUNT = 50
 
 _READ_KEY = "read-key"
 _AGENT_KEY = "agent-key"

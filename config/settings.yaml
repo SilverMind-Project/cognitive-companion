@@ -18,6 +18,18 @@ app:
     ta: "Chennai Tamil"
     en: "simple English"
 
+medication:
+  # Minutes after its scheduled time that a dose can still arrive before it counts as missed.
+  dose_grace_minutes: 60
+  # A logged dose fills the scheduled dose nearest it, if within this many minutes.
+  dose_match_window_minutes: 240
+  # A camera sighting this close to a dose already counted is the same dose, not another one.
+  dose_duplicate_window_minutes: 30
+  # Excess-dose alerts go to caregivers only. An in-home speaker or popup could distress the
+  # person it is about.
+  alert_channels:
+    - "telegram"
+
 server:
   host: "0.0.0.0"
   port: 8000

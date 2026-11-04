@@ -88,6 +88,7 @@ def create_app() -> FastAPI:
         knowledge_interactions,
         knowledge_layouts,
         media,
+        medication_schedule,
         occupancy,
         persons,
         persons_location,
@@ -129,6 +130,7 @@ def create_app() -> FastAPI:
     app.include_router(guided_sessions.router, prefix=api)
     app.include_router(routines.router, prefix=api)
     app.include_router(room_zones.router, prefix=api)
+    app.include_router(medication_schedule.router, prefix=api)
     app.include_router(ha_sync.router, prefix=api)
     # persons_location must precede persons: it owns the static /persons/locations path, which
     # the /persons/{person_id} route in persons.router would otherwise capture (C17).

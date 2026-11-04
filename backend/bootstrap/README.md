@@ -162,6 +162,8 @@ Also assigns `container.scene_analysis_client`, `.semantic_memory_client`,
 | `activity_session_service` | -- |
 | `activity_service` | `person_tracking`, `activity_session_service` |
 | `daily_report_service` | `person_location_service` |
+| `medication_schedule_service` | -- |
+| `medication_safety` | `signals`, `notification_dispatcher`; built in `guided_task.wire_guided_task` with its job |
 | `interactive_response_service` | -- (`scheduler` injected later by `pipeline.wire_scheduler`) |
 | `signals` | -- |
 | `companion_surface_service` | `person_location_service` |

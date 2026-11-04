@@ -112,7 +112,7 @@ class TestGetDailyReport:
 
         with patch(
             "backend.mcp.server.settings",
-            {"get": lambda k, d: "America/New_York"},
+            MagicMock(as_str=MagicMock(return_value="America/New_York")),
         ):
             from backend.mcp.server import get_daily_report
 

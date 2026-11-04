@@ -179,6 +179,44 @@ async def wire_guided_task(
         replace_existing=True,
     )
 
+    # Without this sweep a session nobody closes stays open forever, and open_session then folds
+    # every later detection of that activity into it.
+    scheduler.add_job(
+        app.state.activity_session_service.close_timed_out_sessions,
+        trigger=IntervalTrigger(minutes=1),
+        id="activity_session_timeout_sweep",
+        name="Close activity sessions past their timeout",
+        replace_existing=True,
+    )
+
+    from backend.services.medication_adherence import dose_policy_from
+    from backend.services.medication_safety import EscalationPolicy, MedicationSafetyMonitor
+
+    notification_levels = settings.as_dict("notifications.notification_defaults")
+    medication_safety = MedicationSafetyMonitor(
+        get_session,
+        app.state.signals,
+        notifier,
+        tz_name=settings.as_str("app.timezone"),
+        channels=settings.as_list("medication.alert_channels"),
+        dose_policy=dose_policy_from(settings),
+        escalation={
+            level: EscalationPolicy(
+                interval_minutes=config.get("escalation_minutes", 0),
+                repeat_count=config.get("repeat_count", 0),
+            )
+            for level, config in notification_levels.items()
+        },
+    )
+    app.state.medication_safety = medication_safety
+    scheduler.add_job(
+        medication_safety.tick,
+        trigger=IntervalTrigger(minutes=1),
+        id="medication_safety_tick",
+        name="Check for doses beyond the medication schedule",
+        replace_existing=True,
+    )
+
     poll_interval = settings.as_int("homeassistant.poll_interval_seconds")
     scheduler.add_job(
         sensor_polling.poll,

@@ -40,6 +40,7 @@ EXPECTED_TOOLS = {
     "search_similar_scenes",
     "get_person_timeline",
     "get_daily_report",
+    "get_medication_schedule",
     "get_open_sessions",
     "submit_user_response",
     "get_tracking_status",
@@ -78,7 +79,7 @@ EXPECTED_TOOLS = {
     "get_face_calibration_summary",
 }
 
-EXPECTED_COUNT = 61
+EXPECTED_COUNT = 62
 
 
 # ---------------------------------------------------------------------------

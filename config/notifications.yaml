@@ -58,6 +58,7 @@ notification_defaults:
       - "eink"
       - "pwa_realtime_ai"
     escalation_minutes: 10
+    repeat_count: 3
 
   info:
     channels:

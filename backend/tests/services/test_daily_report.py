@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from unittest.mock import MagicMock
 
-from backend.models.person import ActivitySession, ActivityTypeEnum, DailyReport
+from backend.models.medication import MedicationScheduleEntry
+from backend.models.person import ActivitySession, ActivityTypeEnum, DailyReport, HouseholdMember
 from backend.services.daily_report import DailyReportService
 from backend.services.person_location.config import PersonLocationConfig
 from backend.services.person_location.repositories import (
@@ -37,6 +38,26 @@ def _get_or_create_person(db, person_id: str, name: str = "Test User") -> None:
         new_person = HouseholdMember(id=person_id, name=name)
         db.add(new_person)
         db.flush()
+
+
+def _add_schedule(db_factory, person_id, *times):
+    """Give a person a medication schedule that has been in effect for years."""
+    db = db_factory()
+    if db.get(HouseholdMember, person_id) is None:
+        db.add(HouseholdMember(id=person_id, name=person_id))
+        db.flush()
+    for dose_time in times:
+        db.add(
+            MedicationScheduleEntry(
+                person_id=person_id,
+                label=f"Dose at {dose_time}",
+                dose_time=time.fromisoformat(dose_time),
+                days_of_week=[0, 1, 2, 3, 4, 5, 6],
+                starts_on=date(2020, 1, 1),
+            )
+        )
+    db.commit()
+    db.close()
 
 
 def _make_activity_session(
@@ -349,9 +370,10 @@ class TestDailyReportGeneration:
 
     async def test_generate_report_with_medication_data(self, db_factory):
         """Should track medication doses taken."""
-        service = DailyReportService(db_factory)
-        now = datetime.now(UTC)
+        now = datetime(2026, 11, 4, 23, 30, tzinfo=UTC)
+        service = DailyReportService(db_factory, now=lambda: now)
         today = now.date().isoformat()
+        _add_schedule(db_factory, "person123", "08:00", "14:00", "20:00")
 
         # Create three medication sessions (full adherence) within today
         db = db_factory()
@@ -383,11 +405,12 @@ class TestDailyReportGeneration:
 
     async def test_generate_report_with_partial_medication_adherence(self, db_factory):
         """Should calculate adherence percentage correctly."""
-        service = DailyReportService(db_factory)
-        now = datetime.now(UTC)
+        now = datetime(2026, 11, 4, 23, 30, tzinfo=UTC)
+        service = DailyReportService(db_factory, now=lambda: now)
         today = now.date().isoformat()
+        _add_schedule(db_factory, "person123", "08:00", "14:00", "20:00")
 
-        # Create only one medication session (out of 3 due) within today
+        # Create only one medication session (out of 3 scheduled) within today
         db = db_factory()
         opened_at = now.replace(hour=14, minute=0, second=0, microsecond=0)
         closed_at = opened_at + timedelta(minutes=30)
@@ -664,16 +687,18 @@ class TestWellnessScoring:
 
     async def test_wellness_score_medication_missed_alert(self, db_factory):
         """Should generate medication missed alert for low adherence."""
-        service = DailyReportService(db_factory)
-        today = datetime.now(UTC).date().isoformat()
+        now = datetime(2026, 11, 4, 23, 30, tzinfo=UTC)
+        service = DailyReportService(db_factory, now=lambda: now)
+        today = now.date().isoformat()
+        _add_schedule(db_factory, "person123", "08:00", "20:00")
 
         # No medication sessions
         _make_activity_session(
             db_factory(),
             person_id="person123",
             activity_type=ActivityTypeEnum.sleep,
-            opened_at=datetime.now(UTC) - timedelta(hours=8),
-            closed_at=datetime.now(UTC) - timedelta(hours=0.5),
+            opened_at=now - timedelta(hours=8),
+            closed_at=now - timedelta(hours=0.5),
             duration_minutes=450,
             status="closed",
         )
@@ -689,6 +714,7 @@ class TestWellnessScoring:
         med_alerts = [a for a in alerts if a["type"] == "medication_missed"]
         assert len(med_alerts) >= 1
         assert med_alerts[0]["severity"] == "critical"
+        assert med_alerts[0]["message"] == "Missed 2 of 2 doses due"
 
     async def test_wellness_score_bathroom_frequency_alert(self, db_factory):
         """Should generate bathroom frequency alert for excessive visits."""

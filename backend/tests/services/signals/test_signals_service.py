@@ -229,3 +229,18 @@ class TestEmit:
         rows, _total = await store.list_recent(person_id="grandma", window_hours=1)
         assert rows[0]["feedback"] == "accurate"
         assert rows[0]["acknowledged_at"] is not None
+
+
+class TestEmitIdempotency:
+    async def test_the_same_key_is_refused(self, db_factory):
+        service = SignalsService(db_factory)
+        args = {"signal_kind": "medication_excess", "person_id": "rose", "idempotency_key": "s1"}
+        assert (await service.emit(**args))["emitted"] is True
+        repeat = await service.emit(**args)
+        assert repeat == {"emitted": False, "reason": "duplicate", "signal_row_id": None}
+
+    async def test_a_different_key_inside_the_dedupe_window_is_kept(self, db_factory):
+        service = SignalsService(db_factory)
+        args = {"signal_kind": "medication_excess", "person_id": "rose"}
+        assert (await service.emit(**args, idempotency_key="s1"))["emitted"] is True
+        assert (await service.emit(**args, idempotency_key="s2"))["emitted"] is True

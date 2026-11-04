@@ -127,6 +127,8 @@ permission_map:
     - "PATCH /api/v1/companion-surfaces/*"
     - "room_zones:read"
     - "room_zones:write"
+    - "medication:read"
+    - "medication:write"
     - "routines:read"
     - "routines:write"
     - "guided_sessions:read"
@@ -202,6 +204,8 @@ permission_map:
     - "PATCH /api/v1/companion-surfaces/*"
     - "room_zones:read"
     - "room_zones:write"
+    - "medication:read"
+    - "medication:write"
     - "routines:read"
     - "routines:write"
     - "guided_sessions:read"
@@ -333,6 +337,14 @@ permission_map:
     - "POST /api/v1/rooms/*/zones"
     - "PATCH /api/v1/zones/*"
     - "DELETE /api/v1/zones/*"
+
+  "medication:read":
+    - "GET /api/v1/persons/*/medication-schedule"
+
+  "medication:write":
+    - "POST /api/v1/persons/*/medication-schedule"
+    - "PATCH /api/v1/persons/*/medication-schedule/*"
+    - "DELETE /api/v1/persons/*/medication-schedule/*"
 
   "routines:read":
     - "GET /api/v1/routines"

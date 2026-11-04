@@ -10,7 +10,7 @@ feed; and the occupancy read-model.
 M38 Part A un-gated ``PersonLocationService`` from ``cts.enabled``: it is
 constructed here (unconditionally, depends only on ``get_session``) instead
 of inside ``bootstrap/cts.py``, and wired directly into
-``companion_surface_service``, ``zone_service``, and ``daily_report_service``
+``companion_surface_service``, ``zone_service``, ``medication_schedule_service``, and ``daily_report_service``
 at construction time since all three are also built in this phase.
 ``activity_timeline_service`` (built in ``pipeline.wire_executor_and_workflow``)
 and ``guided_task_service`` (built in ``guided_task.wire_guided_task``) read
@@ -254,12 +254,20 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
 
     # -- Daily report service ----------------------------------------------
     from backend.services.daily_report import DailyReportService
+    from backend.services.medication_adherence import dose_policy_from
 
     daily_report_service = DailyReportService(
-        get_session, person_location_service=person_location_service
+        get_session,
+        person_location_service=person_location_service,
+        dose_policy=dose_policy_from(settings),
     )
     app.state.daily_report_service = daily_report_service
     container.daily_report_service = daily_report_service
+
+    # -- Medication schedule service ---------------------------------------
+    from backend.services.medication_schedule import MedicationScheduleService
+
+    app.state.medication_schedule_service = MedicationScheduleService(get_session)
 
     # -- Interactive response service --------------------------------------
     from backend.services.interactive_response import InteractiveResponseService

@@ -34,6 +34,7 @@ def wire_mcp(app: FastAPI) -> None:
         activity_timeline=app.state.activity_timeline_service,
         activity_session=app.state.activity_session_service,
         daily_report=app.state.daily_report_service,
+        medication_schedule=app.state.medication_schedule_service,
         interactive_response=app.state.interactive_response_service,
         semantic_memory_client=app.state.semantic_memory_client,
         cts_runtime=None,  # Populated below after CTS bootstrapping.

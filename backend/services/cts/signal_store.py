@@ -138,6 +138,31 @@ class SignalStore:
         finally:
             db.close()
 
+    async def exists(self, signal_id: str) -> bool:
+        """Whether a signal with this deterministic ``signal_id`` was already recorded."""
+        db = self._db_factory()
+        try:
+            found = db.query(DementiaSignal.id).filter(DementiaSignal.signal_id == signal_id)
+            return found.first() is not None
+        finally:
+            db.close()
+
+    async def merge_context(self, row_id: int, changes: dict[str, Any]) -> bool:
+        """Merge ``changes`` into a signal's ``context_json``.
+
+        Returns ``True`` if a row was updated, ``False`` if not found.
+        """
+        db = self._db_factory()
+        try:
+            row = db.get(DementiaSignal, row_id)
+            if row is None:
+                return False
+            row.context_json = {**(row.context_json or {}), **changes}
+            db.commit()
+            return True
+        finally:
+            db.close()
+
     async def delete(self, signal_id: int) -> bool:
         """Hard-delete a single dementia signal by row ID.
 

@@ -35,6 +35,12 @@ logger = get_logger(__name__)
 _EVENTLOG_SCAN_LIMIT = 200
 
 
+def _signal_detail(row: dict[str, Any], context: Any) -> str:
+    """The signal's own summary when it wrote one, or its kind in words."""
+    summary = context.get("summary") if isinstance(context, dict) else None
+    return summary or str(row.get("signal_type", "")).replace("_", " ").capitalize()
+
+
 class SignalsFeedService:
     """Cross-source caregiver alert feed keyed on a unified envelope."""
 
@@ -96,7 +102,7 @@ class SignalsFeedService:
                     display_name=names.get(pid),
                     created_at=_parse_iso(r.get("received_at") or r.get("window_end")),
                     resolved=r.get("acknowledged_at") is not None,
-                    detail=str(r.get("signal_type", "")).replace("_", " ").capitalize(),
+                    detail=_signal_detail(r, ctx),
                     can_acknowledge=True,
                     can_delete=True,
                 )

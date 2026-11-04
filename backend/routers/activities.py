@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.auth import require_permission
+from backend.core.config import settings
 from backend.core.database import get_db
 from backend.models.person import ActivitySourceEnum, PersonActivity
 from backend.schemas.activity import (
@@ -232,7 +233,7 @@ async def get_daily_report(
     report = await service.generate_daily_report(
         person_id=person_id,
         date=date,
-        tz_name=params.tz_name,
+        tz_name=settings.as_str("app.timezone"),
         include_llm_summary=params.include_llm_summary,
         include_room_trends=params.include_room_trends,
     )
@@ -260,7 +261,7 @@ async def regenerate_daily_report(
     report = await service.generate_daily_report(
         person_id=person_id,
         date=date,
-        tz_name=params.tz_name,
+        tz_name=settings.as_str("app.timezone"),
         include_llm_summary=params.include_llm_summary,
         include_room_trends=params.include_room_trends,
     )

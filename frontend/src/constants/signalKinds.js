@@ -21,6 +21,10 @@ const SIGNAL_KIND_PRESENTATIONS = {
     icon: "mdi-tshirt-crew-outline",
     blurb: "Appears to be wearing yesterday's clothes",
   },
+  medication_excess: {
+    icon: "mdi-pill-multiple",
+    blurb: "A dose beyond the medication schedule",
+  },
   hygiene_routine_missed: {
     icon: "mdi-shower-head",
     blurb: "Same clothes and no wash-up detected",

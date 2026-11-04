@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from backend.services.inference_telemetry import InferenceTelemetryService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
     from backend.services.media_observability import MediaObservabilityService
+    from backend.services.medication_schedule import MedicationScheduleService
     from backend.services.occupancy import OccupancyReadModel
     from backend.services.person_location.service import PersonLocationService
     from backend.services.scheduler import SchedulerBridge
@@ -83,6 +84,7 @@ __all__ = [
     "get_knowledge_delivery",
     "get_llm_model_registry",
     "get_media_observability",
+    "get_medication_schedule_service",
     "get_minio_client",
     "get_occupancy_read_model",
     "get_orchestrator_client",
@@ -344,6 +346,14 @@ def get_guided_metrics_service(request: Request) -> GuidedMetricsService:
     svc: GuidedMetricsService | None = request.app.state.guided_metrics_service
     if svc is None:
         raise _raise_503("guided_metrics_service", "Guided task metrics service")
+    return svc
+
+
+def get_medication_schedule_service(request: Request) -> MedicationScheduleService:
+    """Return the lifespan-managed medication schedule service (503 if unavailable)."""
+    svc: MedicationScheduleService | None = request.app.state.medication_schedule_service
+    if svc is None:
+        raise _raise_503("medication_schedule_service", "Medication schedule service")
     return svc
 
 

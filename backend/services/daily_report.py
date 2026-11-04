@@ -14,6 +14,8 @@ Generates end-of-day structured summary reports aggregating:
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import date as Date
 from datetime import datetime, timedelta
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
@@ -23,6 +25,19 @@ from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
 from backend.core.time import UTC
+from backend.services.medication_adherence import (
+    DosePolicy,
+    DoseStatus,
+    adherence_pct,
+    classify_doses,
+    resolve_doses,
+)
+from backend.services.medication_schedule import (
+    logged_doses,
+    schedule_began_at,
+    scheduled_doses,
+    scheduled_doses_around,
+)
 from backend.services.person_location.types import RoomSegment
 
 logger = get_logger(__name__)
@@ -58,6 +73,9 @@ class DailyReportService:
         db_session_factory,
         scene_analysis_client=None,
         person_location_service: PersonLocationReader | None = None,
+        *,
+        dose_policy: DosePolicy | None = None,
+        now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ):
         """Initialize the service.
 
@@ -68,10 +86,15 @@ class DailyReportService:
                 when CTS is disabled (bootstrap sets it later via
                 ``set_person_location_service`` once the CTS phase runs);
                 room-time degrades to an empty distribution rather than erroring.
+            dose_policy: When a dose counts as missed, and how far a logged dose can be from
+                its scheduled time. Bootstrap reads it from ``medication`` in settings.
+            now: The clock. Today's report counts only the doses due by this moment.
         """
         self._db_session_factory = db_session_factory
         self._scene_analysis_client = scene_analysis_client
         self._person_location = person_location_service
+        self._dose_policy = dose_policy or DosePolicy()
+        self._now = now
 
     def set_person_location_service(
         self, person_location_service: PersonLocationReader | None
@@ -82,7 +105,7 @@ class DailyReportService:
         self,
         person_id: str,
         date: str,
-        tz_name: str = "UTC",
+        tz_name: str,
         include_llm_summary: bool = False,
         include_room_trends: bool = False,
     ) -> dict:
@@ -91,7 +114,8 @@ class DailyReportService:
         Args:
             person_id: Household member ID.
             date: Date string in YYYY-MM-DD format.
-            tz_name: Timezone for date interpretation.
+            tz_name: The household timezone (``app.timezone``). The day runs midnight to midnight
+                there, so it is required: a default would silently bring back UTC days.
             include_llm_summary: Whether to generate LLM prose summary.
             include_room_trends: Whether to include room trend data.
 
@@ -116,7 +140,9 @@ class DailyReportService:
                 "generated_at": datetime.now(UTC),
                 "sleep": self._aggregate_sleep(db, person_id, day_start_utc, day_end_utc),
                 "meals": self._aggregate_meals(db, person_id, day_start_utc, day_end_utc),
-                "medication": self._aggregate_medication(db, person_id, day_start_utc, day_end_utc),
+                "medication": self._aggregate_medication(
+                    db, person_id, day_start_utc, day_end_utc, day_start.date(), tz
+                ),
                 "bathroom_visits": self._aggregate_bathroom(
                     db, person_id, day_start_utc, day_end_utc
                 ),
@@ -232,55 +258,78 @@ class DailyReportService:
         }
 
     def _aggregate_medication(
-        self, db: Session, person_id: str, start: datetime, end: datetime
+        self,
+        db: Session,
+        person_id: str,
+        start: datetime,
+        end: datetime,
+        day: Date,
+        tz: ZoneInfo,
     ) -> dict:
-        """Aggregate medication data from activity sessions."""
-        from backend.models.person import ActivitySession, ActivitySourceEnum
+        """Aggregate the day's medication: what was logged, and how it meets the schedule.
 
-        sessions = (
-            db.execute(
-                select(ActivitySession).where(
-                    and_(
-                        ActivitySession.person_id == person_id,
-                        ActivitySession.activity_type == "medication",
-                        ActivitySession.status == "closed",
-                        or_(
-                            and_(
-                                ActivitySession.opened_at >= start, ActivitySession.opened_at < end
-                            ),
-                            and_(
-                                ActivitySession.closed_at >= start, ActivitySession.closed_at < end
-                            ),
-                        ),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-        doses_taken = len(sessions)
-        # Doses due would come from config/settings - placeholder
-        doses_due = 3  # Typical: morning, afternoon, evening
-
-        adherence_pct = (doses_taken / doses_due * 100) if doses_due > 0 else 0.0
-
-        # Split by evidence grade (DL9). Only a routine the resident completed
-        # step-by-step with the companion supports "she took her medication";
-        # a camera-inferred session supports at most "she was at the cabinet".
-        # ``doses_taken`` keeps its original all-sources meaning so existing
-        # consumers do not silently change; the split is additive.
-        confirmed_doses = sum(
-            1 for s in sessions if s.source == ActivitySourceEnum.guided_companion
-        )
-
-        return {
-            "doses_taken": doses_taken,
-            "doses_due": doses_due,
-            "adherence_pct": round(adherence_pct, 1),
+        Without a schedule the dose fields are ``None``: nothing was due, so nothing can be late
+        or excess. ``doses_due`` counts the doses due so far, which is the whole day once it has
+        passed. ``doses_taken`` counts logged sessions from every source, and can exceed the
+        doses filled when a routine and a camera both log one dose.
+        """
+        # A dose near midnight can be logged on the other side of the boundary, so matching
+        # looks past the day while the counts stay within it.
+        margin = timedelta(minutes=2 * self._dose_policy.match_window_minutes)
+        logged = logged_doses(db, person_id, start - margin, end + margin)
+        in_day = [dose for dose in logged if start <= dose.at < end]
+        confirmed_doses = sum(1 for dose in in_day if dose.confirmed)
+        summary: dict[str, Any] = {
+            "doses_taken": len(in_day),
             "confirmed_doses": confirmed_doses,
-            "inferred_doses": doses_taken - confirmed_doses,
+            "inferred_doses": len(in_day) - confirmed_doses,
+            "doses_scheduled": None,
+            "doses_due": None,
+            "doses_missed": None,
+            "doses_excess": None,
+            "adherence_pct": None,
+            "doses": [],
+            "excess_doses": [],
         }
+
+        scheduled = scheduled_doses(db, person_id, day, tz)
+        if scheduled is None:
+            return summary
+
+        classification = classify_doses(
+            scheduled_doses_around(db, person_id, day, tz),
+            logged,
+            policy=self._dose_policy,
+            tracked_since=schedule_began_at(db, person_id),
+        )
+        resolved = resolve_doses(
+            scheduled, classification, now=self._now(), policy=self._dose_policy
+        )
+        excess = [dose for dose in classification.excess if start <= dose.logged.at < end]
+        summary["doses_scheduled"] = len(resolved)
+        summary["doses_due"] = sum(1 for d in resolved if d.status is not DoseStatus.UPCOMING)
+        summary["doses_missed"] = sum(1 for d in resolved if d.status is DoseStatus.MISSED)
+        summary["doses_excess"] = len(excess)
+        summary["adherence_pct"] = adherence_pct(resolved)
+        summary["doses"] = [
+            {
+                "label": dose.scheduled.label,
+                "dose_time": dose.scheduled.dose_time.strftime("%H:%M"),
+                "status": dose.status.value,
+                "taken_at": dose.taken_at.isoformat() if dose.taken_at else None,
+            }
+            for dose in resolved
+        ]
+        summary["excess_doses"] = [
+            {
+                "kind": dose.kind.value,
+                "taken_at": dose.logged.at.isoformat(),
+                "confirmed": dose.logged.confirmed,
+                "repeats": dose.slot.label if dose.slot else None,
+            }
+            for dose in excess
+        ]
+        return summary
 
     def _aggregate_bathroom(
         self, db: Session, person_id: str, start: datetime, end: datetime
@@ -455,11 +504,13 @@ class DailyReportService:
     def _compute_wellness(self, report: dict) -> tuple[float | None, list[dict]]:
         """Compute wellness score (0-100) and alert flags.
 
-        Uses configurable thresholds from wellness_thresholds.yaml.
+        Each component scores out of its own maximum, and the total is the share of the points
+        available. With no doses due, medication is left out rather than scored as zero, so a
+        person without a schedule can still reach 100.
         Returns (score, alerts) where alerts is a list of {type, severity, message}.
         """
         alerts: list[dict] = []
-        score_components: list[float] = []
+        score_components: list[tuple[float, float]] = []
 
         # Sleep score (30 points max)
         sleep = report.get("sleep", {})
@@ -477,20 +528,29 @@ class DailyReportService:
                     "message": "No sleep data recorded. Target: 8-12 hours.",
                 }
             )
-        score_components.append(sleep_score)
+        score_components.append((sleep_score, 30))
 
         # Medication adherence score (30 points max)
         medication = report.get("medication", {})
-        adherence_pct = medication.get("adherence_pct", 0) or 0
-        med_score = min(30, adherence_pct * 0.3)
-        score_components.append(med_score)
+        adherence = medication.get("adherence_pct")
+        if adherence is not None:
+            score_components.append((min(30, adherence * 0.3), 30))
+            if adherence < 50:
+                missed = medication["doses_missed"]
+                alerts.append(
+                    {
+                        "type": "medication_missed",
+                        "severity": "critical",
+                        "message": f"Missed {missed} of {medication['doses_due']} doses due",
+                    }
+                )
 
-        if adherence_pct < 50:
+        if medication.get("doses_excess"):
             alerts.append(
                 {
-                    "type": "medication_missed",
+                    "type": "medication_excess",
                     "severity": "critical",
-                    "message": f"Low medication adherence: {adherence_pct:.0f}%",
+                    "message": f"{medication['doses_excess']} more doses logged than scheduled",
                 }
             )
 
@@ -498,7 +558,7 @@ class DailyReportService:
         exercise = report.get("exercise", {})
         exercise_minutes = exercise.get("total_minutes", 0) or 0
         activity_score = 20 if exercise_minutes >= 30 else max(0, exercise_minutes / 30 * 20)
-        score_components.append(activity_score)
+        score_components.append((activity_score, 20))
 
         # Bathroom safety score (20 points max)
         bathroom = report.get("bathroom_visits", {})
@@ -511,9 +571,11 @@ class DailyReportService:
                     "message": f"High bathroom visit count: {visit_count}",
                 }
             )
-        score_components.append(20)  # Base score, no penalty logic yet
+        score_components.append((20, 20))  # Base score, no penalty logic yet
 
-        wellness_score = sum(score_components)
+        earned = sum(score for score, _ in score_components)
+        available = sum(maximum for _, maximum in score_components)
+        wellness_score = earned / available * 100
 
         return round(wellness_score, 1), alerts
 

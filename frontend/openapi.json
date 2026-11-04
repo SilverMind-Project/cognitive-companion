@@ -9197,6 +9197,144 @@
         "title": "MediaBufferListEnvelope",
         "type": "object"
       },
+      "MedicationEntryCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "days_of_week": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Days Of Week",
+            "type": "array"
+          },
+          "dose_time": {
+            "format": "time",
+            "title": "Dose Time",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "dose_time"
+        ],
+        "title": "MedicationEntryCreate",
+        "type": "object"
+      },
+      "MedicationEntryOut": {
+        "properties": {
+          "days_of_week": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Days Of Week",
+            "type": "array"
+          },
+          "dose_time": {
+            "title": "Dose Time",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "person_id": {
+            "title": "Person Id",
+            "type": "string"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "person_id",
+          "label",
+          "dose_time",
+          "days_of_week",
+          "starts_on"
+        ],
+        "title": "MedicationEntryOut",
+        "type": "object"
+      },
+      "MedicationEntryUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "days_of_week": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Of Week"
+          },
+          "dose_time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dose Time"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "title": "MedicationEntryUpdate",
+        "type": "object"
+      },
+      "MedicationScheduleOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MedicationEntryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "MedicationScheduleOut",
+        "type": "object"
+      },
       "MergeRequest": {
         "properties": {
           "reason": {
@@ -18095,16 +18233,6 @@
               "title": "Include Room Trends",
               "type": "boolean"
             }
-          },
-          {
-            "in": "query",
-            "name": "tz_name",
-            "required": false,
-            "schema": {
-              "default": "UTC",
-              "title": "Tz Name",
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -18181,16 +18309,6 @@
               "default": false,
               "title": "Include Room Trends",
               "type": "boolean"
-            }
-          },
-          {
-            "in": "query",
-            "name": "tz_name",
-            "required": false,
-            "schema": {
-              "default": "UTC",
-              "title": "Tz Name",
-              "type": "string"
             }
           }
         ],
@@ -30806,6 +30924,221 @@
         "summary": "Override Person Location",
         "tags": [
           "persons-location"
+        ]
+      }
+    },
+    "/api/v1/persons/{person_id}/medication-schedule": {
+      "get": {
+        "operationId": "list_medication_schedule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicationScheduleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Medication Schedule",
+        "tags": [
+          "medication"
+        ]
+      },
+      "post": {
+        "operationId": "create_medication_entry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MedicationEntryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicationEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Create Medication Entry",
+        "tags": [
+          "medication"
+        ]
+      }
+    },
+    "/api/v1/persons/{person_id}/medication-schedule/{entry_id}": {
+      "delete": {
+        "operationId": "delete_medication_entry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Delete Medication Entry",
+        "tags": [
+          "medication"
+        ]
+      },
+      "patch": {
+        "operationId": "update_medication_entry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MedicationEntryUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicationEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Update Medication Entry",
+        "tags": [
+          "medication"
         ]
       }
     },

@@ -128,6 +128,22 @@ a detector typo can never inflate an answer's confidence; and the idempotent-reu
 the **stored** provenance, not the caller's, so a later weak sighting cannot appear to restate a
 strong claim.
 
+Adherence is measured against `MedicationScheduleEntry` rows, the per-person schedule caregivers
+set (`backend/services/medication_schedule.py`), never a default. No schedule means `doses_due` and
+`adherence_pct` are `None`, no alert, and medication is left out of the wellness score.
+`backend/services/medication_adherence.py` fills each scheduled dose from the nearest logged session, once: a routine
+and a camera logging one dose must not hide a missed one. An inferred dose counts toward adherence
+and stays labelled `likely_taken`. A schedule change ends the old entry and applies from the next
+occurrence, so past reports keep the schedule of their day.
+
+A dose beyond the schedule is a safety alert, not a statistic. `MedicationSafetyMonitor`
+(`backend/services/medication_safety.py`) runs every minute, classifies doses with the report's own
+`classify_doses`, and records a `medication_excess` signal per session. It is built in, because
+rule bundles are imported by hand and a safety alert cannot be optional, and it reconciles instead
+of hooking, because doses arrive by several paths. The signal row is the outbox: delivery state
+lives in its `context_json`, so a crash or outage retries, and an unacknowledged alert repeats per
+`notification_defaults`. Alerts go to `medication.alert_channels` only, never in-home channels.
+
 Read side: `DailyReportService._aggregate_medication` splits `doses_taken` into
 `confirmed_doses` (guided only) and `inferred_doses`. Phrase medication answers off
 `confirmed_doses`; `doses_taken` is the all-sources total and on its own supports no claim that
@@ -197,7 +213,7 @@ Rules can never emit CTS-produced (wire) kinds. Every CC-local emission sets
 `evidence_grade="experimental"` unconditionally, which is what makes the caregiver
 Accurate/Inaccurate/Unsure feedback buttons persist (`SignalStore.acknowledge()` only records
 feedback for that grade). Current registry (`CC_LOCAL_SIGNAL_KINDS`):
-`inferred_dwell_exceeded`, `tea_intent_suspected`, `hygiene_routine_missed`.
+`inferred_dwell_exceeded`, `tea_intent_suspected`, `hygiene_routine_missed`, `medication_excess`.
 
 ### The prefilter-confirm-join shape
 
@@ -221,6 +237,7 @@ around. `daily_living_hygiene_confirm.json` is the reference bundle; it is also 
 | `tea_intent_suspected` | CC, `daily_living_tea_intent_shadow` rule bundle (`signal_emit`) | CC-local | Notification with a snapshot frame URL interpolated into the message text (no Telegram image attachment path built for this kind) | Accurate/Not agitation/Unsure via `SignalsPanel.vue`; precision SQL above |
 | `same_clothes_suspected` | CTS, daily appearance-profile evaluator | `cts_contracts.DementiaSignalKind` (wire) | Day-over-day quality-weighted PH `gallery_mean` centroid cosine similarity above `hygiene.same_clothes.similarity_threshold` (0.90 default); requires `hygiene.same_clothes.min_samples_per_day` (5 default) quality-weighted samples per day or emits no verdict | Backtested against historical data before live emission; live flip blocked on the backtest data gap as of the last verified state, re-check `daily-living-m07-*.md`'s own dated notes before assuming it is flipped |
 | `hygiene_routine_missed` | CC, `daily_living_hygiene_confirm` rule bundle (`signal_emit`, joins CTS's signal with the shower proxy) | CC-local | VLM comparison of the two days' best keyframe crops (`media_presign` step) plus the bathroom-dwell shower proxy (`presence_query`'s `room_dwell_history` mode over `PersonLocationService.dwell_episodes`); alert fires only when clothes match AND no qualifying bathroom dwell in the lookback window (`hygiene.shower.window_hours`, 26h default) | Same generic experimental-grade feedback path as any CC-local kind |
+| `medication_excess` | CC, `MedicationSafetyMonitor` (`SignalsService.emit` with an `idempotency_key`) | CC-local, in `ALWAYS_ON_KINDS` | Logged sessions against the schedule | Experimental: caregivers can mark an as-needed dose inaccurate |
 
 `ALL_SIGNAL_KINDS` (`backend/services/cts/signal_config.py`) derives dynamically from
 `cts_contracts.DementiaSignalKind` plus `CC_LOCAL_SIGNAL_KINDS`; a new kind registers in exactly

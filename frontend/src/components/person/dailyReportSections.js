@@ -1,10 +1,16 @@
+import { formatTimeOnly, formatWallClock } from "@/services/timezone.js";
+
 /**
  * The daily report's sections, turned from the backend's aggregates into labelled rows. Each row
  * is what a caregiver reads: plain words and real units, never a field name.
- *
- * Medication shows doses and how each was confirmed. It leaves out `doses_due` and `adherence_pct`
- * because `doses_due` is still a backend placeholder, so that percentage means nothing yet.
  */
+
+const DOSE_STATUS = {
+  taken: "Taken",
+  likely_taken: "Likely taken (camera)",
+  missed: "Missed",
+  upcoming: "Upcoming",
+};
 
 /** Minutes as "7 h 32 min", or "45 min" under an hour. */
 export function formatMinutes(minutes) {
@@ -29,6 +35,36 @@ const percent = (label, fraction) => ({
   value: fraction == null ? null : `${Math.round(fraction * 100)}%`,
   raw: fraction,
 });
+
+/** The day's doses against the schedule, or a note when no schedule was in effect. */
+function medicationRows(medication) {
+  const logged = [
+    count("Doses logged", medication.doses_taken),
+    count("Confirmed in a routine", medication.confirmed_doses),
+    count("Inferred from camera", medication.inferred_doses),
+  ];
+  if (medication.doses_scheduled == null) {
+    return [{ label: "Schedule", value: "Not set", raw: true }, ...logged];
+  }
+  const doses = (medication.doses ?? []).map((dose) => ({
+    label: `${formatWallClock(dose.dose_time)} ${dose.label}`,
+    value: DOSE_STATUS[dose.status],
+    raw: true,
+  }));
+  const excess = (medication.excess_doses ?? []).map((dose) => ({
+    label: `${formatTimeOnly(dose.taken_at)} ${dose.kind === "extra" ? "Extra dose" : "Unscheduled dose"}`,
+    value: dose.confirmed ? "Taken" : "Likely taken (camera)",
+    raw: true,
+  }));
+  return [
+    ...doses,
+    ...excess,
+    percent("Adherence so far", toFraction(medication.adherence_pct)),
+    ...logged,
+  ];
+}
+
+const toFraction = (pct) => (pct == null ? null : pct / 100);
 
 /** The rows worth showing: a section where nothing happened reads "No data". */
 function present(rows) {
@@ -74,11 +110,7 @@ export function reportSections(report) {
       key: "medication",
       label: "Medication",
       icon: "mdi-pill",
-      rows: [
-        count("Doses taken", medication.doses_taken),
-        count("Confirmed in a routine", medication.confirmed_doses),
-        count("Inferred from camera", medication.inferred_doses),
-      ],
+      rows: medicationRows(medication),
     },
     {
       key: "bathroom_visits",

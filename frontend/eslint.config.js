@@ -112,6 +112,18 @@ export default withVueTs(
     },
   },
   {
+    // typescript-eslint turns this off for type-checked files, but plain .js and .vue script
+    // blocks have no compiler behind them. It catches a component calling `api` with no import.
+    files: ["src/**/*.{js,vue}"],
+    rules: { "no-undef": "error" },
+  },
+  {
+    // The same mistake in a template: a name a classic setup() never returned. Nothing else
+    // catches it, and it only fails when that line of the template runs.
+    files: ["src/**/*.vue"],
+    rules: { "vue/no-undef-properties": "error" },
+  },
+  {
     // the Pinia auth store is the only owner of the API key storage key.
     // http.ts keeps a pre-wire localStorage fallback (see its own comment)
     // until main.js calls setApiKeyProvider.

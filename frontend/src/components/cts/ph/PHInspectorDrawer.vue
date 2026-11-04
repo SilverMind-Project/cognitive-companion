@@ -407,6 +407,7 @@ export default {
     }
 
     return {
+      notify,
       detail,
       lifecycle,
       activeForm,

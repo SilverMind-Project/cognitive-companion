@@ -14,15 +14,15 @@ Read before changing dependencies, lock files, or toolchain versions. Part of th
 | Vuetify | 3.12+ (v3 stable branch) | Vuetify 4 is a ground-up rewrite; v3 remains maintained |
 | Python | 3.14 | Minimum is set in `requires-python` in `pyproject.toml` |
 | redis-py | 8.0 | Minimum floor raised; RESP3 types in 8.x require the `type: ignore[index,assignment]` note in `stream_consumer.py` |
-| pillow | 12.0 | Multiple CVEs patched between 10 and 12 |
-| pyjwt | 2.13 | RSA/ECDSA bundled; `[cryptography]` extra dropped |
+| pillow | 13.0 | CVEs patched through 13.0 |
+| pyjwt | 2.15 | RSA/ECDSA bundled; `[cryptography]` extra dropped |
 
 ### Lock-file discipline
 
 - `frontend/package-lock.json` is committed and used in CI via `npm ci` (never `npm install`).
 - `backend/uv.lock` is committed and used in CI via `uv sync --frozen --extra dev`.
 - Neither lock file is edited by hand. Update the lock with `npm install` (frontend) or `uv lock --upgrade` (backend), then commit the change.
-- The version bump on commits to `main` (`.githooks/pre-commit`, installed by `make install-hooks`) re-locks offline and stages `backend/uv.lock` with the bumped `pyproject.toml`, so the lock never trails the version. `frontend/openapi.json` pins `info.version` to `"contract"` (`backend/scripts/export_openapi.py`), so a bump never trips the contract drift gate.
+- `backend/_version.py` is the only place the version lives; `backend/pyproject.toml` reads it through `[tool.hatch.version]`, so `uv.lock` does not record it. `make release PART=patch` bumps it, commits, and tags. Commits never change the version.
 - Markdown has no em-dashes, enforced by `scripts/check-no-em-dash.sh` in the pre-commit hook, `make check-md` (in `make check`/`check-all`), and CI.
 - When the Node latest LTS patch changes, update `frontend/.nvmrc`, `frontend/package.json` engines, `frontend/Dockerfile`, and `frontend/package-lock.json` together. Verify with `nvm use $(cat frontend/.nvmrc)`, `npm run build`, `npm run test -- --reporter=dot`, and `npm audit --audit-level=high`.
 
@@ -30,7 +30,7 @@ Read before changing dependencies, lock files, or toolchain versions. Part of th
 
 - Run `npm audit --audit-level=high` before every PR; this is in the pre-commit checklist.
 - For Python: `uv pip list --outdated --python backend/.venv` shows drift from the lock.
-- Recommended CI gate: add `pip-audit` (PyPI) or `osv-scanner` (multi-ecosystem) as a CI step that fails on critical/high CVEs.
+- `make audit` runs `pip-audit` over the locked dependencies and `npm audit --omit=dev`; CI runs it and fails on any finding. `npm audit --audit-level=high` also covers dev tooling.
 - Automated PRs: add a Dependabot config at `.github/dependabot.yml` targeting both `npm` (frontend) and `pip` (backend/pyproject.toml) on a weekly schedule.
 
 ### Integrity hygiene

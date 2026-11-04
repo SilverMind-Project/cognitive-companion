@@ -72,6 +72,11 @@ jobs:
       - name: Backend tests with coverage floor (all backend tests)
         run: make coverage-gate
 
+      - name: Python dependency audit (pip-audit)
+        run: |
+          uv export --project backend --frozen --no-hashes --no-emit-project --format requirements-txt --output-file "$RUNNER_TEMP/requirements.txt" >/dev/null
+          uvx pip-audit==2.10.1 --disable-pip --no-deps -r "$RUNNER_TEMP/requirements.txt"
+
       - name: Dependency hygiene (deptry)
         run: make deps-check
 

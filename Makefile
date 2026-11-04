@@ -169,17 +169,32 @@ check-md:
 docs-check:
 	$(PY) scripts/check_doc_refs.py
 
-# Versioned git hooks (.githooks/): the version bump with re-lock, and the em-dash check.
+# Versioned git hooks (.githooks/): the em-dash check.
 # git lfs update --force writes the Git LFS hooks into the same directory.
 .PHONY: install-hooks
 install-hooks:
 	git config core.hooksPath .githooks
 	git lfs update --force
 
+# Cut a release: bump backend/_version.py, commit, and tag. PART is patch, minor, or major.
+.PHONY: release
+release:
+	bash scripts/release.sh $(PART)
+
+AUDIT_REQUIREMENTS := /tmp/cognitive-companion-audit-requirements.txt
+
+# Known vulnerabilities in what ships: the locked Python dependencies and production npm packages.
+.PHONY: audit
+audit:
+	uv export --project backend --frozen --no-hashes --no-emit-project --format requirements-txt --output-file $(AUDIT_REQUIREMENTS) >/dev/null
+	uvx pip-audit==2.10.1 --disable-pip --no-deps -r $(AUDIT_REQUIREMENTS)
+	$(call RUN_FRONTEND,npm audit --omit=dev)
+
 # Claude Code hook test table (.claude/hooks/tests/run.sh); needs bash, jq, and git.
 .PHONY: hooks-test
 hooks-test:
 	bash .claude/hooks/tests/run.sh
+	bash scripts/release.sh --self-test
 
 .PHONY: check
 check: lint typecheck-core typecheck-ratchet test-core hooks-test check-md docs-check

@@ -67,7 +67,7 @@
         <CcSectionCard title="Signal counts by kind">
           <CcBarChart
             :categories="kindBars.map((b) => b.kind.replace(/_/g, ' '))"
-            :series="[{ name: 'Count', data: kindBars.map((b) => b.count) }]"
+            :series="[{ name: 'Count', values: kindBars.map((b) => b.count) }]"
             :loading="loading"
             height="200"
             @select="onKindSelect"

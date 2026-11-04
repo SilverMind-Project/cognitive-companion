@@ -143,6 +143,22 @@ describe("CcStatusTimeline", () => {
     expect(seriesData[1].value[1]).toBe(1);
   });
 
+  it("orders the time axis by timestamp, not by the formatted label", () => {
+    fmtSpy.mockImplementation((iso) => (iso.includes("T11") ? "11:20 AM" : "01:08 PM"));
+    const w = mount(CcStatusTimeline, {
+      props: {
+        lanes: LANES,
+        events: [
+          { laneId: LANES[0].id, t: "2026-11-04T13:08:00Z", label: "afternoon" },
+          { laneId: LANES[0].id, t: "2026-11-04T11:20:00Z", label: "morning" },
+        ],
+      },
+      global: { stubs: stubComponents },
+    });
+    expect(w.vm.chartOption.xAxis.data).toEqual(["11:20 AM", "01:08 PM"]);
+    fmtSpy.mockImplementation((iso) => `TZ(${iso})`);
+  });
+
   it("shows empty state when events list is empty", () => {
     const w = mount(CcStatusTimeline, {
       props: { lanes: LANES, events: [] },

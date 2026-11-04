@@ -10,14 +10,19 @@
             v-bind="activatorProps"
             :loading="loading"
           >
-            {{ displayDate }}
+            {{ formatCalendarDate(displayDate) }}
           </v-btn>
         </template>
-        <v-date-picker v-model="selectedDate" headers="" @update:model-value="onDateSelected" />
+        <v-date-picker :model-value="pickerDate" headers="" @update:model-value="onDateSelected" />
       </v-menu>
 
-      <v-chip v-if="report" :color="wellnessColor" variant="tonal" class="ml-2">
-        Wellness: {{ (report.wellness_score * 100).toFixed(0) }}%
+      <v-chip
+        v-if="report?.wellness_score != null"
+        :color="wellnessColor(report.wellness_score)"
+        variant="tonal"
+        class="ml-2"
+      >
+        Wellness {{ Math.round(report.wellness_score) }} of 100
       </v-chip>
 
       <v-spacer />
@@ -46,7 +51,7 @@
       variant="tonal"
       class="mb-2"
     >
-      <strong>{{ alert.title || alert.severity }}:</strong> {{ alert.message }}
+      {{ alert.message }}
     </v-alert>
 
     <!-- Report sections grid -->
@@ -55,21 +60,18 @@
         <v-card variant="flat" class="report-section">
           <v-card-text class="pa-4">
             <div class="d-flex align-center mb-2">
-              <v-icon :color="section.color" size="20" class="mr-2">{{ section.icon }}</v-icon>
+              <v-icon color="primary" size="20" class="mr-2">{{ section.icon }}</v-icon>
               <span class="text-subtitle-2 font-weight-medium">{{ section.label }}</span>
             </div>
-            <template v-for="(value, label) in section.data" :key="label">
-              <div class="d-flex justify-space-between text-body-2">
-                <span class="text-medium-emphasis">{{ label }}</span>
-                <span class="font-weight-medium">{{ formatValue(value) }}</span>
-              </div>
-            </template>
             <div
-              v-if="Object.keys(section.data).length === 0"
-              class="text-caption text-medium-emphasis"
+              v-for="row in section.rows"
+              :key="row.label"
+              class="d-flex justify-space-between text-body-2"
             >
-              No data
+              <span class="text-medium-emphasis">{{ row.label }}</span>
+              <span class="font-weight-medium">{{ row.value }}</span>
             </div>
+            <div v-if="!section.rows.length" class="text-caption text-medium-emphasis">No data</div>
           </v-card-text>
         </v-card>
       </v-col>
@@ -123,17 +125,25 @@
 
     <!-- Empty state -->
     <v-alert v-if="!loading && !report" type="info" variant="tonal" class="mt-4">
-      No report available for {{ displayDate }}.
+      No report available for {{ formatCalendarDate(displayDate) }}.
     </v-alert>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
+import { api } from "@/services/api.js";
+import {
+  calendarDateToPicker,
+  formatCalendarDate,
+  pickerToCalendarDate,
+  todayInAppTimezone,
+} from "@/services/timezone.js";
+import { reportSections as buildSections, wellnessColor } from "./dailyReportSections.js";
 
 const props = defineProps({
   personId: { type: String, required: true },
-  date: { type: String, default: () => new Date().toISOString().slice(0, 10) },
+  date: { type: String, default: () => todayInAppTimezone() },
   includeRoomTrends: { type: Boolean, default: false },
 });
 
@@ -145,55 +155,8 @@ const report = ref(null);
 
 const displayDate = computed(() => selectedDate.value || props.date);
 
-const reportSections = computed(() => {
-  if (!report.value) return [];
-  const sections = [
-    { key: "sleep", label: "Sleep", icon: "mdi-bed", color: "purple", data: report.value.sleep },
-    {
-      key: "meals",
-      label: "Meals",
-      icon: "mdi-silverware",
-      color: "orange",
-      data: report.value.meals,
-    },
-    {
-      key: "medication",
-      label: "Medication",
-      icon: "mdi-pill",
-      color: "red",
-      data: report.value.medication,
-    },
-    {
-      key: "bathroom_visits",
-      label: "Bathroom",
-      icon: "mdi-toilet",
-      color: "blue",
-      data: report.value.bathroom_visits,
-    },
-    {
-      key: "exercise",
-      label: "Exercise",
-      icon: "mdi-run",
-      color: "green",
-      data: report.value.exercise,
-    },
-    {
-      key: "tv",
-      label: "Watching TV",
-      icon: "mdi-television",
-      color: "teal",
-      data: report.value.tv,
-    },
-    {
-      key: "room_time",
-      label: "Room Time",
-      icon: "mdi-floor-plan",
-      color: "indigo",
-      data: report.value.room_time,
-    },
-  ];
-  return sections;
-});
+const pickerDate = computed(() => calendarDateToPicker(displayDate.value));
+const reportSections = computed(() => buildSections(report.value));
 
 async function load() {
   loading.value = true;
@@ -210,6 +173,9 @@ async function load() {
   }
 }
 
+// The card owns its load: a parent watcher runs before this prop updates and before first mount.
+watch(() => [props.personId, props.includeRoomTrends], load, { immediate: true });
+
 async function regenerate() {
   regenerating.value = true;
   try {
@@ -225,30 +191,15 @@ async function regenerate() {
 }
 
 function onDateSelected(date) {
-  selectedDate.value = date;
+  selectedDate.value = pickerToCalendarDate(date);
+  dateMenu.value = false;
   load();
 }
 
-function wellnessColor(score) {
-  if (score == null) return "grey";
-  if (score >= 0.8) return "success";
-  if (score >= 0.5) return "warning";
-  return "error";
-}
-
 function alertSeverityColor(severity) {
-  if (!severity) return "info";
   const map = { ok: "success", info: "info", warning: "warning", critical: "error" };
   return map[severity] || "info";
 }
-
-function formatValue(value) {
-  if (typeof value === "number") return value.toFixed(1);
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  return value ?? "—";
-}
-
-defineExpose({ load });
 </script>
 
 <style scoped>

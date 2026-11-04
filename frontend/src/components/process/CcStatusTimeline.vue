@@ -63,7 +63,10 @@ const chartOption = computed(() => {
   const laneIndex = Object.fromEntries(props.lanes.map((l, i) => [l.id, i]));
 
   // Pre-format time labels via timezone.js so no raw Date methods are used.
-  const data = props.events.map((e) => ({
+  // Ordered here, on the ISO timestamp: sorting the formatted labels would put 01:08 PM before
+  // 11:20 AM.
+  const chronological = [...props.events].sort((a, b) => String(a.t).localeCompare(String(b.t)));
+  const data = chronological.map((e) => ({
     value: [formatDateTimeShort(e.t), laneIndex[e.laneId] ?? 0],
     name: e.label,
     // Keep raw for tooltip
@@ -84,7 +87,7 @@ const chartOption = computed(() => {
     grid: { left: 80, right: 20, bottom: 40, top: 20 },
     xAxis: {
       type: "category",
-      data: [...new Set(data.map((d) => d.value[0]))].sort(),
+      data: [...new Set(data.map((d) => d.value[0]))],
       ...th.xAxis,
       axisLabel: { ...th.xAxis.axisLabel, rotate: 30 },
     },

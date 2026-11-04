@@ -162,7 +162,7 @@
                   color="error"
                   :loading="feedbackPending[item.id] === 'inaccurate'"
                   @click.stop="submitFeedback(item, 'inaccurate')"
-                  >Not agitation</v-btn
+                  >{{ kindPresentation(item.signal_type).rejectLabel }}</v-btn
                 >
                 <v-btn
                   size="x-small"

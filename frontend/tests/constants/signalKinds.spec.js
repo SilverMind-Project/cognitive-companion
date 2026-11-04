@@ -54,4 +54,10 @@ describe("signalKinds", () => {
       new Set(Object.keys(SIGNAL_KIND_PRESENTATIONS)).size,
     );
   });
+
+  it("names the reject button for the kind, and defaults to Inaccurate", () => {
+    expect(getKindPresentation("agitation_index").rejectLabel).toBe("Not agitation");
+    expect(getKindPresentation("medication_excess").rejectLabel).toBe("Inaccurate");
+    expect(getKindPresentation("some_future_kind").rejectLabel).toBe("Inaccurate");
+  });
 });

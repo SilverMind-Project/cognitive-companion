@@ -123,6 +123,7 @@ the hook test table; it is part of `make check` and CI.
 uv run --project backend uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 cd frontend && npm run dev
 make install-hooks  # once per clone: versioned git hooks (.githooks/) incl. Git LFS
+make release PART=patch  # bump, commit, and tag a release; commits never change the version
 make check
 make check-all
 make test-integration

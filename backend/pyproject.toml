@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.7.148"
+dynamic = ["version"]
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"
@@ -16,14 +16,14 @@ dependencies = [
     "boto3>=1.35",
     "botocore>=1.35",  # imported directly for Config/ClientError (deptry DEP003); previously only a transitive boto3 dep
     "apscheduler>=3.10",
-    "pillow>=12.0",
+    "pillow>=13.0",
     "python-multipart>=0.0.28",
     "python-telegram-bot>=21.0",
     "tenacity>=9.1.4",
-    "mcp[cli]>=1.9",
+    "mcp[cli]>=1.30,<2",
     "opencv-python-headless>=4.9",
     "numpy>=2.0",
-    "pyjwt>=2.13",
+    "pyjwt>=2.15",
     "redis[hiredis]>=8.0",
     "protobuf>=5.29",
     "prometheus-client>=0.25.0",
@@ -72,6 +72,10 @@ cts-contracts = { git = "https://github.com/SilverMind-Project/cts-contracts" }
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# backend/_version.py is the only place the version lives; `make release` bumps it.
+[tool.hatch.version]
+path = "_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]

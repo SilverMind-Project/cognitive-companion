@@ -21,6 +21,9 @@ const SIGNAL_KIND_PRESENTATIONS = {
     icon: "mdi-tshirt-crew-outline",
     blurb: "Appears to be wearing yesterday's clothes",
   },
+  agitation_index: {
+    rejectLabel: "Not agitation",
+  },
   medication_excess: {
     icon: "mdi-pill-multiple",
     blurb: "A dose beyond the medication schedule",
@@ -36,8 +39,9 @@ export function humanizeKind(kind) {
 }
 
 /**
- * Return `{ icon, label, blurb }` for a signal kind, falling back to a
- * generic humanized label and default icon for kinds not registered above.
+ * Return `{ icon, label, blurb, rejectLabel }` for a signal kind, falling back to a generic
+ * humanized label and default icon for kinds not registered above. `rejectLabel` names the
+ * feedback button that says the signal was wrong.
  */
 export function getKindPresentation(kind) {
   const known = SIGNAL_KIND_PRESENTATIONS[kind];
@@ -45,6 +49,7 @@ export function getKindPresentation(kind) {
     icon: known?.icon ?? DEFAULT_ICON,
     label: humanizeKind(kind),
     blurb: known?.blurb ?? "",
+    rejectLabel: known?.rejectLabel ?? "Inaccurate",
   };
 }
 

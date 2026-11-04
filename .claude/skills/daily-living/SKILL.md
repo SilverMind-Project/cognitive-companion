@@ -179,7 +179,7 @@ code changes.
 Worked example, the tea-intent shadow detector (DL-M06, `daily_living_tea_intent_shadow.json`):
 kitchen dwell (`daily_living.intent.dwell_minutes`, default 3) plus a cheap vision cascade emits
 `tea_intent_suspected` and notifies the caregiver only; it never calls `guided_task_start`. The
-caregiver labels each signal Accurate / Not agitation / Unsure in `SignalsPanel.vue`
+caregiver labels each signal Accurate / Inaccurate / Unsure (`agitation_index` says "Not agitation") in `SignalsPanel.vue`
 (`POST /api/v1/cts/signals/{signal_id}/ack`). Precision over a rolling window:
 
 ```sql

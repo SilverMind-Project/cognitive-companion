@@ -677,7 +677,6 @@ export default {
     async function onDrawerApply() {
       drawerOpen.value = false;
       await phList.actions.fetch();
-      loadIdentities();
     }
 
     async function deleteSelected() {
@@ -739,7 +738,6 @@ export default {
         bulkMergeTargetId.value = "";
         bulkMergeReason.value = "manual_bulk_merge";
         await phList.actions.fetch();
-        loadIdentities();
       } catch (err) {
         notify(String(err.message || err), "error");
       } finally {

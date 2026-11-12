@@ -79,7 +79,11 @@ const VUETIFY = [
   "v-sheet",
   "v-spacer",
   "v-switch",
+  "v-tab",
+  "v-tabs",
   "v-text-field",
+  "v-window",
+  "v-window-item",
 ];
 
 function mountView() {
@@ -91,6 +95,7 @@ function mountView() {
         DialogFooter: true,
       },
       renderStubDefaultSlot: true,
+      mocks: { $vuetify: { display: { smAndDown: false } } },
     },
   });
 }
@@ -144,5 +149,56 @@ describe("CTSCamerasView face similarity floor", () => {
 
     const [, patch] = mockUpdateCamera.mock.calls[0];
     expect(patch.face_id_min_raw_similarity).toBe(0.55);
+  });
+});
+
+describe("CTSCamerasView sectioned camera dialog", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetCameras.mockResolvedValue([CAMERA]);
+    mockCreateCamera.mockResolvedValue({});
+  });
+
+  it("groups the form into General, Identity, Geometry, and Placement sections", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    wrapper.vm.openCreate();
+    await flushPromises();
+
+    const keys = wrapper.vm.cameraSections.map((section) => section.key);
+    expect(keys).toEqual(["general", "identity", "geometry", "placement"]);
+    expect(wrapper.vm.activeSection).toBe("general");
+  });
+
+  it("returns to General and flags it instead of sending an incomplete create", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    wrapper.vm.openCreate();
+    wrapper.vm.activeSection = "geometry";
+
+    await wrapper.vm.saveCamera();
+
+    expect(mockCreateCamera).not.toHaveBeenCalled();
+    expect(wrapper.vm.activeSection).toBe("general");
+    expect(wrapper.vm.fieldErrors.id).toBeTruthy();
+    expect(wrapper.vm.fieldErrors.location).toBeTruthy();
+    expect(wrapper.vm.cameraSections[0].error).toBe(true);
+  });
+
+  it("clears the field errors once the operator fills them in", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    wrapper.vm.openCreate();
+    await wrapper.vm.saveCamera();
+
+    wrapper.vm.form.id = "hall-cam";
+    wrapper.vm.form.room_id = 3;
+    await flushPromises();
+
+    expect(wrapper.vm.fieldErrors).toEqual({});
+    await wrapper.vm.saveCamera();
+    expect(mockCreateCamera).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "hall-cam", room_id: 3, room_name: "" }),
+    );
   });
 });

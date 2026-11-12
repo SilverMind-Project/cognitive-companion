@@ -27,7 +27,7 @@ vi.mock("@/components/cts/keyframes/KeyframeAnnotationDialog.vue", () => ({
 vi.mock("@/components/cts/identity/IdentityBboxOverlay.vue", () => ({
   default: {
     name: "IdentityBboxOverlay",
-    props: ["imageUrl", "bboxes", "targets", "frameWidth", "frameHeight"],
+    props: ["imageUrl", "bboxes", "targets", "selectedId", "frameWidth", "frameHeight"],
     emits: ["select"],
     template: `<div class='mock-overlay'>
       <button v-for='b in bboxes' :key='b.ph_id' class='ov-box'
@@ -142,7 +142,9 @@ const stubs = {
 import CTSKeyframesView from "@/views/admin/CTSKeyframesView.vue";
 
 async function mountView() {
-  const wrapper = mount(CTSKeyframesView, { global: { stubs } });
+  const wrapper = mount(CTSKeyframesView, {
+    global: { stubs, mocks: { $vuetify: { display: { smAndDown: false } } } },
+  });
   await flushPromises();
   return wrapper;
 }
@@ -196,10 +198,11 @@ describe("CTSKeyframesView", () => {
     const boxes = w.findAll(".ov-box");
     expect(boxes).toHaveLength(2);
 
-    // Clicking a box selects it and mounts the shared workflow.
+    // Clicking a box selects it, highlights it in the overlay, and mounts the shared workflow.
     await boxes[0].trigger("click");
     await flushPromises();
     expect(w.findComponent({ name: "IdentityCorrectionWorkflow" }).exists()).toBe(true);
+    expect(w.findComponent({ name: "IdentityBboxOverlay" }).props("selectedId")).toBe("b1");
   });
 
   it("reloads after a geometry save and surfaces dialog errors", async () => {

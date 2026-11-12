@@ -8,7 +8,7 @@ import { ref } from "vue";
  *   if (await showConfirm("Delete Item", "Are you sure?")) {... }
  *
  * Template:
- *   <v-dialog v-model="confirmDialog" max-width="400">
+ *   <v-dialog v-model="confirmDialog" max-width="400" persistent>
  *     <v-card rounded="xl">
  *       <v-card-title>{{ confirmTitle }}</v-card-title>
  *       <v-card-text>{{ confirmText }}</v-card-text>

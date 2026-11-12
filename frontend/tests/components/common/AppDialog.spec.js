@@ -27,16 +27,46 @@ vi.mock("@/components/common/DialogFooter.vue", () => ({
       <button class="confirm-btn" @click="$emit('confirm')">Confirm</button>
       <button class="cancel-btn" @click="$emit('cancel')">Cancel</button>
     </div>`,
-    props: ["hint", "cancelLabel", "confirmLabel", "confirmLoading", "confirmDisabled"],
+    props: [
+      "hint",
+      "cancelLabel",
+      "confirmLabel",
+      "confirmColor",
+      "confirmLoading",
+      "confirmDisabled",
+    ],
     emits: ["cancel", "confirm"],
+  },
+}));
+
+// Stands in for the tabbed body: renders every section slot so their content is assertable.
+vi.mock("@/components/common/AppDialogSections.vue", () => ({
+  default: {
+    name: "AppDialogSections",
+    props: ["sections", "modelValue", "compact"],
+    emits: ["update:modelValue"],
+    template: `<div class="sections-stub">
+      <button v-for="s in sections" :key="s.key" :class="'nav-' + s.key"
+        @click="$emit('update:modelValue', s.key)">{{ s.label }}</button>
+      <div v-for="s in sections" :key="s.key" :class="'body-' + s.key">
+        <slot :name="'section-' + s.key" />
+      </div>
+    </div>`,
   },
 }));
 
 const vDialog = {
   name: "v-dialog",
   template: `<div class="v-dialog-stub" :style="{ width: width }"><slot /></div>`,
-  props: ["modelValue", "width", "maxWidth", "fullscreen", "scrollable"],
+  props: ["modelValue", "width", "maxWidth", "fullscreen", "scrollable", "persistent"],
 };
+
+const vDivider = { name: "v-divider", template: "<hr />", props: ["vertical"] };
+
+const SECTIONS = [
+  { key: "general", label: "General", icon: "mdi-cog" },
+  { key: "geometry", label: "Geometry", icon: "mdi-angle-acute" },
+];
 
 const vCard = {
   name: "v-card",
@@ -57,6 +87,7 @@ function mountAppDialog(props, slots = {}) {
       stubs: {
         "v-dialog": vDialog,
         "v-card": vCard,
+        "v-divider": vDivider,
       },
       mocks: {
         $vuetify: {
@@ -123,5 +154,66 @@ describe("AppDialog", () => {
     const wrapper = mountAppDialog({});
     expect(wrapper.find(".cc-glass").exists()).toBe(true);
     expect(wrapper.findComponent(vDialog).props("fullscreen")).toBe(false);
+  });
+
+  it("is dismissible by default and persistent on request", () => {
+    expect(mountAppDialog({}).findComponent(vDialog).props("persistent")).toBe(false);
+    expect(mountAppDialog({ persistent: true }).findComponent(vDialog).props("persistent")).toBe(
+      true,
+    );
+  });
+
+  it("passes the confirm color to the footer", () => {
+    const wrapper = mountAppDialog({ confirmColor: "error" });
+    expect(wrapper.findComponent({ name: "DialogFooter" }).props("confirmColor")).toBe("error");
+  });
+
+  it("renders a sectioned body with one slot per section and a fixed height", () => {
+    const wrapper = mountAppDialog(
+      { size: "lg", sections: SECTIONS },
+      {
+        "section-general": "<div>General fields</div>",
+        "section-geometry": "<div>Geometry fields</div>",
+      },
+    );
+    const sections = wrapper.findComponent({ name: "AppDialogSections" });
+    expect(sections.props("modelValue")).toBe("general");
+    expect(wrapper.find(".body-general").text()).toBe("General fields");
+    expect(wrapper.find(".body-geometry").text()).toBe("Geometry fields");
+    expect(wrapper.find(".app-dialog-card--fixed").exists()).toBe(true);
+  });
+
+  it("tracks the active section and reports it for v-model:section", async () => {
+    const wrapper = mountAppDialog({ sections: SECTIONS });
+    await wrapper.find(".nav-geometry").trigger("click");
+
+    expect(wrapper.emitted("update:section")[0]).toEqual(["geometry"]);
+    expect(wrapper.findComponent({ name: "AppDialogSections" }).props("modelValue")).toBe(
+      "geometry",
+    );
+  });
+
+  it("follows a bound section, so a parent can jump to a section with errors", async () => {
+    const wrapper = mountAppDialog({ sections: SECTIONS, section: "general" });
+    await wrapper.setProps({ section: "geometry" });
+    expect(wrapper.findComponent({ name: "AppDialogSections" }).props("modelValue")).toBe(
+      "geometry",
+    );
+  });
+
+  it("renders a split body: the aside form column beside the workspace", () => {
+    const wrapper = mountAppDialog(
+      { size: "lg" },
+      { aside: "<div>Zone form</div>", default: "<div>Drawing canvas</div>" },
+    );
+    expect(wrapper.find(".app-dialog-aside").text()).toBe("Zone form");
+    expect(wrapper.find(".app-dialog-main").text()).toBe("Drawing canvas");
+    expect(wrapper.find(".app-dialog-card--fixed").exists()).toBe(true);
+  });
+
+  it("keeps the plain body for sm and md forms", () => {
+    const wrapper = mountAppDialog({ size: "md" }, { default: "<div>Fields</div>" });
+    expect(wrapper.find(".app-dialog-body").text()).toBe("Fields");
+    expect(wrapper.find(".app-dialog-card--fixed").exists()).toBe(false);
   });
 });

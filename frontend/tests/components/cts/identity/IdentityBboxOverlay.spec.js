@@ -32,10 +32,19 @@ function bbox(over = {}) {
   };
 }
 
-function mountOverlay(bboxes) {
+function mountOverlay(bboxes, props = {}) {
   return mount(IdentityBboxOverlay, {
-    props: { imageUrl: "img.jpg", bboxes, targets: TARGETS },
+    props: { imageUrl: "img.jpg", bboxes, targets: TARGETS, ...props },
   });
+}
+
+/** Pretend the overlay is rendered *px* wide, then re-measure. */
+async function renderAt(wrapper, px) {
+  Object.defineProperty(wrapper.find(".overlay-wrap").element, "clientWidth", {
+    configurable: true,
+    value: px,
+  });
+  await wrapper.find("img").trigger("load");
 }
 
 describe("IdentityBboxOverlay", () => {
@@ -71,6 +80,65 @@ describe("IdentityBboxOverlay", () => {
   it("is keyboard operable and not selectable when disabled", async () => {
     const w = mountOverlay([bbox()]);
     await w.find(".bbox-group").trigger("keydown.enter");
+    expect(w.emitted("select")).toBeTruthy();
+  });
+
+  it("sizes label text in screen pixels, not frame pixels", async () => {
+    const w = mountOverlay([bbox()]);
+
+    // A 1920px frame shown 640px wide: 3 frame units per screen pixel, so 14px text is 42 units.
+    await renderAt(w, 640);
+    expect(Number(w.find("text").attributes("font-size"))).toBeCloseTo(42);
+
+    // The same frame shown at full width needs no scaling.
+    await renderAt(w, 1920);
+    expect(Number(w.find("text").attributes("font-size"))).toBeCloseTo(14);
+  });
+
+  it("draws the label with the camera-feed halo at weight 500", () => {
+    const w = mountOverlay([bbox()]);
+    const text = w.find("text");
+    expect(text.attributes("paint-order")).toBe("stroke");
+    expect(text.attributes("stroke")).toBeTruthy();
+    expect(text.classes()).toContain("overlay-label");
+  });
+
+  it("makes the whole box a hit target, and none when not selectable", () => {
+    const selectable = mountOverlay([bbox()]);
+    expect(selectable.find(".bbox-rect").attributes("pointer-events")).toBe("all");
+
+    const readOnly = mountOverlay([bbox()], { selectable: false });
+    expect(readOnly.find(".bbox-rect").attributes("pointer-events")).toBe("none");
+  });
+
+  it("draws smaller boxes last so a nested box stays clickable", () => {
+    const w = mountOverlay([
+      bbox({ bbox_id: "small", x1: 40, y1: 40, x2: 60, y2: 80 }),
+      bbox({ bbox_id: "large", x1: 0, y1: 0, x2: 400, y2: 600 }),
+    ]);
+    const labels = w.findAll(".bbox-group").map((g) => g.attributes("aria-label"));
+    expect(labels).toHaveLength(2);
+    const rects = w.findAll(".bbox-rect").map((r) => Number(r.attributes("width")));
+    expect(rects).toEqual([400, 20]);
+  });
+
+  it("highlights the selected box", () => {
+    const w = mountOverlay(
+      [bbox(), bbox({ bbox_id: "b2", ph_id: "ph-b", effective_identity_id: "appa" })],
+      { selectedId: "b2" },
+    );
+    const selected = w.findAll(".bbox-group.selected");
+    expect(selected).toHaveLength(1);
+    expect(selected[0].attributes("aria-pressed")).toBe("true");
+  });
+
+  it("keeps the boxes selectable when the frame image fails to load", async () => {
+    const w = mountOverlay([bbox()]);
+    await w.find("img").trigger("error");
+
+    expect(w.find("img").exists()).toBe(false);
+    expect(w.text()).toContain("Frame image unavailable");
+    await w.find(".bbox-group").trigger("click");
     expect(w.emitted("select")).toBeTruthy();
   });
 });

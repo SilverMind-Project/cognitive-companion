@@ -11,7 +11,7 @@
       <v-spacer />
       <v-btn variant="text" @click="$emit('cancel')">{{ cancelLabel }}</v-btn>
       <v-btn
-        color="primary"
+        :color="confirmColor"
         variant="flat"
         :loading="confirmLoading"
         :disabled="confirmDisabled"
@@ -28,6 +28,7 @@ defineProps({
   hint: { type: String, default: "" },
   cancelLabel: { type: String, default: "Cancel" },
   confirmLabel: { type: String, default: "Save" },
+  confirmColor: { type: String, default: "primary" },
   confirmLoading: { type: Boolean, default: false },
   confirmDisabled: { type: Boolean, default: false },
 });

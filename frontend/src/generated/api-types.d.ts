@@ -9372,8 +9372,11 @@ export interface components {
              * @default
              */
             name: string;
-            /** Policy */
-            policy: string;
+            /**
+             * Policy
+             * @enum {string}
+             */
+            policy: "drop_detection" | "blur_region" | "mask_region";
             /** Polygon */
             polygon: number[][];
             /** Zone Id */

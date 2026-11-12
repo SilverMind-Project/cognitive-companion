@@ -164,6 +164,24 @@ export function formatTimeOnly(iso) {
 }
 
 /**
+ * Clock time with seconds: "02:30:45 PM"
+ * Use for live telemetry sampled seconds apart, where minutes alone repeat.
+ *
+ * @param {string|null|undefined} iso
+ * @returns {string}
+ */
+export function formatClockTime(iso) {
+  if (!iso) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: getAppTimezone(),
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).format(_parseISO(iso));
+}
+
+/**
  * Full datetime with explicit timezone abbreviation: "Jan 15, 2025, 2:30:45 PM EST"
  * Use for camera media lightbox where the absolute moment matters most.
  *

@@ -11113,7 +11113,11 @@
             "type": "string"
           },
           "policy": {
-            "pattern": "^(drop_detections|blur_faces|mask_region)$",
+            "enum": [
+              "drop_detection",
+              "blur_region",
+              "mask_region"
+            ],
             "title": "Policy",
             "type": "string"
           },

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 from backend.schemas.common import OutSchema, UTCDatetime
@@ -188,11 +190,17 @@ class InferredAdjacencyResponse(BaseModel):
     skipped_camera_ids: list[str]
 
 
+# The tracking orchestrator's privacy-policy vocabulary (its ``PrivacyPolicy`` and the pattern on
+# its calibration router). Zones are forwarded verbatim, so a value outside this set saves here but
+# is refused upstream and never takes effect; the two lists must change together.
+PrivacyPolicy = Literal["drop_detection", "blur_region", "mask_region"]
+
+
 class PrivacyZoneIn(BaseModel):
     zone_id: str = Field(..., min_length=1)
     name: str = ""
     polygon: list[list[float]] = Field(..., min_length=3)
-    policy: str = Field(..., pattern=r"^(drop_detections|blur_faces|mask_region)$")
+    policy: PrivacyPolicy
     enabled: bool = True
 
     @field_validator("polygon")

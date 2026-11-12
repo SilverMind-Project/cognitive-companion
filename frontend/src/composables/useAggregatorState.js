@@ -3,6 +3,11 @@ import { api } from "@/services/api.js";
 
 export const AGGREGATOR_HISTORY_LIMIT = 20;
 export const AGGREGATOR_REFRESH_SECONDS = 15;
+/** Sampling period for the one camera whose depth trend is open. */
+export const AGGREGATOR_SAMPLE_SECONDS = 5;
+// Samples closer than this carry no trend, so a later one replaces the earlier (the page's
+// initial load fetches twice: on mount and on the table's first options event).
+const MIN_SAMPLE_GAP_MS = 1000;
 
 export function useAggregatorState() {
   const state = reactive({
@@ -23,6 +28,7 @@ export function useAggregatorState() {
   });
 
   let refreshTimer = null;
+  let sampleTimer = null;
 
   function fetchParams() {
     const params = {
@@ -36,10 +42,17 @@ export function useAggregatorState() {
   }
 
   function appendHistory(items) {
-    const capturedAt = Date.now();
+    // ISO, not epoch milliseconds: the chart formats points through services/timezone.js.
+    const capturedAt = new Date().toISOString();
     for (const item of items) {
       const points = state.history.get(item.camera_id) ?? [];
-      points.push({ t: capturedAt, depth: item.buffer_depth });
+      const point = { t: capturedAt, depth: item.buffer_depth };
+      const newest = points.at(-1);
+      if (newest && Date.parse(capturedAt) - Date.parse(newest.t) < MIN_SAMPLE_GAP_MS) {
+        points[points.length - 1] = point;
+      } else {
+        points.push(point);
+      }
       if (points.length > AGGREGATOR_HISTORY_LIMIT) {
         points.splice(0, points.length - AGGREGATOR_HISTORY_LIMIT);
       }
@@ -71,6 +84,35 @@ export function useAggregatorState() {
     } finally {
       state.loading = false;
     }
+  }
+
+  /** Record one depth sample for *cameraId* without replacing the paged table rows. */
+  async function sampleCamera(cameraId) {
+    try {
+      const response = await api.getAggregatorState({ camera_id: cameraId, limit: 1 });
+      appendHistory(response.items.filter((item) => item.camera_id === cameraId));
+    } catch {
+      // A missed sample leaves a gap in the trend; the table's own fetch reports the error.
+    }
+  }
+
+  function stopSampling() {
+    if (sampleTimer !== null) {
+      clearInterval(sampleTimer);
+      sampleTimer = null;
+    }
+  }
+
+  /**
+   * Sample *cameraId* every AGGREGATOR_SAMPLE_SECONDS until stopSampling, starting at once unless
+   * the table fetch has just recorded a point (two points in one second read as a flat line).
+   */
+  function startSampling(cameraId) {
+    stopSampling();
+    const newest = state.history.get(cameraId)?.at(-1);
+    const recent = newest && Date.now() - Date.parse(newest.t) < AGGREGATOR_SAMPLE_SECONDS * 1000;
+    if (!recent) sampleCamera(cameraId);
+    sampleTimer = setInterval(() => sampleCamera(cameraId), AGGREGATOR_SAMPLE_SECONDS * 1000);
   }
 
   async function onPageOptions({ page, itemsPerPage }) {
@@ -109,7 +151,10 @@ export function useAggregatorState() {
     },
   );
 
-  onUnmounted(stopAutoRefresh);
+  onUnmounted(() => {
+    stopAutoRefresh();
+    stopSampling();
+  });
 
   return {
     state,
@@ -119,6 +164,9 @@ export function useAggregatorState() {
       setFilter,
       startAutoRefresh,
       stopAutoRefresh,
+      sampleCamera,
+      startSampling,
+      stopSampling,
     },
   };
 }

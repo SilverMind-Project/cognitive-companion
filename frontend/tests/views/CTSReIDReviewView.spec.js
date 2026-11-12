@@ -137,25 +137,69 @@ const stubs = {
   "v-icon": { template: "<span />" },
 };
 
+function mountView() {
+  return mount(CTSReIDReviewView, {
+    global: { stubs, mocks: { $vuetify: { display: { smAndDown: false } } } },
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe("CTSReIDReviewView", () => {
-  it("renders queue counts and an empty state", async () => {
+  it("uses the standard admin page title", async () => {
     store.value = makeStore({ candidates: [] });
-    const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
+    const wrapper = mountView();
     await flushPromises();
-    expect(wrapper.text()).toContain("4 pending");
-    expect(wrapper.text()).toContain("3 auto-verified");
+    const title = wrapper.find("h2");
+    expect(title.text()).toBe("ReID Review Queue");
+    expect(title.classes()).toEqual(
+      expect.arrayContaining(["text-h4", "font-weight-bold", "tracking-tight"]),
+    );
+    expect(wrapper.find("h1").exists()).toBe(false);
+  });
+
+  it("renders queue counts in the state picker and a filter-miss empty state", async () => {
+    store.value = makeStore({ candidates: [] });
+    const wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.text()).toContain("Pending · 4");
+    expect(wrapper.text()).toContain("Auto-verified · 3");
     expect(wrapper.text()).toContain("No candidates match");
+    expect(wrapper.text()).not.toContain("The review queue is empty");
+  });
+
+  it("explains how candidates arrive when the queue has never had one", async () => {
+    const s = makeStore({ candidates: [] });
+    s.state.counts.value = {
+      pending_review: 0,
+      auto_verified: 0,
+      operator_verified: 0,
+      rejected: 0,
+    };
+    store.value = s;
+    const wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.text()).toContain("The review queue is empty");
+    expect(wrapper.text()).toContain("calibrated face match");
+    expect(wrapper.text()).not.toContain("No candidates match");
+  });
+
+  it("switches lifecycle state through the segmented picker", async () => {
+    store.value = makeStore({ candidates: [] });
+    const wrapper = mountView();
+    await flushPromises();
+    const rejected = wrapper.findAll("button").find((b) => b.text() === "Rejected · 1");
+    await rejected.trigger("click");
+    expect(store.value.actions.setFilter).toHaveBeenCalledWith("state", "rejected");
   });
 
   it("renders a distinct auto_verified state chip in the queue table", async () => {
     store.value = makeStore({
       candidates: [{ candidate_id: "c1", state: "auto_verified", audit_version: 1, quality: 0.9 }],
     });
-    const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
+    const wrapper = mountView();
     await flushPromises();
     expect(wrapper.text()).toContain("Auto-verified");
   });
@@ -173,7 +217,7 @@ describe("CTSReIDReviewView", () => {
         eligibility: { eligible: true, model_compatible: true, reasons: [] },
       },
     });
-    const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
+    const wrapper = mountView();
     await flushPromises();
     const buttons = wrapper.findAll("button").map((b) => b.text());
     expect(buttons).toContain("Demote");
@@ -186,7 +230,7 @@ describe("CTSReIDReviewView", () => {
     store.value = makeStore({
       candidates: [{ candidate_id: "c1", state: "pending_review", audit_version: 1 }],
     });
-    const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
+    const wrapper = mountView();
     await flushPromises();
     expect(wrapper.text().toLowerCase()).not.toContain("approve selected");
   });
@@ -208,7 +252,7 @@ describe("CTSReIDReviewView", () => {
         },
       },
     });
-    const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
+    const wrapper = mountView();
     await flushPromises();
     const approveBtn = wrapper.findAll("button").find((b) => b.text() === "Approve");
     expect(approveBtn).toBeTruthy();
@@ -232,7 +276,7 @@ describe("CTSReIDReviewView", () => {
         eligibility: { eligible: false, model_compatible: true, reasons: [] },
       },
     });
-    const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
+    const wrapper = mountView();
     await flushPromises();
     expect(wrapper.text()).toContain("Crop deleted");
     expect(wrapper.find("img.crop-img").exists()).toBe(false);
@@ -245,7 +289,7 @@ describe("CTSReIDReviewView", () => {
       .fn()
       .mockRejectedValue(new CorrectionError("forbidden", { status: 403 }));
     store.value = s;
-    const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
+    const wrapper = mountView();
     await flushPromises();
     expect(wrapper.text()).toContain("cts.identity.gallery_review");
   });

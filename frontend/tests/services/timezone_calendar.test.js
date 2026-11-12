@@ -2,6 +2,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   calendarDateToPicker,
   formatCalendarDate,
+  formatClockTime,
   formatWallClock,
   initTimezone,
   pickerToCalendarDate,
@@ -34,5 +35,11 @@ describe("calendar dates", () => {
 
   it("round-trips through the date picker", () => {
     expect(pickerToCalendarDate(calendarDateToPicker("2026-11-04"))).toBe("2026-11-04");
+  });
+
+  it("formats live telemetry clock time to the second in app.timezone", () => {
+    initTimezone("America/New_York");
+    expect(formatClockTime("2026-11-05T02:00:07Z")).toBe("09:00:07 PM");
+    expect(formatClockTime(null)).toBe("");
   });
 });

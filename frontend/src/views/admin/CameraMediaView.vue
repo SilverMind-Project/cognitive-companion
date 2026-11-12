@@ -300,6 +300,16 @@ function openCamera(camera) {
   drawerOpen.value = true;
 }
 
+// While a camera's drawer is open, sample it on its own cadence so the depth trend fills in
+// even when table auto-refresh is off.
+watch(
+  () => (drawerOpen.value ? selectedCameraId.value : null),
+  (cameraId) => {
+    if (cameraId) aggregators.actions.startSampling(cameraId);
+    else aggregators.actions.stopSampling();
+  },
+);
+
 watch(
   () => aggregators.state.error,
   (error) => {

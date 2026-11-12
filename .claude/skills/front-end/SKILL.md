@@ -41,8 +41,11 @@ applies:
 
 ## Components and layout
 
-7. Detail and form modals use `AppDialog` (`sm` 480, `md` 720, `lg` 1080, `xl` 1440); a plain
-   `v-dialog` + `v-card` is only for the `useConfirm()` dialog, always `persistent`.
+7. Detail and form modals use `AppDialog`: `sm` 480 (up to about four fields), `md` 720 (one
+   concern, paired fields), `lg` 1080 (`sections` nav for several concerns, `#aside` split for a
+   form beside a visual workspace), `xl` 1440 (workbench, inspector). Forms pass `persistent` and
+   fit without scrolling. A plain `v-dialog` + `v-card` is only for the `useConfirm()` dialog,
+   always `persistent`.
 8. Right drawers use `class="cc-drawer-right"` at width 480 or 640 only, a plain `<div>` root, and
    a `min-height: 0` scroll body.
 9. Every `v-data-table` sits in `<v-card class="glass-card">`, paginates server-side

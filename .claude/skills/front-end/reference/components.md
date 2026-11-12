@@ -69,47 +69,69 @@ Every admin list view follows this structure:
 
 ### Dialog pattern
 
-Dialogs use a solid elevated surface (`--cc-bg-elevated`), not the `--cc-surface` used by cards. Detail and form modals use `AppDialog` (next section); the plain `v-dialog` + `<v-card>` below is for the `useConfirm()` confirmation dialog only:
+Dialogs use a solid elevated surface (`--cc-bg-elevated`), not the `--cc-surface` used by cards. Detail and form modals use `AppDialog` (next section). The plain `v-dialog` + `<v-card>` below is only for the `useConfirm()` confirmation dialog:
 
 ```html
-<v-dialog v-model="showDialog" max-width="600" persistent>
-  <v-card>
-    <v-card-title>Title</v-card-title>
-    <v-card-text>
-      <!-- form fields -->
-    </v-card-text>
+<v-dialog v-model="confirmDialog" max-width="400" persistent>
+  <v-card rounded="xl">
+    <v-card-title>{{ confirmTitle }}</v-card-title>
+    <v-card-text>{{ confirmText }}</v-card-text>
     <v-card-actions>
       <v-spacer />
-      <v-btn variant="text" @click="showDialog = false">Cancel</v-btn>
-      <v-btn color="primary" :loading="saving" @click="save">Save</v-btn>
+      <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
+      <v-btn :color="confirmColor" variant="flat" @click="onConfirm">{{ confirmLabel }}</v-btn>
     </v-card-actions>
   </v-card>
 </v-dialog>
 ```
 
-- `max-width` is typically `400` for confirm dialogs, `600`–`640` for create/edit forms, `800` for complex editors.
-- Confirm/delete dialogs use `rounded="xl"` on the inner card.
-- Always use `persistent` on create/edit dialogs to prevent accidental dismissal.
-- **Never add opacity or translucency to dialog cards.** Dialogs must be ≥95% opaque so the content behind does not bleed through.
+- The confirm dialog is `max-width="400"`, `rounded="xl"`, and always `persistent` (a backdrop close leaves the `useConfirm()` promise hanging).
+- Create and edit dialogs pass `persistent` to `AppDialog` so a stray backdrop click cannot discard input.
+- **Never add opacity or translucency to dialog cards.** Dialogs must be at least 95% opaque so the content behind does not bleed through.
+- The primary action sits on the right (`v-spacer` between Cancel and Save). A destructive confirm passes `confirm-color="error"`.
 
 #### CSS specificity note (do not regress)
 
 `theme.css` has a global card rule at specificity (0,6,0) that applies `--cc-surface`. The dialog override sits at specificity (0,8,0) -- it repeats the `:not()` chain to win with `!important`. If you ever add more `:not()` exclusions to the global card rule, add the same exclusion to the dialog rule so the dialog keeps `--cc-bg-elevated`.
-- Always put the primary action on the right (`v-spacer` between Cancel and Save).
 
-### Detail modals: use `AppDialog`
+### Detail and form modals: use `AppDialog`
 
-Use `AppDialog` for any medium/large detail modal; pick `size` from the preset table; never hand-roll a `v-dialog` + `v-card` + header/footer.
-`DialogHeader`/`DialogFooter` are the building blocks; `AppDialog` composes them.
-Migrate legacy `v-dialog`s to `AppDialog` opportunistically when touching a file.
-Tokens only; `cc-glass`; fullscreen on mobile; scrollable.
+Never hand-roll a `v-dialog` + `v-card` + header/footer: `AppDialog` composes `DialogHeader` and `DialogFooter`, and is tokens-only, `cc-glass`, scrollable, and fullscreen on mobile. Migrate a legacy `v-dialog` to `AppDialog` when you touch its file.
 
-| size | width | use |
-| --- | --- | --- |
-| `sm` | 480 | confirmations, single-field edits |
-| `md` | 720 | standard detail forms (default) |
-| `lg` | 1080 | rich detail / multi-column |
-| `xl` | 1440 | canvas / workbench (matches `StepConfigDialog`) |
+Pick the size by content, then the body layout that size calls for. A form should fit its dialog without scrolling on a 1080p display; if it does not, move up a size or a layout rather than lengthening the column.
+
+| Size | Width | Content | Body layout |
+| --- | --- | --- | --- |
+| `sm` | 480 | Confirmation, test, or up to about four short fields | Default slot, one column |
+| `md` | 720 | One concern, about five to ten fields | Default slot; pair short fields in a two-column `v-row` |
+| `lg` | 1080 | Several concerns, or a form plus a visual workspace | `sections` (sectioned) or `#aside` (split) |
+| `xl` | 1440 | Workbench, canvas, or inspector with large media | Default slot laying out its own panes |
+
+**Sectioned (`lg` + `sections`).** For a long form with distinct concerns (camera: General, Identity, Geometry, Placement). A left nav lists the sections, modelled on the Add Pipeline Step palette; each section is a short two-column form in its own `#section-<key>` slot. The body height is fixed, so switching sections never resizes the dialog. Bind `v-model:section` so a failed save can jump to the section that holds the error, and set `error: true` on that section's entry to flag it in the nav. Validation errors appear on the fields, not in a toast about a field the operator cannot see.
+
+```html
+<AppDialog
+  v-model="dialog"
+  v-model:section="activeSection"
+  size="lg"
+  persistent
+  icon="mdi-cctv"
+  label="Create New Camera"
+  title="Camera"
+  :sections="[
+    { key: 'general', label: 'General', icon: 'mdi-cctv', error: hasGeneralErrors },
+    { key: 'geometry', label: 'Geometry', icon: 'mdi-angle-acute', description: 'Optional.' },
+  ]"
+  @confirm="save"
+>
+  <template #section-general>...</template>
+  <template #section-geometry>...</template>
+</AppDialog>
+```
+
+**Split (`lg` + `#aside`).** For a form whose main input is visual (privacy zone: draw a polygon on a snapshot). The `#aside` slot is a 340px form column; the default slot is the workspace beside it and gets the remaining width. On mobile the two stack.
+
+**Inspector (`xl`).** For media the operator interacts with (keyframe inspector: click a box, then correct it). Give the media at least two thirds of the width and use `hide-footer` when the actions live in the side pane.
 
 ### Inset sections within dialogs
 

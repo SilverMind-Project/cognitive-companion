@@ -181,33 +181,36 @@
       </div>
     </v-card>
 
-    <!-- Detail dialog: labeled overlay + click-to-correct -->
-    <v-dialog v-model="detailOpen" max-width="1080" scrollable>
-      <v-card v-if="detailCard">
-        <DialogHeader
-          icon="mdi-image-search"
-          label="Keyframe"
-          :title="`${detailCard.camera_id} · ${formatTime(detailCard.captured_at)}`"
-          @close="closeDetail"
-        />
-        <v-divider />
-        <v-card-text>
-          <v-row dense>
-            <!-- Overlay -->
-            <v-col cols="12" md="7">
-              <IdentityBboxOverlay
-                :image-url="keyframeImage(detailCard)"
-                :bboxes="detailCard.bboxes || []"
-                :targets="targets"
-                :frame-width="detailCard.frame_width"
-                :frame-height="detailCard.frame_height"
-                @select="onBboxSelect"
-              />
-              <div class="text-caption text-medium-emphasis mt-2">
+    <!-- Detail dialog (xl inspector): labeled overlay + click-to-correct -->
+    <AppDialog
+      :model-value="detailOpen && !!detailCard"
+      size="xl"
+      icon="mdi-image-search"
+      label="Keyframe"
+      :title="detailCard ? `${detailCard.camera_id} · ${formatTime(detailCard.captured_at)}` : ''"
+      hide-footer
+      @update:model-value="(open) => !open && closeDetail()"
+    >
+      <div v-if="detailCard" class="px-6 py-5">
+        <v-row>
+          <!-- Overlay -->
+          <v-col cols="12" md="8">
+            <IdentityBboxOverlay
+              :image-url="keyframeImage(detailCard)"
+              :bboxes="detailCard.bboxes || []"
+              :targets="targets"
+              :selected-id="selectedBboxId"
+              :frame-width="detailCard.frame_width"
+              :frame-height="detailCard.frame_height"
+              @select="onBboxSelect"
+            />
+            <div class="d-flex align-center flex-wrap ga-2 mt-3">
+              <span class="text-caption text-medium-emphasis">
                 Click a box to correct its identity.
-              </div>
+              </span>
+              <v-spacer />
+              <BlurToggle />
               <v-btn
-                class="mt-2"
                 size="small"
                 variant="tonal"
                 prepend-icon="mdi-vector-square"
@@ -215,40 +218,40 @@
               >
                 Edit boxes (geometry)
               </v-btn>
-            </v-col>
+            </div>
+          </v-col>
 
-            <!-- Evidence + correction workflow -->
-            <v-col cols="12" md="5">
-              <template v-if="selectedBbox">
-                <div class="text-subtitle-2 mb-2">Selected box</div>
-                <IdentityEvidenceBadges
-                  :bbox="selectedBbox"
-                  :targets="targets"
-                  detailed
-                  class="mb-3"
-                />
-                <v-divider class="mb-3" />
-                <IdentityCorrectionWorkflow
-                  :key="selectedBbox.bbox_id || selectedBbox.ph_id"
-                  :ph-id="selectedBbox.ph_id"
-                  :frame-captured-at="detailCard.captured_at"
-                  :reviewed-frame-id="firstTriggerKeyframeId"
-                  :reviewed-bbox="reviewedBbox"
-                  :bbox="selectedBbox"
-                  source-view="keyframe"
-                  default-scope="frame_only"
-                  @applied="onCorrectionApplied"
-                  @close="selectedBbox = null"
-                />
-              </template>
-              <div v-else class="text-body-2 text-medium-emphasis pa-4 text-center">
-                Select a bounding box to view evidence and correct identity.
-              </div>
-            </v-col>
-          </v-row>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
+          <!-- Evidence + correction workflow -->
+          <v-col cols="12" md="4">
+            <template v-if="selectedBbox">
+              <div class="text-subtitle-2 mb-2">Selected box</div>
+              <IdentityEvidenceBadges
+                :bbox="selectedBbox"
+                :targets="targets"
+                detailed
+                class="mb-3"
+              />
+              <v-divider class="mb-3" />
+              <IdentityCorrectionWorkflow
+                :key="selectedBboxId"
+                :ph-id="selectedBbox.ph_id"
+                :frame-captured-at="detailCard.captured_at"
+                :reviewed-frame-id="firstTriggerKeyframeId"
+                :reviewed-bbox="reviewedBbox"
+                :bbox="selectedBbox"
+                source-view="keyframe"
+                default-scope="frame_only"
+                @applied="onCorrectionApplied"
+                @close="selectedBbox = null"
+              />
+            </template>
+            <div v-else class="text-body-2 text-medium-emphasis pa-4 text-center">
+              Select a bounding box to view evidence and correct identity.
+            </div>
+          </v-col>
+        </v-row>
+      </div>
+    </AppDialog>
 
     <!-- Geometry editing (separate revision type) -->
     <KeyframeAnnotationDialog
@@ -269,7 +272,7 @@ import { formatDateTime } from "../../services/timezone.js";
 import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
 import { useNotify } from "../../composables/useNotify.js";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
-import DialogHeader from "../../components/common/DialogHeader.vue";
+import AppDialog from "../../components/common/AppDialog.vue";
 import KeyframeAnnotationDialog from "../../components/cts/keyframes/KeyframeAnnotationDialog.vue";
 import IdentityBboxOverlay from "../../components/cts/identity/IdentityBboxOverlay.vue";
 import IdentityEvidenceBadges from "../../components/cts/identity/IdentityEvidenceBadges.vue";
@@ -336,6 +339,10 @@ const targets = ref([]);
 const personOptions = ref([{ title: "Unknown", value: UNKNOWN_OPTION }]);
 
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / filters.value.limit)));
+
+const selectedBboxId = computed(
+  () => selectedBbox.value?.bbox_id || selectedBbox.value?.ph_id || null,
+);
 
 const firstTriggerKeyframeId = computed(() => detailCard.value?.triggers?.[0]?.keyframe_id || "");
 

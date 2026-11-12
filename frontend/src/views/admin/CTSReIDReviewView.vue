@@ -1,29 +1,16 @@
 <template>
   <div class="reid-review">
-    <div class="d-flex align-center mb-4 flex-wrap ga-3">
-      <h1 class="text-h5 mb-0">ReID review queue</h1>
-      <v-chip size="small" color="warning" variant="tonal" title="Pending review">
-        {{ state.counts.value.pending_review }} pending
-      </v-chip>
-      <v-chip
-        size="small"
-        color="info"
-        variant="tonal"
-        title="Auto-verified by calibrated face match"
-      >
-        {{ state.counts.value.auto_verified }} auto-verified
-      </v-chip>
-      <v-chip size="small" color="success" variant="tonal" title="Operator verified">
-        {{ state.counts.value.operator_verified }} verified
-      </v-chip>
-      <v-chip size="small" variant="tonal" title="Rejected">
-        {{ state.counts.value.rejected }} rejected
-      </v-chip>
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">ReID Review Queue</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">
+          Verify body-appearance samples before they help recognize household members.
+        </div>
+      </div>
       <v-spacer />
       <BlurToggle />
       <v-btn
-        size="small"
-        variant="text"
+        variant="tonal"
         prepend-icon="mdi-refresh"
         :loading="state.listLoading.value"
         @click="refreshAll"
@@ -39,47 +26,51 @@
     </v-alert>
 
     <template v-else>
-      <!-- Filters -->
-      <v-card variant="outlined" class="mb-4 pa-3">
-        <div class="d-flex flex-wrap ga-3 align-end">
-          <v-select
-            :model-value="state.filters.value.state"
-            label="State"
-            :items="STATE_OPTIONS"
-            density="compact"
-            hide-details
-            style="max-width: 180px"
-            @update:model-value="(v) => actions.setFilter('state', v)"
-          />
-          <v-text-field
-            :model-value="state.filters.value.identity_id"
-            label="Identity"
-            density="compact"
-            hide-details
-            clearable
-            style="max-width: 200px"
-            @update:model-value="(v) => actions.setFilter('identity_id', v || null)"
-          />
-          <v-text-field
-            :model-value="state.filters.value.camera_id"
-            label="Camera"
-            density="compact"
-            hide-details
-            clearable
-            style="max-width: 180px"
-            @update:model-value="(v) => actions.setFilter('camera_id', v || null)"
-          />
-          <v-text-field
-            :model-value="state.filters.value.model_version"
-            label="Model version"
-            density="compact"
-            hide-details
-            clearable
-            style="max-width: 180px"
-            @update:model-value="(v) => actions.setFilter('model_version', v || null)"
-          />
-        </div>
-      </v-card>
+      <!-- Lifecycle state picker (with queue counts) and filters -->
+      <div class="d-flex align-center flex-wrap ga-3 mb-4">
+        <CcSegmentedToggle
+          :model-value="state.filters.value.state"
+          :options="stateOptions"
+          @update:model-value="(v) => actions.setFilter('state', v)"
+        />
+        <v-spacer />
+        <v-text-field
+          :model-value="state.filters.value.identity_id"
+          placeholder="Identity"
+          aria-label="Filter by identity"
+          prepend-inner-icon="mdi-account-outline"
+          variant="outlined"
+          density="compact"
+          hide-details
+          clearable
+          class="filter-control"
+          @update:model-value="(v) => actions.setFilter('identity_id', v || null)"
+        />
+        <v-text-field
+          :model-value="state.filters.value.camera_id"
+          placeholder="Camera"
+          aria-label="Filter by camera"
+          prepend-inner-icon="mdi-cctv"
+          variant="outlined"
+          density="compact"
+          hide-details
+          clearable
+          class="filter-control"
+          @update:model-value="(v) => actions.setFilter('camera_id', v || null)"
+        />
+        <v-text-field
+          :model-value="state.filters.value.model_version"
+          placeholder="Model version"
+          aria-label="Filter by model version"
+          prepend-inner-icon="mdi-tag-outline"
+          variant="outlined"
+          density="compact"
+          hide-details
+          clearable
+          class="filter-control"
+          @update:model-value="(v) => actions.setFilter('model_version', v || null)"
+        />
+      </div>
 
       <!-- Batch action bar (reject only; bulk approval is disabled by design) -->
       <v-slide-y-transition>
@@ -113,7 +104,7 @@
         </template>
       </v-alert>
 
-      <v-card variant="outlined">
+      <v-card class="glass-card">
         <v-table density="comfortable">
           <thead>
             <tr>
@@ -136,8 +127,21 @@
               </td>
             </tr>
             <tr v-else-if="!state.candidates.value.length">
-              <td colspan="10" class="text-center py-8 text-medium-emphasis">
-                No candidates match the current filters.
+              <td colspan="10" class="text-center py-10">
+                <template v-if="queueEmpty">
+                  <v-icon size="40" color="medium-emphasis" class="mb-2">
+                    mdi-account-search-outline
+                  </v-icon>
+                  <div class="text-body-1 font-weight-medium mb-1">The review queue is empty</div>
+                  <div class="text-body-2 text-medium-emphasis empty-explainer mx-auto">
+                    The tracking system proposes a body-appearance sample only when a calibrated
+                    face match confirms the person a track is already following. Samples appear here
+                    as household members are recognized by face on camera.
+                  </div>
+                </template>
+                <span v-else class="text-medium-emphasis">
+                  No candidates match the current filters.
+                </span>
               </td>
             </tr>
             <tr
@@ -204,319 +208,333 @@
       :model-value="!!state.detail.value || state.detailLoading.value"
       location="right"
       temporary
-      width="560"
+      width="640"
+      class="cc-drawer-right"
       @update:model-value="(v) => !v && actions.closeDetail()"
     >
-      <div v-if="state.detailLoading.value" class="pa-8 text-center">
-        <v-progress-circular indeterminate />
-      </div>
-      <div v-else-if="state.detailError.value" class="pa-4">
-        <v-alert type="error" variant="tonal">{{ state.detailError.value }}</v-alert>
-      </div>
-      <div v-else-if="state.detail.value" class="pa-4">
-        <div class="d-flex align-center mb-3">
-          <h2 class="text-h6 mb-0">Candidate</h2>
+      <div class="h-100 d-flex flex-column">
+        <div class="d-flex align-center px-4 py-3">
+          <span class="text-subtitle-1 font-weight-semibold">Candidate</span>
+          <v-chip
+            v-if="detailCandidate.state"
+            size="x-small"
+            :color="stateColor(detailCandidate.state)"
+            variant="tonal"
+            class="ml-2"
+          >
+            {{ stateLabel(detailCandidate.state) }}
+          </v-chip>
           <v-spacer />
           <v-btn icon="mdi-close" size="small" variant="text" @click="actions.closeDetail()" />
         </div>
-
-        <!-- Eligibility -->
-        <v-alert
-          :type="!isReviewable ? 'info' : eligibility.eligible ? 'success' : 'warning'"
-          variant="tonal"
-          density="compact"
-          class="mb-3"
-        >
-          <template v-if="!isReviewable"> Already reviewed: {{ detailCandidate.state }}. </template>
-          <template v-else-if="detailCandidate.state === 'auto_verified'">
-            Auto-verified by a calibrated face match; already voting at reduced trust. Approve to
-            fully verify, or demote to un-trust it back to pending review.
-          </template>
-          <template v-else-if="eligibility.eligible">Eligible for approval.</template>
-          <template v-else>
-            Not eligible for approval: {{ eligibility.reasons.join(", ") }}.
-          </template>
-        </v-alert>
-
-        <!-- Body crop -->
-        <div class="mb-3">
-          <div class="text-overline">Body crop</div>
-          <img
-            v-if="detailCandidate.crop_url"
-            :src="displaySrc(detailCandidate.crop_url)"
-            class="crop-img"
-            alt="Candidate crop"
-          />
-          <div v-else class="deleted-crop text-medium-emphasis">
-            Crop deleted (rejected candidate). Audit metadata retained.
+        <v-divider />
+        <div class="flex-grow-1 overflow-y-auto" style="min-height: 0">
+          <div v-if="state.detailLoading.value" class="pa-8 text-center">
+            <v-progress-circular indeterminate />
           </div>
-        </div>
-
-        <!-- Full frame with bbox -->
-        <div v-if="detailCandidate.frame_url" class="mb-3">
-          <div class="text-overline">Source frame</div>
-          <IdentityBboxOverlay
-            :image-url="detailCandidate.frame_url"
-            :bboxes="frameBboxes"
-            :selectable="false"
-          />
-        </div>
-
-        <!-- Provenance -->
-        <div class="text-overline">Provenance</div>
-        <v-table density="compact" class="mb-3 prov-table">
-          <tbody>
-            <tr>
-              <td>Proposed identity</td>
-              <td>{{ detailCandidate.proposed_identity_id || "-" }}</td>
-            </tr>
-            <tr>
-              <td>Effective identity</td>
-              <td>{{ detailCandidate.effective_identity_id || "Unknown" }}</td>
-            </tr>
-            <tr>
-              <td>Label source</td>
-              <td>{{ detailCandidate.label_source || "-" }}</td>
-            </tr>
-            <tr>
-              <td>Candidate reason</td>
-              <td>{{ detailCandidate.candidate_reason || "-" }}</td>
-            </tr>
-            <tr>
-              <td>Crop quality</td>
-              <td>{{ pct(detailCandidate.quality) }}</td>
-            </tr>
-            <tr>
-              <td>Dimensions</td>
-              <td>
-                {{ detailCandidate.crop_width || "?" }} x {{ detailCandidate.crop_height || "?" }}
-              </td>
-            </tr>
-            <tr>
-              <td>Truncation / occlusion</td>
-              <td>
-                {{ detailCandidate.is_truncated ? "truncated" : "ok" }} /
-                {{ detailCandidate.is_occluded ? "occluded" : "ok" }}
-              </td>
-            </tr>
-            <tr>
-              <td>Orientation</td>
-              <td>{{ orientationLabel(detailCandidate.orientation) }}</td>
-            </tr>
-            <tr>
-              <td>Model / preprocessing</td>
-              <td>
-                {{ detailCandidate.model_version || "-" }} /
-                {{ detailCandidate.preprocessing_version || "-" }}
-              </td>
-            </tr>
-            <tr>
-              <td>Camera</td>
-              <td>{{ detailCandidate.camera_id || "-" }}</td>
-            </tr>
-            <tr>
-              <td>Captured</td>
-              <td>{{ fmt(detailCandidate.capture_time) }}</td>
-            </tr>
-            <tr>
-              <td>Source PH</td>
-              <td class="mono">{{ detailCandidate.ph_id || "-" }}</td>
-            </tr>
-            <tr>
-              <td>Observation</td>
-              <td class="mono">{{ detailCandidate.observation_id || "-" }}</td>
-            </tr>
-            <tr>
-              <td>Keyframe</td>
-              <td class="mono">{{ detailCandidate.keyframe_id || "-" }}</td>
-            </tr>
-          </tbody>
-        </v-table>
-
-        <!-- Nearby observations from the same PH segment -->
-        <div v-if="neighbors.length" class="mb-3">
-          <div class="text-overline">Nearby observations (same PH)</div>
-          <v-chip
-            v-for="o in neighbors"
-            :key="o.observation_id"
-            size="x-small"
-            variant="outlined"
-            class="ma-1"
-            :title="fmt(o.captured_at)"
-          >
-            {{ o.camera_id }} {{ fmtShort(o.captured_at) }}
-          </v-chip>
-        </div>
-
-        <!-- Review history -->
-        <div class="text-overline">Review history</div>
-        <v-timeline v-if="detailEvents.length" density="compact" side="end" class="mb-3">
-          <v-timeline-item
-            v-for="ev in detailEvents"
-            :key="ev.event_id"
-            size="x-small"
-            :dot-color="
-              ev.new_state === 'rejected'
-                ? 'error'
-                : ev.new_state === 'operator_verified'
-                  ? 'success'
-                  : ev.new_state === 'auto_verified'
-                    ? 'info'
-                    : 'grey'
-            "
-          >
-            <div class="text-body-2">{{ ev.previous_state }} &rarr; {{ ev.new_state }}</div>
-            <div class="text-caption text-medium-emphasis">
-              {{ ev.actor }} - {{ fmt(ev.event_time) }}
-              <template v-if="ev.reason"> - {{ ev.reason }}</template>
-            </div>
-          </v-timeline-item>
-        </v-timeline>
-        <div v-else class="text-caption text-medium-emphasis mb-3">No review actions yet.</div>
-
-        <!-- Actions -->
-        <div v-if="isReviewable">
-          <v-divider class="mb-3" />
-          <div class="d-flex ga-2 mb-2 flex-wrap">
-            <v-btn
-              color="success"
-              size="small"
-              prepend-icon="mdi-check"
-              :disabled="!eligibility.eligible || state.acting.value"
-              :title="
-                eligibility.eligible ? 'Verify this candidate' : 'Server eligibility is false'
-              "
-              @click="confirmApprove"
-            >
-              Approve
-            </v-btn>
-            <v-btn
-              color="warning"
-              size="small"
-              prepend-icon="mdi-account-switch-outline"
-              :disabled="!eligibility.eligible || state.acting.value"
-              @click="showRelabel = !showRelabel"
-            >
-              Relabel
-            </v-btn>
-            <v-btn
-              v-if="detailCandidate.state === 'auto_verified'"
-              color="secondary"
-              size="small"
-              prepend-icon="mdi-undo"
-              :disabled="state.acting.value"
-              :loading="state.acting.value"
-              title="Un-trust this auto-verified candidate back to pending review"
-              @click="confirmDemote"
-            >
-              Demote
-            </v-btn>
-            <v-btn
-              color="error"
-              size="small"
-              prepend-icon="mdi-close"
-              :disabled="state.acting.value"
-              @click="showReject = !showReject"
-            >
-              Reject
-            </v-btn>
+          <div v-else-if="state.detailError.value" class="pa-4">
+            <v-alert type="error" variant="tonal">{{ state.detailError.value }}</v-alert>
           </div>
+          <div v-else-if="state.detail.value" class="pa-4">
+            <!-- Eligibility -->
+            <v-alert
+              :type="!isReviewable ? 'info' : eligibility.eligible ? 'success' : 'warning'"
+              variant="tonal"
+              density="compact"
+              class="mb-3"
+            >
+              <template v-if="!isReviewable">
+                Already reviewed: {{ detailCandidate.state }}.
+              </template>
+              <template v-else-if="detailCandidate.state === 'auto_verified'">
+                Auto-verified by a calibrated face match; already voting at reduced trust. Approve
+                to fully verify, or demote to un-trust it back to pending review.
+              </template>
+              <template v-else-if="eligibility.eligible">Eligible for approval.</template>
+              <template v-else>
+                Not eligible for approval: {{ eligibility.reasons.join(", ") }}.
+              </template>
+            </v-alert>
 
-          <v-expand-transition>
-            <div v-if="showRelabel" class="pa-2">
-              <v-autocomplete
-                v-model="relabelTarget"
-                label="Household target"
-                :items="state.targets.value"
-                item-title="display_name"
-                item-value="identity_id"
-                :loading="state.targetsLoading.value"
-                density="compact"
-                hide-details
-                class="mb-2"
+            <!-- Body crop -->
+            <div class="mb-3">
+              <div class="text-overline">Body crop</div>
+              <img
+                v-if="detailCandidate.crop_url"
+                :src="displaySrc(detailCandidate.crop_url)"
+                class="crop-img"
+                alt="Candidate crop"
               />
+              <div v-else class="deleted-crop text-medium-emphasis">
+                Crop deleted (rejected candidate). Audit metadata retained.
+              </div>
+            </div>
+
+            <!-- Full frame with bbox -->
+            <div v-if="detailCandidate.frame_url" class="mb-3">
+              <div class="text-overline">Source frame</div>
+              <IdentityBboxOverlay
+                :image-url="detailCandidate.frame_url"
+                :bboxes="frameBboxes"
+                :selectable="false"
+              />
+            </div>
+
+            <!-- Provenance -->
+            <div class="text-overline">Provenance</div>
+            <v-table density="compact" class="mb-3 prov-table">
+              <tbody>
+                <tr>
+                  <td>Proposed identity</td>
+                  <td>{{ detailCandidate.proposed_identity_id || "-" }}</td>
+                </tr>
+                <tr>
+                  <td>Effective identity</td>
+                  <td>{{ detailCandidate.effective_identity_id || "Unknown" }}</td>
+                </tr>
+                <tr>
+                  <td>Label source</td>
+                  <td>{{ detailCandidate.label_source || "-" }}</td>
+                </tr>
+                <tr>
+                  <td>Candidate reason</td>
+                  <td>{{ detailCandidate.candidate_reason || "-" }}</td>
+                </tr>
+                <tr>
+                  <td>Crop quality</td>
+                  <td>{{ pct(detailCandidate.quality) }}</td>
+                </tr>
+                <tr>
+                  <td>Dimensions</td>
+                  <td>
+                    {{ detailCandidate.crop_width || "?" }} x
+                    {{ detailCandidate.crop_height || "?" }}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Truncation / occlusion</td>
+                  <td>
+                    {{ detailCandidate.is_truncated ? "truncated" : "ok" }} /
+                    {{ detailCandidate.is_occluded ? "occluded" : "ok" }}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Orientation</td>
+                  <td>{{ orientationLabel(detailCandidate.orientation) }}</td>
+                </tr>
+                <tr>
+                  <td>Model / preprocessing</td>
+                  <td>
+                    {{ detailCandidate.model_version || "-" }} /
+                    {{ detailCandidate.preprocessing_version || "-" }}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Camera</td>
+                  <td>{{ detailCandidate.camera_id || "-" }}</td>
+                </tr>
+                <tr>
+                  <td>Captured</td>
+                  <td>{{ fmt(detailCandidate.capture_time) }}</td>
+                </tr>
+                <tr>
+                  <td>Source PH</td>
+                  <td class="mono">{{ detailCandidate.ph_id || "-" }}</td>
+                </tr>
+                <tr>
+                  <td>Observation</td>
+                  <td class="mono">{{ detailCandidate.observation_id || "-" }}</td>
+                </tr>
+                <tr>
+                  <td>Keyframe</td>
+                  <td class="mono">{{ detailCandidate.keyframe_id || "-" }}</td>
+                </tr>
+              </tbody>
+            </v-table>
+
+            <!-- Nearby observations from the same PH segment -->
+            <div v-if="neighbors.length" class="mb-3">
+              <div class="text-overline">Nearby observations (same PH)</div>
+              <v-chip
+                v-for="o in neighbors"
+                :key="o.observation_id"
+                size="x-small"
+                variant="outlined"
+                class="ma-1"
+                :title="fmt(o.captured_at)"
+              >
+                {{ o.camera_id }} {{ fmtShort(o.captured_at) }}
+              </v-chip>
+            </div>
+
+            <!-- Review history -->
+            <div class="text-overline">Review history</div>
+            <v-timeline v-if="detailEvents.length" density="compact" side="end" class="mb-3">
+              <v-timeline-item
+                v-for="ev in detailEvents"
+                :key="ev.event_id"
+                size="x-small"
+                :dot-color="
+                  ev.new_state === 'rejected'
+                    ? 'error'
+                    : ev.new_state === 'operator_verified'
+                      ? 'success'
+                      : ev.new_state === 'auto_verified'
+                        ? 'info'
+                        : 'grey'
+                "
+              >
+                <div class="text-body-2">{{ ev.previous_state }} &rarr; {{ ev.new_state }}</div>
+                <div class="text-caption text-medium-emphasis">
+                  {{ ev.actor }} - {{ fmt(ev.event_time) }}
+                  <template v-if="ev.reason"> - {{ ev.reason }}</template>
+                </div>
+              </v-timeline-item>
+            </v-timeline>
+            <div v-else class="text-caption text-medium-emphasis mb-3">No review actions yet.</div>
+
+            <!-- Actions -->
+            <div v-if="isReviewable">
+              <v-divider class="mb-3" />
+              <div class="d-flex ga-2 mb-2 flex-wrap">
+                <v-btn
+                  color="success"
+                  size="small"
+                  prepend-icon="mdi-check"
+                  :disabled="!eligibility.eligible || state.acting.value"
+                  :title="
+                    eligibility.eligible ? 'Verify this candidate' : 'Server eligibility is false'
+                  "
+                  @click="confirmApprove"
+                >
+                  Approve
+                </v-btn>
+                <v-btn
+                  color="warning"
+                  size="small"
+                  prepend-icon="mdi-account-switch-outline"
+                  :disabled="!eligibility.eligible || state.acting.value"
+                  @click="showRelabel = !showRelabel"
+                >
+                  Relabel
+                </v-btn>
+                <v-btn
+                  v-if="detailCandidate.state === 'auto_verified'"
+                  color="secondary"
+                  size="small"
+                  prepend-icon="mdi-undo"
+                  :disabled="state.acting.value"
+                  :loading="state.acting.value"
+                  title="Un-trust this auto-verified candidate back to pending review"
+                  @click="confirmDemote"
+                >
+                  Demote
+                </v-btn>
+                <v-btn
+                  color="error"
+                  size="small"
+                  prepend-icon="mdi-close"
+                  :disabled="state.acting.value"
+                  @click="showReject = !showReject"
+                >
+                  Reject
+                </v-btn>
+              </div>
+
+              <v-expand-transition>
+                <div v-if="showRelabel" class="pa-2">
+                  <v-autocomplete
+                    v-model="relabelTarget"
+                    label="Household target"
+                    :items="state.targets.value"
+                    item-title="display_name"
+                    item-value="identity_id"
+                    :loading="state.targetsLoading.value"
+                    density="compact"
+                    hide-details
+                    class="mb-2"
+                  />
+                  <v-btn
+                    size="small"
+                    color="warning"
+                    :disabled="!relabelTarget"
+                    @click="confirmRelabel"
+                  >
+                    Relabel and verify
+                  </v-btn>
+                </div>
+              </v-expand-transition>
+
+              <v-expand-transition>
+                <div v-if="showReject" class="pa-2">
+                  <v-select
+                    v-model="rejectReason"
+                    label="Reason"
+                    :items="REJECT_REASONS"
+                    density="compact"
+                    hide-details
+                    class="mb-2"
+                  />
+                  <v-textarea
+                    v-model="rejectNote"
+                    label="Note (optional)"
+                    density="compact"
+                    hide-details
+                    rows="2"
+                    class="mb-2"
+                  />
+                  <v-btn
+                    size="small"
+                    color="error"
+                    :disabled="!rejectReason"
+                    @click="confirmReject"
+                  >
+                    Confirm rejection
+                  </v-btn>
+                </div>
+              </v-expand-transition>
+            </div>
+
+            <!-- Compensating action for a verified candidate -->
+            <div v-else-if="detailCandidate.state === 'operator_verified'">
+              <v-divider class="mb-3" />
               <v-btn
                 size="small"
-                color="warning"
-                :disabled="!relabelTarget"
-                @click="confirmRelabel"
+                variant="outlined"
+                prepend-icon="mdi-undo"
+                :loading="state.acting.value"
+                @click="confirmCompensate"
               >
-                Relabel and verify
+                Undo verification
               </v-btn>
             </div>
-          </v-expand-transition>
-
-          <v-expand-transition>
-            <div v-if="showReject" class="pa-2">
-              <v-select
-                v-model="rejectReason"
-                label="Reason"
-                :items="REJECT_REASONS"
-                density="compact"
-                hide-details
-                class="mb-2"
-              />
-              <v-textarea
-                v-model="rejectNote"
-                label="Note (optional)"
-                density="compact"
-                hide-details
-                rows="2"
-                class="mb-2"
-              />
-              <v-btn size="small" color="error" :disabled="!rejectReason" @click="confirmReject">
-                Confirm rejection
-              </v-btn>
-            </div>
-          </v-expand-transition>
-        </div>
-
-        <!-- Compensating action for a verified candidate -->
-        <div v-else-if="detailCandidate.state === 'operator_verified'">
-          <v-divider class="mb-3" />
-          <v-btn
-            size="small"
-            variant="outlined"
-            prepend-icon="mdi-undo"
-            :loading="state.acting.value"
-            @click="confirmCompensate"
-          >
-            Undo verification
-          </v-btn>
+          </div>
         </div>
       </div>
     </v-navigation-drawer>
 
     <!-- Batch reject dialog -->
-    <v-dialog v-model="batchDialog" max-width="420">
-      <v-card>
-        <v-card-title>Reject {{ state.selectedIds.value.length }} candidates</v-card-title>
-        <v-card-text>
-          <v-select
-            v-model="batchReason"
-            label="Reason"
-            :items="REJECT_REASONS"
-            density="compact"
-          />
-          <v-textarea v-model="batchNote" label="Note (optional)" rows="2" density="compact" />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="batchDialog = false">Cancel</v-btn>
-          <v-btn
-            color="error"
-            :disabled="!batchReason"
-            :loading="state.acting.value"
-            @click="doBatchReject"
-          >
-            Reject
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <AppDialog
+      v-model="batchDialog"
+      size="sm"
+      persistent
+      icon="mdi-close-circle-outline"
+      label="Batch Reject"
+      :title="`Reject ${state.selectedIds.value.length} candidates`"
+      confirm-label="Reject"
+      confirm-color="error"
+      :confirm-disabled="!batchReason"
+      :confirm-loading="state.acting.value"
+      @confirm="doBatchReject"
+    >
+      <div class="px-6 py-5">
+        <v-select v-model="batchReason" label="Reason" :items="REJECT_REASONS" class="mb-3" />
+        <v-textarea v-model="batchNote" label="Note (optional)" rows="2" />
+      </div>
+    </AppDialog>
 
     <!-- Confirmation dialog for approve / relabel -->
-    <v-dialog v-model="confirmDialog" max-width="420">
+    <v-dialog v-model="confirmDialog" max-width="420" persistent>
       <v-card>
         <v-card-title v-if="confirmTitle">{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
@@ -539,15 +557,11 @@ import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode";
 import { CorrectionError } from "@/services/cts_identity";
 import { ctsPh } from "@/services/cts_ph";
 import { formatDateTime, formatDateTimeShort } from "@/services/timezone";
+import AppDialog from "@/components/common/AppDialog.vue";
+import CcSegmentedToggle from "@/components/common/CcSegmentedToggle.vue";
 import BlurToggle from "@/components/cts/BlurToggle.vue";
 import IdentityBboxOverlay from "@/components/cts/identity/IdentityBboxOverlay.vue";
 
-const STATE_OPTIONS = [
-  { title: "Pending review", value: "pending_review" },
-  { title: "Auto-verified", value: "auto_verified" },
-  { title: "Operator verified", value: "operator_verified" },
-  { title: "Rejected", value: "rejected" },
-];
 const REJECT_REASONS = [
   { title: "Wrong person", value: "wrong_person" },
   { title: "Identity uncertain", value: "identity_uncertain" },
@@ -585,6 +599,32 @@ const batchDialog = ref(false);
 const batchReason = ref("");
 const batchNote = ref("");
 
+const STATE_LABELS = {
+  pending_review: "Pending",
+  auto_verified: "Auto-verified",
+  operator_verified: "Verified",
+  rejected: "Rejected",
+};
+const STATE_COLORS = {
+  pending_review: "warning",
+  auto_verified: "info",
+  operator_verified: "success",
+  rejected: undefined,
+};
+const STATE_ORDER = ["pending_review", "auto_verified", "operator_verified", "rejected"];
+
+const stateOptions = computed(() =>
+  STATE_ORDER.map((value) => ({
+    value,
+    label: `${STATE_LABELS[value]} · ${state.counts.value[value] ?? 0}`,
+  })),
+);
+
+// Counts span every state, so all-zero means nothing has ever been proposed (not a filter miss).
+const queueEmpty = computed(() =>
+  STATE_ORDER.every((value) => (state.counts.value[value] ?? 0) === 0),
+);
+
 const detailCandidate = computed(() => state.detail.value?.candidate || {});
 const detailEvents = computed(() => state.detail.value?.events || []);
 const eligibility = computed(
@@ -613,18 +653,6 @@ function pct(q) {
 function orientationLabel(o) {
   return ORIENTATIONS[o] ?? "unknown";
 }
-const STATE_LABELS = {
-  pending_review: "Pending",
-  auto_verified: "Auto-verified",
-  operator_verified: "Verified",
-  rejected: "Rejected",
-};
-const STATE_COLORS = {
-  pending_review: "warning",
-  auto_verified: "info",
-  operator_verified: "success",
-  rejected: undefined,
-};
 function stateLabel(s) {
   return STATE_LABELS[s] ?? s;
 }
@@ -744,13 +772,19 @@ onMounted(refreshAll);
   cursor: pointer;
 }
 .row-clickable:hover {
-  background: rgba(var(--v-theme-on-surface), 0.04);
+  background: var(--cc-brand-softer);
+}
+.filter-control {
+  max-width: 200px;
+}
+.empty-explainer {
+  max-width: 520px;
 }
 .crop-img {
   max-width: 200px;
   max-height: 320px;
-  border-radius: 6px;
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-radius: var(--cc-radius-xs);
+  border: 1px solid var(--cc-divider);
 }
 .deleted-crop {
   width: 200px;
@@ -760,16 +794,16 @@ onMounted(refreshAll);
   justify-content: center;
   text-align: center;
   padding: 12px;
-  border-radius: 6px;
-  border: 1px dashed rgba(var(--v-theme-on-surface), 0.24);
+  border-radius: var(--cc-radius-xs);
+  border: 1px dashed var(--cc-divider-strong);
   font-size: 0.8rem;
 }
 .prov-table td:first-child {
-  color: rgba(var(--v-theme-on-surface), 0.6);
+  color: var(--cc-text-2);
   width: 45%;
 }
 .mono {
-  font-family: monospace;
+  font-family: var(--cc-font-mono);
   font-size: 0.75rem;
   word-break: break-all;
 }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { reactive } from "vue";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 
 const camera = {
   camera_id: "camera-1",
@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   onPageOptions: vi.fn(),
   setFilter: vi.fn(),
+  startSampling: vi.fn(),
+  stopSampling: vi.fn(),
   getAggregatorState: vi.fn(),
   getMediaBuffer: vi.fn(),
   notifyError: vi.fn(),
@@ -48,6 +50,8 @@ vi.mock("@/composables/useAggregatorState.js", () => ({
       fetch: mocks.fetch,
       onPageOptions: mocks.onPageOptions,
       setFilter: mocks.setFilter,
+      startSampling: mocks.startSampling,
+      stopSampling: mocks.stopSampling,
     },
   }),
 }));
@@ -73,6 +77,7 @@ vi.mock("@/services/api.js", () => ({
 }));
 
 vi.mock("@/services/timezone.js", () => ({
+  formatClockTime: (value) => value || "",
   formatDateTimeShort: (value) => value || "",
   formatDateTimeFull: (value) => value || "",
 }));
@@ -162,6 +167,8 @@ beforeEach(() => {
   mocks.fetch.mockReset();
   mocks.onPageOptions.mockReset();
   mocks.setFilter.mockReset();
+  mocks.startSampling.mockReset();
+  mocks.stopSampling.mockReset();
   mocks.getAggregatorState.mockReset();
   mocks.getMediaBuffer.mockReset();
   mocks.notifyError.mockReset();
@@ -204,6 +211,36 @@ describe("CameraMediaView", () => {
 
     expect(wrapper.vm.drawerOpen).toBe(true);
     expect(wrapper.vm.selectedCamera.camera_id).toBe("camera-1");
+  });
+
+  it("shows a collecting state until the depth trend has two samples", async () => {
+    aggregatorState.history.set("camera-1", [{ t: "2026-06-14T12:00:00Z", depth: 8 }]);
+    const wrapper = mountView();
+    await wrapper.find('[data-testid="camera-table"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Collecting buffer depth samples");
+    expect(wrapper.find('[data-testid="history-chart"]').exists()).toBe(false);
+
+    aggregatorState.history.set("camera-1", [
+      { t: "2026-06-14T12:00:00Z", depth: 8 },
+      { t: "2026-06-14T12:00:05Z", depth: 9 },
+    ]);
+    await flushPromises();
+    expect(wrapper.find('[data-testid="history-chart"]').exists()).toBe(true);
+    aggregatorState.history.set("camera-1", [{ t: "2026-06-14T12:00:00Z", depth: 8 }]);
+  });
+
+  it("samples the open camera's depth while its drawer is open", async () => {
+    const wrapper = mountView();
+
+    await wrapper.find('[data-testid="camera-table"]').trigger("click");
+    await flushPromises();
+    expect(mocks.startSampling).toHaveBeenCalledWith("camera-1");
+
+    wrapper.vm.drawerOpen = false;
+    await flushPromises();
+    expect(mocks.stopSampling).toHaveBeenCalled();
   });
 
   it("renders chart and table from composable state without a direct aggregator API call", () => {

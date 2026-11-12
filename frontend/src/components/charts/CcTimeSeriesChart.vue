@@ -55,6 +55,11 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  /** Formats each point's ISO time for the x axis; must be a `services/timezone.js` formatter. */
+  labelFormatter: {
+    type: Function,
+    default: formatDateTimeShort,
+  },
 });
 
 const { chartTheme } = useChartTheme();
@@ -67,7 +72,7 @@ const isEmpty = computed(() => !props.series || props.series.every((s) => !s.poi
 const xLabels = computed(() => {
   const firstSeries = props.series[0];
   if (!firstSeries?.points?.length) return [];
-  return firstSeries.points.map((p) => formatDateTimeShort(p.t));
+  return firstSeries.points.map((p) => props.labelFormatter(p.t));
 });
 
 const chartOption = computed(() => {

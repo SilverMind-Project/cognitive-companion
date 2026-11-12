@@ -365,6 +365,28 @@ class TestPrivacyZonesEndpoint:
         )
         assert r.status_code == 422
 
+    @pytest.mark.parametrize("policy", ["drop_detection", "blur_region", "mask_region"])
+    def test_orchestrator_policies_accepted(self, client: TestClient, camera_id: str, policy: str):
+        zone = {**ZONE, "policy": policy}
+        r = client.post(
+            "/api/v1/cts/calibration/privacy_zones",
+            json={"camera_id": camera_id, "zones": [zone]},
+        )
+        assert r.status_code == 204
+
+    @pytest.mark.parametrize("policy", ["drop_detections", "blur_faces", "skip_detection"])
+    def test_spellings_the_orchestrator_refuses_are_rejected(
+        self, client: TestClient, camera_id: str, policy: str
+    ):
+        # The orchestrator 422s these, and that push failure is only logged, so accepting them
+        # here would report a zone as saved that is never enforced.
+        zone = {**ZONE, "policy": policy}
+        r = client.post(
+            "/api/v1/cts/calibration/privacy_zones",
+            json={"camera_id": camera_id, "zones": [zone]},
+        )
+        assert r.status_code == 422
+
     def test_out_of_range_coords_rejected(self, client: TestClient, camera_id: str):
         zone = {**ZONE, "polygon": [[0.0, 0.0], [2.0, 0.0], [1.0, 1.0]]}
         r = client.post(

@@ -40,8 +40,9 @@ Provide loading, error, retry, empty, and permission-denied states.
 
 ## Shared correction workflow
 
-Keyframes and the Person Hypothesis inspector use one reusable correction workflow and one BFF
-service contract.
+Keyframes, the Person Hypothesis inspector, and the Live view use one reusable correction workflow
+(`IdentityCorrectionWorkflow`) and one BFF service contract. The Live view opens it from a clicked
+detection with the frame's `event_time` as the anchor and `source_view: "live_view"`.
 
 The workflow supports:
 
@@ -62,6 +63,7 @@ Default scope:
 - From the PH inspector with a selected observation: its proposed bounded segment.
 - From the PH inspector without a selected observation: current effective segment, requiring range
   review before submission.
+- From the Live view: the proposed segment around the clicked frame.
 
 Identity and bbox geometry corrections share an audit envelope but are separate revision types.
 
@@ -174,7 +176,7 @@ Required shared ownership:
 
 - one BFF service module for identity targets, segment proposals, revisions, and review actions;
 - one correction composable returning `{ state, actions }`;
-- one correction component used by both Keyframes and PH inspector;
+- one correction component used by Keyframes, the PH inspector, and the Live view;
 - one evidence badge component and formatter;
 - one bbox overlay component or composable for identity presentation;
 - one correction-job status component.
@@ -195,7 +197,8 @@ UI.
 
 - service contract tests for correction targets and explicit identity fields;
 - composable tests for loading, stale proposal refresh, validation, async job states, and errors;
-- component tests proving Keyframes and PH inspector use the same correction component;
+- component tests proving Keyframes, the PH inspector, and the Live view use the same correction
+  component;
 - keyframe card tests with two identities, duplicate identity counts, unknown, conflict, operator,
   uncalibrated ArcFace, and pending review;
 - detail overlay tests for all bboxes and click-to-correct;
@@ -207,7 +210,7 @@ UI.
 
 ## Review checklist
 
-- [ ] One correction workflow, not separate Keyframe and PH implementations.
+- [ ] One correction workflow, not separate Keyframe, PH, and Live implementations.
 - [ ] No client-derived confidence or authority.
 - [ ] Identity targets are independent from the ReID gallery.
 - [ ] Every bbox and every effective identity is visible.

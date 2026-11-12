@@ -223,11 +223,6 @@ export const cts = {
   // Authoritative correction targets (active household members), independent of
   // the ReID gallery. Used for filter options, not page-derived identities.
   getCorrectionTargets: () => req("/identity/correction-targets"),
-  applyCorrection: (payload) =>
-    req("/identity/corrections", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
   mergeIdentities: (payload) =>
     req("/identity/merges", {
       method: "POST",

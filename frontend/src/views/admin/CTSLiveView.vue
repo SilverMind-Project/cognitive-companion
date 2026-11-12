@@ -71,9 +71,11 @@
 
     <CorrectionDialog
       v-model="correctionOpen"
-      v-model:correction="correction"
-      :saving="saving"
-      @confirm="submitCorrection"
+      :ph-id="correctionTarget.phId"
+      :camera-id="correctionTarget.cameraId"
+      :current-identity-id="correctionTarget.identityId"
+      :frame-captured-at="correctionTarget.capturedAt"
+      @applied="onCorrectionApplied"
     />
   </div>
 </template>
@@ -85,7 +87,6 @@ import { useMaraudersMode } from "@/composables/useMaraudersMode.js";
 import { useCtsLiveCameras } from "@/composables/useCtsLiveCameras.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useMultiCameraLinks } from "@/composables/useMultiCameraLinks.js";
-import { cts } from "@/services/cts";
 import LiveToolbar from "@/components/cts/live/LiveToolbar.vue";
 import CrossCameraBanner from "@/components/cts/live/CrossCameraBanner.vue";
 import LiveCameraTile from "@/components/cts/live/LiveCameraTile.vue";
@@ -140,14 +141,8 @@ const {
 } = useMultiCameraLinks(cameras);
 
 const correctionOpen = ref(false);
-const saving = ref(false);
-const correction = ref({
-  ph_id: "",
-  previous_identity_id: "",
-  new_identity_id: "",
-  camera_id: "",
-  reason: "manual",
-});
+// The track and frame a correction starts from; the workflow owns everything else.
+const correctionTarget = ref({ phId: "", cameraId: "", identityId: "", capturedAt: "" });
 
 const slots = computed(() => Array.from({ length: layout.value }, (_, i) => i));
 
@@ -165,34 +160,21 @@ const wsStatusColor = computed(() => {
 });
 
 function openCorrection(det, cam) {
-  correction.value = {
-    ph_id: det.ph_id,
-    previous_identity_id: det.identity_id || "",
-    new_identity_id: "",
-    camera_id: cam?.camera_id || "",
-    reason: "manual",
+  if (!det.ph_id) {
+    notify.error("This detection is not linked to a track yet, so it cannot be corrected.");
+    return;
+  }
+  correctionTarget.value = {
+    phId: det.ph_id,
+    cameraId: cam?.camera_id || "",
+    identityId: det.identity_id || "",
+    capturedAt: cam?.event_time || "",
   };
   correctionOpen.value = true;
 }
 
-async function submitCorrection() {
-  if (!correction.value.ph_id) {
-    error.value = "No ph_id on the selected detection.";
-    return;
-  }
-  saving.value = true;
-  try {
-    await cts.applyCorrection({
-      ph_id: correction.value.ph_id,
-      new_identity_id: correction.value.new_identity_id || null,
-      reason: correction.value.reason || "manual",
-    });
-    correctionOpen.value = false;
-  } catch (err) {
-    error.value = String(err.message || err);
-  } finally {
-    saving.value = false;
-  }
+function onCorrectionApplied() {
+  notify.success("Identity corrected");
 }
 </script>
 

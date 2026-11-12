@@ -723,3 +723,11 @@ class OrchestratorClient(UpstreamClient):
             },
         )
         return {}
+
+    async def purge_gallery_identity(self, identity_id: str) -> dict:
+        r = await self._request("DELETE", f"/internal/gallery/identities/{identity_id}")
+        return r.json()
+
+    async def sync_gallery_identities(self) -> dict:
+        r = await self._request("POST", "/internal/gallery/identities/sync")
+        return r.json()

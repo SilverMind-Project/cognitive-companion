@@ -138,6 +138,7 @@ def _to_out(cam: CtsCamera, db: Session | None = None) -> CtsCameraOut:
         frame_natural_width=cam.frame_natural_width,
         frame_natural_height=cam.frame_natural_height,
         privacy_zone_count=len(cam.privacy_zones) if cam.privacy_zones else 0,
+        privacy_zones=cam.privacy_zones or [],
         health=cam.health_json,
         snapshot_width=cam.snapshot_width,
         snapshot_height=cam.snapshot_height,

@@ -98,6 +98,22 @@ class CtsCameraUpdate(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+# The tracking orchestrator's privacy-policy vocabulary (its ``PrivacyPolicy`` and the pattern on
+# its calibration router). Zones are forwarded verbatim, so a value outside this set saves here but
+# is refused upstream and never takes effect; the two lists must change together.
+PrivacyPolicy = Literal["drop_detection", "blur_region", "mask_region"]
+
+
+class PrivacyZoneOut(BaseModel):
+    """A saved privacy zone: a normalized image-space polygon and what the tracker does inside it."""
+
+    zone_id: str
+    name: str = ""
+    polygon: list[list[float]]
+    policy: PrivacyPolicy
+    enabled: bool = True
+
+
 class CtsCameraOut(CtsCameraFields, OutSchema):
     room: RoomRef | None = None
     has_homography: bool
@@ -110,6 +126,13 @@ class CtsCameraOut(CtsCameraFields, OutSchema):
     frame_natural_width: int | None = None
     frame_natural_height: int | None = None
     privacy_zone_count: int
+    privacy_zones: list[PrivacyZoneOut] = Field(
+        default_factory=list,
+        description=(
+            "The camera's saved privacy zones. The tracking orchestrator keeps zones only in "
+            "memory and restores them from this list at startup and on every config sync."
+        ),
+    )
     health: dict | None
     snapshot_width: int | None = None
     snapshot_height: int | None = None
@@ -188,12 +211,6 @@ class InferredAdjacencyResponse(BaseModel):
     edges: list[InferredEdgeOut]
     overlap_groups: list[InferredOverlapGroupOut]
     skipped_camera_ids: list[str]
-
-
-# The tracking orchestrator's privacy-policy vocabulary (its ``PrivacyPolicy`` and the pattern on
-# its calibration router). Zones are forwarded verbatim, so a value outside this set saves here but
-# is refused upstream and never takes effect; the two lists must change together.
-PrivacyPolicy = Literal["drop_detection", "blur_region", "mask_region"]
 
 
 class PrivacyZoneIn(BaseModel):

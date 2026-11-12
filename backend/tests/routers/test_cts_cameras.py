@@ -131,6 +131,34 @@ class TestListCameras:
         assert body["homography_floor_plan_id"] == "floor-plans/main.png"
         assert body["frame_natural_width"] == 1920
         assert body["frame_natural_height"] == 1080
+        assert body["privacy_zones"] == []
+
+    def test_list_carries_saved_privacy_zones_for_cts_sync(
+        self, client: TestClient, db_engine: Engine
+    ):
+        # The orchestrator keeps zones only in memory and restores them from this list.
+        from backend.models.cts_camera import CtsCamera
+
+        zone = {
+            "zone_id": "mirror",
+            "name": "Mirror",
+            "polygon": [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5]],
+            "policy": "drop_detection",
+            "enabled": True,
+        }
+        Session = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
+        with Session() as db:
+            db.add(
+                CtsCamera(id="zoned-cam", name="Zoned", rtsp_url="rtsp://x", privacy_zones=[zone])
+            )
+            db.commit()
+
+        r = client.get("/api/v1/cts/cameras")
+
+        assert r.status_code == 200
+        body = r.json()[0]
+        assert body["privacy_zones"] == [zone]
+        assert body["privacy_zone_count"] == 1
 
 
 class TestCreateCamera:

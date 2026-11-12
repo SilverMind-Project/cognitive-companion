@@ -840,8 +840,9 @@ async def post_privacy_zones(
     accepted them, so a 204 means the running tracker applied them. An orchestrator
     failure is returned as 502/503/504 with nothing saved, and the operator can retry;
     reporting a zone as saved while the tracker ignores it would break the privacy
-    promise. The orchestrator keeps zones in memory, so they must be pushed again
-    after it restarts.
+    promise. The orchestrator keeps zones only in memory; after a restart it restores
+    them from each camera's ``privacy_zones`` in ``GET /cts/cameras``, which this save
+    updates, and its config sync re-applies that list on every poll.
     """
     cts_enabled()
     cam = db.get(CtsCamera, body.camera_id)

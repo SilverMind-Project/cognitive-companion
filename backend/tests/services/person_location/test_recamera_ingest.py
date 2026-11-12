@@ -246,9 +246,10 @@ async def test_unresolvable_room_still_records_observation_with_room_id_none(db_
 
 @pytest.mark.asyncio
 async def test_published_assertion_carries_room_and_calibration_no_coordinates(db_factory):
-    """Identity-continuity M09: the published assertion carries room_name,
-    yaw_deg, and calibration fields, but never floor coordinates (reCameras
-    have no spatial calibration on either side)."""
+    """The published assertion carries room_name, yaw_deg, raw similarity, and the
+    calibration status, but never floor coordinates (reCameras have no spatial
+    calibration on either side) and never a calibrated confidence (CC has no
+    calibration profile for reCamera images)."""
     from backend.integrations.proto.continuoustracking.v1.tracking_pb2 import (
         CCIdentityAssertion,
     )
@@ -271,7 +272,6 @@ async def test_published_assertion_carries_room_and_calibration_no_coordinates(d
         room_name="kitchen",
         confidence=0.85,
         raw_similarity=0.9,
-        calibrated_confidence=0.91,
         calibration_status="ready",
         yaw_deg=8.0,
     )
@@ -281,8 +281,9 @@ async def test_published_assertion_carries_room_and_calibration_no_coordinates(d
     msg = CCIdentityAssertion.FromString(fields[b"assertion"])
     assert msg.room_name == "kitchen"
     assert msg.calibration_status == "ready"
-    assert msg.HasField("calibrated_confidence")
-    assert msg.calibrated_confidence == pytest.approx(0.91, abs=1e-4)
+    # reCamera faces are uncalibrated in CC, so the assertion never carries a calibrated value.
+    assert not msg.HasField("calibrated_confidence")
+    assert msg.raw_similarity == pytest.approx(0.9, abs=1e-4)
     assert msg.has_yaw is True
     assert msg.yaw_deg == pytest.approx(8.0, abs=1e-4)
     assert msg.has_floor_point is False

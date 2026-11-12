@@ -36,7 +36,6 @@ class IdentityAssertionPublisher:
         floor_x_m: float | None = None,
         floor_y_m: float | None = None,
         raw_similarity: float = 0.0,
-        calibrated_confidence: float | None = None,
         calibration_status: str = "uncalibrated",
         source: str = "cc-vlm",
         model_version: str = "v1",
@@ -57,8 +56,12 @@ class IdentityAssertionPublisher:
                 position: the wire's ``has_floor_point`` flag is set only when
                 both are provided, never fabricated as (0, 0) (CC-M28/G15).
             raw_similarity: Raw cosine similarity from the face ID service.
-            calibrated_confidence: Calibrated confidence, if calibration is enabled.
             calibration_status: Status of the calibration ("calibrated", "uncalibrated", "extrapolated").
+
+        The wire's ``calibrated_confidence`` is never set: CC has no calibration profile for the
+        images it identifies (see ``person_tracking._resolve_calibrated_confidence``), and the
+        tracking orchestrator matches an assertion only on a calibrated confidence, so an
+        assertion without one is recorded there as uncalibrated and never becomes evidence.
             source: The component that generated this assertion (e.g., "cc-arcface").
             model_version: Which model version was used.
             preprocessing_version: Which preprocessing version was used.
@@ -88,8 +91,6 @@ class IdentityAssertionPublisher:
             msg.floor_x_m = float(floor_x_m)
             msg.floor_y_m = float(floor_y_m)
             msg.has_floor_point = True
-        if calibrated_confidence is not None:
-            msg.calibrated_confidence = float(calibrated_confidence)
         if yaw_deg is not None:
             msg.yaw_deg = float(yaw_deg)
             msg.has_yaw = True

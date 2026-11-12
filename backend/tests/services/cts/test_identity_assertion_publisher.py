@@ -37,7 +37,6 @@ async def test_publisher_emits_all_required_fields():
         floor_x_m=1.5,
         floor_y_m=3.2,
         raw_similarity=0.88,
-        calibrated_confidence=0.92,
     )
 
     redis_mock.xadd.assert_called_once()
@@ -55,7 +54,7 @@ async def test_publisher_emits_all_required_fields():
     assert math.isclose(msg.floor_x_m, 1.5, abs_tol=1e-5)
     assert math.isclose(msg.floor_y_m, 3.2, abs_tol=1e-5)
     assert math.isclose(msg.raw_similarity, 0.88, abs_tol=1e-5)
-    assert math.isclose(msg.calibrated_confidence, 0.92, abs_tol=1e-5)
+    assert not msg.HasField("calibrated_confidence")
     assert msg.captured_at_unix_ns == int(now.timestamp() * 1e9)
 
 

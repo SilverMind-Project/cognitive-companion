@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.integrations.homeassistant import HomeAssistantClient
-from backend.integrations.person_id_client import PersonIDClient
+from backend.integrations.person_id_client import FaceResult, PersonIDClient
 from backend.models.person import (
     HouseholdMember,
     PersonActivity,
@@ -81,9 +81,8 @@ class PersonDetection:
     recognition_state: str = "recognized"
     similarity: float = 0.0
     yaw_deg: float = 0.0
-    # calibrated confidence, trusted only when the service reports
-    # calibration_status == "ready" (see _resolve_calibrated_confidence).
-    # None means no trustworthy calibration; never a raw-similarity fallback.
+    # Calibrated confidence of the face match. Always None for reCamera images today (see
+    # _resolve_calibrated_confidence); never a raw-similarity fallback.
     calibrated_confidence: float | None = None
     calibration_status: str = "degraded_missing"
 
@@ -105,18 +104,18 @@ class PersonDetection:
         }
 
 
-def _resolve_calibrated_confidence(face) -> float | None:
-    """Return calibrated_confidence only when the service reports it ready.
+def _resolve_calibrated_confidence(face: FaceResult) -> float | None:
+    """Calibrated confidence CC trusts for a reCamera face: none, whatever person-id reports.
 
-    Mirrors CTS's ``FaceIdentityStage._resolve_calibrated_confidence`` fail-closed
-    discipline: any degraded calibration status yields None. Model/preprocessing
-    version equality is enforced upstream by person-identification-service itself
-    (an incompatible artifact reports a degraded status, never "ready"), so CC does
-    not need its own expected-version config to apply the same guarantee.
+    The household calibration artifact is fitted on CTS person crops: its capture profile records
+    the CTS crop padding and JPEG quality, and CTS trusts a value only for the single-frame
+    profile and the face-quality scorer the fit used. reCamera frames are framed and encoded
+    differently and are never captured for calibration, so person-id's calibrated confidence does
+    not describe them even when its status is "ready". The face therefore counts as
+    uncalibrated (raw similarity only) until a reCamera capture path and a profile fitted on
+    those images exist; the parameter stays so that change lands here and nowhere else.
     """
-    if face.calibration_status != "ready":
-        return None
-    return face.calibrated_confidence
+    return None
 
 
 @dataclass(frozen=True)
@@ -311,7 +310,6 @@ class PersonTrackingService:
                         room_name=det_room_name,
                         confidence=det.confidence,
                         raw_similarity=det.similarity,
-                        calibrated_confidence=det.calibrated_confidence,
                         calibration_status=det.calibration_status,
                         yaw_deg=det.yaw_deg,
                         transition=det_transition,

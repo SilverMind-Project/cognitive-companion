@@ -198,11 +198,16 @@ describe("CTSKeyframesView", () => {
     const boxes = w.findAll(".ov-box");
     expect(boxes).toHaveLength(2);
 
+    const inspector = w.findComponent({ name: "AppDialog" });
+    expect(inspector.props("persistent")).toBe(false);
+
     // Clicking a box selects it, highlights it in the overlay, and mounts the shared workflow.
     await boxes[0].trigger("click");
     await flushPromises();
     expect(w.findComponent({ name: "IdentityCorrectionWorkflow" }).exists()).toBe(true);
     expect(w.findComponent({ name: "IdentityBboxOverlay" }).props("selectedId")).toBe("b1");
+    // The open correction form makes the inspector persistent.
+    expect(inspector.props("persistent")).toBe(true);
   });
 
   it("reloads after a geometry save and surfaces dialog errors", async () => {

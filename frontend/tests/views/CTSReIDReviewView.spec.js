@@ -76,6 +76,8 @@ function makeStore(overrides = {}) {
       detailError: ref(""),
       acting: ref(false),
       counts: ref({ pending_review: 4, auto_verified: 3, operator_verified: 2, rejected: 1 }),
+      countsLoaded: ref(true),
+      countsError: ref(""),
       targets: ref([{ identity_id: "amma", display_name: "Amma" }]),
       targetsLoading: ref(false),
     },
@@ -292,5 +294,24 @@ describe("CTSReIDReviewView", () => {
     const wrapper = mountView();
     await flushPromises();
     expect(wrapper.text()).toContain("cts.identity.gallery_review");
+  });
+
+  it("does not claim an empty queue when the counts failed to load", async () => {
+    const s = makeStore({ candidates: [] });
+    s.state.counts.value = {
+      pending_review: 0,
+      auto_verified: 0,
+      operator_verified: 0,
+      rejected: 0,
+    };
+    s.state.countsError.value = "tracking_orchestrator returned HTTP 503";
+    store.value = s;
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Counts unavailable");
+    expect(wrapper.text()).not.toContain("The review queue is empty");
+    expect(wrapper.text()).not.toContain("Pending · 0");
+    expect(wrapper.text()).toContain("No candidates match");
   });
 });

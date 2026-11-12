@@ -4,13 +4,16 @@
     :width="resolvedWidth"
     max-width="98vw"
     :persistent="persistent"
-    :fullscreen="$vuetify.display.smAndDown"
+    :fullscreen="compact"
     scrollable
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <v-card
       class="cc-glass app-dialog-card d-flex flex-column"
-      :class="{ 'app-dialog-card--fixed': isWorkspaceLayout }"
+      :class="{
+        'app-dialog-card--fixed': isFixedHeight,
+        'app-dialog-card--tall': isFixedHeight && size === 'xl',
+      }"
     >
       <DialogHeader :icon="icon" :label="label" :title="title" @close="close" />
 
@@ -19,11 +22,14 @@
         v-if="sections.length"
         :sections="sections"
         :model-value="activeSection"
-        :compact="$vuetify.display.smAndDown"
+        :compact="compact"
         @update:model-value="selectSection"
       >
         <template v-for="entry in sections" #[`section-${entry.key}`]>
           <slot :name="`section-${entry.key}`" />
+        </template>
+        <template v-if="$slots.trailing" #trailing>
+          <slot name="trailing" />
         </template>
       </AppDialogSections>
 
@@ -31,12 +37,12 @@
       <div
         v-else-if="$slots.aside"
         class="app-dialog-split d-flex flex-grow-1"
-        :class="$vuetify.display.smAndDown ? 'flex-column overflow-y-auto' : 'flex-row'"
+        :class="compact ? 'flex-column overflow-y-auto' : 'flex-row'"
       >
         <div class="app-dialog-aside flex-shrink-0 px-6 py-5">
           <slot name="aside" />
         </div>
-        <v-divider :vertical="!$vuetify.display.smAndDown" />
+        <v-divider :vertical="!compact" />
         <div class="app-dialog-main flex-grow-1 px-6 py-5">
           <slot />
         </div>
@@ -80,11 +86,15 @@
  *   validation); each section may set `error: true` to flag itself in the nav.
  * - `lg` + `#aside`: a split body, a narrow form column (`#aside`) beside a visual workspace
  *   (default slot) such as a snapshot, map, or drawing canvas.
- * - `xl`: workbench and inspector bodies that lay out their own panes in the default slot.
+ * - `xl`: workbench and inspector bodies that lay out their own panes in the default slot, or a
+ *   sectioned editor with a `#trailing` reference panel beside the sections (desktop only).
+ *
+ * Sectioned and split bodies have a fixed height; pass `fixed-height` to give a default-slot
+ * workbench the same stable frame (`xl` is taller than `lg`).
  *
  * Create and edit forms pass `persistent` so a stray backdrop click cannot discard input.
  */
-import { computed, ref, watch } from "vue";
+import { computed, getCurrentInstance, ref, unref, watch } from "vue";
 import DialogHeader from "./DialogHeader.vue";
 import DialogFooter from "./DialogFooter.vue";
 import AppDialogSections from "./AppDialogSections.vue";
@@ -101,6 +111,8 @@ const props = defineProps({
   },
   width: { type: [Number, String], default: null },
   persistent: { type: Boolean, default: false },
+  /** Fix the body height; defaults to on for sectioned and split bodies. */
+  fixedHeight: { type: Boolean, default: undefined },
   /** Section nav entries: `{ key, label, icon, description?, error? }`. */
   sections: { type: Array, default: () => [] },
   /** Active section key; leave unbound to let the dialog manage it. */
@@ -130,7 +142,14 @@ const resolvedWidth = computed(() => {
   return sizeMap[props.size] || sizeMap.md;
 });
 
-const isWorkspaceLayout = computed(() => props.sections.length > 0 || !!slots.aside);
+const isFixedHeight = computed(
+  () => props.fixedHeight ?? (props.sections.length > 0 || !!slots.aside),
+);
+
+// Small screens get a fullscreen dialog with stacked panes. Vuetify exposes `$vuetify` on every
+// component through a global mixin (specs provide it with `global.mocks`).
+const instance = getCurrentInstance();
+const compact = computed(() => !!unref(instance?.proxy?.$vuetify?.display?.smAndDown));
 
 const internalSection = ref(null);
 
@@ -166,6 +185,11 @@ function close() {
   flex: 0 0 auto !important;
   height: 82vh;
   max-height: 760px;
+}
+
+.app-dialog-card--tall {
+  height: 88vh;
+  max-height: 880px;
 }
 
 .app-dialog-split {

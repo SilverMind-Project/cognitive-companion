@@ -216,4 +216,37 @@ describe("AppDialog", () => {
     expect(wrapper.find(".app-dialog-body").text()).toBe("Fields");
     expect(wrapper.find(".app-dialog-card--fixed").exists()).toBe(false);
   });
+
+  it("goes fullscreen with stacked panes on small screens", () => {
+    const wrapper = mount(AppDialog, {
+      props: {
+        modelValue: true,
+        icon: "mdi-alert",
+        label: "L",
+        title: "T",
+        size: "lg",
+      },
+      slots: { aside: "<div>Form</div>", default: "<div>Canvas</div>" },
+      global: {
+        stubs: { "v-dialog": vDialog, "v-card": vCard, "v-divider": vDivider },
+        mocks: { $vuetify: { display: { smAndDown: true } } },
+      },
+    });
+    expect(wrapper.findComponent(vDialog).props("fullscreen")).toBe(true);
+    expect(wrapper.find(".app-dialog-split").classes()).toContain("flex-column");
+  });
+
+  it("can give a default-slot workbench the fixed frame, taller at xl", () => {
+    const wrapper = mountAppDialog({ size: "xl", fixedHeight: true });
+    expect(wrapper.find(".app-dialog-card--fixed").exists()).toBe(true);
+    expect(wrapper.find(".app-dialog-card--tall").exists()).toBe(true);
+  });
+
+  it("forwards a trailing reference panel to the sectioned body", () => {
+    const wrapper = mountAppDialog(
+      { size: "xl", sections: SECTIONS },
+      { trailing: "<div>Variables</div>" },
+    );
+    expect(wrapper.findComponent({ name: "AppDialogSections" }).vm.$slots.trailing).toBeTruthy();
+  });
 });

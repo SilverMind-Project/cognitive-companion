@@ -140,7 +140,7 @@
     </template>
 
     <!-- Confirm Dialog -->
-    <v-dialog v-model="confirmDialog" max-width="400">
+    <v-dialog v-model="confirmDialog" max-width="400" persistent>
       <v-card rounded="xl">
         <v-card-title v-if="confirmTitle">{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
@@ -153,17 +153,13 @@
     </v-dialog>
 
     <!-- Delete Confirm Dialog -->
-    <v-dialog v-model="deleteDialog" max-width="400">
-      <v-card rounded="xl">
-        <v-card-text class="pt-4">Archive this item instead?</v-card-text>
-        <v-card-actions>
-          <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
-          <v-spacer />
-          <v-btn color="warning" @click="doArchive">Archive</v-btn>
-          <v-btn color="error" @click="doDelete">Delete</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <ArchiveOrDeleteDialog
+      v-model="deleteDialog"
+      noun="document"
+      :name="document?.title || ''"
+      @archive="doArchive"
+      @delete="doDelete"
+    />
   </div>
 </template>
 
@@ -172,6 +168,7 @@ import { ref, reactive, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
+import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { formatDateTime } from "@/services/timezone.js";
 

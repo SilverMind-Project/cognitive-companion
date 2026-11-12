@@ -1,66 +1,58 @@
 <template>
-  <v-dialog :model-value="modelValue" max-width="900" persistent @update:model-value="onCancel">
-    <v-card v-if="keyframeId">
-      <DialogHeader
-        icon="mdi-vector-square"
-        label="Keyframe"
-        title="Annotation Editor"
-        @close="onCancel"
-      />
-      <v-divider />
-      <v-card-text>
-        <div v-if="loading" class="d-flex justify-center pa-8">
-          <v-progress-circular indeterminate />
-        </div>
-        <template v-else>
-          <v-row dense align="center" class="px-4 pb-2">
-            <v-col cols="12" sm="6">
-              <v-slider
-                v-model="minConfidence"
-                :min="0"
-                :max="1"
-                :step="0.05"
-                label="Min confidence"
-                thumb-label
-                density="compact"
-                hide-details
-              />
-            </v-col>
-            <v-col cols="12" sm="6" class="text-body-2 text-medium-emphasis">
-              Showing {{ filteredBboxes.length }} of {{ bboxes.length }} detections
-            </v-col>
-          </v-row>
-          <BboxCanvas
-            :key="bboxKey"
-            :image-url="imageUrl"
-            :keyframe-id="keyframeId"
-            :initial-bboxes="filteredBboxes"
-            :identities="identities"
-            :marauders-mode="maraudersState.enabled"
-            @bbox-tagged="onBboxTagged"
-            @bbox-overridden="onBboxOverridden"
-            @bbox-created="onBboxCreated"
-            @bbox-deleted="onBboxDeleted"
-          />
-        </template>
-      </v-card-text>
-      <v-divider />
-      <v-card-actions class="pa-4">
-        <span class="text-caption text-medium-emphasis">{{ pendingSummary }}</span>
-        <v-spacer />
-        <v-btn variant="text" @click="onCancel">Cancel</v-btn>
-        <v-btn
-          color="primary"
-          variant="flat"
-          :disabled="pendingCount === 0"
-          :loading="saving"
-          @click="onSave"
-        >
-          Save Changes
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+  <!-- Extra-large workbench: the canvas gets the width bbox geometry editing needs -->
+  <AppDialog
+    :model-value="modelValue && !!keyframeId"
+    size="xl"
+    persistent
+    icon="mdi-vector-square"
+    label="Keyframe"
+    title="Annotation Editor"
+    confirm-label="Save Changes"
+    :confirm-disabled="pendingCount === 0"
+    :confirm-loading="saving"
+    @update:model-value="(open) => !open && onCancel()"
+    @confirm="onSave"
+  >
+    <div class="px-6 py-5">
+      <div v-if="loading" class="d-flex justify-center pa-8">
+        <v-progress-circular indeterminate />
+      </div>
+      <template v-else>
+        <v-row dense align="center" class="px-4 pb-2">
+          <v-col cols="12" sm="6">
+            <v-slider
+              v-model="minConfidence"
+              :min="0"
+              :max="1"
+              :step="0.05"
+              label="Min confidence"
+              thumb-label
+              density="compact"
+              hide-details
+            />
+          </v-col>
+          <v-col cols="12" sm="6" class="text-body-2 text-medium-emphasis">
+            Showing {{ filteredBboxes.length }} of {{ bboxes.length }} detections
+          </v-col>
+        </v-row>
+        <BboxCanvas
+          :key="bboxKey"
+          :image-url="imageUrl"
+          :keyframe-id="keyframeId"
+          :initial-bboxes="filteredBboxes"
+          :identities="identities"
+          :marauders-mode="maraudersState.enabled"
+          @bbox-tagged="onBboxTagged"
+          @bbox-overridden="onBboxOverridden"
+          @bbox-created="onBboxCreated"
+          @bbox-deleted="onBboxDeleted"
+        />
+      </template>
+    </div>
+    <template #hint>
+      <span class="text-caption text-medium-emphasis">{{ pendingSummary }}</span>
+    </template>
+  </AppDialog>
 </template>
 
 <script setup>
@@ -68,7 +60,7 @@ import { ref, computed, watch } from "vue";
 import { cts } from "@/services/cts";
 import BboxCanvas from "./BboxCanvas.vue";
 import { useMaraudersMode } from "@/composables/useMaraudersMode.js";
-import DialogHeader from "@/components/common/DialogHeader.vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },

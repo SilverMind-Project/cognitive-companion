@@ -93,35 +93,32 @@
     </v-card>
 
     <!-- Create Dialog -->
-    <v-dialog v-model="createDialog" max-width="500" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-automation"
-          label="Create New"
-          title="Rule"
-          @close="createDialog = false"
+    <!-- Create: small form -->
+    <AppDialog
+      v-model="createDialog"
+      size="sm"
+      persistent
+      icon="mdi-automation"
+      label="Create New"
+      title="Rule"
+      hint="Rules define automated workflows triggered by sensors, schedules, or events."
+      confirm-label="Create"
+      @confirm="createRule"
+    >
+      <div class="px-6 py-5">
+        <v-text-field v-model="createForm.name" label="Name" variant="outlined" class="mb-3" />
+        <v-textarea
+          v-model="createForm.description"
+          label="Description"
+          variant="outlined"
+          rows="2"
         />
-        <v-card-text>
-          <v-text-field v-model="createForm.name" label="Name" variant="outlined" class="mb-3" />
-          <v-textarea
-            v-model="createForm.description"
-            label="Description"
-            variant="outlined"
-            rows="2"
-          />
-        </v-card-text>
-        <DialogFooter
-          hint="Rules define automated workflows triggered by sensors, schedules, or events."
-          confirm-label="Create"
-          @cancel="createDialog = false"
-          @confirm="createRule"
-        />
-      </v-card>
-    </v-dialog>
+      </div>
+    </AppDialog>
 
     <ImportRuleDialog v-model="showImportDialog" @imported="onRuleImported" />
 
-    <v-dialog v-model="confirmDialog" max-width="400">
+    <v-dialog v-model="confirmDialog" max-width="400" persistent>
       <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
@@ -141,8 +138,7 @@ import { useRouter } from "vue-router";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
-import DialogHeader from "../../components/common/DialogHeader.vue";
-import DialogFooter from "../../components/common/DialogFooter.vue";
+import AppDialog from "../../components/common/AppDialog.vue";
 import ImportRuleDialog from "../../components/pipeline/ImportRuleDialog.vue";
 
 const { notify } = useNotify();

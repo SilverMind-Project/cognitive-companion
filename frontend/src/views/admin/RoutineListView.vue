@@ -77,41 +77,37 @@
       </v-data-table>
     </v-card>
 
-    <!-- Create dialog -->
-    <v-dialog v-model="showCreate" max-width="600" persistent>
-      <v-card>
-        <v-card-title>New Routine</v-card-title>
-        <v-card-text>
-          <v-select
-            v-model="createForm.person_id"
-            :items="personItems"
-            item-title="name"
-            item-value="id"
-            label="Household Member"
-            :rules="[(r) => !!r || 'Required']"
-          />
-          <v-text-field
-            v-model="createForm.name"
-            label="Routine Name"
-            :rules="[(r) => !!r || 'Required']"
-            placeholder="e.g. Morning Tea"
-          />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="closeCreate">Cancel</v-btn>
-          <v-btn
-            color="primary"
-            variant="flat"
-            :loading="creating"
-            :disabled="!createForm.name || !createForm.person_id"
-            @click="submitCreate"
-          >
-            Create
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <!-- Create dialog: small form -->
+    <AppDialog
+      v-model="showCreate"
+      size="sm"
+      persistent
+      icon="mdi-calendar-check"
+      label="Create New"
+      title="Routine"
+      confirm-label="Create"
+      :confirm-loading="creating"
+      :confirm-disabled="!createForm.name || !createForm.person_id"
+      @cancel="closeCreate"
+      @confirm="submitCreate"
+    >
+      <div class="px-6 py-5">
+        <v-select
+          v-model="createForm.person_id"
+          :items="personItems"
+          item-title="name"
+          item-value="id"
+          label="Household Member"
+          :rules="[(r) => !!r || 'Required']"
+        />
+        <v-text-field
+          v-model="createForm.name"
+          label="Routine Name"
+          :rules="[(r) => !!r || 'Required']"
+          placeholder="e.g. Morning Tea"
+        />
+      </div>
+    </AppDialog>
 
     <!-- Confirm delete dialog -->
     <v-dialog v-model="confirmDialog" max-width="400" persistent>
@@ -134,6 +130,7 @@ import { useRouter } from "vue-router";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
+import AppDialog from "@/components/common/AppDialog.vue";
 
 const router = useRouter();
 const { notify } = useNotify();
@@ -161,6 +158,8 @@ const creating = ref(false);
 const createForm = ref({ name: "", person_id: "" });
 
 function onPageOptions({ page: newPage, itemsPerPage: newPerPage }) {
+  // The server table echoes its current options on mount; that repeats the mount fetch.
+  if (newPage === page.value && newPerPage === itemsPerPage.value) return;
   if (newPerPage !== itemsPerPage.value) {
     itemsPerPage.value = newPerPage;
     page.value = 1;

@@ -52,57 +52,66 @@
       </v-data-table>
     </v-card>
 
-    <v-dialog v-model="dialog" max-width="500" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-access-point"
-          :label="editing ? 'Edit' : 'Create New'"
-          :title="editing ? 'Sensor' : 'Sensor'"
-          @close="dialog = false"
-        />
-        <v-card-text>
-          <v-text-field v-model="form.name" label="Name" variant="outlined" class="mb-2" />
-          <v-select
-            v-model="form.sensor_type"
-            :items="sensorTypes"
-            label="Type"
-            variant="outlined"
-            class="mb-2"
-          />
-          <v-select
-            v-model="form.source"
-            :items="['manual', 'homeassistant']"
-            label="Source"
-            variant="outlined"
-            class="mb-2"
-          />
-          <v-select
-            v-model="form.room_id"
-            :items="roomOptions"
-            label="Room"
-            variant="outlined"
-            item-title="name"
-            item-value="id"
-            class="mb-2"
-          />
-          <v-text-field
-            v-model="form.ha_entity_id"
-            label="HA Entity ID (optional)"
-            variant="outlined"
-            class="mb-2"
-          />
-          <v-switch v-model="form.enabled" label="Enabled" color="primary" />
-        </v-card-text>
-        <DialogFooter
-          hint="Sensors provide presence, motion, and environmental data for rule triggers."
-          :confirm-label="editing ? 'Update' : 'Create'"
-          @cancel="dialog = false"
-          @confirm="saveSensor"
-        />
-      </v-card>
-    </v-dialog>
+    <!-- Create/Edit: medium form, fields paired -->
+    <AppDialog
+      v-model="dialog"
+      size="md"
+      persistent
+      icon="mdi-access-point"
+      :label="editing ? 'Edit' : 'Create New'"
+      title="Sensor"
+      hint="Sensors provide presence, motion, and environmental data for rule triggers."
+      :confirm-label="editing ? 'Update' : 'Create'"
+      @confirm="saveSensor"
+    >
+      <div class="px-6 py-5">
+        <v-row dense>
+          <v-col cols="12" sm="6">
+            <v-text-field v-model="form.name" label="Name" variant="outlined" />
+          </v-col>
+          <v-col cols="12" sm="6">
+            <v-select
+              v-model="form.sensor_type"
+              :items="sensorTypes"
+              label="Type"
+              variant="outlined"
+            />
+          </v-col>
+          <v-col cols="12" sm="6">
+            <v-select
+              v-model="form.source"
+              :items="['manual', 'homeassistant']"
+              label="Source"
+              variant="outlined"
+            />
+          </v-col>
+          <v-col cols="12" sm="6">
+            <v-select
+              v-model="form.room_id"
+              :items="roomOptions"
+              label="Room"
+              variant="outlined"
+              item-title="name"
+              item-value="id"
+            />
+          </v-col>
+        </v-row>
+        <v-row dense align="center">
+          <v-col cols="12" sm="8">
+            <v-text-field
+              v-model="form.ha_entity_id"
+              label="HA Entity ID (optional)"
+              variant="outlined"
+            />
+          </v-col>
+          <v-col cols="12" sm="4">
+            <v-switch v-model="form.enabled" label="Enabled" hide-details />
+          </v-col>
+        </v-row>
+      </div>
+    </AppDialog>
 
-    <v-dialog v-model="confirmDialog" max-width="400">
+    <v-dialog v-model="confirmDialog" max-width="400" persistent>
       <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
@@ -121,8 +130,7 @@ import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
-import DialogHeader from "../../components/common/DialogHeader.vue";
-import DialogFooter from "../../components/common/DialogFooter.vue";
+import AppDialog from "../../components/common/AppDialog.vue";
 
 const { notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();

@@ -195,4 +195,14 @@ describe("useAggregatorState", () => {
 
     expect(result.state.history.get("camera-1").map((p) => p.depth)).toEqual([7]);
   });
+
+  it("ignores a table options event that changes nothing (the table's mount echo)", async () => {
+    const { result } = mountComposable();
+
+    await result.actions.onPageOptions({ page: 1, itemsPerPage: 25 });
+    expect(mocks.getAggregatorState).not.toHaveBeenCalled();
+
+    await result.actions.onPageOptions({ page: 2, itemsPerPage: 25 });
+    expect(mocks.getAggregatorState).toHaveBeenLastCalledWith({ limit: 25, offset: 25 });
+  });
 });

@@ -387,6 +387,49 @@ class TestPrivacyZonesEndpoint:
         )
         assert r.status_code == 422
 
+    def test_orchestrator_failure_is_reported_and_nothing_is_saved(
+        self, client: TestClient, camera_id: str
+    ):
+        from backend.core.upstream_errors import UpstreamUnavailable
+
+        client._orchestrator.post_privacy_zones.side_effect = UpstreamUnavailable(  # type: ignore[attr-defined]
+            "tracking_orchestrator"
+        )
+        r = client.post(
+            "/api/v1/cts/calibration/privacy_zones",
+            json={"camera_id": camera_id, "zones": [ZONE]},
+        )
+        assert r.status_code == 503
+        assert r.json()["detail"]["service"] == "tracking_orchestrator"
+
+        saved = client.get(f"/api/v1/cts/calibration/privacy_zones/{camera_id}")
+        assert saved.json()["zones"] == []
+        client._orchestrator.post_reload.assert_not_awaited()  # type: ignore[attr-defined]
+
+    def test_zones_are_pushed_before_they_are_saved(self, client: TestClient, camera_id: str):
+        r = client.post(
+            "/api/v1/cts/calibration/privacy_zones",
+            json={"camera_id": camera_id, "zones": [ZONE]},
+        )
+        assert r.status_code == 204
+        client._orchestrator.post_privacy_zones.assert_awaited_once_with(  # type: ignore[attr-defined]
+            camera_id=camera_id, zones=[ZONE]
+        )
+
+    def test_reload_failure_after_a_successful_push_still_saves(
+        self, client: TestClient, camera_id: str
+    ):
+        from backend.core.upstream_errors import UpstreamTimeout
+
+        client._orchestrator.post_reload.side_effect = UpstreamTimeout("tracking_orchestrator")  # type: ignore[attr-defined]
+        r = client.post(
+            "/api/v1/cts/calibration/privacy_zones",
+            json={"camera_id": camera_id, "zones": [ZONE]},
+        )
+        assert r.status_code == 204
+        saved = client.get(f"/api/v1/cts/calibration/privacy_zones/{camera_id}")
+        assert len(saved.json()["zones"]) == 1
+
     def test_out_of_range_coords_rejected(self, client: TestClient, camera_id: str):
         zone = {**ZONE, "polygon": [[0.0, 0.0], [2.0, 0.0], [1.0, 1.0]]}
         r = client.post(

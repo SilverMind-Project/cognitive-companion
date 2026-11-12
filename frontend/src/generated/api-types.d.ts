@@ -815,7 +815,14 @@ export interface paths {
         put?: never;
         /**
          * Post Privacy Zones
-         * @description Replace all privacy zones for a camera and push to the orchestrator.
+         * @description Replace all privacy zones for a camera, applying them to the tracker before saving.
+         *
+         *     The zones are pushed to the orchestrator first and saved here only once it has
+         *     accepted them, so a 204 means the running tracker applied them. An orchestrator
+         *     failure is returned as 502/503/504 with nothing saved, and the operator can retry;
+         *     reporting a zone as saved while the tracker ignores it would break the privacy
+         *     promise. The orchestrator keeps zones in memory, so they must be pushed again
+         *     after it restarts.
          */
         post: operations["post_privacy_zones"];
         delete?: never;

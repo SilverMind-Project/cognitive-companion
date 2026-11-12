@@ -120,259 +120,229 @@
       </v-data-table>
     </v-card>
 
-    <!-- Create Dialog -->
-    <v-dialog v-model="showCreateDialog" max-width="640" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-card-text-outline"
-          label="Create New"
-          title="Info Card"
-          @close="closeCreateDialog"
-        />
-        <v-card-text>
-          <!-- LLM Generation Section -->
-          <v-card variant="tonal" class="mb-4 pa-3">
-            <div class="text-subtitle-2 mb-2">Generate from Knowledge Document</div>
-            <v-row dense>
-              <v-col cols="12">
-                <LlmModelPicker
-                  v-model="generateModelId"
-                  :model-items="llmModelItems"
-                  label="LLM Model"
-                  hint="Model used when generating from a document"
-                  persistent-hint
-                  clearable
-                />
-              </v-col>
-              <v-col cols="12" sm="8">
-                <v-select
-                  v-model="createForm.document_id"
-                  :items="documentOptions"
-                  item-title="title"
-                  item-value="id"
-                  label="Knowledge Document"
-                  hint="Source document for content generation"
-                  clearable
-                />
-              </v-col>
-              <v-col cols="12" sm="4" class="align-self-center">
-                <v-btn
-                  color="secondary"
-                  variant="tonal"
-                  :loading="generating"
-                  :disabled="!createForm.document_id"
-                  block
-                  @click="generateFromDocument"
-                >
-                  Generate
-                </v-btn>
-              </v-col>
-            </v-row>
-          </v-card>
-
-          <v-text-field
-            v-model="createForm.title"
-            label="Title"
-            :rules="[(r) => !!r || 'Title is required']"
-          />
-          <v-textarea v-model="createForm.body_text" label="Body Text" rows="6" />
-          <v-select
-            v-model="createForm.layout_id"
-            :items="layouts"
-            item-title="display_name"
-            item-value="id"
-            label="Layout"
-            :rules="[(r) => !!r || 'Layout is required']"
-          />
-          <v-combobox v-model="createForm.tags" label="Tags" multiple chips deletable-chips />
-        </v-card-text>
-        <DialogFooter
-          hint="Generate content from a knowledge document, or fill in fields manually."
-          confirm-label="Create"
-          :confirm-loading="creating"
-          @cancel="closeCreateDialog"
-          @confirm="submitCreate"
-        />
-      </v-card>
-    </v-dialog>
-
-    <!-- Edit / Expand Dialog -->
-    <v-dialog v-model="showEditDialog" max-width="640" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-card-text-outline"
-          label="Edit"
-          title="Info Card"
-          @close="closeEditDialog"
-        />
-        <v-card-text>
-          <!-- LLM Generation Section -->
-          <v-card variant="tonal" class="mb-4 pa-3">
-            <div class="text-subtitle-2 mb-2">Regenerate from Knowledge Document</div>
-            <v-row dense>
-              <v-col cols="12">
-                <LlmModelPicker
-                  v-model="editGenerateModelId"
-                  :model-items="llmModelItems"
-                  label="LLM Model"
-                  hint="Model used for regeneration"
-                  persistent-hint
-                  clearable
-                />
-              </v-col>
-              <v-col cols="12" sm="8">
-                <v-select
-                  v-model="editForm.document_id"
-                  :items="documentOptions"
-                  item-title="title"
-                  item-value="id"
-                  label="Knowledge Document"
-                  hint="Source document for content regeneration"
-                  clearable
-                />
-              </v-col>
-              <v-col cols="12" sm="4" class="align-self-center">
-                <v-btn
-                  color="secondary"
-                  variant="tonal"
-                  :loading="editGenerating"
-                  :disabled="!editForm.document_id"
-                  block
-                  @click="generateEditFromDocument"
-                >
-                  Regenerate
-                </v-btn>
-              </v-col>
-            </v-row>
-          </v-card>
-
-          <v-text-field v-model="editForm.title" label="Title" class="mb-3" />
-          <v-textarea v-model="editForm.body_text" label="Body Text" rows="6" class="mb-3" />
-          <v-select
-            v-model="editForm.layout_id"
-            :items="layouts"
-            item-title="display_name"
-            item-value="id"
-            label="Layout"
+    <!-- Create Dialog: large split (content beside generation, layout, and tags) -->
+    <AppDialog
+      v-model="showCreateDialog"
+      size="lg"
+      persistent
+      icon="mdi-card-text-outline"
+      label="Create New"
+      title="Info Card"
+      hint="Generate content from a knowledge document, or fill in fields manually."
+      confirm-label="Create"
+      :confirm-loading="creating"
+      @cancel="closeCreateDialog"
+      @confirm="submitCreate"
+    >
+      <template #aside>
+        <v-card variant="tonal" class="mb-4 pa-3">
+          <div class="text-subtitle-2 mb-2">Generate from Knowledge Document</div>
+          <LlmModelPicker
+            v-model="generateModelId"
+            :model-items="llmModelItems"
+            label="LLM Model"
+            hint="Model used when generating from a document"
+            persistent-hint
+            clearable
             class="mb-3"
           />
-
-          <!-- Image Slots -->
-          <v-card
-            v-if="editingItem && currentEditLayoutSlots.length > 0"
-            variant="tonal"
-            class="mb-3 pa-3"
-          >
-            <div class="text-subtitle-2 mb-3">Image Slots</div>
-            <div v-for="(slotDef, idx) in currentEditLayoutSlots" :key="idx" class="mb-3">
-              <div class="text-caption mb-1">Slot {{ idx }}: {{ slotDef.slot_id }}</div>
-              <div class="d-flex align-center ga-2 flex-wrap">
-                <v-sheet
-                  v-if="getSlotPreview(idx)"
-                  width="80"
-                  height="60"
-                  class="rounded-lg overflow-hidden"
-                >
-                  <v-img :src="getSlotPreview(idx)" height="60" cover />
-                </v-sheet>
-                <v-sheet
-                  v-else
-                  width="80"
-                  height="60"
-                  class="rounded-lg bg-surface-variant d-flex align-center justify-center"
-                >
-                  <v-icon size="24" color="var(--cc-text-3)">mdi-image-outline</v-icon>
-                </v-sheet>
-
-                <v-btn
-                  size="small"
-                  variant="tonal"
-                  prepend-icon="mdi-image-plus"
-                  @click="triggerSlotFilePicker(idx)"
-                >
-                  {{ slotFileNames[idx] || "Choose" }}
-                </v-btn>
-                <v-btn
-                  v-if="slotUploadFiles[idx]"
-                  size="small"
-                  color="primary"
-                  variant="tonal"
-                  :loading="slotUploading[idx]"
-                  @click="uploadSlotImage(idx)"
-                >
-                  Save
-                </v-btn>
-
-                <v-btn
-                  v-if="docImagesForPick.length > 0"
-                  size="small"
-                  variant="tonal"
-                  @click="showDocPickIdx = showDocPickIdx === idx ? -1 : idx"
-                >
-                  Pick from Document
-                </v-btn>
-
-                <v-btn
-                  v-if="getSlotPreview(idx)"
-                  size="small"
-                  color="error"
-                  variant="text"
-                  icon="mdi-delete"
-                  :loading="slotUploading[idx]"
-                  @click="clearSlot(idx)"
-                />
-              </div>
-
-              <div v-if="showDocPickIdx === idx" class="d-flex ga-2 flex-wrap mt-2">
-                <v-img
-                  v-for="docImg in docImagesForPick"
-                  :key="docImg.id"
-                  :src="docImg.presigned_url"
-                  width="80"
-                  height="60"
-                  cover
-                  class="rounded-lg"
-                  style="cursor: pointer; border: 2px solid transparent"
-                  @click="
-                    pickSlotImage(idx, docImg.id);
-                    showDocPickIdx = -1;
-                  "
-                />
-              </div>
-            </div>
-          </v-card>
-
-          <v-combobox v-model="editForm.tags" label="Tags" multiple chips deletable-chips />
-          <!-- Hidden file input for slot image picking -->
-          <input
-            ref="slotFileInput"
-            type="file"
-            accept="image/*"
-            hidden
-            @change="onSlotFilePicked"
+          <v-select
+            v-model="createForm.document_id"
+            :items="documentOptions"
+            item-title="title"
+            item-value="id"
+            label="Knowledge Document"
+            hint="Source document for content generation"
+            clearable
+            class="mb-2"
           />
-        </v-card-text>
-        <DialogFooter
-          hint="Modify card content, manage image slots, and update tags."
-          :confirm-loading="saving"
-          @cancel="closeEditDialog"
-          @confirm="submitEdit"
+          <v-btn
+            color="secondary"
+            variant="tonal"
+            :loading="generating"
+            :disabled="!createForm.document_id"
+            block
+            @click="generateFromDocument"
+          >
+            Generate
+          </v-btn>
+        </v-card>
+        <v-select
+          v-model="createForm.layout_id"
+          :items="layouts"
+          item-title="display_name"
+          item-value="id"
+          label="Layout"
+          :rules="[(r) => !!r || 'Layout is required']"
         />
+        <v-combobox v-model="createForm.tags" label="Tags" multiple chips deletable-chips />
+      </template>
+
+      <v-text-field
+        v-model="createForm.title"
+        label="Title"
+        :rules="[(r) => !!r || 'Title is required']"
+      />
+      <v-textarea v-model="createForm.body_text" label="Body Text" rows="14" />
+    </AppDialog>
+
+    <!-- Edit / Expand Dialog: large split (content and image slots beside regeneration) -->
+    <AppDialog
+      v-model="showEditDialog"
+      size="lg"
+      persistent
+      icon="mdi-card-text-outline"
+      label="Edit"
+      title="Info Card"
+      hint="Modify card content, manage image slots, and update tags."
+      :confirm-loading="saving"
+      @cancel="closeEditDialog"
+      @confirm="submitEdit"
+    >
+      <template #aside>
+        <v-card variant="tonal" class="mb-4 pa-3">
+          <div class="text-subtitle-2 mb-2">Regenerate from Knowledge Document</div>
+          <LlmModelPicker
+            v-model="editGenerateModelId"
+            :model-items="llmModelItems"
+            label="LLM Model"
+            hint="Model used for regeneration"
+            persistent-hint
+            clearable
+            class="mb-3"
+          />
+          <v-select
+            v-model="editForm.document_id"
+            :items="documentOptions"
+            item-title="title"
+            item-value="id"
+            label="Knowledge Document"
+            hint="Source document for content regeneration"
+            clearable
+            class="mb-2"
+          />
+          <v-btn
+            color="secondary"
+            variant="tonal"
+            :loading="editGenerating"
+            :disabled="!editForm.document_id"
+            block
+            @click="generateEditFromDocument"
+          >
+            Regenerate
+          </v-btn>
+        </v-card>
+        <v-select
+          v-model="editForm.layout_id"
+          :items="layouts"
+          item-title="display_name"
+          item-value="id"
+          label="Layout"
+          class="mb-3"
+        />
+        <v-combobox v-model="editForm.tags" label="Tags" multiple chips deletable-chips />
+      </template>
+
+      <v-text-field v-model="editForm.title" label="Title" class="mb-3" />
+      <v-textarea v-model="editForm.body_text" label="Body Text" rows="10" class="mb-3" />
+
+      <!-- Image Slots -->
+      <v-card
+        v-if="editingItem && currentEditLayoutSlots.length > 0"
+        variant="tonal"
+        class="mb-3 pa-3"
+      >
+        <div class="text-subtitle-2 mb-3">Image Slots</div>
+        <div v-for="(slotDef, idx) in currentEditLayoutSlots" :key="idx" class="mb-3">
+          <div class="text-caption mb-1">Slot {{ idx }}: {{ slotDef.slot_id }}</div>
+          <div class="d-flex align-center ga-2 flex-wrap">
+            <v-sheet
+              v-if="getSlotPreview(idx)"
+              width="80"
+              height="60"
+              class="rounded-lg overflow-hidden"
+            >
+              <v-img :src="getSlotPreview(idx)" height="60" cover />
+            </v-sheet>
+            <v-sheet
+              v-else
+              width="80"
+              height="60"
+              class="rounded-lg bg-surface-variant d-flex align-center justify-center"
+            >
+              <v-icon size="24" color="var(--cc-text-3)">mdi-image-outline</v-icon>
+            </v-sheet>
+
+            <v-btn
+              size="small"
+              variant="tonal"
+              prepend-icon="mdi-image-plus"
+              @click="triggerSlotFilePicker(idx)"
+            >
+              {{ slotFileNames[idx] || "Choose" }}
+            </v-btn>
+            <v-btn
+              v-if="slotUploadFiles[idx]"
+              size="small"
+              color="primary"
+              variant="tonal"
+              :loading="slotUploading[idx]"
+              @click="uploadSlotImage(idx)"
+            >
+              Save
+            </v-btn>
+
+            <v-btn
+              v-if="docImagesForPick.length > 0"
+              size="small"
+              variant="tonal"
+              @click="showDocPickIdx = showDocPickIdx === idx ? -1 : idx"
+            >
+              Pick from Document
+            </v-btn>
+
+            <v-btn
+              v-if="getSlotPreview(idx)"
+              size="small"
+              color="error"
+              variant="text"
+              icon="mdi-delete"
+              :loading="slotUploading[idx]"
+              @click="clearSlot(idx)"
+            />
+          </div>
+
+          <div v-if="showDocPickIdx === idx" class="d-flex ga-2 flex-wrap mt-2">
+            <v-img
+              v-for="docImg in docImagesForPick"
+              :key="docImg.id"
+              :src="docImg.presigned_url"
+              width="80"
+              height="60"
+              cover
+              class="rounded-lg"
+              style="cursor: pointer; border: 2px solid transparent"
+              @click="
+                pickSlotImage(idx, docImg.id);
+                showDocPickIdx = -1;
+              "
+            />
+          </div>
+        </div>
       </v-card>
-    </v-dialog>
+
+      <!-- Hidden file input for slot image picking -->
+      <input ref="slotFileInput" type="file" accept="image/*" hidden @change="onSlotFilePicked" />
+    </AppDialog>
 
     <!-- Delete Confirm Dialog -->
-    <v-dialog v-model="deleteDialog" max-width="400">
-      <v-card rounded="xl">
-        <v-card-text class="pt-4">Archive this item instead?</v-card-text>
-        <v-card-actions>
-          <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
-          <v-spacer />
-          <v-btn color="warning" @click="doArchive">Archive</v-btn>
-          <v-btn color="error" @click="doDelete">Delete</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <ArchiveOrDeleteDialog
+      v-model="deleteDialog"
+      noun="info card"
+      :name="deleteTarget?.title || ''"
+      @archive="doArchive"
+      @delete="doDelete"
+    />
   </div>
 </template>
 
@@ -380,9 +350,9 @@
 import { ref, reactive, computed, onMounted } from "vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
+import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
-import DialogHeader from "@/components/common/DialogHeader.vue";
-import DialogFooter from "@/components/common/DialogFooter.vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 
 const { notify } = useNotify();
 
@@ -463,6 +433,8 @@ function debouncedFetch() {
 }
 
 function onPageOptions({ page: newPage, itemsPerPage: newPerPage }) {
+  // The server table echoes its current options on mount; that repeats the mount fetch.
+  if (newPage === page.value && newPerPage === itemsPerPage.value) return;
   if (newPerPage !== itemsPerPage.value) {
     itemsPerPage.value = newPerPage;
     page.value = 1;

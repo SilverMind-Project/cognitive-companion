@@ -33,6 +33,16 @@
           :options="stateOptions"
           @update:model-value="(v) => actions.setFilter('state', v)"
         />
+        <v-chip
+          v-if="state.countsError.value"
+          size="small"
+          color="warning"
+          variant="tonal"
+          prepend-icon="mdi-alert-outline"
+          :title="state.countsError.value"
+        >
+          Counts unavailable
+        </v-chip>
         <v-spacer />
         <v-text-field
           :model-value="state.filters.value.identity_id"
@@ -534,8 +544,8 @@
     </AppDialog>
 
     <!-- Confirmation dialog for approve / relabel -->
-    <v-dialog v-model="confirmDialog" max-width="420" persistent>
-      <v-card>
+    <v-dialog v-model="confirmDialog" max-width="400" persistent>
+      <v-card rounded="xl">
         <v-card-title v-if="confirmTitle">{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>
@@ -613,16 +623,21 @@ const STATE_COLORS = {
 };
 const STATE_ORDER = ["pending_review", "auto_verified", "operator_verified", "rejected"];
 
+const countsKnown = computed(() => state.countsLoaded.value && !state.countsError.value);
+
+// Counts appear only once known: a placeholder zero must never pass for a real one.
 const stateOptions = computed(() =>
   STATE_ORDER.map((value) => ({
     value,
-    label: `${STATE_LABELS[value]} · ${state.counts.value[value] ?? 0}`,
+    label: countsKnown.value
+      ? `${STATE_LABELS[value]} · ${state.counts.value[value] ?? 0}`
+      : STATE_LABELS[value],
   })),
 );
 
 // Counts span every state, so all-zero means nothing has ever been proposed (not a filter miss).
-const queueEmpty = computed(() =>
-  STATE_ORDER.every((value) => (state.counts.value[value] ?? 0) === 0),
+const queueEmpty = computed(
+  () => countsKnown.value && STATE_ORDER.every((value) => (state.counts.value[value] ?? 0) === 0),
 );
 
 const detailCandidate = computed(() => state.detail.value?.candidate || {});

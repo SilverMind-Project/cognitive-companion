@@ -40,10 +40,19 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import BboxTagPopover from "./BboxTagPopover.vue";
 import MaraudersInkBox from "@/components/marauders/MaraudersInkBox.vue";
 import { hitTestRect } from "@/composables/bboxGeometry.js";
+import { HALO } from "@/composables/useAnnotationStyle.js";
+
+const LABEL_FONT_PX = 14;
+const LABEL_CHIP_PX = 22;
+
+function labelFontFamily() {
+  const family = getComputedStyle(document.documentElement).getPropertyValue("--cc-font").trim();
+  return family || "sans-serif";
+}
 
 // Map shared compass corner names to this canvas's resize-handle names.
 const CORNER_TO_BBOX = { nw: "tl", ne: "tr", sw: "bl", se: "br" };
@@ -107,16 +116,33 @@ function onImageLoad(event) {
   const img = event.target;
   imageNaturalWidth.value = img.naturalWidth;
   imageNaturalHeight.value = img.naturalHeight;
-
-  // Size canvas to match the displayed image dimensions
-  const canvas = canvasRef.value;
-  if (canvas) {
-    canvas.width = img.clientWidth;
-    canvas.height = img.clientHeight;
-  }
+  fitCanvasToImage();
   syncBoxesFromProps();
   render();
 }
+
+/** Match the canvas to the displayed image so boxes and labels draw in screen pixels. */
+function fitCanvasToImage() {
+  const canvas = canvasRef.value;
+  const img = wrapperRef.value?.querySelector(".keyframe-image");
+  if (!canvas || !img) return;
+  canvas.width = img.clientWidth;
+  canvas.height = img.clientHeight;
+}
+
+// The dialog can change width after the image loads (opening animation, window resize,
+// fullscreen on small screens); refit and redraw so boxes stay on the people they mark.
+let resizeObserver = null;
+onMounted(() => {
+  if (typeof ResizeObserver === "undefined" || !wrapperRef.value) return;
+  resizeObserver = new ResizeObserver(() => {
+    if (!imageNaturalWidth.value) return;
+    fitCanvasToImage();
+    render();
+  });
+  resizeObserver.observe(wrapperRef.value);
+});
+onBeforeUnmount(() => resizeObserver?.disconnect());
 
 // -- Box management -----------------------------------------------------------
 
@@ -182,12 +208,17 @@ function render() {
 
     // Identity label
     if (box.identityLabel) {
-      ctx.font = "12px Inter, sans-serif";
+      // 14px screen-space label on a dark chip; tucked inside the box when it touches the top.
+      ctx.font = `500 ${LABEL_FONT_PX}px ${labelFontFamily()}`;
       const textWidth = ctx.measureText(box.identityLabel).width;
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(cx1, cy1 - 20, textWidth + 8, 20);
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillText(box.identityLabel, cx1 + 4, cy1 - 5);
+      const chipW = textWidth + 12;
+      const chipX = Math.min(Math.max(0, cx1), Math.max(0, canvas.width - chipW));
+      const chipY = cy1 >= LABEL_CHIP_PX ? cy1 - LABEL_CHIP_PX : cy1;
+      ctx.fillStyle = HALO.color;
+      ctx.fillRect(chipX, chipY, chipW, LABEL_CHIP_PX);
+      ctx.fillStyle = "white";
+      ctx.textBaseline = "middle";
+      ctx.fillText(box.identityLabel, chipX + 6, chipY + LABEL_CHIP_PX / 2);
     }
 
     // Corner handles for selected box

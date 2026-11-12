@@ -834,26 +834,45 @@ async def post_privacy_zones(
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
     orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> None:
-    """Replace all privacy zones for a camera and push to the orchestrator."""
+    """Replace all privacy zones for a camera, applying them to the tracker before saving.
+
+    The zones are pushed to the orchestrator first and saved here only once it has
+    accepted them, so a 204 means the running tracker applied them. An orchestrator
+    failure is returned as 502/503/504 with nothing saved, and the operator can retry;
+    reporting a zone as saved while the tracker ignores it would break the privacy
+    promise. The orchestrator keeps zones in memory, so they must be pushed again
+    after it restarts.
+    """
     cts_enabled()
     cam = db.get(CtsCamera, body.camera_id)
     if not cam:
         raise NotFoundError("Camera", body.camera_id)
 
     zones_data: list[dict[str, Any]] = [z.model_dump() for z in body.zones]
-    cam.privacy_zones = zones_data
-    db.commit()
 
     try:
         await orchestrator.post_privacy_zones(
             camera_id=body.camera_id,
             zones=zones_data,
         )
-        # Trigger a hot-reload so the orchestrator picks up the change.
-        await orchestrator.post_reload()
     except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
         logger.warning(
             "cts_privacy_zones_push_failed",
+            camera_id=body.camera_id,
+            error=str(exc),
+        )
+        raise _upstream_to_http(exc) from exc
+
+    cam.privacy_zones = zones_data
+    db.commit()
+
+    # The orchestrator reads zones from its calibration state on every frame, so they
+    # are already in force; the reload only refreshes its calibration bookkeeping.
+    try:
+        await orchestrator.post_reload()
+    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
+        logger.warning(
+            "cts_privacy_zones_reload_failed",
             camera_id=body.camera_id,
             error=str(exc),
         )

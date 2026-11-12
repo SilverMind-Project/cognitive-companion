@@ -153,66 +153,75 @@
       </v-window-item>
     </v-window>
 
-    <!-- Create/Edit Dialog -->
-    <v-dialog v-model="dialog" max-width="560" scrollable persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-account-plus"
-          :label="editing ? 'Edit' : 'Create New'"
-          :title="editing ? 'Member' : 'Member'"
-          @close="dialog = false"
-        />
-        <v-card-text>
-          <v-text-field
-            v-model="form.id"
-            label="Person ID"
-            variant="outlined"
-            :disabled="editing"
-            hint="Unique identifier (e.g. grandma). Must match enrollment in the face service."
-            persistent-hint
-            class="mb-3"
-          />
-          <v-text-field v-model="form.name" label="Display Name" variant="outlined" class="mb-3" />
-          <v-switch
-            v-model="form.is_guest"
-            label="Guest (not a permanent member)"
-            color="info"
-            class="mb-1"
-            @update:model-value="onGuestToggle"
-          />
-          <v-switch
-            v-if="editing"
-            v-model="form.is_active"
-            label="Active"
-            color="primary"
-            class="mb-2"
-          />
+    <!-- Create/Edit Dialog: medium form, short fields paired -->
+    <AppDialog
+      v-model="dialog"
+      size="md"
+      persistent
+      icon="mdi-account-plus"
+      :label="editing ? 'Edit' : 'Create New'"
+      title="Member"
+      hint="Persons are recognized by the face identification service for presence and activity tracking."
+      :confirm-label="editing ? 'Update' : 'Create'"
+      @confirm="saveMember"
+    >
+      <div class="px-6 py-5">
+        <v-row dense>
+          <v-col cols="12" sm="6">
+            <v-text-field
+              v-model="form.id"
+              label="Person ID"
+              variant="outlined"
+              :disabled="editing"
+              hint="Unique identifier (e.g. grandma). Must match enrollment in the face service."
+              persistent-hint
+            />
+          </v-col>
+          <v-col cols="12" sm="6">
+            <v-text-field v-model="form.name" label="Display Name" variant="outlined" />
+          </v-col>
+        </v-row>
+        <v-row dense align="center">
+          <v-col cols="12" sm="6">
+            <v-switch
+              v-model="form.is_guest"
+              label="Guest (not a permanent member)"
+              color="info"
+              hide-details
+              @update:model-value="onGuestToggle"
+            />
+          </v-col>
+          <v-col v-if="editing" cols="12" sm="6">
+            <v-switch v-model="form.is_active" label="Active" hide-details />
+          </v-col>
+        </v-row>
 
-          <v-divider class="my-3" />
-          <div class="text-subtitle-2 font-weight-semibold mb-2">CTS Alert Profile</div>
-          <div class="text-body-2 text-medium-emphasis mb-3">
-            Controls which behavioural signals from the tracking system trigger alerts for this
-            person.
-          </div>
+        <v-divider class="my-4" />
+        <div class="text-subtitle-2 font-weight-semibold mb-1">CTS Alert Profile</div>
+        <div class="text-body-2 text-medium-emphasis mb-3">
+          Controls which behavioural signals from the tracking system trigger alerts for this
+          person.
+        </div>
 
+        <div class="d-flex align-center flex-wrap ga-3 mb-3">
           <CcSegmentedToggle
             v-model="alertProfile"
             :options="ALERT_PROFILE_OPTIONS"
-            class="mb-3"
             @update:model-value="onProfileChange"
           />
-
-          <div class="text-body-2 text-medium-emphasis mb-3">
+          <span class="text-body-2 text-medium-emphasis">
             <span v-if="alertProfile === 'senior'"
               >All 7 signal types enabled (dementia monitoring).</span
             >
             <span v-else-if="alertProfile === 'adult'">Presence and sleep/rest signals only.</span>
             <span v-else-if="alertProfile === 'guest'">Absence alert only.</span>
             <span v-else>Custom signal selection.</span>
-          </div>
+          </span>
+        </div>
 
-          <v-expand-transition>
-            <div v-if="alertProfile === 'custom'">
+        <v-expand-transition>
+          <v-row v-if="alertProfile === 'custom'" dense class="mb-2">
+            <v-col cols="12" sm="4">
               <div class="text-caption font-weight-medium text-medium-emphasis mb-1">PRESENCE</div>
               <v-checkbox
                 v-model="form.cts_alert_config.enabled_kinds"
@@ -220,10 +229,10 @@
                 label="Absence"
                 density="compact"
                 hide-details
-                class="mb-1"
               />
-
-              <div class="text-caption font-weight-medium text-medium-emphasis mt-2 mb-1">
+            </v-col>
+            <v-col cols="12" sm="4">
+              <div class="text-caption font-weight-medium text-medium-emphasis mb-1">
                 SLEEP / REST
               </div>
               <v-checkbox
@@ -232,7 +241,6 @@
                 label="Nighttime movement"
                 density="compact"
                 hide-details
-                class="mb-1"
               />
               <v-checkbox
                 v-model="form.cts_alert_config.enabled_kinds"
@@ -240,10 +248,10 @@
                 label="Stillness anomaly"
                 density="compact"
                 hide-details
-                class="mb-1"
               />
-
-              <div class="text-caption font-weight-medium text-medium-emphasis mt-2 mb-1">
+            </v-col>
+            <v-col cols="12" sm="4">
+              <div class="text-caption font-weight-medium text-medium-emphasis mb-1">
                 DEMENTIA-SPECIFIC
               </div>
               <v-checkbox
@@ -252,7 +260,6 @@
                 label="Pacing"
                 density="compact"
                 hide-details
-                class="mb-1"
               />
               <v-checkbox
                 v-model="form.cts_alert_config.enabled_kinds"
@@ -260,7 +267,6 @@
                 label="Sundowning index"
                 density="compact"
                 hide-details
-                class="mb-1"
               />
               <v-checkbox
                 v-model="form.cts_alert_config.enabled_kinds"
@@ -268,7 +274,6 @@
                 label="Bathroom dwell anomaly"
                 density="compact"
                 hide-details
-                class="mb-1"
               />
               <v-checkbox
                 v-model="form.cts_alert_config.enabled_kinds"
@@ -276,141 +281,133 @@
                 label="Room revisit rate"
                 density="compact"
                 hide-details
-                class="mb-2"
               />
-            </div>
-          </v-expand-transition>
+            </v-col>
+          </v-row>
+        </v-expand-transition>
 
-          <v-select
-            v-model="form.cts_alert_config.min_severity"
-            :items="severityItems"
-            label="Minimum alert severity"
-            variant="outlined"
-            density="compact"
-            hide-details
-          />
-        </v-card-text>
-        <DialogFooter
-          hint="Persons are recognized by the face identification service for presence and activity tracking."
-          :confirm-label="editing ? 'Update' : 'Create'"
-          @cancel="dialog = false"
-          @confirm="saveMember"
-        />
-      </v-card>
-    </v-dialog>
-
-    <!-- Face Enrollment Dialog -->
-    <v-dialog v-model="enrollDialog" max-width="600" scrollable persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-face-recognition"
-          label="Face Enrollment"
-          :title="enrollTarget?.name || 'Enroll Face'"
-          @close="enrollDialog = false"
-        />
-        <v-card-text>
-          <!-- Current enrollment status -->
-          <v-alert
-            v-if="enrollmentMap[enrollTarget?.id]"
-            type="success"
-            variant="tonal"
-            class="mb-4"
-            density="compact"
-          >
-            Currently enrolled with {{ enrollmentMap[enrollTarget?.id].embedding_count }} reference
-            photos. Uploading more photos will add to the existing enrollment.
-          </v-alert>
-          <v-alert v-else type="info" variant="tonal" class="mb-4" density="compact">
-            Not yet enrolled. Upload 5-10 reference photos for reliable recognition.
-          </v-alert>
-
-          <!-- Best practices -->
-          <v-expansion-panels variant="accordion" class="mb-4">
-            <v-expansion-panel title="Photo tips for best results">
-              <v-expansion-panel-text>
-                <v-list density="compact">
-                  <v-list-item prepend-icon="mdi-camera-burst"
-                    >Capture 5-10 images per person</v-list-item
-                  >
-                  <v-list-item prepend-icon="mdi-white-balance-sunny"
-                    >Vary lighting: daylight, evening lamp, nightlight</v-list-item
-                  >
-                  <v-list-item prepend-icon="mdi-rotate-3d-variant"
-                    >Vary angle: front face, slight left/right turns</v-list-item
-                  >
-                  <v-list-item prepend-icon="mdi-glasses"
-                    >Include accessories: with/without glasses</v-list-item
-                  >
-                  <v-list-item prepend-icon="mdi-cctv"
-                    >Use actual deployment cameras for best domain match</v-list-item
-                  >
-                </v-list>
-              </v-expansion-panel-text>
-            </v-expansion-panel>
-          </v-expansion-panels>
-
-          <!-- File upload -->
-          <v-file-input
-            v-model="enrollFiles"
-            label="Select photos"
-            variant="outlined"
-            accept="image/*"
-            multiple
-            show-size
-            prepend-icon="mdi-camera"
-            :hint="`${enrollFiles.length} photo(s) selected`"
-            persistent-hint
-            class="mb-4"
-          />
-
-          <!-- Preview thumbnails -->
-          <div v-if="enrollPreviews.length" class="d-flex flex-wrap ga-2 mb-4">
-            <v-img
-              v-for="(src, idx) in enrollPreviews"
-              :key="idx"
-              :src="src"
-              width="80"
-              height="80"
-              class="rounded-lg border"
+        <v-row dense>
+          <v-col cols="12" sm="6">
+            <v-select
+              v-model="form.cts_alert_config.min_severity"
+              :items="severityItems"
+              label="Minimum alert severity"
+              variant="outlined"
+              density="compact"
+              hide-details
             />
-          </div>
+          </v-col>
+        </v-row>
+      </div>
+    </AppDialog>
 
-          <!-- Upload result -->
-          <v-alert
-            v-if="enrollResult"
-            :type="enrollResult.failed_images?.length ? 'warning' : 'success'"
-            variant="tonal"
-            class="mb-2"
-            density="compact"
-          >
-            Enrolled {{ enrollResult.embedding_count }} embeddings.
-            <span v-if="enrollResult.failed_images?.length">
-              {{ enrollResult.failed_images.length }} image(s) failed (no face detected).
-            </span>
-          </v-alert>
-        </v-card-text>
-        <DialogFooter
-          hint="Upload 5–10 reference photos for reliable face recognition."
-          cancel-label="Close"
-          confirm-label="Upload & Enroll"
-          :confirm-loading="enrolling"
-          :confirm-disabled="enrollFiles.length === 0"
-          @cancel="enrollDialog = false"
-          @confirm="submitEnrollment"
+    <!-- Face Enrollment Dialog: medium -->
+    <AppDialog
+      v-model="enrollDialog"
+      size="md"
+      persistent
+      icon="mdi-face-recognition"
+      label="Face Enrollment"
+      :title="enrollTarget?.name || 'Enroll Face'"
+      hint="Upload 5–10 reference photos for reliable face recognition."
+      cancel-label="Close"
+      confirm-label="Upload & Enroll"
+      :confirm-loading="enrolling"
+      :confirm-disabled="enrollFiles.length === 0"
+      @confirm="submitEnrollment"
+    >
+      <div class="px-6 py-5">
+        <!-- Current enrollment status -->
+        <v-alert
+          v-if="enrollmentMap[enrollTarget?.id]"
+          type="success"
+          variant="tonal"
+          class="mb-4"
+          density="compact"
         >
-          <template #actions>
-            <v-btn
-              v-if="enrollmentMap[enrollTarget?.id]"
-              color="error"
-              variant="text"
-              @click="unenroll"
-            >
-              Remove Enrollment
-            </v-btn>
-          </template>
-        </DialogFooter>
-      </v-card>
-    </v-dialog>
+          Currently enrolled with {{ enrollmentMap[enrollTarget?.id].embedding_count }} reference
+          photos. Uploading more photos will add to the existing enrollment.
+        </v-alert>
+        <v-alert v-else type="info" variant="tonal" class="mb-4" density="compact">
+          Not yet enrolled. Upload 5-10 reference photos for reliable recognition.
+        </v-alert>
+
+        <!-- Best practices -->
+        <v-expansion-panels variant="accordion" class="mb-4">
+          <v-expansion-panel title="Photo tips for best results">
+            <v-expansion-panel-text>
+              <v-list density="compact">
+                <v-list-item prepend-icon="mdi-camera-burst"
+                  >Capture 5-10 images per person</v-list-item
+                >
+                <v-list-item prepend-icon="mdi-white-balance-sunny"
+                  >Vary lighting: daylight, evening lamp, nightlight</v-list-item
+                >
+                <v-list-item prepend-icon="mdi-rotate-3d-variant"
+                  >Vary angle: front face, slight left/right turns</v-list-item
+                >
+                <v-list-item prepend-icon="mdi-glasses"
+                  >Include accessories: with/without glasses</v-list-item
+                >
+                <v-list-item prepend-icon="mdi-cctv"
+                  >Use actual deployment cameras for best domain match</v-list-item
+                >
+              </v-list>
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+        </v-expansion-panels>
+
+        <!-- File upload -->
+        <v-file-input
+          v-model="enrollFiles"
+          label="Select photos"
+          variant="outlined"
+          accept="image/*"
+          multiple
+          show-size
+          prepend-icon="mdi-camera"
+          :hint="`${enrollFiles.length} photo(s) selected`"
+          persistent-hint
+          class="mb-4"
+        />
+
+        <!-- Preview thumbnails -->
+        <div v-if="enrollPreviews.length" class="d-flex flex-wrap ga-2 mb-4">
+          <v-img
+            v-for="(src, idx) in enrollPreviews"
+            :key="idx"
+            :src="src"
+            width="80"
+            height="80"
+            class="rounded-lg border"
+          />
+        </div>
+
+        <!-- Upload result -->
+        <v-alert
+          v-if="enrollResult"
+          :type="enrollResult.failed_images?.length ? 'warning' : 'success'"
+          variant="tonal"
+          class="mb-2"
+          density="compact"
+        >
+          Enrolled {{ enrollResult.embedding_count }} embeddings.
+          <span v-if="enrollResult.failed_images?.length">
+            {{ enrollResult.failed_images.length }} image(s) failed (no face detected).
+          </span>
+        </v-alert>
+      </div>
+      <template #footerActions>
+        <v-btn
+          v-if="enrollmentMap[enrollTarget?.id]"
+          color="error"
+          variant="text"
+          @click="unenroll"
+        >
+          Remove Enrollment
+        </v-btn>
+      </template>
+    </AppDialog>
 
     <!-- Detail Drawer: Location History + Sightings -->
     <v-navigation-drawer
@@ -535,7 +532,7 @@
       </div>
     </v-navigation-drawer>
 
-    <v-dialog v-model="confirmDialog" max-width="400">
+    <v-dialog v-model="confirmDialog" max-width="400" persistent>
       <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
@@ -559,8 +556,7 @@ import {
   formatDateTimeShort,
   DATETIME_COLUMN_WIDTH,
 } from "../../services/timezone.js";
-import DialogHeader from "../../components/common/DialogHeader.vue";
-import DialogFooter from "../../components/common/DialogFooter.vue";
+import AppDialog from "../../components/common/AppDialog.vue";
 import CcSegmentedToggle from "../../components/common/CcSegmentedToggle.vue";
 import RosterHealthBanner from "../../components/admin/persons/RosterHealthBanner.vue";
 

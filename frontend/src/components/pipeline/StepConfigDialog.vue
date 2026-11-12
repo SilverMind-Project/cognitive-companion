@@ -1,156 +1,113 @@
 <template>
-  <v-dialog
+  <!-- Extra-large sectioned editor: one section per config tab, with the pipeline variables
+       as a reference panel beside them. -->
+  <AppDialog
+    v-model:section="activeTab"
     :model-value="modelValue"
-    width="1440"
-    max-width="98vw"
-    :fullscreen="$vuetify.display.smAndDown"
-    scrollable
+    size="xl"
+    persistent
+    :icon="stepIcon"
+    label="Configure Step"
+    :title="humanize(localStep.step_type)"
+    :sections="tabs"
+    confirm-label="Save"
     @update:model-value="$emit('update:modelValue', $event)"
+    @confirm="save"
   >
-    <v-card class="cc-glass step-config-card d-flex flex-column">
-      <DialogHeader
-        :icon="stepIcon"
-        label="Configure Step"
-        :title="humanize(localStep.step_type)"
-        @close="$emit('update:modelValue', false)"
+    <template v-for="tabItem in tabs" :key="tabItem.key" #[`section-${tabItem.key}`]>
+      <!-- General tab: step label + step-type config -->
+      <v-text-field
+        v-if="tabItem.key === 'general'"
+        v-model="localStep.label"
+        label="Step Label"
+        hint="Used as the key in pipeline_data.steps — must be unique, lowercase, letters/digits/underscores only"
+        persistent-hint
+        :rules="labelRules"
+        :error-messages="labelUniqueError"
+        class="mb-5"
       />
 
-      <!-- Body: tabs left, content + variable reference right -->
-      <div class="step-config-body d-flex flex-grow-1 overflow-hidden">
-        <!-- Left vertical tabs -->
-        <v-tabs
-          v-model="activeTab"
-          direction="vertical"
-          color="primary"
-          class="step-config-tabs flex-shrink-0"
-        >
-          <v-tab
-            v-for="t in tabs"
-            :key="t.key"
-            :value="t.key"
-            class="justify-start"
-            :prepend-icon="t.icon"
-          >
-            {{ t.label }}
-          </v-tab>
-        </v-tabs>
+      <KeepAlive>
+        <component
+          :is="stepComponent"
+          :key="`${localStep.step_type}_${tabItem.key}`"
+          :model-value="cfg"
+          :tab="tabItem.key"
+          :schema="currentStepSchema"
+          :all-steps="allSteps"
+          :available-persons="availablePersons"
+          :available-rooms="availableRooms"
+          :available-channels="availableChannels"
+          :camera-sensor-items="cameraSensorItems"
+          :cts-camera-items="ctsCameraItems"
+          :ha-entity-items="haEntityItems"
+          :ha-media-player-items="haMediaPlayerItems"
+          :eink-sensor-items="einkSensorItems"
+          :image-template-items="imageTemplateItems"
+          :llm-model-items="llmModelItems"
+          :activity-types="activityTypes"
+          :context-keys="contextKeys"
+          :known-signal-kinds="knownSignalKinds"
+          :severity-items="severityItems"
+          @update:model-value="Object.assign(cfg, $event)"
+        />
+      </KeepAlive>
+    </template>
 
-        <v-divider vertical />
-
-        <!-- Tab content + variable reference -->
-        <div class="d-flex flex-grow-1 overflow-hidden">
-          <div class="step-config-content flex-grow-1 px-6 py-5">
-            <v-window v-model="activeTab">
-              <v-window-item v-for="tabItem in tabs" :key="tabItem.key" :value="tabItem.key">
-                <!-- General tab: step label + step-type config -->
-                <template v-if="tabItem.key === 'general'">
-                  <v-text-field
-                    v-model="localStep.label"
-                    label="Step Label"
-                    hint="Used as the key in pipeline_data.steps — must be unique, lowercase, letters/digits/underscores only"
-                    persistent-hint
-                    :rules="labelRules"
-                    :error-messages="labelUniqueError"
-                    class="mb-5"
-                  />
-                </template>
-
-                <KeepAlive>
-                  <component
-                    :is="stepComponent"
-                    :key="`${localStep.step_type}_${tabItem.key}`"
-                    :model-value="cfg"
-                    :tab="tabItem.key"
-                    :schema="currentStepSchema"
-                    :all-steps="allSteps"
-                    :available-persons="availablePersons"
-                    :available-rooms="availableRooms"
-                    :available-channels="availableChannels"
-                    :camera-sensor-items="cameraSensorItems"
-                    :cts-camera-items="ctsCameraItems"
-                    :ha-entity-items="haEntityItems"
-                    :ha-media-player-items="haMediaPlayerItems"
-                    :eink-sensor-items="einkSensorItems"
-                    :image-template-items="imageTemplateItems"
-                    :llm-model-items="llmModelItems"
-                    :activity-types="activityTypes"
-                    :context-keys="contextKeys"
-                    :known-signal-kinds="knownSignalKinds"
-                    :severity-items="severityItems"
-                    @update:model-value="Object.assign(cfg, $event)"
-                  />
-                </KeepAlive>
-              </v-window-item>
-            </v-window>
-          </div>
-
-          <!-- Pipeline Variables sidebar -->
-          <v-divider vertical />
+    <!-- Pipeline Variables reference panel -->
+    <template #trailing>
+      <div class="step-config-vars d-flex flex-column flex-grow-1">
+        <div class="d-flex align-center mb-3">
+          <v-icon size="small" class="mr-2" color="primary">mdi-code-braces</v-icon>
+          <div class="text-subtitle-2 font-weight-bold">Pipeline Variables</div>
+        </div>
+        <div class="text-caption text-medium-emphasis mb-3">
+          Click any variable to copy it as a template token. Use
+          <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts and templates from
+          upstream steps.
+        </div>
+        <v-text-field
+          v-model="varSearch"
+          prepend-inner-icon="mdi-magnify"
+          placeholder="Search variables"
+          density="compact"
+          hide-details
+          class="mb-3 flex-grow-0 flex-shrink-0"
+        />
+        <div class="step-config-vars-list flex-grow-1 overflow-auto pr-1">
           <div
-            class="step-config-vars px-4 py-5 d-none d-md-flex flex-column"
-            style="position: relative"
+            v-for="item in filteredVariables"
+            :key="item.id"
+            class="var-row"
+            @click="insertTemplateToken(item.key)"
           >
-            <div class="d-flex align-center mb-3">
-              <v-icon size="small" class="mr-2" color="primary">mdi-code-braces</v-icon>
-              <div class="text-subtitle-2 font-weight-bold">Pipeline Variables</div>
+            <div class="d-flex align-center">
+              <code class="var-key">{{ formatTemplateToken(item.key) }}</code>
+              <v-spacer />
+              <v-icon size="14" class="var-copy">mdi-content-copy</v-icon>
             </div>
-            <div class="text-caption text-medium-emphasis mb-3">
-              Click any variable to copy it as a template token. Use
-              <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts and templates from
-              upstream steps.
-            </div>
-            <v-text-field
-              v-model="varSearch"
-              prepend-inner-icon="mdi-magnify"
-              placeholder="Search variables"
-              density="compact"
-              hide-details
-              class="mb-3 flex-grow-0 flex-shrink-0"
-            />
-            <div class="step-config-vars-list flex-grow-1 overflow-auto pr-1">
-              <div
-                v-for="item in filteredVariables"
-                :key="item.key"
-                class="var-row"
-                @click="insertTemplateToken(item.key)"
-              >
-                <div class="d-flex align-center">
-                  <code class="var-key">{{ formatTemplateToken(item.key) }}</code>
-                  <v-spacer />
-                  <v-icon size="14" class="var-copy">mdi-content-copy</v-icon>
-                </div>
-                <div class="text-caption text-medium-emphasis">{{ item.source }}</div>
-              </div>
-            </div>
-            <Transition name="copied-fade">
-              <div v-if="copiedToken" class="copied-toast">
-                <v-icon size="14" color="success" class="mr-1">mdi-check</v-icon>
-                <span class="text-caption"
-                  >Copied <code>{{ copiedToken }}</code></span
-                >
-              </div>
-            </Transition>
+            <div class="text-caption text-medium-emphasis">{{ item.source }}</div>
           </div>
         </div>
+        <Transition name="copied-fade">
+          <div v-if="copiedToken" class="copied-toast">
+            <v-icon size="14" color="success" class="mr-1">mdi-check</v-icon>
+            <span class="text-caption"
+              >Copied <code>{{ copiedToken }}</code></span
+            >
+          </div>
+        </Transition>
       </div>
+    </template>
 
-      <v-divider />
-
-      <DialogFooter
-        confirm-label="Save"
-        @cancel="$emit('update:modelValue', false)"
-        @confirm="save"
-      >
-        <template #hint>
-          <span class="text-caption text-medium-emphasis">
-            Use <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts and templates to
-            reference pipeline variables. Labeled steps are also accessible as
-            <code class="cc-code">&#123;&#123;step_label.key&#125;&#125;</code>.
-          </span>
-        </template>
-      </DialogFooter>
-    </v-card>
-  </v-dialog>
+    <template #hint>
+      <span class="text-caption text-medium-emphasis">
+        Use <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts and templates to
+        reference pipeline variables. Labeled steps are also accessible as
+        <code class="cc-code">&#123;&#123;step_label.key&#125;&#125;</code>.
+      </span>
+    </template>
+  </AppDialog>
 </template>
 
 <script setup>
@@ -159,8 +116,7 @@ import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
 import { isoToLocalHHMM, localHHMMToUTCISO } from "../../services/timezone.js";
 import { useNotify } from "../../composables/useNotify.js";
-import DialogHeader from "../common/DialogHeader.vue";
-import DialogFooter from "../common/DialogFooter.vue";
+import AppDialog from "../common/AppDialog.vue";
 import {
   stepConfigMap,
   genericPluginConfig,
@@ -310,7 +266,14 @@ function _buildPipelineReference() {
       });
     }
   }
-  return entries;
+  // Step types share output names (count, skipped, reason), so one token can appear once per
+  // source; a row is identified by both, and an exact repeat is dropped.
+  const unique = new Map();
+  for (const entry of entries) {
+    const id = `${entry.key}::${entry.source}`;
+    if (!unique.has(id)) unique.set(id, { ...entry, id });
+  }
+  return [...unique.values()];
 }
 
 const pipelineVariableEntries = computed(() => _buildPipelineReference());
@@ -542,47 +505,10 @@ function save() {
 </script>
 
 <style scoped>
-.step-config-card {
-  height: 88vh;
-  max-height: 880px;
-  border-radius: 24px;
-  overflow: hidden;
-}
-
-.step-config-body {
-  min-height: 0;
-}
-
-.step-config-tabs {
-  width: 220px;
-  background-color: var(--cc-bg-elevated);
-  padding-top: 12px;
-}
-
-.step-config-tabs :deep(.v-tab) {
-  justify-content: flex-start !important;
-  padding-inline: 20px !important;
-  border-radius: 0;
-  font-weight: 500;
-  height: 44px;
-}
-
-.step-config-content {
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-width: 0;
-}
-
-.step-config-content :deep(.v-window),
-.step-config-content :deep(.v-window__container) {
-  overflow: visible !important;
-}
-
+/* The copied-token toast is positioned against the variables panel. */
 .step-config-vars {
-  width: 375px;
-  flex-shrink: 0;
-  background-color: var(--cc-bg-elevated);
-  min-width: 0;
+  position: relative;
+  min-height: 0;
 }
 
 .step-config-vars-list {
@@ -597,7 +523,7 @@ function save() {
 }
 
 .var-row:hover {
-  background-color: rgba(10, 132, 255, 0.1);
+  background-color: var(--cc-brand-softer);
 }
 
 .var-row + .var-row {
@@ -621,10 +547,6 @@ function save() {
   opacity: 0.6;
 }
 
-.tracking-tight {
-  letter-spacing: -0.014em;
-}
-
 .copied-toast {
   position: absolute;
   bottom: 16px;
@@ -632,8 +554,9 @@ function save() {
   right: 12px;
   display: flex;
   align-items: center;
-  background: rgba(var(--v-theme-success), 0.12);
-  border: 1px solid rgba(var(--v-theme-success), 0.3);
+  background: var(--cc-bg-elevated);
+  border: 1px solid var(--cc-divider-strong);
+  box-shadow: var(--cc-shadow-sm);
   border-radius: 8px;
   padding: 6px 10px;
   pointer-events: none;

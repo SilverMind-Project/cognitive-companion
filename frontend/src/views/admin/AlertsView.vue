@@ -259,22 +259,15 @@
     </v-card>
 
     <!-- Confirm delete dialog -->
-    <v-dialog v-model="deleteDialog" max-width="420">
-      <v-card>
-        <v-card-title class="d-flex align-center ga-2">
-          <v-icon color="error">mdi-delete-alert</v-icon>
-          Delete {{ deleteTarget.length }} item{{ deleteTarget.length === 1 ? "" : "s" }}?
-        </v-card-title>
-        <v-card-text>
-          This action is permanent and cannot be undone. CTS signals may be re-inserted by the
-          orchestrator if it replays the same event.
-        </v-card-text>
+    <!-- Delete confirm (persistent: a backdrop close would leave the prompt hanging) -->
+    <v-dialog v-model="confirmDialog" max-width="400" persistent>
+      <v-card rounded="xl">
+        <v-card-title>{{ confirmTitle }}</v-card-title>
+        <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
-          <v-btn color="error" variant="flat" :loading="deleting" @click="executeDelete">
-            Delete
-          </v-btn>
+          <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
+          <v-btn :color="confirmColor" variant="flat" @click="onConfirm">{{ confirmLabel }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -287,6 +280,7 @@ import { useRoute } from "vue-router";
 import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
 import { useNotify } from "../../composables/useNotify.js";
+import { useConfirm } from "../../composables/useConfirm.js";
 import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 
 const route = useRoute();
@@ -304,8 +298,17 @@ const ctsTotal = ref(0);
 const ctsTotalPages = computed(() => Math.max(1, Math.ceil(ctsTotal.value / ctsPageSize.value)));
 
 const selected = ref([]);
-const deleteDialog = ref(false);
-const deleteTarget = ref([]);
+const {
+  confirmDialog,
+  confirmTitle,
+  confirmText,
+  confirmLabel,
+  cancelLabel,
+  confirmColor,
+  showConfirm,
+  onConfirm,
+  onCancel,
+} = useConfirm();
 
 const initialSource =
   route.query.source === "cts" ? "cts" : route.query.source === "rule" ? "rule" : "all";
@@ -519,8 +522,7 @@ async function acknowledge(raw) {
 }
 
 function deleteSingle(item) {
-  deleteTarget.value = [item];
-  deleteDialog.value = true;
+  return confirmAndDelete([item]);
 }
 
 function confirmBulkDelete() {
@@ -528,19 +530,26 @@ function confirmBulkDelete() {
   const items = displayRows.value.filter(
     (r) => selected.value.includes(r._id) && r._source === "cts",
   );
-  deleteTarget.value = items;
-  deleteDialog.value = true;
+  return confirmAndDelete(items);
 }
 
-async function executeDelete() {
+async function confirmAndDelete(items) {
+  const ctsItems = items.filter((r) => r._source === "cts");
+  if (ctsItems.length === 0) {
+    notify("Only CTS signals can be deleted", "info");
+    return;
+  }
+  const count = `${ctsItems.length} signal${ctsItems.length === 1 ? "" : "s"}`;
+  const ok = await showConfirm(
+    `Delete ${count}?`,
+    "This is permanent and cannot be undone. The orchestrator may re-insert a signal if it replays the same event.",
+  );
+  if (ok) await executeDelete(ctsItems);
+}
+
+async function executeDelete(ctsItems) {
   deleting.value = true;
   try {
-    const ctsItems = deleteTarget.value.filter((r) => r._source === "cts");
-    if (ctsItems.length === 0) {
-      notify("Only CTS signals can be deleted", "info");
-      return;
-    }
-
     if (ctsItems.length === 1) {
       await cts.deleteSignal(ctsItems[0]._raw.id);
     } else {
@@ -557,8 +566,6 @@ async function executeDelete() {
     notify(e.message || "Delete failed", "error");
   } finally {
     deleting.value = false;
-    deleteDialog.value = false;
-    deleteTarget.value = [];
   }
 }
 

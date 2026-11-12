@@ -347,7 +347,7 @@
       />
     </v-navigation-drawer>
 
-    <v-dialog v-model="confirmDialogOpen" max-width="420" persistent>
+    <v-dialog v-model="confirmDialogOpen" max-width="400" persistent>
       <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
@@ -359,78 +359,70 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="bulkMergeDialogOpen" max-width="640" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-merge"
-          label="Person Hypotheses"
-          title="Merge Selected Tracks"
-          @close="closeBulkMergeDialog"
-        />
-        <v-card-text>
-          <v-alert type="warning" variant="tonal" density="compact" class="mb-4">
-            Choose the track to keep. All other selected PHs will be merged into it.
-          </v-alert>
-          <v-radio-group v-model="bulkMergeTargetId" hide-details>
-            <div class="bulk-merge-list">
-              <v-radio
-                v-for="ph in selectedPhRows"
-                :key="ph.ph_id"
-                :value="ph.ph_id"
-                class="bulk-merge-option"
-              >
-                <template #label>
-                  <div class="d-flex flex-column ga-1">
-                    <div class="d-flex align-center ga-2 flex-wrap">
-                      <v-chip
-                        :color="ph.current_identity_id ? 'success' : 'warning'"
-                        size="x-small"
-                        variant="tonal"
-                      >
-                        {{ ph.identity_display_name || ph.current_identity_id || "UNKNOWN" }}
-                      </v-chip>
-                      <span class="text-caption text-medium-emphasis">{{
-                        shortPhId(ph.ph_id)
-                      }}</span>
-                    </div>
-                    <div class="text-caption text-medium-emphasis">
-                      {{ ph.room_name || ph.last_seen_camera || "location unknown" }} ·
-                      {{ formatRelative(ph.last_seen_at) }}
-                    </div>
+    <!-- Bulk merge: medium review step (the merge itself is confirmed again) -->
+    <AppDialog
+      :model-value="bulkMergeDialogOpen"
+      size="md"
+      persistent
+      icon="mdi-merge"
+      label="Person Hypotheses"
+      title="Merge Selected Tracks"
+      confirm-label="Merge"
+      confirm-color="warning"
+      :confirm-disabled="!bulkMergeTargetId || bulkMergeSourceCount < 1"
+      :confirm-loading="bulkMerging"
+      @update:model-value="(open) => !open && closeBulkMergeDialog()"
+      @confirm="mergeSelected"
+    >
+      <div class="px-6 py-5">
+        <v-alert type="warning" variant="tonal" density="compact" class="mb-4">
+          Choose the track to keep. All other selected PHs will be merged into it.
+        </v-alert>
+        <v-radio-group v-model="bulkMergeTargetId" hide-details>
+          <div class="bulk-merge-list">
+            <v-radio
+              v-for="ph in selectedPhRows"
+              :key="ph.ph_id"
+              :value="ph.ph_id"
+              class="bulk-merge-option"
+            >
+              <template #label>
+                <div class="d-flex flex-column ga-1">
+                  <div class="d-flex align-center ga-2 flex-wrap">
+                    <v-chip
+                      :color="ph.current_identity_id ? 'success' : 'warning'"
+                      size="x-small"
+                      variant="tonal"
+                    >
+                      {{ ph.identity_display_name || ph.current_identity_id || "UNKNOWN" }}
+                    </v-chip>
+                    <span class="text-caption text-medium-emphasis">{{ shortPhId(ph.ph_id) }}</span>
                   </div>
-                </template>
-              </v-radio>
-            </div>
-          </v-radio-group>
-          <v-text-field
-            v-model="bulkMergeReason"
-            label="Reason"
-            variant="outlined"
-            density="compact"
-            hide-details
-            class="mt-4"
-          />
-        </v-card-text>
-        <v-divider />
-        <v-card-actions class="pa-4">
-          <span class="text-caption text-medium-emphasis">
-            {{ bulkMergeSourceCount }} source{{ bulkMergeSourceCount === 1 ? "" : "s" }} will be
-            merged.
-          </span>
-          <v-spacer />
-          <v-btn variant="text" @click="closeBulkMergeDialog">Cancel</v-btn>
-          <v-btn
-            color="warning"
-            variant="flat"
-            :disabled="!bulkMergeTargetId || bulkMergeSourceCount < 1"
-            :loading="bulkMerging"
-            @click="mergeSelected"
-          >
-            Merge
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+                  <div class="text-caption text-medium-emphasis">
+                    {{ ph.room_name || ph.last_seen_camera || "location unknown" }} ·
+                    {{ formatRelative(ph.last_seen_at) }}
+                  </div>
+                </div>
+              </template>
+            </v-radio>
+          </div>
+        </v-radio-group>
+        <v-text-field
+          v-model="bulkMergeReason"
+          label="Reason"
+          variant="outlined"
+          density="compact"
+          hide-details
+          class="mt-4"
+        />
+      </div>
+      <template #hint>
+        <span class="text-caption text-medium-emphasis">
+          {{ bulkMergeSourceCount }} source{{ bulkMergeSourceCount === 1 ? "" : "s" }} will be
+          merged.
+        </span>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
@@ -445,7 +437,7 @@ import { useNotify } from "@/composables/useNotify";
 import { ctsPh } from "@/services/cts_ph";
 import PHInspectorDrawer from "@/components/cts/ph/PHInspectorDrawer.vue";
 import BlurToggle from "@/components/cts/BlurToggle.vue";
-import DialogHeader from "@/components/common/DialogHeader.vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 
 const stateOptions = [
   { title: "Active", value: "active" },
@@ -464,7 +456,7 @@ const durationOptions = [
 export default {
   name: "CTSPersonHypothesesView",
 
-  components: { PHInspectorDrawer, BlurToggle, DialogHeader },
+  components: { PHInspectorDrawer, BlurToggle, AppDialog },
 
   props: {
     embedded: { type: Boolean, default: false },
@@ -650,6 +642,8 @@ export default {
     function onTableOptions(opts) {
       const pageChanged = opts.page !== phList.state.pagination.page;
       const sizeChanged = opts.itemsPerPage !== phList.state.pagination.itemsPerPage;
+      // The server table echoes its current options on mount; that repeats the mount fetch.
+      if (!pageChanged && !sizeChanged) return;
       if (opts.itemsPerPage !== phList.state.pagination.itemsPerPage) {
         phList.state.pagination.itemsPerPage = opts.itemsPerPage;
         phList.state.pagination.page = 1;

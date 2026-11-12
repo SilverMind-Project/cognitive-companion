@@ -47,34 +47,31 @@
       </v-data-table>
     </v-card>
 
-    <v-dialog v-model="dialog" max-width="400" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-door-open"
-          :label="editing ? 'Edit' : 'Create New'"
-          :title="editing ? 'Room' : 'Room'"
-          @close="dialog = false"
+    <!-- Create/Edit: small form -->
+    <AppDialog
+      v-model="dialog"
+      size="sm"
+      persistent
+      icon="mdi-door-open"
+      :label="editing ? 'Edit' : 'Create New'"
+      title="Room"
+      hint="Rooms group sensors and define spatial context for rules and presence tracking."
+      :confirm-label="editing ? 'Update' : 'Create'"
+      @confirm="saveRoom"
+    >
+      <div class="px-6 py-5">
+        <v-text-field v-model="form.name" label="Name" variant="outlined" class="mb-2" />
+        <v-text-field
+          v-model="form.ha_area_id"
+          label="HA Area ID (optional)"
+          variant="outlined"
+          class="mb-2"
         />
-        <v-card-text>
-          <v-text-field v-model="form.name" label="Name" variant="outlined" class="mb-2" />
-          <v-text-field
-            v-model="form.ha_area_id"
-            label="HA Area ID (optional)"
-            variant="outlined"
-            class="mb-2"
-          />
-          <v-text-field v-model="form.floor" label="Floor (optional)" variant="outlined" />
-        </v-card-text>
-        <DialogFooter
-          hint="Rooms group sensors and define spatial context for rules and presence tracking."
-          :confirm-label="editing ? 'Update' : 'Create'"
-          @cancel="dialog = false"
-          @confirm="saveRoom"
-        />
-      </v-card>
-    </v-dialog>
+        <v-text-field v-model="form.floor" label="Floor (optional)" variant="outlined" />
+      </div>
+    </AppDialog>
 
-    <v-dialog v-model="confirmDialog" max-width="400">
+    <v-dialog v-model="confirmDialog" max-width="400" persistent>
       <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
@@ -93,8 +90,7 @@ import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
-import DialogHeader from "../../components/common/DialogHeader.vue";
-import DialogFooter from "../../components/common/DialogFooter.vue";
+import AppDialog from "../../components/common/AppDialog.vue";
 
 const { notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();

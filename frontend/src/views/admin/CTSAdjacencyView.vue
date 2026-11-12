@@ -283,116 +283,114 @@
     </v-row>
 
     <!-- Add / Edit edge dialog -->
-    <v-dialog v-model="dialog" max-width="500" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-graph"
-          :label="editingIdx !== null ? 'Edit' : 'Add'"
-          title="Adjacency Edge"
-          @close="dialog = false"
+    <!-- Add / Edit edge: medium form, cameras paired -->
+    <AppDialog
+      v-model="dialog"
+      size="md"
+      persistent
+      icon="mdi-graph"
+      :label="editingIdx !== null ? 'Edit' : 'Add'"
+      title="Adjacency Edge"
+      hint="Adjacency edges define directed transit paths between cameras. A&rarr;B is not the same as B&rarr;A. For most physical adjacencies, add both directions."
+      :confirm-label="editingIdx !== null ? 'Update' : 'Add'"
+      :confirm-disabled="
+        form.max_transit_s < form.min_transit_s || !form.from || !form.to || form.from === form.to
+      "
+      @confirm="commitEdge"
+    >
+      <div class="px-6 py-5">
+        <v-row dense>
+          <v-col cols="12" sm="6">
+            <v-autocomplete
+              v-model="form.from"
+              :items="cameraOptions"
+              item-title="name"
+              item-value="id"
+              label="From Camera"
+              variant="outlined"
+              clearable
+            />
+          </v-col>
+          <v-col cols="12" sm="6">
+            <v-autocomplete
+              v-model="form.to"
+              :items="cameraOptions"
+              item-title="name"
+              item-value="id"
+              label="To Camera"
+              variant="outlined"
+              clearable
+            />
+          </v-col>
+        </v-row>
+        <v-alert
+          v-if="sameOverlapGroupHint"
+          type="info"
+          density="compact"
+          variant="tonal"
+          class="mb-3"
+        >
+          These cameras share overlap group "{{ sameOverlapGroupHint }}".
+          <v-btn size="x-small" variant="text" @click="applyGroupDefaults">
+            Apply overlap defaults (0–2 s)
+          </v-btn>
+        </v-alert>
+        <v-row dense>
+          <v-col cols="6">
+            <v-text-field
+              v-model.number="form.min_transit_s"
+              label="Min transit (s)"
+              variant="outlined"
+              type="number"
+              min="0"
+              step="0.5"
+              density="compact"
+            />
+          </v-col>
+          <v-col cols="6">
+            <v-text-field
+              v-model.number="form.max_transit_s"
+              label="Max transit (s)"
+              variant="outlined"
+              type="number"
+              min="0"
+              step="1"
+              density="compact"
+            />
+          </v-col>
+        </v-row>
+        <v-alert
+          v-if="form.max_transit_s < form.min_transit_s"
+          type="error"
+          density="compact"
+          class="mt-2"
+        >
+          Max transit must be at least min transit.
+        </v-alert>
+        <v-switch
+          v-model="form.overlap"
+          label="Field-of-view overlap"
+          color="success"
+          class="mt-1"
         />
-        <v-card-text>
-          <v-autocomplete
-            v-model="form.from"
-            :items="cameraOptions"
-            item-title="name"
-            item-value="id"
-            label="From Camera"
-            variant="outlined"
-            class="mb-3"
-            clearable
-          />
-          <v-autocomplete
-            v-model="form.to"
-            :items="cameraOptions"
-            item-title="name"
-            item-value="id"
-            label="To Camera"
-            variant="outlined"
-            class="mb-3"
-            clearable
-          />
-          <v-alert
-            v-if="sameOverlapGroupHint"
-            type="info"
-            density="compact"
-            variant="tonal"
-            class="mb-3"
-          >
-            These cameras share overlap group "{{ sameOverlapGroupHint }}".
-            <v-btn size="x-small" variant="text" @click="applyGroupDefaults">
-              Apply overlap defaults (0–2 s)
-            </v-btn>
-          </v-alert>
-          <v-row dense>
-            <v-col cols="6">
-              <v-text-field
-                v-model.number="form.min_transit_s"
-                label="Min transit (s)"
-                variant="outlined"
-                type="number"
-                min="0"
-                step="0.5"
-                density="compact"
-              />
-            </v-col>
-            <v-col cols="6">
-              <v-text-field
-                v-model.number="form.max_transit_s"
-                label="Max transit (s)"
-                variant="outlined"
-                type="number"
-                min="0"
-                step="1"
-                density="compact"
-              />
-            </v-col>
-          </v-row>
-          <v-alert
-            v-if="form.max_transit_s < form.min_transit_s"
-            type="error"
-            density="compact"
-            class="mt-2"
-          >
-            Max transit must be at least min transit.
-          </v-alert>
-          <v-switch
-            v-model="form.overlap"
-            label="Field-of-view overlap"
-            color="success"
-            class="mt-1"
-          />
-          <div class="text-caption text-medium-emphasis mt-1">
-            Enable when cameras physically share a viewing zone (e.g. two cameras covering the same
-            doorway). The cross-camera resolver will treat detections as potentially simultaneous
-            rather than sequential.
-          </div>
-          <v-switch
-            v-model="form.addSymmetric"
-            label="Also add reverse direction (B&rarr;A)"
-            color="primary"
-            class="mt-1"
-            :disabled="editingIdx !== null"
-          />
-          <div class="text-caption text-medium-emphasis mt-1">
-            Most adjacencies are bidirectional. Uncheck only for one-way flows (e.g. exit-only
-            camera).
-          </div>
-        </v-card-text>
-        <DialogFooter
-          hint="Adjacency edges define directed transit paths between cameras. A&rarr;B is not the same as B&rarr;A. For most physical adjacencies, add both directions."
-          :confirm-label="editingIdx !== null ? 'Update' : 'Add'"
-          :confirm-disabled="
-            form.max_transit_s < form.min_transit_s ||
-            !form.from ||
-            !form.to ||
-            form.from === form.to
-          "
-          @cancel="dialog = false"
-          @confirm="commitEdge"
+        <div class="text-caption text-medium-emphasis mt-1">
+          Enable when cameras physically share a viewing zone (e.g. two cameras covering the same
+          doorway). The cross-camera resolver will treat detections as potentially simultaneous
+          rather than sequential.
+        </div>
+        <v-switch
+          v-model="form.addSymmetric"
+          label="Also add reverse direction (B&rarr;A)"
+          color="primary"
+          class="mt-1"
+          :disabled="editingIdx !== null"
         />
-      </v-card>
-    </v-dialog>
+        <div class="text-caption text-medium-emphasis mt-1">
+          Most adjacencies are bidirectional. Uncheck only for one-way flows (e.g. exit-only
+          camera).
+        </div>
+      </div>
+    </AppDialog>
   </div>
 </template>
 
@@ -401,8 +399,7 @@ import { ref, computed, onMounted } from "vue";
 import { cts } from "../../services/cts.js";
 import { household } from "../../services/household.js";
 import { useNotify } from "../../composables/useNotify.js";
-import DialogHeader from "../../components/common/DialogHeader.vue";
-import DialogFooter from "../../components/common/DialogFooter.vue";
+import AppDialog from "../../components/common/AppDialog.vue";
 
 const { notify } = useNotify();
 

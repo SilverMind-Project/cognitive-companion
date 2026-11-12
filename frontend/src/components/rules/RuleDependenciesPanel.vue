@@ -42,40 +42,50 @@
     </v-card-text>
   </v-card>
 
-  <v-dialog v-model="depDialog" max-width="500">
-    <v-card>
-      <v-card-title>Add Dependency</v-card-title>
-      <v-card-text>
-        <v-autocomplete
-          v-model="depForm.parent_rule_id"
-          :items="otherRuleItems"
-          item-title="_label"
-          item-value="id"
-          label="Parent Rule"
-          variant="outlined"
-          class="mb-3"
-        />
-        <v-text-field
-          v-model.number="depForm.lookback_minutes"
-          label="Lookback (min)"
-          type="number"
-          variant="outlined"
-        />
-        <v-switch v-model="depForm.require_success" label="Require Success" color="primary" />
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer />
-        <v-btn variant="text" @click="depDialog = false">Cancel</v-btn>
-        <v-btn color="primary" @click="addDep">Add</v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+  <!-- Add dependency: small form -->
+  <AppDialog
+    v-model="depDialog"
+    size="sm"
+    persistent
+    icon="mdi-source-branch"
+    label="Rule"
+    title="Add Dependency"
+    confirm-label="Add"
+    :confirm-disabled="!depForm.parent_rule_id"
+    @confirm="addDep"
+  >
+    <div class="px-6 py-5">
+      <v-autocomplete
+        v-model="depForm.parent_rule_id"
+        :items="otherRuleItems"
+        item-title="_label"
+        item-value="id"
+        label="Parent Rule"
+        variant="outlined"
+        class="mb-3"
+      />
+      <v-row dense align="center">
+        <v-col cols="12" sm="6">
+          <v-text-field
+            v-model.number="depForm.lookback_minutes"
+            label="Lookback (min)"
+            type="number"
+            variant="outlined"
+          />
+        </v-col>
+        <v-col cols="12" sm="6">
+          <v-switch v-model="depForm.require_success" label="Require Success" hide-details />
+        </v-col>
+      </v-row>
+    </div>
+  </AppDialog>
 </template>
 
 <script setup>
 import { toRef } from "vue";
 import { useRuleDependencies } from "@/composables/useRuleDependencies.js";
 import { useNotify } from "@/composables/useNotify.js";
+import AppDialog from "@/components/common/AppDialog.vue";
 
 const props = defineProps({
   ruleId: { type: Number, required: true },

@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session
 from backend.core.auth import require_permission
 from backend.core.database import get_db
 from backend.core.logging import get_logger
+from backend.core.upstream_errors import UpstreamError
 from backend.integrations.person_id_client import PersonIDUpstreamError
+from backend.models.cts_signal import DementiaSignal
 from backend.models.person import HouseholdMember
 from backend.routers.dependencies import get_roster_health_service
 from backend.schemas.identity_roster import RosterHealthEnvelope
@@ -159,6 +161,13 @@ async def enroll_person(
             detail="Person identification service is unavailable",
         )
 
+    orch_client = request.app.state.__dict__.get("orchestrator_client")
+    if orch_client is not None:
+        try:
+            await orch_client.sync_gallery_identities()
+        except UpstreamError, OSError:
+            logger.warning("cts_roster_sync_on_enroll_failed", person_id=person_id)
+
     return EnrollResultOut(
         person_id=result.person_id,
         name=result.name,
@@ -203,6 +212,12 @@ async def delete_enrollment(
             status_code=404,
             detail=f"No enrollment found for '{person_id}'",
         )
+    orch_client = request.app.state.__dict__.get("orchestrator_client")
+    if orch_client is not None:
+        try:
+            await orch_client.purge_gallery_identity(person_id)
+        except UpstreamError, OSError:
+            logger.warning("cts_identity_purge_on_unenroll_failed", person_id=person_id)
     logger.info("person_enrollment_deleted", person_id=person_id)
 
 
@@ -241,12 +256,25 @@ async def update_member(
 @router.delete("/{person_id}", status_code=204)
 async def delete_member(
     person_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     _auth=Depends(require_permission("admin")),
 ):
-    """Remove a household member."""
+    """Remove a household member and purge associated enrollment/tracking anchors."""
     member = db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()
     if not member:
         raise HTTPException(status_code=404, detail=f"Member '{person_id}' not found")
+    db.query(DementiaSignal).filter(DementiaSignal.person_id == person_id).delete()
     db.delete(member)
     db.commit()
+
+    pid_client = request.app.state.__dict__.get("person_id_client")
+    if pid_client is not None:
+        await pid_client.delete_member(person_id)
+
+    orch_client = request.app.state.__dict__.get("orchestrator_client")
+    if orch_client is not None:
+        try:
+            await orch_client.purge_gallery_identity(person_id)
+        except UpstreamError, OSError:
+            logger.warning("cts_identity_purge_on_member_remove_failed", person_id=person_id)

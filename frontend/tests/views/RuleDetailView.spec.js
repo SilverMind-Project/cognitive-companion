@@ -171,6 +171,8 @@ const stubs = {
     template: '<div v-if="modelValue"><slot /></div>',
     props: ["modelValue", "maxWidth"],
   },
+  "v-divider": { template: "<hr />" },
+  "v-avatar": { template: "<span><slot /></span>" },
   "v-list": { template: "<ul><slot /></ul>" },
   "v-list-item": {
     template: '<li><slot name="prepend" /><slot /><slot name="append" /></li>',
@@ -345,8 +347,15 @@ describe("RuleDetailView", () => {
     const addDepBtn = wrapper.findAll("button").find((b) => b.text().includes("Add Dependency"));
     await addDepBtn.trigger("click");
     await flushPromises();
-    const confirmAdd = wrapper.findAll("button").find((b) => b.text() === "Add");
-    await confirmAdd.trigger("click");
+    const confirmAdd = () => wrapper.findAll("button").find((b) => b.text() === "Add");
+    // Add stays disabled until a parent rule is chosen.
+    expect(confirmAdd().attributes("disabled")).toBeDefined();
+    const dialog = wrapper
+      .findAllComponents({ name: "AppDialog" })
+      .find((d) => d.props("title") === "Add Dependency");
+    await dialog.findComponent(stubs["v-autocomplete"]).vm.$emit("update:modelValue", 3);
+    await flushPromises();
+    await confirmAdd().trigger("click");
     await flushPromises();
     expect(mocks.addRuleDep).toHaveBeenCalled();
   });

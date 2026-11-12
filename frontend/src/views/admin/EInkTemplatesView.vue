@@ -83,215 +83,174 @@
       </v-data-table>
     </v-card>
 
-    <!-- ── Create / Edit Dialog ────────────────────────────────────────── -->
-    <v-dialog
+    <!-- ── Create / Edit Dialog: large sectioned (settings, regions, preview) ── -->
+    <AppDialog
       v-model="dialog"
-      width="1020"
-      max-width="96vw"
-      :fullscreen="$vuetify.display.smAndDown"
+      v-model:section="activeTab"
+      size="lg"
       persistent
+      icon="mdi-monitor"
+      :label="editing ? 'Edit' : 'Create New'"
+      title="E-Ink Template"
+      :sections="templateSections"
+      hint="E-Ink templates define the layout for low-power display output, including regions and content slots."
+      :confirm-label="editing ? 'Update' : 'Create'"
+      :confirm-loading="saving"
+      @confirm="save"
     >
-      <v-card class="d-flex flex-column" style="height: 88vh; max-height: 880px; overflow: hidden">
-        <DialogHeader
-          icon="mdi-monitor"
-          :label="editing ? 'Edit' : 'Create New'"
-          :title="editing ? 'E-Ink Template' : 'E-Ink Template'"
-          @close="dialog = false"
+      <template #section-settings>
+        <v-text-field
+          v-model="form.name"
+          label="Name"
+          variant="outlined"
+          density="comfortable"
+          class="mb-4"
+          hint="Unique identifier for this template"
+          persistent-hint
+        />
+        <v-textarea
+          v-model="form.description"
+          label="Description"
+          variant="outlined"
+          rows="2"
+          class="mb-4"
+        />
+        <v-select
+          v-model="form.font_filename"
+          :items="fonts"
+          label="Default Font"
+          variant="outlined"
+          density="comfortable"
+          prepend-inner-icon="mdi-format-font"
+          class="mb-4"
+        />
+        <v-checkbox
+          v-model="form.is_default"
+          label="Set as default template"
+          density="comfortable"
+          hide-details
+          class="mb-5"
         />
 
-        <!-- Body: vertical tabs + content -->
-        <div class="eink-dialog-body d-flex flex-grow-1 overflow-hidden">
-          <!-- Left nav tabs -->
-          <v-tabs
-            v-model="activeTab"
-            direction="vertical"
-            color="primary"
-            class="eink-dialog-tabs flex-shrink-0"
-          >
-            <v-tab value="settings" class="justify-start" prepend-icon="mdi-cog"> Settings </v-tab>
-            <v-tab value="regions" class="justify-start" prepend-icon="mdi-vector-rectangle">
-              Regions
-            </v-tab>
-            <v-tab value="preview" class="justify-start" prepend-icon="mdi-eye"> Preview </v-tab>
-          </v-tabs>
+        <v-divider class="mb-4" />
 
-          <v-divider vertical />
+        <!-- Background Image -->
+        <div class="text-subtitle-2 font-weight-medium mb-2">Background Image</div>
 
-          <!-- Tab content -->
-          <div class="eink-dialog-content flex-grow-1">
-            <v-window v-model="activeTab">
-              <!-- ── Settings Tab ────────────────────────────────────────── -->
-              <v-window-item value="settings" class="pa-6">
-                <v-text-field
-                  v-model="form.name"
-                  label="Name"
-                  variant="outlined"
-                  density="comfortable"
-                  class="mb-4"
-                  hint="Unique identifier for this template"
-                  persistent-hint
-                />
-                <v-textarea
-                  v-model="form.description"
-                  label="Description"
-                  variant="outlined"
-                  rows="2"
-                  class="mb-4"
-                />
-                <v-select
-                  v-model="form.font_filename"
-                  :items="fonts"
-                  label="Default Font"
-                  variant="outlined"
-                  density="comfortable"
-                  prepend-inner-icon="mdi-format-font"
-                  class="mb-4"
-                />
-                <v-checkbox
-                  v-model="form.is_default"
-                  label="Set as default template"
-                  density="comfortable"
-                  hide-details
-                  class="mb-5"
-                />
-
-                <v-divider class="mb-4" />
-
-                <!-- Background Image -->
-                <div class="text-subtitle-2 font-weight-medium mb-2">Background Image</div>
-
-                <!-- Create mode: required upload -->
-                <v-file-input
-                  v-if="!editing"
-                  v-model="imageFile"
-                  label="Upload image (800 × 480 recommended)"
-                  accept="image/*"
-                  variant="outlined"
-                  density="comfortable"
-                  prepend-icon="mdi-image-plus"
-                  show-size
-                  @update:model-value="onCreateImageChange"
-                />
-
-                <!-- Edit mode: optional replace -->
-                <template v-else>
-                  <v-img
-                    v-if="previewUrl"
-                    :src="previewUrl"
-                    max-height="160"
-                    class="rounded-lg mb-3"
-                    cover
-                  />
-                  <v-file-input
-                    v-model="newImageFile"
-                    label="Replace background image (optional)"
-                    accept="image/*"
-                    variant="outlined"
-                    density="comfortable"
-                    prepend-icon="mdi-image-edit"
-                    show-size
-                    clearable
-                    @update:model-value="onEditImageChange"
-                  />
-                </template>
-              </v-window-item>
-
-              <!-- ── Regions Tab ─────────────────────────────────────────── -->
-              <v-window-item value="regions" class="pa-4">
-                <v-row>
-                  <v-col cols="12" md="7">
-                    <BoundingBoxCanvas
-                      ref="bboxCanvas"
-                      :image-url="previewUrl"
-                      :regions="form.regions_json"
-                      :selected-index="selectedRegion"
-                      @update:regions="form.regions_json = $event"
-                      @select-region="selectedRegion = $event"
-                    />
-                    <p class="text-caption text-medium-emphasis mt-2">
-                      Drag to create a region · Click to select · Drag selected region to move
-                    </p>
-                  </v-col>
-                  <v-col cols="12" md="5">
-                    <template v-if="selectedRegion >= 0 && form.regions_json[selectedRegion]">
-                      <RegionEditor
-                        :region="form.regions_json[selectedRegion]"
-                        @update:region="updateRegion"
-                        @delete="deleteRegion"
-                      />
-                    </template>
-                    <div
-                      v-else
-                      class="d-flex flex-column align-center justify-center pa-6 text-center"
-                      style="min-height: 200px"
-                    >
-                      <v-icon size="40" class="text-medium-emphasis mb-2"
-                        >mdi-cursor-default-click</v-icon
-                      >
-                      <span class="text-body-2 text-medium-emphasis">
-                        Draw a region on the canvas<br />or click an existing one to edit it.
-                      </span>
-                    </div>
-                  </v-col>
-                </v-row>
-              </v-window-item>
-
-              <!-- ── Preview Tab ─────────────────────────────────────────── -->
-              <v-window-item value="preview" class="pa-6">
-                <v-textarea
-                  v-model="previewText"
-                  label="Preview Text"
-                  variant="outlined"
-                  density="comfortable"
-                  rows="3"
-                  hint="Use Enter for explicit line breaks (requires Multi-line enabled on the region)"
-                  persistent-hint
-                  class="mb-4"
-                />
-                <v-btn
-                  block
-                  variant="flat"
-                  color="primary"
-                  prepend-icon="mdi-eye"
-                  :loading="previewing"
-                  @click="doPreview"
-                >
-                  Render Preview
-                </v-btn>
-
-                <template v-if="renderedPreviewUrl">
-                  <v-divider class="my-4" />
-                  <div class="text-caption text-medium-emphasis mb-2">Rendered output</div>
-                  <v-img :src="renderedPreviewUrl" class="rounded-lg" max-height="300" cover />
-                </template>
-
-                <v-empty-state
-                  v-else
-                  icon="mdi-image-off-outline"
-                  text="Click Render Preview to see how text will look on this template."
-                  class="mt-6"
-                />
-              </v-window-item>
-            </v-window>
-          </div>
-        </div>
-
-        <v-divider />
-
-        <DialogFooter
-          hint="E-Ink templates define the layout for low-power display output, including regions and content slots."
-          :confirm-label="editing ? 'Update' : 'Create'"
-          :confirm-loading="saving"
-          @cancel="dialog = false"
-          @confirm="save"
+        <!-- Create mode: required upload -->
+        <v-file-input
+          v-if="!editing"
+          v-model="imageFile"
+          label="Upload image (800 × 480 recommended)"
+          accept="image/*"
+          variant="outlined"
+          density="comfortable"
+          prepend-icon="mdi-image-plus"
+          show-size
+          @update:model-value="onCreateImageChange"
         />
-      </v-card>
-    </v-dialog>
+
+        <!-- Edit mode: optional replace -->
+        <template v-else>
+          <v-img
+            v-if="previewUrl"
+            :src="previewUrl"
+            max-height="160"
+            class="rounded-lg mb-3"
+            cover
+          />
+          <v-file-input
+            v-model="newImageFile"
+            label="Replace background image (optional)"
+            accept="image/*"
+            variant="outlined"
+            density="comfortable"
+            prepend-icon="mdi-image-edit"
+            show-size
+            clearable
+            @update:model-value="onEditImageChange"
+          />
+        </template>
+      </template>
+
+      <template #section-regions>
+        <v-row>
+          <v-col cols="12" md="7">
+            <BoundingBoxCanvas
+              ref="bboxCanvas"
+              :image-url="previewUrl"
+              :regions="form.regions_json"
+              :selected-index="selectedRegion"
+              @update:regions="form.regions_json = $event"
+              @select-region="selectedRegion = $event"
+            />
+            <p class="text-caption text-medium-emphasis mt-2">
+              Drag to create a region · Click to select · Drag selected region to move
+            </p>
+          </v-col>
+          <v-col cols="12" md="5">
+            <template v-if="selectedRegion >= 0 && form.regions_json[selectedRegion]">
+              <RegionEditor
+                :region="form.regions_json[selectedRegion]"
+                @update:region="updateRegion"
+                @delete="deleteRegion"
+              />
+            </template>
+            <div
+              v-else
+              class="d-flex flex-column align-center justify-center pa-6 text-center"
+              style="min-height: 200px"
+            >
+              <v-icon size="40" class="text-medium-emphasis mb-2">mdi-cursor-default-click</v-icon>
+              <span class="text-body-2 text-medium-emphasis">
+                Draw a region on the canvas<br />or click an existing one to edit it.
+              </span>
+            </div>
+          </v-col>
+        </v-row>
+      </template>
+
+      <template #section-preview>
+        <v-textarea
+          v-model="previewText"
+          label="Preview Text"
+          variant="outlined"
+          density="comfortable"
+          rows="3"
+          hint="Use Enter for explicit line breaks (requires Multi-line enabled on the region)"
+          persistent-hint
+          class="mb-4"
+        />
+        <v-btn
+          block
+          variant="flat"
+          color="primary"
+          prepend-icon="mdi-eye"
+          :loading="previewing"
+          @click="doPreview"
+        >
+          Render Preview
+        </v-btn>
+
+        <template v-if="renderedPreviewUrl">
+          <v-divider class="my-4" />
+          <div class="text-caption text-medium-emphasis mb-2">Rendered output</div>
+          <v-img :src="renderedPreviewUrl" class="rounded-lg" max-height="300" cover />
+        </template>
+
+        <v-empty-state
+          v-else
+          icon="mdi-image-off-outline"
+          text="Click Render Preview to see how text will look on this template."
+          class="mt-6"
+        />
+      </template>
+    </AppDialog>
 
     <!-- ── Snackbar ────────────────────────────────────────────────────── -->
 
     <!-- ── Confirm Dialog ─────────────────────────────────────────────── -->
-    <v-dialog v-model="confirmDialog" max-width="400">
+    <v-dialog v-model="confirmDialog" max-width="400" persistent>
       <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
@@ -312,8 +271,7 @@ import BoundingBoxCanvas from "../../components/eink/BoundingBoxCanvas.vue";
 import RegionEditor from "../../components/eink/RegionEditor.vue";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
-import DialogHeader from "../../components/common/DialogHeader.vue";
-import DialogFooter from "../../components/common/DialogFooter.vue";
+import AppDialog from "../../components/common/AppDialog.vue";
 
 const { notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
@@ -328,6 +286,12 @@ const loading = ref(false);
 // Dialog state
 const dialog = ref(false);
 const activeTab = ref("settings");
+
+const templateSections = [
+  { key: "settings", label: "Settings", icon: "mdi-cog" },
+  { key: "regions", label: "Regions", icon: "mdi-vector-rectangle" },
+  { key: "preview", label: "Preview", icon: "mdi-eye" },
+];
 const editing = ref(false);
 const saving = ref(false);
 const editingId = ref(null);
@@ -599,36 +563,5 @@ onMounted(load);
 <style scoped>
 .tracking-tight {
   letter-spacing: -0.018em;
-}
-
-.eink-dialog-body {
-  min-height: 0; /* Required for flex children to shrink */
-}
-
-/* ── Left tabs ───────────────────────────────────────────────────────────── */
-.eink-dialog-tabs {
-  width: 180px;
-  background-color: var(--cc-bg-elevated);
-  padding-top: 12px;
-}
-
-.eink-dialog-tabs :deep(.v-tab) {
-  justify-content: flex-start !important;
-  padding-inline: 20px !important;
-  border-radius: 0;
-  font-weight: 500;
-  height: 44px;
-}
-
-/* ── Scrollable content ──────────────────────────────────────────────────── */
-.eink-dialog-content {
-  overflow-y: auto;
-  min-width: 0;
-}
-
-/* Prevent Vuetify's v-window slide transition from clipping floating labels */
-.eink-dialog-content :deep(.v-window),
-.eink-dialog-content :deep(.v-window__container) {
-  overflow: visible !important;
 }
 </style>

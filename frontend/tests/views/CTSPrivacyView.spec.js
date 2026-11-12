@@ -163,4 +163,30 @@ describe("CTSPrivacyView", () => {
     expect(wrapper.vm.selectedCameraId).toBe("kitchen-cam-1");
     expect(wrapper.vm.zones).toHaveLength(0);
   });
+
+  it("keeps the changes unsaved and says so when the tracker refuses them", async () => {
+    const wrapper = await mountWithCamera();
+    wrapper.vm.removeZone("mirror");
+    mocks.postPrivacyZones.mockRejectedValueOnce(
+      Object.assign(new Error("Tracker unavailable"), { status: 503 }),
+    );
+
+    await wrapper.vm.saveZones();
+
+    expect(wrapper.vm.dirty).toBe(true);
+    expect(mocks.notify).toHaveBeenCalledWith(
+      expect.stringContaining("the tracker could not apply them"),
+      "error",
+    );
+
+    // Other failures (a missing camera, a validation error) are not blamed on the tracker.
+    mocks.postPrivacyZones.mockRejectedValueOnce(
+      Object.assign(new Error("Camera not found"), { status: 404 }),
+    );
+    await wrapper.vm.saveZones();
+    expect(mocks.notify).toHaveBeenLastCalledWith(
+      "Privacy zones not saved. Camera not found",
+      "error",
+    );
+  });
 });

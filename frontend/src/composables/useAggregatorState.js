@@ -5,8 +5,8 @@ export const AGGREGATOR_HISTORY_LIMIT = 20;
 export const AGGREGATOR_REFRESH_SECONDS = 15;
 /** Sampling period for the one camera whose depth trend is open. */
 export const AGGREGATOR_SAMPLE_SECONDS = 5;
-// Samples closer than this carry no trend, so a later one replaces the earlier (the page's
-// initial load fetches twice: on mount and on the table's first options event).
+// Samples closer than this carry no trend, so a later one replaces the earlier (for example a
+// table refresh that lands just after the drawer's own sample).
 const MIN_SAMPLE_GAP_MS = 1000;
 
 export function useAggregatorState() {
@@ -115,7 +115,12 @@ export function useAggregatorState() {
     sampleTimer = setInterval(() => sampleCamera(cameraId), AGGREGATOR_SAMPLE_SECONDS * 1000);
   }
 
+  /**
+   * Follow the table's paging. The server table also emits its current options when it mounts,
+   * which repeats the view's initial fetch, so an event that changes nothing does nothing.
+   */
   async function onPageOptions({ page, itemsPerPage }) {
+    if (page === state.page && itemsPerPage === state.itemsPerPage) return;
     if (itemsPerPage !== state.itemsPerPage) {
       state.itemsPerPage = itemsPerPage;
       state.page = 1;

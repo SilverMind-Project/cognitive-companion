@@ -49,6 +49,10 @@ export function useReIDReview(notify) {
 
   // -- counts (shared indicator source) ------------------------------------
   const counts = ref({ pending_review: 0, auto_verified: 0, operator_verified: 0, rejected: 0 });
+  // The zeros above are placeholders, not a reading: views must not treat them as "nothing
+  // proposed" until a load succeeds, and must show a failed load rather than stale numbers.
+  const countsLoaded = ref(false);
+  const countsError = ref("");
 
   // -- relabel targets (active household roster, not gallery identities) ----
   const targets = ref([]);
@@ -89,9 +93,12 @@ export function useReIDReview(notify) {
   async function loadCounts() {
     try {
       counts.value = await ctsReidReview.counts();
+      countsLoaded.value = true;
+      countsError.value = "";
       return counts.value;
-    } catch {
-      // Counts are decoration; a failure must not block the queue.
+    } catch (err) {
+      // Counts decorate the queue, so a failure must not block it; it is recorded instead.
+      countsError.value = err.message || String(err);
       return counts.value;
     }
   }
@@ -264,6 +271,8 @@ export function useReIDReview(notify) {
       detailError,
       acting,
       counts,
+      countsLoaded,
+      countsError,
       targets,
       targetsLoading,
     },

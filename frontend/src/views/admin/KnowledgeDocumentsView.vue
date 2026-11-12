@@ -134,57 +134,55 @@
       </v-data-table>
     </v-card>
 
-    <!-- Create Dialog -->
-    <v-dialog v-model="showCreateDialog" max-width="640" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-file-document-outline"
-          label="Create New"
-          title="Knowledge Document"
-          @close="closeCreateDialog"
+    <!-- Create Dialog: medium form -->
+    <AppDialog
+      v-model="showCreateDialog"
+      size="md"
+      persistent
+      icon="mdi-file-document-outline"
+      label="Create New"
+      title="Knowledge Document"
+      hint="Upload images and provide source text for content generation."
+      confirm-label="Create"
+      :confirm-loading="creating"
+      @cancel="closeCreateDialog"
+      @confirm="submitCreate"
+    >
+      <v-form ref="createForm" class="px-6 py-5">
+        <v-text-field
+          v-model="createFormData.title"
+          label="Title"
+          :rules="[(r) => !!r || 'Title is required']"
+          required
         />
-        <v-card-text>
-          <v-form ref="createForm">
-            <v-text-field
-              v-model="createFormData.title"
-              label="Title"
-              :rules="[(r) => !!r || 'Title is required']"
-              required
-            />
-            <v-textarea v-model="createFormData.source_text" label="Source Text" rows="6" />
+        <v-textarea v-model="createFormData.source_text" label="Source Text" rows="8" />
+        <v-row dense>
+          <v-col cols="12" sm="6">
             <v-combobox v-model="createFormData.tags" label="Tags" multiple chips deletable-chips />
+          </v-col>
+          <v-col cols="12" sm="6">
             <v-file-input
               v-model="createFormData.images"
               label="Images"
               multiple
               accept="image/*"
-              prepend-icon="mdi-camera"
+              prepend-icon=""
+              prepend-inner-icon="mdi-camera"
               show-size
             />
-          </v-form>
-        </v-card-text>
-        <DialogFooter
-          hint="Upload images and provide source text for content generation."
-          confirm-label="Create"
-          :confirm-loading="creating"
-          @cancel="closeCreateDialog"
-          @confirm="submitCreate"
-        />
-      </v-card>
-    </v-dialog>
+          </v-col>
+        </v-row>
+      </v-form>
+    </AppDialog>
 
     <!-- Delete Confirm Dialog -->
-    <v-dialog v-model="deleteDialog" max-width="400">
-      <v-card rounded="xl">
-        <v-card-text class="pt-4">Archive this item instead?</v-card-text>
-        <v-card-actions>
-          <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
-          <v-spacer />
-          <v-btn color="warning" @click="doArchive">Archive</v-btn>
-          <v-btn color="error" @click="doDelete">Delete</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <ArchiveOrDeleteDialog
+      v-model="deleteDialog"
+      noun="document"
+      :name="deleteTarget?.title || ''"
+      @archive="doArchive"
+      @delete="doDelete"
+    />
   </div>
 </template>
 
@@ -192,9 +190,9 @@
 import { ref, reactive, onMounted } from "vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
+import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import { formatDateTime, DATETIME_COLUMN_WIDTH } from "@/services/timezone.js";
-import DialogHeader from "@/components/common/DialogHeader.vue";
-import DialogFooter from "@/components/common/DialogFooter.vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 
 const { notify } = useNotify();
 
@@ -240,6 +238,8 @@ function debouncedFetch() {
 }
 
 function onPageOptions({ page: newPage, itemsPerPage: newPerPage }) {
+  // The server table echoes its current options on mount; that repeats the mount fetch.
+  if (newPage === page.value && newPerPage === itemsPerPage.value) return;
   if (newPerPage !== itemsPerPage.value) {
     itemsPerPage.value = newPerPage;
     page.value = 1;

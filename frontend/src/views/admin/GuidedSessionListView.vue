@@ -140,6 +140,8 @@ function statusColor(status) {
 }
 
 function onPageOptions({ page: newPage, itemsPerPage: newPerPage }) {
+  // The server table echoes its current options on mount; that repeats the mount fetch.
+  if (newPage === page.value && newPerPage === itemsPerPage.value) return;
   if (newPerPage !== itemsPerPage.value) {
     itemsPerPage.value = newPerPage;
     page.value = 1;

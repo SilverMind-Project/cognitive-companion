@@ -367,9 +367,16 @@ async function saveZones() {
   try {
     await cts.postPrivacyZones(selectedCameraId.value, zones.value);
     savedZones.value = JSON.stringify(zones.value);
-    notify("Privacy zones saved");
+    notify("Privacy zones saved and applied to the tracker");
   } catch (e) {
-    notify(e.message, "error");
+    // The server saves zones only after the tracker accepts them, so a failure changed nothing.
+    const trackerFailed = [502, 503, 504].includes(e.status);
+    notify(
+      trackerFailed
+        ? `Privacy zones not saved: the tracker could not apply them. ${e.message}`
+        : `Privacy zones not saved. ${e.message}`,
+      "error",
+    );
   } finally {
     saving.value = false;
   }

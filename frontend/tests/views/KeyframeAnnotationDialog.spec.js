@@ -62,7 +62,7 @@ async function mountDialog() {
       keyframeId: "kf-001",
       identities: [],
     },
-    global: { stubs: stubComponents },
+    global: { stubs: stubComponents, mocks: { $vuetify: { display: { smAndDown: false } } } },
   });
   await flushPromises();
   return wrapper;

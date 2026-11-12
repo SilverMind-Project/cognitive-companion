@@ -1,83 +1,50 @@
 <template>
-  <v-dialog
+  <!-- Large sectioned picker: one section per step category. -->
+  <AppDialog
+    v-model:section="activeCategory"
     :model-value="modelValue"
-    max-width="860"
-    :fullscreen="$vuetify.display.smAndDown"
+    size="lg"
+    icon="mdi-puzzle-plus"
+    label="Add Pipeline Step"
+    :title="activeGroup?.name ?? 'Steps'"
+    :sections="sections"
+    hide-footer
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <v-card class="cc-glass step-palette-card d-flex flex-column">
-      <DialogHeader
-        icon="mdi-puzzle-plus"
-        label="Add Pipeline Step"
-        :title="activeGroup?.name ?? 'Steps'"
-        @close="$emit('update:modelValue', false)"
-      />
+    <!-- Shown until the categories load (the sectioned body replaces it). -->
+    <div class="d-flex align-center justify-center py-12">
+      <v-progress-circular v-if="loading" indeterminate color="primary" />
+      <span v-else class="text-medium-emphasis">No step types are available.</span>
+    </div>
 
-      <div v-if="loading" class="d-flex align-center justify-center flex-grow-1 py-12">
-        <v-progress-circular indeterminate color="primary" />
-      </div>
-
-      <div v-else class="step-palette-body d-flex flex-grow-1 overflow-hidden">
-        <!-- Left vertical tabs, one per category -->
-        <v-tabs
-          v-model="activeCategory"
-          direction="vertical"
-          color="primary"
-          class="step-palette-tabs flex-shrink-0"
-        >
-          <v-tab
-            v-for="group in groups"
-            :key="group.category"
-            :value="group.category"
-            class="justify-start"
-            :prepend-icon="CATEGORY_ICONS[group.category]"
+    <template v-for="group in groups" :key="group.category" #[`section-${group.category}`]>
+      <div class="step-grid">
+        <div v-for="st in group.types" :key="st.type">
+          <v-card
+            class="pa-4 text-center cursor-pointer step-type-card d-flex flex-column align-center justify-center"
+            rounded="lg"
+            hover
+            :class="st.deprecated ? 'step-type-card--deprecated' : ''"
+            @click="select(st.type)"
           >
-            {{ group.name }}
-          </v-tab>
-        </v-tabs>
-
-        <v-divider vertical />
-
-        <!-- Step grid for the active category -->
-        <div class="step-palette-content flex-grow-1 pa-5 overflow-y-auto">
-          <v-window v-model="activeCategory">
-            <v-window-item v-for="group in groups" :key="group.category" :value="group.category">
-              <div class="step-grid">
-                <div v-for="st in group.types" :key="st.type">
-                  <v-card
-                    class="pa-4 text-center cursor-pointer step-type-card d-flex flex-column align-center justify-center"
-                    rounded="lg"
-                    hover
-                    :class="st.deprecated ? 'step-type-card--deprecated' : ''"
-                    @click="select(st.type)"
-                  >
-                    <v-icon size="32" :color="st.deprecated ? undefined : 'primary'" class="mb-2">{{
-                      st.icon
-                    }}</v-icon>
-                    <div
-                      class="text-body-2 font-weight-medium"
-                      :class="
-                        st.deprecated ? 'text-decoration-line-through text-medium-emphasis' : ''
-                      "
-                    >
-                      {{ st.label }}
-                    </div>
-                    <v-chip
-                      v-if="st.deprecated"
-                      size="x-small"
-                      color="warning"
-                      variant="plain"
-                      class="mt-1"
-                      >deprecated</v-chip
-                    >
-                  </v-card>
-                </div>
-              </div>
-            </v-window-item>
-          </v-window>
+            <v-icon size="32" :color="st.deprecated ? undefined : 'primary'" class="mb-2">{{
+              st.icon
+            }}</v-icon>
+            <div
+              class="text-body-2 font-weight-medium"
+              :class="st.deprecated ? 'text-decoration-line-through text-medium-emphasis' : ''"
+            >
+              {{ st.label }}
+            </div>
+            <v-chip v-if="st.deprecated" size="x-small" color="warning" variant="plain" class="mt-1"
+              >deprecated</v-chip
+            >
+          </v-card>
         </div>
       </div>
+    </template>
 
+    <template #footer>
       <v-divider />
       <v-card-actions class="px-6 py-3">
         <v-icon size="small" color="medium-emphasis" class="mr-1"
@@ -89,14 +56,14 @@
         <v-spacer />
         <v-btn variant="text" @click="$emit('update:modelValue', false)">Cancel</v-btn>
       </v-card-actions>
-    </v-card>
-  </v-dialog>
+    </template>
+  </AppDialog>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { api } from "../../services/api.js";
-import DialogHeader from "../common/DialogHeader.vue";
+import AppDialog from "../common/AppDialog.vue";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -160,6 +127,10 @@ const groups = computed(() => {
 });
 
 const activeGroup = computed(() => groups.value.find((g) => g.category === activeCategory.value));
+
+const sections = computed(() =>
+  groups.value.map((g) => ({ key: g.category, label: g.name, icon: CATEGORY_ICONS[g.category] })),
+);
 
 onMounted(async () => {
   loading.value = true;
@@ -300,40 +271,6 @@ function select(type) {
 </script>
 
 <style scoped>
-.step-palette-card {
-  height: 70vh;
-  max-height: 680px;
-  border-radius: 24px;
-  overflow: hidden;
-}
-
-.step-palette-body {
-  min-height: 0;
-}
-
-.step-palette-tabs {
-  width: 200px;
-  background-color: var(--cc-bg-elevated);
-  padding-top: 12px;
-}
-
-.step-palette-tabs :deep(.v-tab) {
-  justify-content: flex-start !important;
-  padding-inline: 20px !important;
-  border-radius: 0;
-  font-weight: 500;
-  height: 44px;
-}
-
-.step-palette-content {
-  min-width: 0;
-}
-
-.step-palette-content :deep(.v-window),
-.step-palette-content :deep(.v-window__container) {
-  overflow: visible !important;
-}
-
 .step-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

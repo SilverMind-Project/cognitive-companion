@@ -181,10 +181,12 @@
       </div>
     </v-card>
 
-    <!-- Detail dialog (xl inspector): labeled overlay + click-to-correct -->
+    <!-- Detail dialog (xl inspector): labeled overlay + click-to-correct. It turns persistent
+         while a correction form is open so a stray click outside cannot discard it. -->
     <AppDialog
       :model-value="detailOpen && !!detailCard"
       size="xl"
+      :persistent="!!selectedBbox"
       icon="mdi-image-search"
       label="Keyframe"
       :title="detailCard ? `${detailCard.camera_id} · ${formatTime(detailCard.captured_at)}` : ''"

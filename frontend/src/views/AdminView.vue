@@ -135,27 +135,29 @@
       </v-container>
     </v-main>
 
-    <!-- API Key dialog -->
-    <v-dialog v-model="showKeyDialog" max-width="440">
-      <v-card>
-        <v-card-title>Set API Key</v-card-title>
-        <v-card-text>
-          <v-text-field
-            v-model="apiKeyInput"
-            label="API Key"
-            :type="showKey ? 'text' : 'password'"
-            hide-details
-            :append-inner-icon="showKey ? 'mdi-eye-off' : 'mdi-eye'"
-            @click:append-inner="showKey = !showKey"
-          />
-        </v-card-text>
-        <v-card-actions class="px-6 pb-4">
-          <v-spacer />
-          <v-btn variant="text" @click="showKeyDialog = false">Cancel</v-btn>
-          <v-btn color="primary" variant="flat" @click="saveApiKey">Save</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <!-- API Key dialog: small -->
+    <AppDialog
+      v-model="showKeyDialog"
+      size="sm"
+      persistent
+      icon="mdi-key-variant"
+      label="Settings"
+      title="Set API Key"
+      @confirm="saveApiKey"
+    >
+      <div class="px-6 py-5">
+        <v-text-field
+          v-model="apiKeyInput"
+          label="API Key"
+          :type="showKey ? 'text' : 'password'"
+          hide-details
+          autofocus
+          :append-inner-icon="showKey ? 'mdi-eye-off' : 'mdi-eye'"
+          @click:append-inner="showKey = !showKey"
+          @keyup.enter="saveApiKey"
+        />
+      </div>
+    </AppDialog>
   </v-app>
 </template>
 
@@ -167,6 +169,7 @@ import { useMaraudersMode } from "../composables/useMaraudersMode.js";
 import { useNotify } from "../composables/useNotify.js";
 import { useAuthStore } from "../stores/auth";
 import AdminParticleBackground from "../components/common/AdminParticleBackground.vue";
+import AppDialog from "../components/common/AppDialog.vue";
 import MaraudersAdminBackground from "../components/marauders/MaraudersAdminBackground.vue";
 import MaraudersImageFilterDefs from "../components/marauders/MaraudersImageFilterDefs.vue";
 import MaraudersToggle from "../components/marauders/MaraudersToggle.vue";

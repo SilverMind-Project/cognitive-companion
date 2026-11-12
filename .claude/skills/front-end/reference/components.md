@@ -131,7 +131,11 @@ Pick the size by content, then the body layout that size calls for. A form shoul
 
 **Split (`lg` + `#aside`).** For a form whose main input is visual (privacy zone: draw a polygon on a snapshot). The `#aside` slot is a 340px form column; the default slot is the workspace beside it and gets the remaining width. On mobile the two stack.
 
-**Inspector (`xl`).** For media the operator interacts with (keyframe inspector: click a box, then correct it). Give the media at least two thirds of the width and use `hide-footer` when the actions live in the side pane.
+**Inspector and workbench (`xl`).** For media the operator interacts with (keyframe inspector: click a box, then correct it) or a canvas editor (keyframe annotation, gate graph). Give the media at least two thirds of the width and use `hide-footer` when the actions live in the side pane. Pass `fixed-height` when the body should keep one height (taller than `lg`). A sectioned `xl` editor can add a `#trailing` reference panel beside its sections, shown on wide screens only (the step configuration dialog lists pipeline variables there).
+
+**Archive or delete.** Content that can be archived as well as deleted (info cards, quizzes, knowledge documents) uses the shared `ArchiveOrDeleteDialog`: deleting is the explicit red action and archiving is offered beside it. Any other destructive action goes through `useConfirm()`.
+
+**Companion surfaces are separate.** The resident-facing dialogs under `components/companion/` (alerts, info cards, quizzes, prompts, kiosk settings) keep their own large-type styling and are not `AppDialog`s; these patterns are for the admin console.
 
 ### Inset sections within dialogs
 
@@ -286,9 +290,11 @@ const page = ref(1);
 >
 ```
 
-**Page options handler:**
+**Page options handler:** the server table emits its current options once when it mounts, which
+repeats the view's `onMounted` fetch, so an event that changes nothing returns early.
 ```js
 function onPageOptions({ page: newPage, itemsPerPage: newPerPage }) {
+  if (newPage === page.value && newPerPage === itemsPerPage.value) return;
   if (newPerPage !== itemsPerPage.value) {
     itemsPerPage.value = newPerPage;
     page.value = 1;

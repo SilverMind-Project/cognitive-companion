@@ -194,4 +194,19 @@ describe("useReIDReview", () => {
     ]);
     expect(state.selectedIds.value).toEqual([]);
   });
+
+  it("records a counts failure instead of passing placeholder zeros off as real", async () => {
+    mockSvc.counts.mockRejectedValueOnce(new Error("upstream down"));
+    const { state, actions } = useReIDReview(notify);
+    expect(state.countsLoaded.value).toBe(false);
+
+    await actions.loadCounts();
+    expect(state.countsLoaded.value).toBe(false);
+    expect(state.countsError.value).toBe("upstream down");
+
+    await actions.loadCounts();
+    expect(state.countsLoaded.value).toBe(true);
+    expect(state.countsError.value).toBe("");
+    expect(state.counts.value.pending_review).toBe(3);
+  });
 });

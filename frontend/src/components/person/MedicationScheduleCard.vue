@@ -76,8 +76,8 @@
       </v-chip-group>
     </AppDialog>
 
-    <v-dialog v-model="confirmDialog" max-width="420" persistent>
-      <v-card>
+    <v-dialog v-model="confirmDialog" max-width="400" persistent>
+      <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>

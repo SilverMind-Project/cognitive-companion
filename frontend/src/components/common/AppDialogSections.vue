@@ -39,13 +39,20 @@
         </v-window-item>
       </v-window>
     </div>
+    <template v-if="$slots.trailing && !compact">
+      <v-divider vertical />
+      <div class="app-dialog-trailing flex-shrink-0 px-4 py-5 d-flex flex-column">
+        <slot name="trailing" />
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup>
 /**
  * The sectioned body of `AppDialog`: a section nav (vertical beside the content, horizontal above
- * it when `compact`) and one `#section-<key>` slot per section, one shown at a time. Kept apart
+ * it when `compact`) and one `#section-<key>` slot per section, one shown at a time. An optional
+ * `#trailing` slot is a reference panel to the right of the sections on wide screens. Kept apart
  * from `AppDialog` so only sectioned dialogs pull in the tab and window components.
  */
 defineProps({
@@ -85,6 +92,12 @@ defineEmits(["update:modelValue"]);
 .app-dialog-section-body {
   min-width: 0;
   min-height: 0;
+}
+
+.app-dialog-trailing {
+  width: 360px;
+  min-height: 0;
+  background-color: var(--cc-bg-elevated);
 }
 
 .app-dialog-section-body :deep(.v-window),

@@ -239,248 +239,243 @@
       </v-data-table>
     </v-card>
 
-    <!-- Create Dialog -->
-    <v-dialog v-model="showCreateDialog" max-width="800" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-help-box-outline"
-          label="Create New"
-          title="Quiz"
-          @close="closeCreateDialog"
-        >
-          <template #actions>
-            <v-btn
-              v-if="createForm.questions.length > 0"
-              size="small"
-              variant="tonal"
-              prepend-icon="mdi-plus"
-              class="mr-2"
-              @click="addCreateQuestion"
-            >
-              Add Question
-            </v-btn>
-          </template>
-        </DialogHeader>
-        <v-card-text>
-          <!-- LLM Generation Section -->
-          <v-card variant="tonal" class="mb-4 pa-3">
-            <div class="text-subtitle-2 mb-2">Generate from Knowledge Document</div>
-            <v-row dense>
-              <v-col cols="12">
-                <LlmModelPicker
-                  v-model="generateModelId"
-                  :model-items="llmModelItems"
-                  label="LLM Model"
-                  hint="Model used for quiz generation"
-                  persistent-hint
-                  clearable
-                />
-              </v-col>
-              <v-col cols="12" sm="5">
-                <v-select
-                  v-model="createForm.document_id"
-                  :items="documentOptions"
-                  item-title="title"
-                  item-value="id"
-                  label="Knowledge Document"
-                  hint="Source document for generation"
-                  clearable
-                />
-              </v-col>
-              <v-col cols="6" sm="2">
-                <v-text-field
-                  v-model="generateNumQuestions"
-                  label="Questions"
-                  type="number"
-                  :min="1"
-                  :max="20"
-                  hide-details
-                />
-              </v-col>
-              <v-col cols="6" sm="2">
-                <v-select
-                  v-model="generateMix"
-                  :items="[
-                    { title: 'Mixed', value: 'mixed' },
-                    { title: 'Multiple Choice', value: 'mc_only' },
-                  ]"
-                  item-title="title"
-                  item-value="value"
-                  label="Mix"
-                  hide-details
-                />
-              </v-col>
-              <v-col cols="12" sm="3" class="d-flex align-end">
-                <v-btn
-                  color="secondary"
-                  variant="tonal"
-                  :loading="generating"
-                  :disabled="!createForm.document_id"
-                  block
-                  @click="generateQuiz"
-                >
-                  Generate
-                </v-btn>
-              </v-col>
-            </v-row>
-          </v-card>
-
-          <!-- Quiz Metadata -->
-          <v-text-field
-            v-model="createForm.title"
-            label="Title"
-            :rules="[(r) => !!r || 'Title is required']"
-            class="mb-3"
-          />
-          <v-select
-            v-model="createForm.question_layout_id"
-            :items="layouts"
-            item-title="display_name"
-            item-value="id"
-            label="Question Layout"
-            :rules="[(r) => !!r || 'Layout is required']"
-            class="mb-3"
-          />
-          <v-textarea
-            v-model="createForm.intro_voice_template"
-            label="Intro Voice Template"
-            rows="2"
-            class="mb-3"
-          />
-          <v-combobox
-            v-model="createForm.tags"
-            label="Tags"
-            multiple
-            chips
-            deletable-chips
-            class="mb-4"
-          />
-
-          <!-- Questions Preview / Editor -->
-          <v-divider v-if="createForm.questions.length > 0" class="mb-3" />
-          <div v-if="createForm.questions.length > 0">
-            <div class="d-flex align-center mb-2">
-              <v-icon size="small" class="mr-1">mdi-help-circle-outline</v-icon>
-              <span class="text-subtitle-2">Questions ({{ createForm.questions.length }})</span>
-            </div>
-            <v-card
-              v-for="(q, idx) in createForm.questions"
-              :key="idx"
-              variant="tonal"
-              class="mb-3 pa-3"
-            >
-              <div class="d-flex align-center mb-2">
-                <v-chip size="x-small" color="primary" variant="tonal" class="mr-2">
-                  {{ idx + 1 }}
-                </v-chip>
-                <v-radio-group v-model="q.question_type" inline density="compact" hide-details>
-                  <v-radio label="Multiple Choice" value="multiple_choice" />
-                  <v-radio label="Open Ended" value="open_ended" />
-                </v-radio-group>
-                <v-spacer />
-                <v-btn
-                  icon="mdi-close"
-                  size="x-small"
-                  variant="text"
-                  color="error"
-                  @click="removeCreateQuestion(idx)"
-                />
-              </div>
-              <v-textarea
-                v-model="q.question_text"
-                label="Question"
-                rows="2"
-                density="compact"
-                hide-details
-                class="mb-2"
-              />
-              <!-- Multiple choice choices -->
-              <div v-if="q.question_type === 'multiple_choice'" class="ml-2 mb-2">
-                <div v-for="(ch, ci) in q.choices" :key="ci" class="d-flex align-center ga-1 mb-1">
-                  <v-text-field
-                    v-model="ch.text"
-                    label="Choice text"
-                    density="compact"
-                    hide-details
-                    style="min-width: 200px"
-                  />
-                  <v-checkbox
-                    v-model="ch.is_correct"
-                    label="Correct"
-                    density="compact"
-                    hide-details
-                  />
-                  <v-btn
-                    icon="mdi-close"
-                    size="x-small"
-                    variant="text"
-                    color="error"
-                    @click="removeCreateChoice(q, ci)"
-                  />
-                </div>
-                <v-btn
-                  size="x-small"
-                  variant="text"
-                  prepend-icon="mdi-plus"
-                  @click="addCreateChoice(q)"
-                >
-                  Choice
-                </v-btn>
-              </div>
-              <template v-else>
-                <v-text-field
-                  v-model="q.expected_answer"
-                  label="Expected answer"
-                  density="compact"
-                  hide-details
-                  class="mb-2"
-                />
-              </template>
-              <v-textarea
-                v-model="q.explanation"
-                label="Explanation"
-                rows="1"
-                density="compact"
-                hide-details
-              />
-            </v-card>
-          </div>
-        </v-card-text>
-        <DialogFooter
-          hint="Generate questions from a knowledge document, or add them manually."
-          confirm-label="Create Quiz"
-          :confirm-loading="creating"
-          @cancel="closeCreateDialog"
-          @confirm="submitCreate"
+    <!-- Create Dialog: large sectioned (generate, details, questions) -->
+    <AppDialog
+      v-model="showCreateDialog"
+      v-model:section="createSection"
+      size="lg"
+      persistent
+      icon="mdi-help-box-outline"
+      label="Create New"
+      title="Quiz"
+      :sections="createSections"
+      hint="Generate questions from a knowledge document, or add them manually."
+      confirm-label="Create Quiz"
+      :confirm-loading="creating"
+      @cancel="closeCreateDialog"
+      @confirm="submitCreate"
+    >
+      <template #section-generate>
+        <LlmModelPicker
+          v-model="generateModelId"
+          :model-items="llmModelItems"
+          label="LLM Model"
+          hint="Model used for quiz generation"
+          persistent-hint
+          clearable
+          class="mb-3"
         />
-      </v-card>
-    </v-dialog>
-
-    <!-- Edit Dialog -->
-    <v-dialog v-model="showEditDialog" max-width="800" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-help-box-outline"
-          label="Edit"
-          title="Quiz"
-          @close="showEditDialog = false"
-        >
-          <template #actions>
+        <v-select
+          v-model="createForm.document_id"
+          :items="documentOptions"
+          item-title="title"
+          item-value="id"
+          label="Knowledge Document"
+          hint="Source document for generation"
+          persistent-hint
+          clearable
+          class="mb-3"
+        />
+        <v-row dense align="center">
+          <v-col cols="6" sm="3">
+            <v-text-field
+              v-model="generateNumQuestions"
+              label="Questions"
+              type="number"
+              :min="1"
+              :max="20"
+              hide-details
+            />
+          </v-col>
+          <v-col cols="6" sm="4">
+            <v-select
+              v-model="generateMix"
+              :items="[
+                { title: 'Mixed', value: 'mixed' },
+                { title: 'Multiple Choice', value: 'mc_only' },
+              ]"
+              item-title="title"
+              item-value="value"
+              label="Mix"
+              hide-details
+            />
+          </v-col>
+          <v-col cols="12" sm="5">
             <v-btn
-              size="small"
+              color="secondary"
               variant="tonal"
-              prepend-icon="mdi-plus"
-              class="mr-2"
-              @click="addEditQuestion"
+              prepend-icon="mdi-auto-fix"
+              :loading="generating"
+              :disabled="!createForm.document_id"
+              block
+              @click="generateQuiz"
             >
-              Add Question
+              Generate
             </v-btn>
+          </v-col>
+        </v-row>
+      </template>
+
+      <template #section-details>
+        <v-row dense>
+          <v-col cols="12" sm="6">
+            <v-text-field
+              v-model="createForm.title"
+              label="Title"
+              :rules="[(r) => !!r || 'Title is required']"
+            />
+          </v-col>
+          <v-col cols="12" sm="6">
+            <v-select
+              v-model="createForm.question_layout_id"
+              :items="layouts"
+              item-title="display_name"
+              item-value="id"
+              label="Question Layout"
+              :rules="[(r) => !!r || 'Layout is required']"
+            />
+          </v-col>
+        </v-row>
+        <v-textarea
+          v-model="createForm.intro_voice_template"
+          label="Intro Voice Template"
+          rows="3"
+          class="mb-3"
+        />
+        <v-combobox v-model="createForm.tags" label="Tags" multiple chips deletable-chips />
+      </template>
+
+      <template #section-questions>
+        <div class="d-flex align-center mb-3">
+          <span class="text-subtitle-2">Questions ({{ createForm.questions.length }})</span>
+          <v-spacer />
+          <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="addCreateQuestion">
+            Add Question
+          </v-btn>
+        </div>
+        <div v-if="!createForm.questions.length" class="text-body-2 text-medium-emphasis">
+          No questions yet. Generate them from a document, or add one.
+        </div>
+        <v-card
+          v-for="(q, idx) in createForm.questions"
+          :key="idx"
+          variant="tonal"
+          class="mb-3 pa-3"
+        >
+          <div class="d-flex align-center mb-2">
+            <v-chip size="x-small" color="primary" variant="tonal" class="mr-2">
+              {{ idx + 1 }}
+            </v-chip>
+            <v-radio-group v-model="q.question_type" inline density="compact" hide-details>
+              <v-radio label="Multiple Choice" value="multiple_choice" />
+              <v-radio label="Open Ended" value="open_ended" />
+            </v-radio-group>
+            <v-spacer />
+            <v-btn
+              icon="mdi-close"
+              size="x-small"
+              variant="text"
+              color="error"
+              @click="removeCreateQuestion(idx)"
+            />
+          </div>
+          <v-textarea
+            v-model="q.question_text"
+            label="Question"
+            rows="2"
+            density="compact"
+            hide-details
+            class="mb-2"
+          />
+          <!-- Multiple choice choices -->
+          <div v-if="q.question_type === 'multiple_choice'" class="ml-2 mb-2">
+            <div v-for="(ch, ci) in q.choices" :key="ci" class="d-flex align-center ga-1 mb-1">
+              <v-text-field
+                v-model="ch.text"
+                label="Choice text"
+                density="compact"
+                hide-details
+                style="min-width: 200px"
+              />
+              <v-checkbox v-model="ch.is_correct" label="Correct" density="compact" hide-details />
+              <v-btn
+                icon="mdi-close"
+                size="x-small"
+                variant="text"
+                color="error"
+                @click="removeCreateChoice(q, ci)"
+              />
+            </div>
+            <v-btn
+              size="x-small"
+              variant="text"
+              prepend-icon="mdi-plus"
+              @click="addCreateChoice(q)"
+            >
+              Choice
+            </v-btn>
+          </div>
+          <template v-else>
+            <v-text-field
+              v-model="q.expected_answer"
+              label="Expected answer"
+              density="compact"
+              hide-details
+              class="mb-2"
+            />
           </template>
-        </DialogHeader>
-        <v-card-text>
-          <!-- LLM Regeneration -->
-          <v-card variant="tonal" class="mb-4 pa-3">
-            <div class="text-subtitle-2 mb-2">LLM Regeneration</div>
+          <v-textarea
+            v-model="q.explanation"
+            label="Explanation"
+            rows="1"
+            density="compact"
+            hide-details
+          />
+        </v-card>
+      </template>
+    </AppDialog>
+
+    <!-- Edit Dialog: large sectioned (details, questions) -->
+    <AppDialog
+      v-model="showEditDialog"
+      v-model:section="editSection"
+      size="lg"
+      persistent
+      icon="mdi-help-box-outline"
+      label="Edit"
+      title="Quiz"
+      :sections="editSections"
+      hint="Modify quiz metadata and edit individual questions."
+      :confirm-loading="saving"
+      @confirm="submitEdit"
+    >
+      <template #section-details>
+        <v-row dense>
+          <v-col cols="12" sm="6">
+            <v-text-field v-model="editForm.title" label="Title" />
+          </v-col>
+          <v-col cols="12" sm="6">
+            <v-select
+              v-model="editForm.question_layout_id"
+              :items="layouts"
+              item-title="display_name"
+              item-value="id"
+              label="Question Layout"
+            />
+          </v-col>
+        </v-row>
+        <v-textarea
+          v-model="editForm.intro_voice_template"
+          label="Intro Voice Template"
+          rows="3"
+          class="mb-3"
+        />
+        <v-combobox v-model="editForm.tags" label="Tags" multiple chips deletable-chips />
+      </template>
+
+      <template #section-questions>
+        <v-row dense align="center" class="mb-2">
+          <v-col cols="12" sm="8">
             <LlmModelPicker
               v-model="editLlmModelId"
               :model-items="llmModelItems"
@@ -489,140 +484,96 @@
               persistent-hint
               clearable
             />
-          </v-card>
-
-          <v-text-field v-model="editForm.title" label="Title" class="mb-3" />
-          <v-select
-            v-model="editForm.question_layout_id"
-            :items="layouts"
-            item-title="display_name"
-            item-value="id"
-            label="Question Layout"
-            class="mb-3"
-          />
-          <v-textarea
-            v-model="editForm.intro_voice_template"
-            label="Intro Voice Template"
-            rows="2"
-            class="mb-3"
-          />
-          <v-combobox
-            v-model="editForm.tags"
-            label="Tags"
-            multiple
-            chips
-            deletable-chips
-            class="mb-4"
-          />
-
-          <v-divider v-if="editForm.questions.length > 0" class="mb-3" />
-          <div v-if="editForm.questions.length > 0">
-            <div class="d-flex align-center mb-2">
-              <v-icon size="small" class="mr-1">mdi-help-circle-outline</v-icon>
-              <span class="text-subtitle-2">Questions ({{ editForm.questions.length }})</span>
-            </div>
-            <v-card
-              v-for="(q, idx) in editForm.questions"
-              :key="idx"
-              variant="tonal"
-              class="mb-3 pa-3"
-            >
-              <div class="d-flex align-center mb-2">
-                <v-chip size="x-small" color="primary" variant="tonal" class="mr-2">
-                  {{ idx + 1 }}
-                </v-chip>
-                <v-radio-group v-model="q.question_type" inline density="compact" hide-details>
-                  <v-radio label="Multiple Choice" value="multiple_choice" />
-                  <v-radio label="Open Ended" value="open_ended" />
-                </v-radio-group>
-                <v-spacer />
-                <v-btn
-                  icon="mdi-refresh"
-                  size="x-small"
-                  variant="text"
-                  color="secondary"
-                  :disabled="!editLlmModelId"
-                  class="mr-1"
-                  @click="regenerateEditQuestion(idx)"
-                />
-                <v-btn
-                  icon="mdi-close"
-                  size="x-small"
-                  variant="text"
-                  color="error"
-                  @click="removeEditQuestion(idx)"
-                />
-              </div>
-              <v-textarea
-                v-model="q.question_text"
-                label="Question"
-                rows="2"
-                density="compact"
-                hide-details
-                class="mb-2"
-              />
-              <div v-if="q.question_type === 'multiple_choice'" class="ml-2 mb-2">
-                <div v-for="(ch, ci) in q.choices" :key="ci" class="d-flex align-center ga-1 mb-1">
-                  <v-text-field
-                    v-model="ch.text"
-                    label="Choice text"
-                    density="compact"
-                    hide-details
-                    style="min-width: 200px"
-                  />
-                  <v-checkbox
-                    v-model="ch.is_correct"
-                    label="Correct"
-                    density="compact"
-                    hide-details
-                  />
-                  <v-btn
-                    icon="mdi-close"
-                    size="x-small"
-                    variant="text"
-                    color="error"
-                    @click="removeEditChoice(q, ci)"
-                  />
-                </div>
-                <v-btn
-                  size="x-small"
-                  variant="text"
-                  prepend-icon="mdi-plus"
-                  @click="addEditChoice(q)"
-                >
-                  Choice
-                </v-btn>
-              </div>
-              <template v-else>
-                <v-text-field
-                  v-model="q.expected_answer"
-                  label="Expected answer"
-                  density="compact"
-                  hide-details
-                  class="mb-2"
-                />
-              </template>
-              <v-textarea
-                v-model="q.explanation"
-                label="Explanation"
-                rows="1"
-                density="compact"
-                hide-details
-              />
-            </v-card>
+          </v-col>
+          <v-col cols="12" sm="4" class="text-sm-right">
+            <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="addEditQuestion">
+              Add Question
+            </v-btn>
+          </v-col>
+        </v-row>
+        <div class="text-subtitle-2 mb-2">Questions ({{ editForm.questions.length }})</div>
+        <div v-if="!editForm.questions.length" class="text-body-2 text-medium-emphasis">
+          No questions yet.
+        </div>
+        <v-card v-for="(q, idx) in editForm.questions" :key="idx" variant="tonal" class="mb-3 pa-3">
+          <div class="d-flex align-center mb-2">
+            <v-chip size="x-small" color="primary" variant="tonal" class="mr-2">
+              {{ idx + 1 }}
+            </v-chip>
+            <v-radio-group v-model="q.question_type" inline density="compact" hide-details>
+              <v-radio label="Multiple Choice" value="multiple_choice" />
+              <v-radio label="Open Ended" value="open_ended" />
+            </v-radio-group>
+            <v-spacer />
+            <v-btn
+              icon="mdi-refresh"
+              size="x-small"
+              variant="text"
+              color="secondary"
+              :disabled="!editLlmModelId"
+              class="mr-1"
+              @click="regenerateEditQuestion(idx)"
+            />
+            <v-btn
+              icon="mdi-close"
+              size="x-small"
+              variant="text"
+              color="error"
+              @click="removeEditQuestion(idx)"
+            />
           </div>
-        </v-card-text>
-        <DialogFooter
-          hint="Modify quiz metadata and edit individual questions."
-          :confirm-loading="saving"
-          @cancel="showEditDialog = false"
-          @confirm="submitEdit"
-        />
-      </v-card>
-    </v-dialog>
+          <v-textarea
+            v-model="q.question_text"
+            label="Question"
+            rows="2"
+            density="compact"
+            hide-details
+            class="mb-2"
+          />
+          <div v-if="q.question_type === 'multiple_choice'" class="ml-2 mb-2">
+            <div v-for="(ch, ci) in q.choices" :key="ci" class="d-flex align-center ga-1 mb-1">
+              <v-text-field
+                v-model="ch.text"
+                label="Choice text"
+                density="compact"
+                hide-details
+                style="min-width: 200px"
+              />
+              <v-checkbox v-model="ch.is_correct" label="Correct" density="compact" hide-details />
+              <v-btn
+                icon="mdi-close"
+                size="x-small"
+                variant="text"
+                color="error"
+                @click="removeEditChoice(q, ci)"
+              />
+            </div>
+            <v-btn size="x-small" variant="text" prepend-icon="mdi-plus" @click="addEditChoice(q)">
+              Choice
+            </v-btn>
+          </div>
+          <template v-else>
+            <v-text-field
+              v-model="q.expected_answer"
+              label="Expected answer"
+              density="compact"
+              hide-details
+              class="mb-2"
+            />
+          </template>
+          <v-textarea
+            v-model="q.explanation"
+            label="Explanation"
+            rows="1"
+            density="compact"
+            hide-details
+          />
+        </v-card>
+      </template>
+    </AppDialog>
 
     <!-- Confirm Dialog -->
-    <v-dialog v-model="confirmDialog" max-width="400">
+    <v-dialog v-model="confirmDialog" max-width="400" persistent>
       <v-card rounded="xl">
         <v-card-title v-if="confirmTitle">{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
@@ -635,28 +586,24 @@
     </v-dialog>
 
     <!-- Delete Confirm Dialog -->
-    <v-dialog v-model="deleteDialog" max-width="400">
-      <v-card rounded="xl">
-        <v-card-text class="pt-4">Archive this item instead?</v-card-text>
-        <v-card-actions>
-          <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
-          <v-spacer />
-          <v-btn color="warning" @click="doArchive">Archive</v-btn>
-          <v-btn color="error" @click="doDelete">Delete</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <ArchiveOrDeleteDialog
+      v-model="deleteDialog"
+      noun="quiz"
+      :name="deleteTarget?.title || ''"
+      @archive="doArchive"
+      @delete="doDelete"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, computed, watch, onMounted } from "vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
+import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import { useConfirm } from "@/composables/useConfirm.js";
 import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
-import DialogHeader from "@/components/common/DialogHeader.vue";
-import DialogFooter from "@/components/common/DialogFooter.vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 
 const { notify } = useNotify();
 const {
@@ -727,6 +674,56 @@ const editForm = reactive({
   questions: [],
 });
 
+const createSection = ref("generate");
+const editSection = ref("details");
+const createDetailsError = ref(false);
+
+const createSections = computed(() => [
+  {
+    key: "generate",
+    label: "Generate",
+    icon: "mdi-auto-fix",
+    description: "Draft the quiz from a knowledge document, then review the questions.",
+  },
+  {
+    key: "details",
+    label: "Details",
+    icon: "mdi-text-box-outline",
+    error: createDetailsError.value,
+  },
+  {
+    key: "questions",
+    label: `Questions (${createForm.questions.length})`,
+    icon: "mdi-help-circle-outline",
+  },
+]);
+
+const editSections = computed(() => [
+  { key: "details", label: "Details", icon: "mdi-text-box-outline" },
+  {
+    key: "questions",
+    label: `Questions (${editForm.questions.length})`,
+    icon: "mdi-help-circle-outline",
+  },
+]);
+
+// Each opening starts at the first section, with no stale validation flag.
+watch(showCreateDialog, (open) => {
+  if (!open) return;
+  createSection.value = "generate";
+  createDetailsError.value = false;
+});
+watch(showEditDialog, (open) => {
+  if (open) editSection.value = "details";
+});
+
+watch(
+  () => [createForm.title, createForm.question_layout_id],
+  ([title, layout]) => {
+    if (title && layout) createDetailsError.value = false;
+  },
+);
+
 function statusColor(status) {
   const map = {
     draft: "blue",
@@ -753,6 +750,8 @@ async function fetchQuizzes() {
 }
 
 function onPageOptions({ page: newPage, itemsPerPage: newPerPage }) {
+  // The server table echoes its current options on mount; that repeats the mount fetch.
+  if (newPage === page.value && newPerPage === itemsPerPage.value) return;
   if (newPerPage !== itemsPerPage.value) {
     itemsPerPage.value = newPerPage;
     page.value = 1;
@@ -817,6 +816,7 @@ async function generateQuiz() {
       }));
     }
     notify.success(`Generated ${suggestion.questions?.length || 0} questions.`);
+    createSection.value = "questions";
   } catch (err) {
     notify.error("Failed to generate quiz: " + (err.message || err));
   } finally {
@@ -992,6 +992,8 @@ async function toggleExpand(event, { item }) {
 
 async function submitCreate() {
   if (!createForm.title || !createForm.question_layout_id) {
+    createDetailsError.value = true;
+    createSection.value = "details";
     notify.warning("Title and Layout are required.");
     return;
   }

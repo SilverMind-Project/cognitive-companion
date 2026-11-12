@@ -141,22 +141,25 @@
       </div>
     </div>
 
-    <v-dialog v-model="lightbox.open" max-width="900" scrollable>
-      <v-card v-if="lightbox.image">
-        <v-card-title class="d-flex align-center pa-4 pb-2">
-          <v-icon size="18" class="mr-2">mdi-camera</v-icon>
-          {{ cameraName }}
-          <v-spacer />
-          <v-btn icon="mdi-close" size="small" variant="text" @click="lightbox.open = false" />
-        </v-card-title>
-        <v-img :src="lightbox.image.url" max-height="600" contain class="mx-4">
+    <!-- Lightbox: large image viewer with prev/next -->
+    <AppDialog
+      :model-value="lightbox.open && !!lightbox.image"
+      size="lg"
+      icon="mdi-camera"
+      label="Retained image"
+      :title="cameraName"
+      hide-footer
+      @update:model-value="(open) => (lightbox.open = open)"
+    >
+      <template v-if="lightbox.image">
+        <v-img :src="lightbox.image.url" max-height="600" contain class="mx-4 mt-4">
           <template #placeholder>
             <div class="d-flex align-center justify-center lightbox-placeholder">
               <v-progress-circular indeterminate color="primary" />
             </div>
           </template>
         </v-img>
-        <v-card-text class="pt-3">
+        <div class="px-6 py-4">
           <v-row dense>
             <v-col cols="6">
               <div class="text-caption text-medium-emphasis">Captured</div>
@@ -173,8 +176,11 @@
               </div>
             </v-col>
           </v-row>
-        </v-card-text>
-        <v-card-actions class="px-4 pb-4">
+        </div>
+      </template>
+      <template #footer>
+        <v-divider />
+        <v-card-actions class="px-6 py-3">
           <v-btn
             variant="tonal"
             prepend-icon="mdi-chevron-left"
@@ -197,14 +203,15 @@
             Next
           </v-btn>
         </v-card-actions>
-      </v-card>
-    </v-dialog>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from "vue";
 import CcTimeSeriesChart from "@/components/charts/CcTimeSeriesChart.vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 import { useNotify } from "@/composables/useNotify.js";
 import { api } from "@/services/api.js";
 import { formatClockTime, formatDateTimeFull, formatDateTimeShort } from "@/services/timezone.js";

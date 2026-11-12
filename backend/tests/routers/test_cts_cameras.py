@@ -210,6 +210,46 @@ class TestUpdateCamera:
         assert r.json()["enabled"] is False
 
 
+class TestFaceRawSimilarityFloor:
+    def test_floor_defaults_to_unset(self, client: TestClient):
+        body = client.post("/api/v1/cts/cameras", json=CAMERA).json()
+        assert body["face_id_min_raw_similarity"] is None
+        assert "face_id_min_confidence" not in body
+
+    def test_floor_round_trips_and_clears(self, client: TestClient):
+        client.post("/api/v1/cts/cameras", json={**CAMERA, "face_id_min_raw_similarity": 0.55})
+        assert (
+            client.get("/api/v1/cts/cameras/kitchen-cam-1").json()["face_id_min_raw_similarity"]
+            == 0.55
+        )
+
+        r = client.patch(
+            "/api/v1/cts/cameras/kitchen-cam-1", json={"face_id_min_raw_similarity": None}
+        )
+
+        assert r.status_code == 200
+        assert r.json()["face_id_min_raw_similarity"] is None
+        listed = client.get("/api/v1/cts/cameras").json()
+        assert listed[0]["face_id_min_raw_similarity"] is None
+
+    @pytest.mark.parametrize("value", [-0.1, 1.5])
+    def test_out_of_range_floor_returns_422(self, client: TestClient, value: float):
+        r = client.post("/api/v1/cts/cameras", json={**CAMERA, "face_id_min_raw_similarity": value})
+        assert r.status_code == 422
+        client.post("/api/v1/cts/cameras", json=CAMERA)
+        r = client.patch(
+            "/api/v1/cts/cameras/kitchen-cam-1", json={"face_id_min_raw_similarity": value}
+        )
+        assert r.status_code == 422
+
+    def test_old_field_name_is_rejected(self, client: TestClient):
+        r = client.post("/api/v1/cts/cameras", json={**CAMERA, "face_id_min_confidence": 0.6})
+        assert r.status_code == 422
+        client.post("/api/v1/cts/cameras", json=CAMERA)
+        r = client.patch("/api/v1/cts/cameras/kitchen-cam-1", json={"face_id_min_confidence": 0.6})
+        assert r.status_code == 422
+
+
 class TestDeleteCamera:
     def test_delete_existing(self, client: TestClient):
         client.post("/api/v1/cts/cameras", json=CAMERA)

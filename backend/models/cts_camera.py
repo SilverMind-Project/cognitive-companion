@@ -9,7 +9,17 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,6 +29,13 @@ from backend.core.time import UTCDateTime
 
 class CtsCamera(Base):
     __tablename__ = "cts_cameras"
+    __table_args__ = (
+        CheckConstraint(
+            "face_id_min_raw_similarity IS NULL "
+            "OR (face_id_min_raw_similarity >= 0 AND face_id_min_raw_similarity <= 1)",
+            name="ck_cts_cameras_face_id_min_raw_similarity_range",
+        ),
+    )
 
     # Operator-assigned stable ID (e.g. "kitchen-cam-1").
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
@@ -36,9 +53,13 @@ class CtsCamera(Base):
     rotation_degrees: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Face identification: set to false for top-down cameras where faces
-    # are never visible.  min_confidence overrides the orchestrator default.
+    # are never visible.
     face_id_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    face_id_min_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Optional floor on the raw ArcFace cosine similarity (not a probability) for
+    # recognized faces on this camera; NULL means none. An operator escape hatch for a
+    # camera that produces bad matches: CTS weighs faces by calibrated confidence, so a
+    # floor normally stays unset.
+    face_id_min_raw_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Camera role: face_capable (has usable face angles), surveillance
     # (top-down or overview), or mixed (partial face visibility).

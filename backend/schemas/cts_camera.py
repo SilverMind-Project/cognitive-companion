@@ -36,10 +36,18 @@ class CtsCameraFields(BaseModel):
         return v
 
     # Face identification: set enabled=false for top-down cameras where
-    # faces are never visible.  min_confidence overrides the orchestrator
-    # default (higher = stricter matching).
+    # faces are never visible.
     face_id_enabled: bool = True
-    face_id_min_confidence: float | None = None
+    face_id_min_raw_similarity: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Optional floor on the raw ArcFace cosine similarity of recognized faces on this "
+            "camera. Leave unset: the tracker weighs faces by calibrated confidence. Set only "
+            "to silence a camera that produces bad face matches."
+        ),
+    )
     role: str = Field(default="surveillance", pattern="^(face_capable|surveillance|mixed)$")
 
     horizontal_fov_deg: float | None = Field(
@@ -79,7 +87,7 @@ class CtsCameraUpdate(BaseModel):
     floor_plan_key: str | None = None
     rotation_degrees: int | None = Field(default=None, ge=0, le=270)
     face_id_enabled: bool | None = None
-    face_id_min_confidence: float | None = None
+    face_id_min_raw_similarity: float | None = Field(default=None, ge=0.0, le=1.0)
     role: str | None = Field(default=None, pattern="^(face_capable|surveillance|mixed)$")
     horizontal_fov_deg: float | None = Field(default=None, ge=20.0, le=180.0)
     mounting_height_m: float | None = Field(default=None, ge=0.1, le=10.0)

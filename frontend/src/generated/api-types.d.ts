@@ -3862,7 +3862,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Member
-         * @description Remove a household member.
+         * @description Remove a household member and purge associated enrollment/tracking anchors.
          */
         delete: operations["delete_member"];
         options?: never;
@@ -6571,8 +6571,11 @@ export interface components {
              * @default true
              */
             face_id_enabled: boolean;
-            /** Face Id Min Confidence */
-            face_id_min_confidence?: number | null;
+            /**
+             * Face Id Min Raw Similarity
+             * @description Optional floor on the raw ArcFace cosine similarity of recognized faces on this camera. Leave unset: the tracker weighs faces by calibrated confidence. Set only to silence a camera that produces bad face matches.
+             */
+            face_id_min_raw_similarity?: number | null;
             /** Floor Plan Key */
             floor_plan_key?: string | null;
             /**
@@ -6635,8 +6638,11 @@ export interface components {
              * @default true
              */
             face_id_enabled: boolean;
-            /** Face Id Min Confidence */
-            face_id_min_confidence?: number | null;
+            /**
+             * Face Id Min Raw Similarity
+             * @description Optional floor on the raw ArcFace cosine similarity of recognized faces on this camera. Leave unset: the tracker weighs faces by calibrated confidence. Set only to silence a camera that produces bad face matches.
+             */
+            face_id_min_raw_similarity?: number | null;
             /** Floor Plan Key */
             floor_plan_key?: string | null;
             /** Frame Natural Height */
@@ -6725,8 +6731,8 @@ export interface components {
             enabled?: boolean | null;
             /** Face Id Enabled */
             face_id_enabled?: boolean | null;
-            /** Face Id Min Confidence */
-            face_id_min_confidence?: number | null;
+            /** Face Id Min Raw Similarity */
+            face_id_min_raw_similarity?: number | null;
             /** Floor Plan Key */
             floor_plan_key?: string | null;
             /** Horizontal Fov Deg */

@@ -3318,16 +3318,19 @@
             "title": "Face Id Enabled",
             "type": "boolean"
           },
-          "face_id_min_confidence": {
+          "face_id_min_raw_similarity": {
             "anyOf": [
               {
+                "maximum": 1.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Face Id Min Confidence"
+            "description": "Optional floor on the raw ArcFace cosine similarity of recognized faces on this camera. Leave unset: the tracker weighs faces by calibrated confidence. Set only to silence a camera that produces bad face matches.",
+            "title": "Face Id Min Raw Similarity"
           },
           "floor_plan_key": {
             "anyOf": [
@@ -3483,16 +3486,19 @@
             "title": "Face Id Enabled",
             "type": "boolean"
           },
-          "face_id_min_confidence": {
+          "face_id_min_raw_similarity": {
             "anyOf": [
               {
+                "maximum": 1.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Face Id Min Confidence"
+            "description": "Optional floor on the raw ArcFace cosine similarity of recognized faces on this camera. Leave unset: the tracker weighs faces by calibrated confidence. Set only to silence a camera that produces bad face matches.",
+            "title": "Face Id Min Raw Similarity"
           },
           "floor_plan_key": {
             "anyOf": [
@@ -3816,16 +3822,18 @@
             ],
             "title": "Face Id Enabled"
           },
-          "face_id_min_confidence": {
+          "face_id_min_raw_similarity": {
             "anyOf": [
               {
+                "maximum": 1.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Face Id Min Confidence"
+            "title": "Face Id Min Raw Similarity"
           },
           "floor_plan_key": {
             "anyOf": [
@@ -30428,7 +30436,7 @@
     },
     "/api/v1/persons/{person_id}": {
       "delete": {
-        "description": "Remove a household member.",
+        "description": "Remove a household member and purge associated enrollment/tracking anchors.",
         "operationId": "delete_member",
         "parameters": [
           {

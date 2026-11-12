@@ -157,14 +157,14 @@
           />
           <v-text-field
             v-if="form.face_id_enabled"
-            v-model.number="form.face_id_min_confidence"
-            label="Min confidence (optional)"
+            v-model.number="form.face_id_min_raw_similarity"
+            label="Minimum raw face similarity (advanced, leave empty)"
             variant="outlined"
             type="number"
             min="0"
             max="1"
             step="0.05"
-            hint="Higher values require stronger face matches. Leave empty for system default (0.4)."
+            hint="Faces are weighed by calibrated confidence. Set a value only to ignore weak face matches from a camera that misidentifies people."
             persistent-hint
             density="compact"
           />
@@ -434,6 +434,14 @@ const headers = [
   { title: "", key: "actions", sortable: false, align: "end" },
 ];
 
+// Optional numeric fields: a cleared number input yields "", which the API rejects; send null.
+const OPTIONAL_NUMBER_FIELDS = [
+  "face_id_min_raw_similarity",
+  "horizontal_fov_deg",
+  "mounting_height_m",
+  "tilt_deg",
+];
+
 const emptyForm = () => ({
   id: "",
   name: "",
@@ -442,7 +450,7 @@ const emptyForm = () => ({
   room_id: null,
   enabled: true,
   face_id_enabled: true,
-  face_id_min_confidence: null,
+  face_id_min_raw_similarity: null,
   role: "surveillance",
   horizontal_fov_deg: null,
   mounting_height_m: null,
@@ -492,7 +500,7 @@ function openEdit(cam) {
     room_id: cam.room_id ?? null,
     enabled: cam.enabled,
     face_id_enabled: cam.face_id_enabled !== false,
-    face_id_min_confidence: cam.face_id_min_confidence ?? null,
+    face_id_min_raw_similarity: cam.face_id_min_raw_similarity ?? null,
     role: cam.role || "surveillance",
     horizontal_fov_deg: cam.horizontal_fov_deg ?? null,
     mounting_height_m: cam.mounting_height_m ?? null,
@@ -505,6 +513,9 @@ async function saveCamera() {
   saving.value = true;
   try {
     const payload = { ...form.value };
+    for (const key of OPTIONAL_NUMBER_FIELDS) {
+      if (payload[key] === "") payload[key] = null;
+    }
     if (useCustomName.value) {
       payload.room_id = null;
       if (!payload.room_name?.trim()) {

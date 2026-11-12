@@ -5,8 +5,9 @@ import { ref } from "vue";
 const mocks = vi.hoisted(() => ({
   getCameras: vi.fn(),
   getSnapshot: vi.fn(),
-  applyCorrection: vi.fn(),
   notifyInfo: vi.fn(),
+  notifySuccess: vi.fn(),
+  notifyError: vi.fn(),
   wsStatus: { __v_isRef: true, value: "open" },
 }));
 
@@ -16,7 +17,6 @@ vi.mock("@/services/cts", () => ({
   cts: {
     getCameras: (...a) => mocks.getCameras(...a),
     getSnapshot: (...a) => mocks.getSnapshot(...a),
-    applyCorrection: (...a) => mocks.applyCorrection(...a),
   },
 }));
 
@@ -52,12 +52,27 @@ vi.mock("@/composables/useNotify.js", async (importOriginal) => ({
   ...(await importOriginal()),
   // Same shape as useNotify().notify: callable, with per-severity methods.
   useNotify: () => ({
-    notify: Object.assign(vi.fn(), { info: mocks.notifyInfo, error: vi.fn(), success: vi.fn() }),
+    notify: Object.assign(vi.fn(), {
+      info: mocks.notifyInfo,
+      error: mocks.notifyError,
+      success: mocks.notifySuccess,
+    }),
   }),
 }));
 
 vi.mock("@/components/marauders/MaraudersInkBox.vue", () => ({
   default: { template: "<g />", props: ["x", "y", "w", "h", "seedKey", "color"] },
+}));
+
+// The shared correction workflow has its own spec; here only its wiring into the live view matters.
+vi.mock("@/components/cts/identity/IdentityCorrectionWorkflow.vue", () => ({
+  default: {
+    name: "IdentityCorrectionWorkflow",
+    props: ["phId", "frameCapturedAt", "sourceView", "defaultScope"],
+    emits: ["applied", "close"],
+    template:
+      "<div class='mock-workflow'><button class='mock-apply' @click=\"$emit('applied', { revision_id: 'r1' })\">apply</button></div>",
+  },
 }));
 
 vi.mock("@/components/cts/BlurToggle.vue", () => ({
@@ -118,6 +133,7 @@ const CAM1_FRAME = {
   frame_width: 1920,
   frame_height: 1080,
   room_name: "Kitchen",
+  event_time: "2026-11-12T22:40:00.000000+00:00",
   detections: [
     {
       detection_id: "d1",
@@ -139,7 +155,6 @@ beforeEach(() => {
     { id: "cam2", name: "Hallway Cam" },
   ]);
   mocks.getSnapshot.mockResolvedValue("blob:snapshot-url");
-  mocks.applyCorrection.mockResolvedValue({});
   localStorage.clear();
 });
 
@@ -192,7 +207,7 @@ describe("CTSLiveView", () => {
     expect(wrapper.text()).toContain("alice");
   });
 
-  it("clicking a detection bbox opens the correction dialog pre-filled, and submitting applies it", async () => {
+  it("clicking a tracked person opens the shared correction workflow at that frame", async () => {
     const wrapper = mountView();
     await flushPromises();
     capturedOnMessage(CAM1_FRAME);
@@ -201,23 +216,40 @@ describe("CTSLiveView", () => {
     await wrapper.find("rect").trigger("click");
     await flushPromises();
 
-    expect(wrapper.text()).toContain("ph1");
+    // No free-text identity field: the household selector lives in the shared workflow.
+    expect(
+      wrapper.findAll("input").some((i) => i.attributes("placeholder")?.includes("UNKNOWN")),
+    ).toBe(false);
     expect(wrapper.text()).toContain("cam1");
     expect(wrapper.text()).toContain("alice");
+    const workflow = wrapper.findComponent({ name: "IdentityCorrectionWorkflow" });
+    expect(workflow.props()).toMatchObject({
+      phId: "ph1",
+      frameCapturedAt: CAM1_FRAME.event_time,
+      sourceView: "live_view",
+      defaultScope: "segment",
+    });
 
-    const inputs = wrapper.findAll("input");
-    const newIdInput = inputs.find((i) => i.attributes("placeholder")?.includes("UNKNOWN"));
-    await newIdInput.setValue("bob");
+    await wrapper.find(".mock-apply").trigger("click");
+    await flushPromises();
+    expect(mocks.notifySuccess).toHaveBeenCalledWith("Identity corrected");
+    expect(wrapper.findComponent({ name: "IdentityCorrectionWorkflow" }).exists()).toBe(false);
+  });
 
-    const applyBtn = wrapper.findAll("button").find((b) => b.text().includes("Apply override"));
-    await applyBtn.trigger("click");
+  it("explains instead of opening a correction for a detection with no track", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    capturedOnMessage({
+      ...CAM1_FRAME,
+      detections: [{ ...CAM1_FRAME.detections[0], ph_id: null }],
+    });
     await flushPromises();
 
-    expect(mocks.applyCorrection).toHaveBeenCalledWith({
-      ph_id: "ph1",
-      new_identity_id: "bob",
-      reason: "manual",
-    });
+    await wrapper.find("rect").trigger("click");
+    await flushPromises();
+
+    expect(mocks.notifyError).toHaveBeenCalled();
+    expect(wrapper.findComponent({ name: "IdentityCorrectionWorkflow" }).exists()).toBe(false);
   });
 
   it("shows the cross-camera banner once the same identity appears on 2+ cameras", async () => {

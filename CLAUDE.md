@@ -97,6 +97,10 @@ buffer and rate-limit telemetry across both aggregation paths.
 - **Face wire contract:** `backend/integrations/person_id_client.py` consumes
   person-identification-service; a `FaceDetection` field change lands in both repositories
   together.
+- **Privacy zones:** CTS keeps zones only in memory and restores each camera's `privacy_zones`
+  from `GET /api/v1/cts/cameras` at startup and on every config sync, so that field is part of
+  the CTS contract. `PrivacyZoneIn`/`PrivacyZoneOut.policy` mirror CTS `PrivacyPolicy`; change
+  both together.
 - **Signal kinds:** wire kinds come from `cts-contracts`; CC-local kinds live in
   `backend/services/cts/signal_config.py`.
 

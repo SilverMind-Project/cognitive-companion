@@ -3673,6 +3673,14 @@
             "title": "Privacy Zone Count",
             "type": "integer"
           },
+          "privacy_zones": {
+            "description": "The camera's saved privacy zones. The tracking orchestrator keeps zones only in memory and restores them from this list at startup and on every config sync.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyZoneOut"
+            },
+            "title": "Privacy Zones",
+            "type": "array"
+          },
           "role": {
             "default": "surveillance",
             "pattern": "^(face_capable|surveillance|mixed)$",
@@ -11144,6 +11152,51 @@
           "policy"
         ],
         "title": "PrivacyZoneIn",
+        "type": "object"
+      },
+      "PrivacyZoneOut": {
+        "description": "A saved privacy zone: a normalized image-space polygon and what the tracker does inside it.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "policy": {
+            "enum": [
+              "drop_detection",
+              "blur_region",
+              "mask_region"
+            ],
+            "title": "Policy",
+            "type": "string"
+          },
+          "polygon": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Polygon",
+            "type": "array"
+          },
+          "zone_id": {
+            "title": "Zone Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "zone_id",
+          "polygon",
+          "policy"
+        ],
+        "title": "PrivacyZoneOut",
         "type": "object"
       },
       "PrivacyZonesRequest": {
@@ -19985,7 +20038,7 @@
     },
     "/api/v1/cts/calibration/privacy_zones": {
       "post": {
-        "description": "Replace all privacy zones for a camera, applying them to the tracker before saving.\n\nThe zones are pushed to the orchestrator first and saved here only once it has\naccepted them, so a 204 means the running tracker applied them. An orchestrator\nfailure is returned as 502/503/504 with nothing saved, and the operator can retry;\nreporting a zone as saved while the tracker ignores it would break the privacy\npromise. The orchestrator keeps zones in memory, so they must be pushed again\nafter it restarts.",
+        "description": "Replace all privacy zones for a camera, applying them to the tracker before saving.\n\nThe zones are pushed to the orchestrator first and saved here only once it has\naccepted them, so a 204 means the running tracker applied them. An orchestrator\nfailure is returned as 502/503/504 with nothing saved, and the operator can retry;\nreporting a zone as saved while the tracker ignores it would break the privacy\npromise. The orchestrator keeps zones only in memory; after a restart it restores\nthem from each camera's ``privacy_zones`` in ``GET /cts/cameras``, which this save\nupdates, and its config sync re-applies that list on every poll.",
         "operationId": "post_privacy_zones",
         "requestBody": {
           "content": {

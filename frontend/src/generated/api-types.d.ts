@@ -821,8 +821,9 @@ export interface paths {
          *     accepted them, so a 204 means the running tracker applied them. An orchestrator
          *     failure is returned as 502/503/504 with nothing saved, and the operator can retry;
          *     reporting a zone as saved while the tracker ignores it would break the privacy
-         *     promise. The orchestrator keeps zones in memory, so they must be pushed again
-         *     after it restarts.
+         *     promise. The orchestrator keeps zones only in memory; after a restart it restores
+         *     them from each camera's ``privacy_zones`` in ``GET /cts/cameras``, which this save
+         *     updates, and its config sync re-applies that list on every poll.
          */
         post: operations["post_privacy_zones"];
         delete?: never;
@@ -6696,6 +6697,11 @@ export interface components {
             /** Privacy Zone Count */
             privacy_zone_count: number;
             /**
+             * Privacy Zones
+             * @description The camera's saved privacy zones. The tracking orchestrator keeps zones only in memory and restores them from this list at startup and on every config sync.
+             */
+            privacy_zones?: components["schemas"]["PrivacyZoneOut"][];
+            /**
              * Role
              * @default surveillance
              */
@@ -9369,6 +9375,31 @@ export interface components {
         };
         /** PrivacyZoneIn */
         PrivacyZoneIn: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Policy
+             * @enum {string}
+             */
+            policy: "drop_detection" | "blur_region" | "mask_region";
+            /** Polygon */
+            polygon: number[][];
+            /** Zone Id */
+            zone_id: string;
+        };
+        /**
+         * PrivacyZoneOut
+         * @description A saved privacy zone: a normalized image-space polygon and what the tracker does inside it.
+         */
+        PrivacyZoneOut: {
             /**
              * Enabled
              * @default true

@@ -1,4 +1,4 @@
-"""Learned camera transitions are proxied read-only from the tracking orchestrator."""
+"""Learned camera handoffs are proxied read-only from the tracking orchestrator."""
 
 from __future__ import annotations
 
@@ -24,10 +24,8 @@ _PAYLOAD = {
             "mean_transit_s": 6.5,
             "std_transit_s": 1.2,
             "last_updated_at": "2026-11-14T10:00:00Z",
-            "gates_revival": True,
         }
     ],
-    "min_observations_to_gate": 3,
 }
 
 
@@ -54,9 +52,8 @@ def client(orchestrator: MagicMock) -> Iterator[TestClient]:
 def test_transitions_are_returned(client: TestClient) -> None:
     body = client.get("/api/v1/cts/topology/transitions").json()
 
-    assert body["min_observations_to_gate"] == 3
     assert body["transitions"][0]["from_camera"] == "side-corridor"
-    assert body["transitions"][0]["gates_revival"] is True
+    assert body["transitions"][0]["observation_count"] == 7
 
 
 def test_orchestrator_unavailable_is_503(client: TestClient, orchestrator: MagicMock) -> None:

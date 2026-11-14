@@ -234,7 +234,7 @@ class OrchestratorClient(UpstreamClient):
         return r.json()
 
     async def learned_transitions(self) -> dict:
-        """Camera-to-camera walk times CTS learned from handoffs (read-only)."""
+        """Camera-to-camera handoff counts and delays CTS learned (read-only)."""
         r = await self._request("GET", "/internal/topology/transitions")
         return r.json()
 

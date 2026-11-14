@@ -321,9 +321,9 @@ Three different camera relationships, each with one owner. The tracking orchestr
 | `GET`, `POST` | `/cts/overlap_groups` | Shared views: sets of cameras that see the same floor area at the same time. Create rejects unknown or repeated camera ids with 422. Permissions: `cts.cameras.read`, `cts.cameras.write` |
 | `DELETE` | `/cts/overlap_groups/{group_id}` | Delete a shared view; 404 when absent |
 | `GET` | `/cts/overlap_groups/suggested` | Groups suggested from calibrated cameras whose visibility polygons overlap (coverage IoU at least 0.05), each with `declared` when an existing group already covers it, plus `uncalibrated_camera_ids`. Nothing is saved |
-| `GET` | `/cts/topology/transitions` | Read-only walk times CTS learned between cameras (`observation_count`, `mean_transit_s`, `std_transit_s`, `gates_revival`); 503 when the orchestrator is unreachable |
+| `GET` | `/cts/topology/transitions` | Read-only handoffs CTS learned per ordered camera pair (`observation_count`, and `mean_transit_s`/`std_transit_s` of the delay between the earlier track's close and the new sighting, which is not a walk time); 503 when the orchestrator is unreachable |
 
-There is no operator-edited adjacency graph: walk times are learned, and cameras that overlap are declared as shared views.
+There is no operator-edited adjacency graph: cameras that overlap are declared as shared views, and cameras along a walking route need no configuration.
 
 ### CTS analytics
 

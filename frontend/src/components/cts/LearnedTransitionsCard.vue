@@ -1,25 +1,25 @@
 <template>
   <v-card class="glass-card">
-    <v-card-title class="text-body-1">Learned Transitions</v-card-title>
+    <v-card-title class="text-body-1">Camera Handoffs</v-card-title>
     <v-card-subtitle class="text-caption text-wrap">
-      How long people take to walk from one camera's view to another's, learned from tracking. A
-      pair checks new handoffs once it has {{ minObservations }} or more walks: a crossing much
-      faster than usual is not treated as the same person. Nothing to edit here.
+      How often tracking has handed a person from one camera to another, and how long after the
+      first camera's track closed the person was picked up again. Learned automatically; nothing to
+      edit, and it does not change how tracking decides.
     </v-card-subtitle>
     <v-divider class="mt-2" />
     <div v-if="error" class="pa-4 text-body-2 text-medium-emphasis">
-      Tracking is not reachable, so learned transitions cannot be shown.
+      Tracking is not reachable, so handoffs cannot be shown.
     </div>
     <div v-else-if="!transitions.length" class="pa-4 text-body-2 text-medium-emphasis">
-      No transitions learned yet. They appear after people walk between cameras.
+      No handoffs yet. They appear after people move between cameras.
     </div>
     <v-table v-else density="compact">
       <thead>
         <tr>
           <th>From</th>
           <th>To</th>
-          <th class="text-right">Usual walk</th>
-          <th class="text-right">Walks seen</th>
+          <th class="text-right">Handoffs</th>
+          <th class="text-right">Picked up after close</th>
         </tr>
       </thead>
       <tbody>
@@ -30,15 +30,10 @@
         >
           <td>{{ name(t.from_camera) }}</td>
           <td>{{ name(t.to_camera) }}</td>
+          <td class="text-right">{{ t.observation_count }}</td>
           <td class="text-right">
             {{ t.mean_transit_s.toFixed(1) }} s
             <span class="text-medium-emphasis">± {{ t.std_transit_s.toFixed(1) }}</span>
-          </td>
-          <td class="text-right">
-            {{ t.observation_count }}
-            <span v-if="!t.gates_revival" class="text-caption text-medium-emphasis">
-              (learning)
-            </span>
           </td>
         </tr>
       </tbody>
@@ -56,7 +51,6 @@ const props = defineProps({
 });
 
 const transitions = ref([]);
-const minObservations = ref(3);
 const error = ref(false);
 
 function name(id) {
@@ -65,9 +59,7 @@ function name(id) {
 
 onMounted(async () => {
   try {
-    const body = await cts.getLearnedTransitions();
-    transitions.value = body.transitions || [];
-    minObservations.value = body.min_observations_to_gate;
+    transitions.value = (await cts.getLearnedTransitions()).transitions || [];
   } catch (err) {
     console.warn("cts_learned_transitions_load_failed", err);
     error.value = true;

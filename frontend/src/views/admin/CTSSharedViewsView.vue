@@ -15,7 +15,7 @@
       <strong>shared view</strong> says several cameras look at the same place at the same moment.
       Two calibrated cameras already agree through the floor plan; a shared view matters whenever
       one of the cameras is not calibrated. Cameras you walk between, without seeing the same spot,
-      need nothing here: tracking learns those transitions.
+      need nothing here.
     </v-alert>
 
     <v-row>

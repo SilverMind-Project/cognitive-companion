@@ -8902,10 +8902,6 @@
             "title": "From Camera",
             "type": "string"
           },
-          "gates_revival": {
-            "title": "Gates Revival",
-            "type": "boolean"
-          },
           "last_updated_at": {
             "anyOf": [
               {
@@ -8941,18 +8937,13 @@
           "observation_count",
           "mean_transit_s",
           "std_transit_s",
-          "last_updated_at",
-          "gates_revival"
+          "last_updated_at"
         ],
         "title": "LearnedTransitionOut",
         "type": "object"
       },
       "LearnedTransitionsOut": {
         "properties": {
-          "min_observations_to_gate": {
-            "title": "Min Observations To Gate",
-            "type": "integer"
-          },
           "transitions": {
             "items": {
               "$ref": "#/components/schemas/LearnedTransitionOut"
@@ -8962,8 +8953,7 @@
           }
         },
         "required": [
-          "transitions",
-          "min_observations_to_gate"
+          "transitions"
         ],
         "title": "LearnedTransitionsOut",
         "type": "object"
@@ -24710,7 +24700,7 @@
     },
     "/api/v1/cts/topology/transitions": {
       "get": {
-        "description": "Return the walk times CTS has learned between cameras, most observed first.",
+        "description": "Return the handoffs CTS has learned between cameras, most observed first.",
         "operationId": "learned_transitions",
         "responses": {
           "200": {

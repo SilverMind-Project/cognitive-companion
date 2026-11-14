@@ -3,7 +3,7 @@
 Homography computation now runs in the tracking orchestrator.  The CC router
 is a thin proxy that delegates to orchestrator.fit_homography() and persists
 the result to the local DB.  These tests validate the proxy contract and the
-endpoints that remain in CC (privacy zones, auto-calibrate).
+endpoints that remain in CC (privacy zones, calibration removal, auto-calibrate).
 
 Pure-function tests for compute_homography / FloorPlaneFitter / AutoCalibrator
 live in the orchestrator's own test suite.
@@ -443,6 +443,56 @@ class TestPrivacyZonesEndpoint:
             json={"camera_id": "ghost", "zones": [ZONE]},
         )
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Calibration removal
+# ---------------------------------------------------------------------------
+
+
+class TestRemoveCalibration:
+    def test_remove_clears_the_matrix_and_what_was_derived_from_it(
+        self, client: TestClient, camera_id: str, db_session: Session
+    ):
+        from backend.models.cts_camera import CtsCamera
+
+        assert (
+            client.post(
+                "/api/v1/cts/calibration/homography", json=_homography_payload(camera_id)
+            ).status_code
+            == 200
+        )
+        db_session.expire_all()
+        cam = db_session.get(CtsCamera, camera_id)
+        cam.floor_region_polygon = _FLOOR_REGION
+        cam.marker_x_norm = 0.4
+        cam.needs_recalibration = True
+        db_session.commit()
+
+        r = client.delete(f"/api/v1/cts/calibration/homography/{camera_id}")
+
+        assert r.status_code == 204
+        db_session.expire_all()
+        cam = db_session.get(CtsCamera, camera_id)
+        assert cam.homography is None
+        assert cam.homography_matrix is None
+        assert cam.homography_residual_m is None
+        assert cam.homography_set_at is None
+        assert cam.visibility_polygon is None
+        assert cam.needs_recalibration is False
+        assert cam.calibration_ref_key is None
+        # Independent of the matrix: kept for the next calibration.
+        assert cam.floor_region_polygon == _FLOOR_REGION
+        assert cam.marker_x_norm == pytest.approx(0.4)
+        assert client.get(f"/api/v1/cts/calibration/homography/{camera_id}").status_code == 404
+
+    def test_remove_uncalibrated_camera_returns_404(self, client: TestClient, camera_id: str):
+        r = client.delete(f"/api/v1/cts/calibration/homography/{camera_id}")
+        assert r.status_code == 404
+        assert r.json()["detail"]["code"] == "cts.calibration.no_homography"
+
+    def test_remove_missing_camera_returns_404(self, client: TestClient):
+        assert client.delete("/api/v1/cts/calibration/homography/ghost").status_code == 404
 
 
 # ---------------------------------------------------------------------------

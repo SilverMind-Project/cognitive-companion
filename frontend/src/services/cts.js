@@ -62,6 +62,8 @@ export const cts = {
       body: JSON.stringify({ points }),
     }),
   getHomography: (camera_id) => req(`/calibration/homography/${camera_id}`),
+  deleteHomography: (camera_id) =>
+    req(`/calibration/homography/${encodeURIComponent(camera_id)}`, { method: "DELETE" }),
   autoCalibrate: (camera_id, body) =>
     req(`/calibration/auto/${camera_id}`, {
       method: "POST",

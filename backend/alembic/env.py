@@ -136,8 +136,7 @@ def _widen_existing_version_table(connection) -> None:
     if current_length is None or current_length >= VERSION_NUM_LENGTH:
         return
     connection.exec_driver_sql(
-        f"ALTER TABLE alembic_version ALTER COLUMN version_num "
-        f"TYPE VARCHAR({VERSION_NUM_LENGTH})"
+        f"ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR({VERSION_NUM_LENGTH})"
     )
 
 

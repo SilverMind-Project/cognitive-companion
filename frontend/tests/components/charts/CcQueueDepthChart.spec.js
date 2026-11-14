@@ -111,13 +111,30 @@ describe("CcQueueDepthChart", () => {
     expect(wrapper.find('[data-testid="v-chart"]').exists()).toBe(false);
   });
 
-  it("computes pressure colors from theme tokens", () => {
+  it("computes eligible share and avoids warning state when rate limiter accounts for non-eligible images", () => {
     const wrapper = mount(CcQueueDepthChart, {
       props: { cameras, theme: TOKEN_THEME },
       global: { stubs },
     });
 
-    expect(wrapper.vm.pressureColor(cameras[0])).toBe("var(--cc-warning)");
+    expect(wrapper.vm.eligibleShare(cameras[0])).toBe(90);
+    expect(wrapper.vm.pressureColor(cameras[0])).toBe("var(--cc-success)");
+    expect(wrapper.vm.chartOption.series[1].name).toBe("Image eligibility");
+    expect(wrapper.vm.chartOption.series[1].data[0].value).toBe(90);
     expect(wrapper.vm.chartOption.series[1].data[0].itemStyle.color).not.toMatch(/^#/);
+  });
+
+  it("shows warning color only when zero frames are eligible despite rate-limited arrivals", () => {
+    const blockedCamera = {
+      ...cameras[0],
+      images_eligible_total: 0,
+      images_dropped_total: 25,
+    };
+    const wrapper = mount(CcQueueDepthChart, {
+      props: { cameras: [blockedCamera], theme: TOKEN_THEME },
+      global: { stubs },
+    });
+
+    expect(wrapper.vm.pressureColor(blockedCamera)).toBe("var(--cc-warning)");
   });
 });

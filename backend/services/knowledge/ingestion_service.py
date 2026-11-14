@@ -126,7 +126,9 @@ class KnowledgeIngestionService:
         finally:
             db.close()
 
-    def list_documents_by_tags(self, tags: list[str], *, limit: int = 50) -> list[KnowledgeDocument]:
+    def list_documents_by_tags(
+        self, tags: list[str], *, limit: int = 50
+    ) -> list[KnowledgeDocument]:
         """Documents carrying every tag in ``tags`` (AND match), newest first.
 
         Used for DL-M05 resident-preference recall (``tags=["resident_preference",

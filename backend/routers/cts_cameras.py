@@ -343,7 +343,12 @@ async def get_health(
     if not cam:
         raise NotFoundError("Camera", camera_id)
     try:
-        health = await ingress.stream_health(camera_id=camera_id)
+        raw_health = await ingress.stream_health(camera_id=camera_id)
+        health = {
+            "last_frame_age_s": None,
+            "fetch_backoff_s": 0.0,
+            **raw_health,
+        }
         # Persist latest health snapshot for the UI to read without polling ingress.
         cam.health_json = health
         db.commit()

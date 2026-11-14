@@ -75,7 +75,9 @@ def test_rule_has_dementia_signal_filter_scoped_to_same_clothes_suspected(
 def test_rule_has_expected_steps(imported_rule, db_session):
     steps = {
         s.label: s
-        for s in db_session.query(PipelineStep).filter(PipelineStep.rule_id == imported_rule.id).all()
+        for s in db_session.query(PipelineStep)
+        .filter(PipelineStep.rule_id == imported_rule.id)
+        .all()
     }
     assert set(steps) == {
         "media_presign_1",
@@ -106,16 +108,22 @@ def test_rule_has_expected_steps(imported_rule, db_session):
 def test_rule_wires_both_branches_of_no_dwell_check(imported_rule, db_session):
     steps = {
         s.label: s
-        for s in db_session.query(PipelineStep).filter(PipelineStep.rule_id == imported_rule.id).all()
+        for s in db_session.query(PipelineStep)
+        .filter(PipelineStep.rule_id == imported_rule.id)
+        .all()
     }
     edges = db_session.query(PipelineEdge).filter(PipelineEdge.rule_id == imported_rule.id).all()
 
     no_dwell_check = steps["no_dwell_check"]
     true_targets = {
-        e.target_step_id for e in edges if e.source_step_id == no_dwell_check.id and e.source_port == "true"
+        e.target_step_id
+        for e in edges
+        if e.source_step_id == no_dwell_check.id and e.source_port == "true"
     }
     false_targets = {
-        e.target_step_id for e in edges if e.source_step_id == no_dwell_check.id and e.source_port == "false"
+        e.target_step_id
+        for e in edges
+        if e.source_step_id == no_dwell_check.id and e.source_port == "false"
     }
     assert true_targets == {steps["emit_hygiene_signal"].id, steps["alert_missed_hygiene"].id}
     assert false_targets == {steps["alert_washed_up"].id}
@@ -125,7 +133,9 @@ def test_same_outfit_check_false_branch_has_no_outgoing_edge(imported_rule, db_s
     """VLM-disagree branch: the rule ends with no notification (Part D step 8)."""
     steps = {
         s.label: s
-        for s in db_session.query(PipelineStep).filter(PipelineStep.rule_id == imported_rule.id).all()
+        for s in db_session.query(PipelineStep)
+        .filter(PipelineStep.rule_id == imported_rule.id)
+        .all()
     }
     edges = db_session.query(PipelineEdge).filter(PipelineEdge.rule_id == imported_rule.id).all()
     same_outfit_check = steps["same_outfit_check"]

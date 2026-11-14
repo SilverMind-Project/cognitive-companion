@@ -89,16 +89,20 @@
         <CcMetricTile label="Image-eligible" :value="kpis.eligible" />
       </v-col>
       <v-col cols="12" sm="6" lg="3">
-        <CcMetricTile label="Dropped" :value="kpis.dropped" />
+        <CcMetricTile
+          label="Rate-limited images"
+          :value="kpis.dropped"
+          title="Images above the per-camera rate for AI analysis. Tracking still used every frame."
+        />
       </v-col>
     </v-row>
 
     <v-card class="glass-card mb-6">
       <v-card-title class="d-flex align-center">
         <div>
-          <div class="text-subtitle-1 font-weight-bold">Buffer pressure</div>
+          <div class="text-subtitle-1 font-weight-bold">Image eligibility</div>
           <div class="text-caption text-medium-emphasis">
-            Bar color moves from healthy to constrained as the image drop ratio rises.
+            Images above the per-camera rate for AI analysis. Tracking still used every frame.
           </div>
         </div>
       </v-card-title>
@@ -142,10 +146,28 @@
           {{ item.room_name || "Unassigned" }}
         </template>
         <template #item.buffer_depth="{ item }">
-          <span class="font-weight-medium">{{ item.buffer_depth }}</span>
-          <span class="text-medium-emphasis">
-            / {{ item.buffer_capacity == null ? "unbounded" : item.buffer_capacity }}
-          </span>
+          <div v-if="isSlidingWindow(item)">
+            <span class="text-caption text-medium-emphasis mr-1">Recent events</span>
+            <span class="font-weight-medium">{{ item.buffer_depth }}</span>
+            <span class="text-medium-emphasis"> (window {{ item.buffer_capacity ?? 512 }}) </span>
+          </div>
+          <div v-else>
+            <div>
+              <span class="text-caption text-medium-emphasis mr-1">Buffer depth</span>
+              <span class="font-weight-medium">{{ item.buffer_depth }}</span>
+              <span class="text-medium-emphasis">
+                / {{ item.buffer_capacity == null ? "unbounded" : item.buffer_capacity }}
+              </span>
+            </div>
+            <v-progress-linear
+              v-if="item.buffer_capacity"
+              :model-value="Math.min(100, (item.buffer_depth / item.buffer_capacity) * 100)"
+              color="primary"
+              height="4"
+              rounded
+              class="mt-1"
+            />
+          </div>
         </template>
         <template #item.pending_flush="{ item }">
           {{ item.pending_flush == null ? "n/a" : item.pending_flush }}
@@ -220,7 +242,7 @@ const headers = [
   { title: "Cooldown", key: "cooldown_remaining_seconds", sortable: false },
   { title: "Rate/sec", key: "rate_per_second", sortable: false },
   { title: "Eligible", key: "images_eligible_total", sortable: false },
-  { title: "Dropped", key: "images_dropped_total", sortable: false },
+  { title: "Rate-limited images", key: "images_dropped_total", sortable: false },
   { title: "Last event", key: "last_event_at", sortable: false },
 ];
 
@@ -276,6 +298,11 @@ function originLabel(origin) {
 
 function originColor(origin) {
   return origin === "recamera" ? "primary" : "info";
+}
+
+function isSlidingWindow(camera) {
+  if (camera.buffer_kind) return camera.buffer_kind === "sliding_window";
+  return camera.origin === "cts";
 }
 
 function formatSeconds(value) {

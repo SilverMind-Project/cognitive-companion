@@ -609,10 +609,14 @@ def test_person_count_distinguishes_empty_room_from_not_counted():
 
 
 def test_person_count_honours_min_confidence():
-    frames = [{"scene_detections": [
-        {"label": "person", "confidence": 0.95},
-        {"label": "person", "confidence": 0.20},
-    ]}]
+    frames = [
+        {
+            "scene_detections": [
+                {"label": "person", "confidence": 0.95},
+                {"label": "person", "confidence": 0.20},
+            ]
+        }
+    ]
 
     assert person_count_from_frames(frames, min_confidence=0.5) == (1, [1])
 

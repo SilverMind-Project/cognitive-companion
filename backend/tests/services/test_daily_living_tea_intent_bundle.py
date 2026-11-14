@@ -21,7 +21,10 @@ StepRegistry.discover()
 FilterRegistry.discover()
 
 _BUNDLE_PATH = (
-    Path(__file__).resolve().parents[3] / "config" / "rule_bundles" / "daily_living_tea_intent_shadow.json"
+    Path(__file__).resolve().parents[3]
+    / "config"
+    / "rule_bundles"
+    / "daily_living_tea_intent_shadow.json"
 )
 
 _PLACEHOLDERS = {
@@ -74,7 +77,9 @@ def test_contexts_are_time_range_and_presence_dwell(imported_rule, db_session):
 def test_step_chain_matches_the_cheap_first_cascade(imported_rule, db_session):
     steps = {
         s.label: s
-        for s in db_session.query(PipelineStep).filter(PipelineStep.rule_id == imported_rule.id).all()
+        for s in db_session.query(PipelineStep)
+        .filter(PipelineStep.rule_id == imported_rule.id)
+        .all()
     }
     assert set(steps) == {
         "poll",
@@ -101,7 +106,9 @@ def test_no_tier4_vlm_call_by_default(imported_rule, db_session):
     # vLLM VLM (tier 4), even though model_id is config an owner could swap.
     steps = {
         s.label: s
-        for s in db_session.query(PipelineStep).filter(PipelineStep.rule_id == imported_rule.id).all()
+        for s in db_session.query(PipelineStep)
+        .filter(PipelineStep.rule_id == imported_rule.id)
+        .all()
     }
     assert steps["tea_verdict"].config_json["image_source"] == "none"
 
@@ -109,7 +116,9 @@ def test_no_tier4_vlm_call_by_default(imported_rule, db_session):
 def test_signal_emit_config_uses_the_cc_local_kind_and_dedupe(imported_rule, db_session):
     steps = {
         s.label: s
-        for s in db_session.query(PipelineStep).filter(PipelineStep.rule_id == imported_rule.id).all()
+        for s in db_session.query(PipelineStep)
+        .filter(PipelineStep.rule_id == imported_rule.id)
+        .all()
     }
     emit_config = steps["emit_signal"].config_json
     assert emit_config["kind"] == "tea_intent_suspected"
@@ -130,11 +139,15 @@ def test_signal_emit_config_uses_the_cc_local_kind_and_dedupe(imported_rule, db_
 def test_verdict_check_gates_both_signal_and_notification(imported_rule, db_session):
     steps = {
         s.label: s
-        for s in db_session.query(PipelineStep).filter(PipelineStep.rule_id == imported_rule.id).all()
+        for s in db_session.query(PipelineStep)
+        .filter(PipelineStep.rule_id == imported_rule.id)
+        .all()
     }
     edges = db_session.query(PipelineEdge).filter(PipelineEdge.rule_id == imported_rule.id).all()
     verdict_edges = [
-        e for e in edges if e.source_step_id == steps["verdict_check"].id and e.source_port == "true"
+        e
+        for e in edges
+        if e.source_step_id == steps["verdict_check"].id and e.source_port == "true"
     ]
     targets = {e.target_step_id for e in verdict_edges}
     assert targets == {steps["emit_signal"].id, steps["notify_caregiver"].id}

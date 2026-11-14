@@ -91,6 +91,11 @@ function mountView() {
     global: {
       stubs: {
         ...Object.fromEntries(VUETIFY.map((name) => [name, true])),
+        "v-data-table": {
+          props: ["headers", "items", "loading"],
+          template:
+            '<div><div v-for="item in items" :key="item.id" :data-camera-id="item.id"><slot name="item.enabled" :item="item" /></div></div>',
+        },
         DialogHeader: true,
         DialogFooter: true,
       },
@@ -200,5 +205,47 @@ describe("CTSCamerasView sectioned camera dialog", () => {
     expect(mockCreateCamera).toHaveBeenCalledWith(
       expect.objectContaining({ id: "hall-cam", room_id: 3, room_name: "" }),
     );
+  });
+});
+
+describe("CTSCamerasView ingest health badge", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows a No frames badge when an enabled camera's last frame is older than 60 s", async () => {
+    mockGetCameras.mockResolvedValue([
+      {
+        ...CAMERA,
+        enabled: true,
+        health: { status: "degraded", last_frame_age_s: 75.2, fetch_backoff_s: 16.0 },
+      },
+    ]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Active");
+    expect(wrapper.text()).toContain("No frames");
+  });
+
+  it("does not show No frames when last frame age is 60 s or less or camera is disabled", async () => {
+    mockGetCameras.mockResolvedValue([
+      {
+        ...CAMERA,
+        id: "fresh-cam",
+        enabled: true,
+        health: { status: "healthy", last_frame_age_s: 12.0, fetch_backoff_s: 0.0 },
+      },
+      {
+        ...CAMERA,
+        id: "disabled-cam",
+        enabled: false,
+        health: { status: "stopped", last_frame_age_s: 120.0, fetch_backoff_s: 0.0 },
+      },
+    ]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain("No frames");
   });
 });

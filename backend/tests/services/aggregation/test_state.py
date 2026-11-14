@@ -13,6 +13,7 @@ def test_camera_buffer_state_forbids_extra_fields() -> None:
         CameraBufferState(
             camera_id="camera-1",
             origin="cts",
+            buffer_kind="sliding_window",
             buffer_depth=1,
             unexpected=True,
         )
@@ -22,9 +23,11 @@ def test_camera_buffer_state_optional_fields_default_none() -> None:
     state = CameraBufferState(
         camera_id="camera-1",
         origin="recamera",
+        buffer_kind="batch",
         buffer_depth=0,
     )
 
+    assert state.buffer_kind == "batch"
     assert state.buffer_capacity is None
     assert state.pending_flush is None
     assert state.cooldown_remaining_seconds is None

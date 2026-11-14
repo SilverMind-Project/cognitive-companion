@@ -204,9 +204,7 @@ def evaluate_regions(
         normalized, reason = _normalize_bbox(detection, bbox)
         if normalized is None:
             skipped.append({"reason": reason, "detection_index": index})
-            logger.warning(
-                "region_presence_unknown_bbox_space", detection_index=index, label=label
-            )
+            logger.warning("region_presence_unknown_bbox_space", detection_index=index, label=label)
             continue
 
         point = anchor_point(normalized, anchor)

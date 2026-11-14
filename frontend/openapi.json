@@ -2138,6 +2138,14 @@
             "title": "Buffer Depth",
             "type": "integer"
           },
+          "buffer_kind": {
+            "enum": [
+              "sliding_window",
+              "batch"
+            ],
+            "title": "Buffer Kind",
+            "type": "string"
+          },
           "camera_id": {
             "title": "Camera Id",
             "type": "string"
@@ -2165,6 +2173,7 @@
             "title": "Display Name"
           },
           "images_dropped_total": {
+            "description": "Images refused by the per-camera image rate limiter.",
             "title": "Images Dropped Total",
             "type": "integer"
           },
@@ -2239,6 +2248,7 @@
         "required": [
           "camera_id",
           "origin",
+          "buffer_kind",
           "display_name",
           "room_name",
           "buffer_depth",

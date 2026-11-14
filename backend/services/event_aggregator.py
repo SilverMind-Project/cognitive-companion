@@ -214,6 +214,7 @@ class EventAggregator:
             CameraBufferState(
                 camera_id=sensor_id,
                 origin="recamera",
+                buffer_kind="batch",
                 buffer_depth=len(buffer),
                 pending_flush=len(buffer),
                 cooldown_remaining_seconds=self._cooldowns.remaining(sensor_id),

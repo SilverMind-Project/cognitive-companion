@@ -57,12 +57,8 @@ class InferenceTelemetryService:
                 QueueDepthOut(lane=lane, depth=self._controller.queue_depth(lane))
                 for lane in _LANES
             ],
-            queue_wait_p50_ms=_percentile(
-                sorted(r.queue_wait_ms for r in records), 0.50
-            ),
-            queue_wait_p95_ms=_percentile(
-                sorted(r.queue_wait_ms for r in records), 0.95
-            ),
+            queue_wait_p50_ms=_percentile(sorted(r.queue_wait_ms for r in records), 0.50),
+            queue_wait_p95_ms=_percentile(sorted(r.queue_wait_ms for r in records), 0.95),
             timeouts_total=sum(1 for r in records if r.outcome == "timeout"),
             calls_per_hour=self._calls_per_hour(records),
             ring_buffer_size=len(all_records),

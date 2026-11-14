@@ -235,9 +235,7 @@ async def test_entity_id_missing_from_cache_degrades_to_none():
     )
     handler = HomeStateHandler()
     result = await handler.execute(
-        step=_FakeStep(
-            config_json={"entity_id": "media_player.tv", "states_any": ["playing"]}
-        ),
+        step=_FakeStep(config_json={"entity_id": "media_player.tv", "states_any": ["playing"]}),
         execution=_FakeExecution(),
         pipeline_data={},
         trigger=_make_trigger(),

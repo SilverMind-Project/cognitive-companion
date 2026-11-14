@@ -159,6 +159,7 @@ class TestEventAggregatorBuffering:
         assert len(states) == 1
         assert states[0].camera_id == "cam1"
         assert states[0].origin == "recamera"
+        assert states[0].buffer_kind == "batch"
         assert states[0].buffer_depth == 2
         assert states[0].pending_flush == 2
 

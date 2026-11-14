@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CameraAggregatorStateOut(BaseModel):
@@ -14,6 +14,7 @@ class CameraAggregatorStateOut(BaseModel):
 
     camera_id: str
     origin: Literal["recamera", "cts"]
+    buffer_kind: Literal["sliding_window", "batch"]
     display_name: str | None
     room_name: str | None
     buffer_depth: int
@@ -23,7 +24,9 @@ class CameraAggregatorStateOut(BaseModel):
     rate_per_second: float | None
     tokens_available: float | None
     images_eligible_total: int
-    images_dropped_total: int
+    images_dropped_total: int = Field(
+        description="Images refused by the per-camera image rate limiter."
+    )
     last_event_at: str | None
 
 

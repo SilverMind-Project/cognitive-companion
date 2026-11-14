@@ -509,9 +509,7 @@ class TestFilterMatrixSensorPath:
         nomatch = _make_rule(
             db_session,
             "nomatch",
-            contexts=[
-                _ctx("home_state", {"entity_id": "media_player.tv", "states_any": ["off"]})
-            ],
+            contexts=[_ctx("home_state", {"entity_id": "media_player.tv", "states_any": ["off"]})],
         )
         db_session.commit()
 

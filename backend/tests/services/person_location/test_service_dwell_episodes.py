@@ -56,9 +56,7 @@ async def test_dwell_episodes_merges_across_a_short_gap() -> None:
     await svc.ingest_room_transition("alice", "tz1", "enter", _BATHROOM, _HALLWAY, enter2)
     await svc.ingest_room_transition("alice", "tz1", "exit", _BATHROOM, _HALLWAY, exit2)
 
-    episodes = await svc.dwell_episodes(
-        "alice", _BATHROOM, _START, _END, merge_gap_s=120
-    )
+    episodes = await svc.dwell_episodes("alice", _BATHROOM, _START, _END, merge_gap_s=120)
 
     assert len(episodes) == 1
     assert episodes[0].entered_at == enter1
@@ -80,9 +78,7 @@ async def test_dwell_episodes_does_not_merge_across_a_long_gap() -> None:
     await svc.ingest_room_transition("alice", "tz1", "enter", _BATHROOM, _HALLWAY, enter2)
     await svc.ingest_room_transition("alice", "tz1", "exit", _BATHROOM, _HALLWAY, exit2)
 
-    episodes = await svc.dwell_episodes(
-        "alice", _BATHROOM, _START, _END, merge_gap_s=120
-    )
+    episodes = await svc.dwell_episodes("alice", _BATHROOM, _START, _END, merge_gap_s=120)
 
     assert len(episodes) == 2
     assert episodes[0].minutes == pytest.approx(5.0, abs=0.01)

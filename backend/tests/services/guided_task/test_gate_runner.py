@@ -668,7 +668,9 @@ async def test_watch_prunes_vision_capable_llm_call_unless_watch_allowed(
     node needs no ``heavy`` tag to be pruned in the watch profile.
     """
     llm_provider = MockLLMProvider('{"complete": true}')
-    mock_services.llm_model_registry = MockLLMRegistry(llm_provider, capabilities=["text", "vision"])
+    mock_services.llm_model_registry = MockLLMRegistry(
+        llm_provider, capabilities=["text", "vision"]
+    )
 
     rule = _make_rule(db_session)
     poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
@@ -731,7 +733,9 @@ async def test_watch_allowed_opts_a_vision_llm_call_back_in(
     mock_services: ServiceContainer,
 ) -> None:
     llm_provider = MockLLMProvider('{"complete": true}')
-    mock_services.llm_model_registry = MockLLMRegistry(llm_provider, capabilities=["text", "vision"])
+    mock_services.llm_model_registry = MockLLMRegistry(
+        llm_provider, capabilities=["text", "vision"]
+    )
 
     rule = _make_rule(db_session)
     poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})

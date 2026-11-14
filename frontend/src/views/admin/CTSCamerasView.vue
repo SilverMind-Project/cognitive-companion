@@ -19,9 +19,21 @@
     <v-card class="glass-card">
       <v-data-table :headers="headers" :items="cameras" :loading="loading" item-value="id">
         <template #item.enabled="{ item }">
-          <v-chip :color="item.enabled ? 'success' : 'default'" size="small">
-            {{ item.enabled ? "Active" : "Disabled" }}
-          </v-chip>
+          <div class="d-flex align-center ga-1">
+            <v-chip :color="item.enabled ? 'success' : 'default'" size="small">
+              {{ item.enabled ? "Active" : "Disabled" }}
+            </v-chip>
+            <v-chip
+              v-if="hasStaleFrames(item)"
+              color="warning"
+              size="x-small"
+              variant="tonal"
+              prepend-icon="mdi-video-off-outline"
+              :title="`Last frame ${Math.round(item.health.last_frame_age_s)}s ago`"
+            >
+              No frames
+            </v-chip>
+          </div>
         </template>
         <template #item.has_homography="{ item }">
           <div class="d-flex align-center ga-1">
@@ -542,6 +554,14 @@ const emptyForm = () => ({
 });
 
 const form = ref(emptyForm());
+
+function hasStaleFrames(cam) {
+  return (
+    Boolean(cam?.enabled) &&
+    cam?.health?.last_frame_age_s != null &&
+    Number(cam.health.last_frame_age_s) > 60
+  );
+}
 
 async function loadRooms() {
   try {

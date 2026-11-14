@@ -6153,13 +6153,21 @@ export interface components {
             buffer_capacity: number | null;
             /** Buffer Depth */
             buffer_depth: number;
+            /**
+             * Buffer Kind
+             * @enum {string}
+             */
+            buffer_kind: "sliding_window" | "batch";
             /** Camera Id */
             camera_id: string;
             /** Cooldown Remaining Seconds */
             cooldown_remaining_seconds: number | null;
             /** Display Name */
             display_name: string | null;
-            /** Images Dropped Total */
+            /**
+             * Images Dropped Total
+             * @description Images refused by the per-camera image rate limiter.
+             */
             images_dropped_total: number;
             /** Images Eligible Total */
             images_eligible_total: number;

@@ -73,6 +73,20 @@ describe("CalibrationHealthPanel", () => {
     expect(wrapper.find("[data-testid^='calibration-dot-']").exists()).toBe(false);
   });
 
+  it("describes an uncalibrated camera instead of showing it as healthy", async () => {
+    mockGetCalibrationHealth.mockResolvedValue(
+      healthResponse([
+        { camera_id: "cam-3", severity: "info", code: "not_calibrated", residual_m: null },
+      ]),
+    );
+    const wrapper = mountPanel();
+    await flushPromises();
+
+    const dot = wrapper.find("[data-testid='calibration-dot-cam-3'] .cal-dot");
+    expect(dot.classes()).toContain("cal-dot--info");
+    expect(dot.attributes("title")).toBe("cam-3: not calibrated (tracks in its own virtual room)");
+  });
+
   it("calls notify.error when service throws", async () => {
     mockGetCalibrationHealth.mockRejectedValue(new Error("upstream down"));
     mountPanel();

@@ -77,3 +77,20 @@ def test_calibration_health_reports_runtime_matrix_missing(db_engine: Engine):
     assert camera["runtime_homography_present"] is False
     assert camera["severity"] == "error"
     assert camera["code"] == "runtime_matrix_missing"
+
+
+def test_calibration_health_reports_uncalibrated_camera_as_not_calibrated(db_engine: Engine):
+    Session = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
+    with Session() as db:
+        db.add(CtsCamera(id="plain-cam", name="Plain", rtsp_url="rtsp://x", enabled=True))
+        db.commit()
+
+    client = _make_client(db_engine)
+    try:
+        response = client.get("/api/v1/cts/calibration/health")
+    finally:
+        client._patcher.stop()  # type: ignore[attr-defined]
+
+    camera = next(c for c in response.json()["cameras"] if c["camera_id"] == "plain-cam")
+    assert camera["homography_present"] is False
+    assert (camera["severity"], camera["code"]) == ("info", "not_calibrated")

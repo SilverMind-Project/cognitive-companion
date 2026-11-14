@@ -48,8 +48,10 @@ async def calibration_health(
         runtime_has_homography = camera_id in runtime_ids if runtime_ids is not None else None
         residual = cam.homography_residual_m
 
-        severity = "ok"
-        code = None
+        # An uncalibrated camera still tracks, in its virtual room, but nothing it sees has a
+        # floor position: report it as "not calibrated", never as healthy.
+        severity = "ok" if has_homography else "info"
+        code = None if has_homography else "not_calibrated"
         if has_homography and residual is not None:
             r = float(residual)
             if r > 0.5:

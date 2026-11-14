@@ -21,9 +21,7 @@ import pytest
 from backend.channels import ChannelRegistry
 from backend.steps import StepRegistry
 
-_VUE_DIR = (
-    Path(__file__).resolve().parents[3] / "frontend/src/components/pipeline/steps"
-)
+_VUE_DIR = Path(__file__).resolve().parents[3] / "frontend/src/components/pipeline/steps"
 _BACKEND_HEADER = re.compile(r"Backend: backend/steps/builtin/(\w+)\.py")
 _DEFAULTS_BLOCK = re.compile(r"export const stepDefaults = \{(.*?)\n\};", re.S)
 _KEY = re.compile(r"^\s{2}([A-Za-z_]\w*)\s*:", re.M)
@@ -88,13 +86,9 @@ def test_vue_step_defaults_are_read_by_the_backend(
 def test_semantic_memory_write_defaults_match_backend_exactly() -> None:
     """Regression lock for the step whose form was entirely disconnected."""
     StepRegistry.discover()
-    meta = next(
-        m for m in StepRegistry.all_metadata() if m.type_name == "semantic_memory_write"
-    )
+    meta = next(m for m in StepRegistry.all_metadata() if m.type_name == "semantic_memory_write")
     schema_keys = set((meta.config_schema or {}).get("properties", {}))
-    _, _, default_keys = next(
-        c for c in _vue_configs() if c[0] == "semantic_memory_write"
-    )
+    _, _, default_keys = next(c for c in _vue_configs() if c[0] == "semantic_memory_write")
     assert default_keys == schema_keys, (
         "semantic_memory_write's Vue defaults and config_schema must stay in "
         f"lockstep. Vue-only: {sorted(default_keys - schema_keys)}, "
@@ -171,9 +165,7 @@ def test_vue_and_backend_agree_on_default_values(
     mismatched = {
         key: {"vue": value, "backend": backend_defaults[key]}
         for key, value in vue_defaults.items()
-        if key not in allowed
-        and key in backend_defaults
-        and backend_defaults[key] != value
+        if key not in allowed and key in backend_defaults and backend_defaults[key] != value
     }
     assert not mismatched, (
         f"{path.name} and {step_type}'s default_config disagree: "

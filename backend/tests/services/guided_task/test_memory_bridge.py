@@ -122,16 +122,20 @@ async def test_completed_with_activity_type_writes_ledger_row(db_session, db_fac
     now = datetime(2026, 7, 21, 12, 0, tzinfo=UTC)
     routine = _seed_routine(db_session, activity_type="medication")
     started_at = datetime(2026, 7, 21, 11, 50, tzinfo=UTC)
-    session = _seed_session(db_session, routine, status="completed", started_at=started_at, completed_at=now)
+    session = _seed_session(
+        db_session, routine, status="completed", started_at=started_at, completed_at=now
+    )
     activity_service = ActivitySessionService(db_factory)
     ctx = _make_ctx(db_factory, now=now, activity_service=activity_service)
     bridge = GuidedMemoryBridge(ctx)
 
     await bridge.on_session_terminal(session)
 
-    rows = db_session.execute(
-        select(ActivitySession).where(ActivitySession.person_id == "resident-1")
-    ).scalars().all()
+    rows = (
+        db_session.execute(select(ActivitySession).where(ActivitySession.person_id == "resident-1"))
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1
     row = rows[0]
     assert row.activity_type == "medication"
@@ -152,16 +156,20 @@ async def test_completed_with_activity_type_writes_ledger_row(db_session, db_fac
 async def test_completed_without_activity_type_writes_no_ledger_row(db_session, db_factory):
     now = datetime(2026, 7, 21, 12, 0, tzinfo=UTC)
     routine = _seed_routine(db_session, activity_type=None)
-    session = _seed_session(db_session, routine, status="completed", started_at=now, completed_at=now)
+    session = _seed_session(
+        db_session, routine, status="completed", started_at=now, completed_at=now
+    )
     activity_service = ActivitySessionService(db_factory)
     ctx = _make_ctx(db_factory, now=now, activity_service=activity_service)
     bridge = GuidedMemoryBridge(ctx)
 
     await bridge.on_session_terminal(session)
 
-    rows = db_session.execute(
-        select(ActivitySession).where(ActivitySession.person_id == "resident-1")
-    ).scalars().all()
+    rows = (
+        db_session.execute(select(ActivitySession).where(ActivitySession.person_id == "resident-1"))
+        .scalars()
+        .all()
+    )
     assert rows == []
 
 
@@ -170,19 +178,21 @@ async def test_abandoned_writes_episode_but_no_ledger_row(db_session, db_factory
     """DL9 headline: an abandoned medication routine must never look like 'taken'."""
     now = datetime(2026, 7, 21, 12, 0, tzinfo=UTC)
     routine = _seed_routine(db_session, activity_type="medication")
-    session = _seed_session(db_session, routine, status="abandoned", started_at=now, completed_at=now)
+    session = _seed_session(
+        db_session, routine, status="abandoned", started_at=now, completed_at=now
+    )
     activity_service = ActivitySessionService(db_factory)
     scene_intel = _SceneIntel()
-    ctx = _make_ctx(
-        db_factory, now=now, activity_service=activity_service, scene_intel=scene_intel
-    )
+    ctx = _make_ctx(db_factory, now=now, activity_service=activity_service, scene_intel=scene_intel)
     bridge = GuidedMemoryBridge(ctx)
 
     await bridge.on_session_terminal(session)
 
-    rows = db_session.execute(
-        select(ActivitySession).where(ActivitySession.person_id == "resident-1")
-    ).scalars().all()
+    rows = (
+        db_session.execute(select(ActivitySession).where(ActivitySession.person_id == "resident-1"))
+        .scalars()
+        .all()
+    )
     assert rows == []
     assert len(scene_intel.drafts) == 1
     assert "outcome 'abandoned'" in scene_intel.drafts[0].description
@@ -225,7 +235,9 @@ def test_episode_summary_deterministic():
 async def test_episode_written_through_scene_intel_with_kind_and_person(db_session, db_factory):
     now = datetime(2026, 7, 21, 12, 0, tzinfo=UTC)
     routine = _seed_routine(db_session, activity_type=None)
-    session = _seed_session(db_session, routine, status="completed", started_at=now, completed_at=now)
+    session = _seed_session(
+        db_session, routine, status="completed", started_at=now, completed_at=now
+    )
     scene_intel = _SceneIntel()
     ctx = _make_ctx(db_factory, now=now, scene_intel=scene_intel)
     bridge = GuidedMemoryBridge(ctx)
@@ -245,12 +257,12 @@ async def test_episode_written_through_scene_intel_with_kind_and_person(db_sessi
 async def test_embedder_unavailable_still_writes_episode(db_session, db_factory):
     now = datetime(2026, 7, 21, 12, 0, tzinfo=UTC)
     routine = _seed_routine(db_session, activity_type=None)
-    session = _seed_session(db_session, routine, status="completed", started_at=now, completed_at=now)
+    session = _seed_session(
+        db_session, routine, status="completed", started_at=now, completed_at=now
+    )
     scene_intel = _SceneIntel()
     embedding_client = _EmbeddingClient(raise_on_embed=True)
-    ctx = _make_ctx(
-        db_factory, now=now, scene_intel=scene_intel, embedding_client=embedding_client
-    )
+    ctx = _make_ctx(db_factory, now=now, scene_intel=scene_intel, embedding_client=embedding_client)
     bridge = GuidedMemoryBridge(ctx)
 
     await bridge.on_session_terminal(session)
@@ -263,7 +275,9 @@ async def test_embedder_unavailable_still_writes_episode(db_session, db_factory)
 async def test_bridge_failure_never_raises_and_appends_failure_event(db_session, db_factory):
     now = datetime(2026, 7, 21, 12, 0, tzinfo=UTC)
     routine = _seed_routine(db_session, activity_type=None)
-    session = _seed_session(db_session, routine, status="completed", started_at=now, completed_at=now)
+    session = _seed_session(
+        db_session, routine, status="completed", started_at=now, completed_at=now
+    )
     scene_intel = _SceneIntel(raise_on_persist=True)
     ctx = _make_ctx(db_factory, now=now, scene_intel=scene_intel)
     bridge = GuidedMemoryBridge(ctx)

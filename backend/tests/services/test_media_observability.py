@@ -33,6 +33,7 @@ def _state(
     return CameraBufferState(
         camera_id=camera_id,
         origin=origin,
+        buffer_kind="sliding_window" if origin == "cts" else "batch",
         buffer_depth=depth,
         buffer_capacity=512 if origin == "cts" else None,
         pending_flush=depth if origin == "recamera" else None,

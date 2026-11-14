@@ -51,27 +51,25 @@ const { chartTheme } = useChartTheme();
 
 const chartHeight = computed(() => `${Math.max(240, props.cameras.length * 34 + 80)}px`);
 
-function dropRatio(camera) {
+function eligibleShare(camera) {
   const eligible = Number(camera.images_eligible_total) || 0;
   const dropped = Number(camera.images_dropped_total) || 0;
   const total = eligible + dropped;
-  return total > 0 ? dropped / total : 0;
+  return total > 0 ? (eligible / total) * 100 : 100;
 }
 
 function pressureColor(camera) {
-  const ratio = dropRatio(camera);
   const severity = chartTheme.value._severity;
-  if (ratio >= 0.5) return severity.error;
-  if (ratio >= 0.1) return severity.warning;
+  const eligible = Number(camera.images_eligible_total) || 0;
+  const dropped = Number(camera.images_dropped_total) || 0;
+  if (eligible === 0 && dropped > 0) return severity.warning;
   return severity.succeeded;
 }
 
 const chartOption = computed(() => {
   const th = chartTheme.value;
   const labels = props.cameras.map((camera) => camera.label);
-  const capacities = props.cameras.map((camera) =>
-    Math.max(Number(camera.buffer_capacity) || 0, Number(camera.buffer_depth) || 0),
-  );
+  const fullShares = props.cameras.map(() => 100);
 
   return {
     backgroundColor: "transparent",
@@ -83,13 +81,19 @@ const chartOption = computed(() => {
       formatter: (params) => {
         const camera = props.cameras[params[0]?.dataIndex];
         if (!camera) return "";
+        const isSliding =
+          camera.buffer_kind === "sliding_window" ||
+          (!camera.buffer_kind && camera.origin === "cts");
         const capacity = camera.buffer_capacity == null ? "unbounded" : camera.buffer_capacity;
+        const bufferLine = isSliding
+          ? `Recent events: ${camera.buffer_depth} (window ${camera.buffer_capacity ?? 512})`
+          : `Buffer depth: ${camera.buffer_depth} / ${capacity}`;
         const tokens =
           camera.tokens_available == null ? "n/a" : Number(camera.tokens_available).toFixed(1);
         return [
           `<strong>${camera.label}</strong>`,
-          `Buffered: ${camera.buffer_depth} / ${capacity}`,
-          `Image drop pressure: ${(dropRatio(camera) * 100).toFixed(1)}%`,
+          bufferLine,
+          `Image eligibility: ${eligibleShare(camera).toFixed(1)}% (${camera.images_eligible_total ?? 0} eligible, ${camera.images_dropped_total ?? 0} rate-limited)`,
           `Tokens available: ${tokens}`,
         ].join("<br>");
       },
@@ -97,7 +101,8 @@ const chartOption = computed(() => {
     grid: { left: 16, right: 28, top: 16, bottom: 28, containLabel: true },
     xAxis: {
       type: "value",
-      minInterval: 1,
+      min: 0,
+      max: 100,
       ...th.xAxis,
     },
     yAxis: {
@@ -113,9 +118,9 @@ const chartOption = computed(() => {
     },
     series: [
       {
-        name: "Capacity",
+        name: "Total frames",
         type: "bar",
-        data: capacities,
+        data: fullShares,
         barWidth: 14,
         barGap: "-100%",
         silent: true,
@@ -126,10 +131,10 @@ const chartOption = computed(() => {
         },
       },
       {
-        name: "Buffered",
+        name: "Image eligibility",
         type: "bar",
         data: props.cameras.map((camera) => ({
-          value: camera.buffer_depth,
+          value: eligibleShare(camera),
           cameraId: camera.camera_id,
           itemStyle: {
             color: pressureColor(camera),
@@ -148,7 +153,7 @@ const chartOption = computed(() => {
           .map((camera, index) => {
             if (camera.tokens_available == null) return null;
             return {
-              value: [camera.buffer_depth, index],
+              value: [eligibleShare(camera), index],
               cameraId: camera.camera_id,
               itemStyle: { color: th._severity.pending },
             };
@@ -165,7 +170,7 @@ function onChartClick(params) {
   if (cameraId) emit("select", cameraId);
 }
 
-defineExpose({ chartOption, pressureColor, onChartClick });
+defineExpose({ chartOption, eligibleShare, pressureColor, onChartClick });
 </script>
 
 <style scoped>

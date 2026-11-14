@@ -140,9 +140,7 @@ class TestPresign:
 
         assert result.success
         assert result.data["count"] == 1
-        assert result.data["skipped"] == [
-            {"object_name": "cts/missing.jpg", "reason": "not_found"}
-        ]
+        assert result.data["skipped"] == [{"object_name": "cts/missing.jpg", "reason": "not_found"}]
 
     @pytest.mark.asyncio
     async def test_empty_object_names_returns_empty_success(self):
@@ -210,6 +208,4 @@ class TestPresign:
             _make_services(minio_client=fake_minio),
         )
 
-        assert result.data["hygiene_images"] == [
-            "http://minio.local/bucket/cts/today.jpg?sig=test"
-        ]
+        assert result.data["hygiene_images"] == ["http://minio.local/bucket/cts/today.jpg?sig=test"]

@@ -213,9 +213,7 @@ class TestNegativeVerdict:
         assert _signal_rows(db_session) == []
         assert dispatcher.calls == []
 
-    async def test_person_outside_kettle_region_never_reaches_the_llm(
-        self, db_session, db_factory
-    ):
+    async def test_person_outside_kettle_region_never_reaches_the_llm(self, db_session, db_factory):
         """The tier-1 region gate must skip the tier-3 llm_call entirely when
         she is not at the kettle counter, not merely produce a negative
         verdict; this test would fail if in_region_check's false branch let

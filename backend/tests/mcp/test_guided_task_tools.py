@@ -63,7 +63,9 @@ async def test_record_resident_preference_writes_tagged_document(knowledge_inges
     doc = type("Doc", (), {"id": 42})()
     knowledge_ingestion.create_document.return_value = doc
 
-    result = await record_resident_preference("resident-1", "Two sugars in her tea", "said during tea routine")
+    result = await record_resident_preference(
+        "resident-1", "Two sugars in her tea", "said during tea routine"
+    )
 
     assert result == {"document_id": 42, "recorded": True}
     knowledge_ingestion.create_document.assert_awaited_once()

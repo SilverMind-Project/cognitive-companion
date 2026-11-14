@@ -5,16 +5,34 @@ import { flushPromises, mount } from "@vue/test-utils";
 const camera = {
   camera_id: "camera-1",
   origin: "cts",
+  buffer_kind: "sliding_window",
   display_name: "Hallway",
   room_name: "Hall",
   buffer_depth: 8,
-  buffer_capacity: 20,
+  buffer_capacity: 512,
   pending_flush: null,
   cooldown_remaining_seconds: null,
   rate_per_second: 1,
   tokens_available: 1,
   images_eligible_total: 90,
   images_dropped_total: 10,
+  last_event_at: "2026-06-14T12:00:00Z",
+};
+
+const batchCamera = {
+  camera_id: "recamera-1",
+  origin: "recamera",
+  buffer_kind: "batch",
+  display_name: "Kitchen Counter",
+  room_name: "Kitchen",
+  buffer_depth: 3,
+  buffer_capacity: 10,
+  pending_flush: 3,
+  cooldown_remaining_seconds: 0,
+  rate_per_second: 0.5,
+  tokens_available: 1,
+  images_eligible_total: 40,
+  images_dropped_total: 5,
   last_event_at: "2026-06-14T12:00:00Z",
 };
 
@@ -141,7 +159,11 @@ const stubs = {
     props: ["headers", "items", "itemsLength", "itemsPerPage", "page", "loading"],
     emits: ["click:row", "update:options"],
     template:
-      '<button data-testid="camera-table" @click="$emit(\'click:row\', $event, { item: items[0] })"><slot name="no-data" /></button>',
+      '<button data-testid="camera-table" @click="$emit(\'click:row\', $event, { item: items[0] })"><div v-for="item in items" :key="item.camera_id"><slot name="item.buffer_depth" :item="item" /></div><slot name="no-data" /></button>',
+  },
+  "v-progress-linear": {
+    template: '<div data-testid="buffer-fill-bar" />',
+    props: ["modelValue", "color", "height", "rounded"],
   },
   "v-navigation-drawer": {
     template: "<aside><slot /></aside>",
@@ -154,13 +176,19 @@ const stubs = {
     props: ["src"],
   },
   "v-icon": { template: "<i><slot /></i>" },
+  "v-avatar": { template: "<span><slot /></span>" },
   "v-dialog": { template: "<div><slot /></div>", props: ["modelValue"] },
   "v-card-actions": { template: "<div><slot /></div>" },
   "v-snackbar": { template: "<div><slot /></div>", props: ["modelValue", "color"] },
 };
 
 function mountView() {
-  return mount(CameraMediaView, { global: { stubs } });
+  return mount(CameraMediaView, {
+    global: {
+      stubs,
+      mocks: { $vuetify: { display: { smAndDown: false } } },
+    },
+  });
 }
 
 beforeEach(() => {
@@ -184,7 +212,39 @@ describe("CameraMediaView", () => {
     expect(wrapper.text()).toContain("Cameras:1");
     expect(wrapper.text()).toContain("Buffered frames:8");
     expect(wrapper.text()).toContain("Image-eligible:90");
-    expect(wrapper.text()).toContain("Dropped:10");
+    expect(wrapper.text()).toContain("Rate-limited images:10");
+    expect(wrapper.text()).toContain("Image eligibility");
+    expect(wrapper.text()).toContain(
+      "Images above the per-camera rate for AI analysis. Tracking still used every frame.",
+    );
+  });
+
+  it("renders sliding_window rows as Recent events with window size and no fill bar", async () => {
+    aggregatorState.items = [camera];
+    const wrapper = mountView();
+
+    expect(wrapper.text()).toContain("Recent events");
+    expect(wrapper.text()).toContain("window 512");
+    expect(wrapper.find('[data-testid="buffer-fill-bar"]').exists()).toBe(false);
+
+    await wrapper.find('[data-testid="camera-table"]').trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("Recent events: 8 (window 512)");
+    expect(wrapper.text()).toContain("Rate-limited images");
+  });
+
+  it("renders batch rows as Buffer depth with fill bar", async () => {
+    aggregatorState.items = [batchCamera];
+    mocks.getMediaBuffer.mockResolvedValue({ items: [] });
+    const wrapper = mountView();
+
+    expect(wrapper.text()).toContain("Buffer depth");
+    expect(wrapper.text()).toContain("/ 10");
+    expect(wrapper.find('[data-testid="buffer-fill-bar"]').exists()).toBe(true);
+
+    await wrapper.find('[data-testid="camera-table"]').trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("Buffer depth: 3 / 10");
   });
 
   it("origin segmented toggle delegates filtering to the composable", async () => {

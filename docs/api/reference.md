@@ -214,9 +214,13 @@ Both endpoints require the admin permission.
 URLs.
 
 `GET /media/aggregators` returns `{items, total}` after filtering and stable
-pagination. Each item includes the camera origin and identity, buffer depth and
-capacity, pending flush and cooldown state, rate ceiling and available tokens,
-eligible and dropped image counters, and the latest event timestamp.
+pagination. Each item includes the camera origin (`recamera` or `cts`) and
+identity, `buffer_kind` (`sliding_window` for the CTS recent-events lookback
+deque, `batch` for the reCamera flush buffer), buffer depth and capacity,
+pending flush and cooldown state, rate ceiling and available tokens,
+`images_eligible_total` and `images_dropped_total` (images refused by the
+per-camera image rate limiter for AI analysis; tracking still uses every
+frame), and the latest event timestamp.
 
 ## Daily Living health
 

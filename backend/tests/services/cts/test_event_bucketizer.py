@@ -172,6 +172,7 @@ def test_buffer_state_reports_depth_capacity_and_origin_cts() -> None:
     assert len(states) == 1
     assert states[0].camera_id == "cam-1"
     assert states[0].origin == "cts"
+    assert states[0].buffer_kind == "sliding_window"
     assert states[0].buffer_depth == 1
     assert states[0].buffer_capacity == 512
     assert states[0].last_event_at == event["event_time"]

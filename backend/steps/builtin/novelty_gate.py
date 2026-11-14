@@ -125,8 +125,7 @@ class NoveltyGateHandler(StepHandler):
                         "type": "string",
                         "default": "scene_embedding",
                         "description": (
-                            "Dotted pipeline_data path to a CLIP embedding "
-                            "(list of floats)."
+                            "Dotted pipeline_data path to a CLIP embedding (list of floats)."
                         ),
                     },
                     "scope": {

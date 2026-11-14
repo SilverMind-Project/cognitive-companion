@@ -23,6 +23,7 @@ def _aggregator_envelope() -> AggregatorStateListEnvelope:
             CameraAggregatorStateOut(
                 camera_id="cts-1",
                 origin="cts",
+                buffer_kind="sliding_window",
                 display_name="Kitchen CTS",
                 room_name="Kitchen",
                 buffer_depth=4,

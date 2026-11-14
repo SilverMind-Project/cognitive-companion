@@ -327,7 +327,9 @@ async def test_terminal_transition_invokes_bridge_on_abandon(db_session, db_fact
 
 
 @pytest.mark.asyncio
-async def test_terminal_transition_bridge_not_invoked_for_non_terminal_event(db_session, db_factory):
+async def test_terminal_transition_bridge_not_invoked_for_non_terminal_event(
+    db_session, db_factory
+):
     routine_id = _seed_routine(db_session, steps=2)
     service = _service(db_factory, _Clock())
     calls: list[str] = []
@@ -683,9 +685,11 @@ async def test_end_to_end_tea_run_ledger_episode_events_and_readback(db_session,
     await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
 
     # 1. One ledger row, closed.
-    ledger_rows = db_session.execute(
-        select(ActivitySession).where(ActivitySession.person_id == "resident-1")
-    ).scalars().all()
+    ledger_rows = (
+        db_session.execute(select(ActivitySession).where(ActivitySession.person_id == "resident-1"))
+        .scalars()
+        .all()
+    )
     assert len(ledger_rows) == 1
     assert ledger_rows[0].status == "closed"
     assert ledger_rows[0].activity_type == "meal_prep"

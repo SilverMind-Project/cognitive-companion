@@ -295,3 +295,38 @@ class TestTestConnect:
     def test_missing_rtsp_url_returns_422(self, client: TestClient):
         r = client.post("/api/v1/cts/cameras/test-connect", json={})
         assert r.status_code == 422
+
+
+class TestCameraHealth:
+    def test_get_health_persists_and_returns_ingest_age_and_backoff(self, client: TestClient):
+        client.post("/api/v1/cts/cameras", json=CAMERA)
+        client.app.state.ingress_admin_client.stream_health.return_value = {  # type: ignore[union-attr]
+            "camera_id": "kitchen-cam-1",
+            "status": "degraded",
+            "last_frame_age_s": 75.4,
+            "fetch_backoff_s": 16.0,
+        }
+
+        r = client.get("/api/v1/cts/cameras/kitchen-cam-1/health")
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "degraded"
+        assert body["last_frame_age_s"] == 75.4
+        assert body["fetch_backoff_s"] == 16.0
+
+        cam = client.get("/api/v1/cts/cameras/kitchen-cam-1").json()
+        assert cam["health"]["last_frame_age_s"] == 75.4
+        assert cam["health"]["fetch_backoff_s"] == 16.0
+
+    def test_get_health_requires_read_permission(self, db_engine: Engine):
+        c = _make_client(db_engine, cts_enabled=True)
+        try:
+            c.post("/api/v1/cts/cameras", json=CAMERA)
+            c.app.dependency_overrides[get_auth_context] = lambda: AuthContext(  # type: ignore[union-attr]
+                key="x", name="no-perms", permissions=[]
+            )
+            r = c.get("/api/v1/cts/cameras/kitchen-cam-1/health")
+            assert r.status_code == 403
+        finally:
+            c._patcher.stop()  # type: ignore[attr-defined]

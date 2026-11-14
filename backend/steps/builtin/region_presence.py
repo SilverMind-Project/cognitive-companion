@@ -231,9 +231,7 @@ class RegionPresenceHandler(StepHandler):
         # -- Per-region camera_id scoping (best-effort; never fails the step) --
         camera_scoped_ids = {region.id for region in regions if region.camera_id}
         if camera_scoped_ids:
-            attribution_available = any(
-                detection_camera_id(d) is not None for d in raw_detections
-            )
+            attribution_available = any(detection_camera_id(d) is not None for d in raw_detections)
             if attribution_available:
                 region_by_id = {region.id: region for region in regions}
                 filtered_hits = []

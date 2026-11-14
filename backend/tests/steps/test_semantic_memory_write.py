@@ -53,7 +53,8 @@ def _make_services(scene_intel=None) -> ServiceContainer:
 def _make_scene_intel(record: SceneIntelRecord | None = None) -> MagicMock:
     scene_intel = MagicMock()
     scene_intel.persist = AsyncMock(
-        return_value=record or SceneIntelRecord(observation_id=5, movement_ids=[9], source="scene_intel")
+        return_value=record
+        or SceneIntelRecord(observation_id=5, movement_ids=[9], source="scene_intel")
     )
     return scene_intel
 
@@ -216,7 +217,11 @@ class TestPersistPayload:
         services = _make_services(scene_intel=scene_intel)
 
         await _HANDLER.execute(
-            _make_step(), _FakeExecution(), {"scene_description": "quiet"}, _make_trigger(), services
+            _make_step(),
+            _FakeExecution(),
+            {"scene_description": "quiet"},
+            _make_trigger(),
+            services,
         )
 
         analyzed_result = scene_intel.persist.await_args.args[0]

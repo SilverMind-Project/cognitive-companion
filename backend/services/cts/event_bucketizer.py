@@ -310,6 +310,7 @@ class CtsEventBucketizer:
             CameraBufferState(
                 camera_id=camera_id,
                 origin="cts",
+                buffer_kind="sliding_window",
                 buffer_depth=len(buffer),
                 buffer_capacity=self._cfg.max_buffer_per_camera,
                 rate_per_second=self._rate_limiter.rate_for(camera_id),

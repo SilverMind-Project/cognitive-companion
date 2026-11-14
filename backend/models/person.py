@@ -182,9 +182,7 @@ class ActivitySession(Base):
     # write ``closed_via`` into this dict in place. With a plain JSON column
     # SQLAlchemy only detects attribute *replacement*, so an in-place write to an
     # already-populated dict is silently discarded at flush.
-    metadata_json: Mapped[dict | None] = mapped_column(
-        MutableDict.as_mutable(JSON), nullable=True
-    )
+    metadata_json: Mapped[dict | None] = mapped_column(MutableDict.as_mutable(JSON), nullable=True)
 
     # Observation backlink for auditability chain (scene_observations table not yet created)
     observation_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)

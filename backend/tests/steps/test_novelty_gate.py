@@ -213,9 +213,7 @@ class TestCacheBound:
         assert len(handler._cache) == 2
 
         # cam-1 was evicted, so it's "no_previous" again rather than "compared".
-        result = await _run(
-            handler, [1.0, 0.0], config, trigger=_make_trigger(sensor_id="cam-1")
-        )
+        result = await _run(handler, [1.0, 0.0], config, trigger=_make_trigger(sensor_id="cam-1"))
         assert result.data["reason"] == "no_previous"
 
     @pytest.mark.asyncio
@@ -226,8 +224,6 @@ class TestCacheBound:
         await _run(handler, [1.0, 0.0], config, trigger=_make_trigger(sensor_id="cam-1"))
         await _run(handler, [1.0, 0.0], config, trigger=_make_trigger(sensor_id="cam-2"))
         # Re-reading an existing scope must not count as a new key or evict anything.
-        result = await _run(
-            handler, [1.0, 0.0], config, trigger=_make_trigger(sensor_id="cam-1")
-        )
+        result = await _run(handler, [1.0, 0.0], config, trigger=_make_trigger(sensor_id="cam-1"))
         assert result.data["reason"] == "compared"
         assert len(handler._cache) == 2

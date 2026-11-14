@@ -19,11 +19,19 @@
           <v-chip v-if="camera.room_name" size="small" variant="tonal">
             {{ camera.room_name }}
           </v-chip>
-          <v-chip size="small" variant="tonal">{{ camera.buffer_depth }} buffered</v-chip>
+          <v-chip v-if="isSlidingWindow" size="small" variant="tonal">
+            Recent events: {{ camera.buffer_depth }} (window {{ camera.buffer_capacity ?? 512 }})
+          </v-chip>
+          <v-chip v-else size="small" variant="tonal">
+            Buffer depth: {{ camera.buffer_depth
+            }}{{ camera.buffer_capacity != null ? ` / ${camera.buffer_capacity}` : "" }}
+          </v-chip>
         </div>
 
         <div class="d-flex align-center mb-2">
-          <div class="text-subtitle-2 font-weight-bold">Depth trend</div>
+          <div class="text-subtitle-2 font-weight-bold">
+            {{ isSlidingWindow ? "Recent events" : "Buffer depth" }}
+          </div>
           <v-spacer />
           <span class="text-caption text-medium-emphasis">
             {{ history.length }} sample{{ history.length === 1 ? "" : "s" }}
@@ -61,8 +69,11 @@
             <div class="text-body-2">{{ camera.images_eligible_total }}</div>
           </v-col>
           <v-col cols="6">
-            <div class="text-caption text-medium-emphasis">Dropped</div>
+            <div class="text-caption text-medium-emphasis">Rate-limited images</div>
             <div class="text-body-2">{{ camera.images_dropped_total }}</div>
+            <div class="text-caption text-medium-emphasis">
+              Images above the per-camera rate for AI analysis. Tracking still used every frame.
+            </div>
           </v-col>
           <v-col cols="12">
             <div class="text-caption text-medium-emphasis">Last event</div>
@@ -231,9 +242,13 @@ const lightbox = ref({ open: false, image: null, images: [], index: 0 });
 const cameraName = computed(() => props.camera.display_name || props.camera.camera_id);
 const originLabel = computed(() => (props.camera.origin === "recamera" ? "reCamera" : "CTS"));
 const originColor = computed(() => (props.camera.origin === "recamera" ? "primary" : "info"));
+const isSlidingWindow = computed(() => {
+  if (props.camera.buffer_kind) return props.camera.buffer_kind === "sliding_window";
+  return props.camera.origin === "cts";
+});
 const historySeries = computed(() => [
   {
-    name: "Buffer depth",
+    name: isSlidingWindow.value ? "Recent events" : "Buffer depth",
     points: props.history.map((point) => ({ t: point.t, v: point.depth })),
   },
 ]);

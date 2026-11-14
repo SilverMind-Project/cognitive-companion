@@ -61,9 +61,12 @@ async def test_vision_lane_selected_when_media_paths_present() -> None:
     provider = OpenAICompatibleProvider(
         base_url="http://vllm-test", model="cosmos_reason2", admission=controller
     )
-    with patch(_HTTPX_TARGET, return_value=_mock_ctx("hello")), patch(
-        "backend.integrations.llm.openai_compat.encode_image_data_uri",
-        AsyncMock(return_value="data:image/jpeg;base64,abc"),
+    with (
+        patch(_HTTPX_TARGET, return_value=_mock_ctx("hello")),
+        patch(
+            "backend.integrations.llm.openai_compat.encode_image_data_uri",
+            AsyncMock(return_value="data:image/jpeg;base64,abc"),
+        ),
     ):
         await provider.call(
             prompt="hi", media_paths=["frame.jpg"], media_type="image", caller="rule:hygiene"

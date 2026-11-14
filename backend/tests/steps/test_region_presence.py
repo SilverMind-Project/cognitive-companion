@@ -53,7 +53,13 @@ def _polygon_region(region_id="stove", name="Stove"):
 
 
 def _detection(bbox=(0.1, 0.1, 0.2, 0.2), **extra):
-    return {"label": "person", "confidence": 0.9, "bbox": list(bbox), "bbox_normalized": True, **extra}
+    return {
+        "label": "person",
+        "confidence": 0.9,
+        "bbox": list(bbox),
+        "bbox_normalized": True,
+        **extra,
+    }
 
 
 @pytest.mark.asyncio
@@ -123,9 +129,14 @@ async def test_step_output_matches_output_schema():
 
     assert_output_conforms_to_schema(handler, result)
     for hit in result.data["hits"]:
-        assert {"region_id", "region_name", "label", "confidence", "anchor", "detection_index"} <= set(
-            hit.keys()
-        )
+        assert {
+            "region_id",
+            "region_name",
+            "label",
+            "confidence",
+            "anchor",
+            "detection_index",
+        } <= set(hit.keys())
 
 
 @pytest.mark.asyncio

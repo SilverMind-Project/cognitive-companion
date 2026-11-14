@@ -93,6 +93,9 @@ export const cts = {
     req("/calibration/visibility_polygons/recompute", { method: "POST" }),
   getInferredAdjacency: () => req("/calibration/adjacency/inferred"),
   getOverlapGroups: () => req("/overlap_groups"),
+  createOverlapGroup: (body) =>
+    req("/overlap_groups", { method: "POST", body: JSON.stringify(body) }),
+  deleteOverlapGroup: (id) => req(`/overlap_groups/${id}`, { method: "DELETE" }),
 
   // ── Calibration diagnostics and transit zones ──────────────────────────────
   getCalibrationDiagnostics: () => req("/diagnostics/calibration"),

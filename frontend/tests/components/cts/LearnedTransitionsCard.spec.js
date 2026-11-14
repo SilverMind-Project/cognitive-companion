@@ -29,9 +29,8 @@ describe("LearnedTransitionsCard", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
   });
 
-  it("shows each learned walk with names, time, and whether it is still learning", async () => {
+  it("shows each handoff pair by name with its count and delay after close", async () => {
     getLearnedTransitions.mockResolvedValue({
-      min_observations_to_gate: 3,
       transitions: [
         {
           from_camera: "cam-a",
@@ -40,7 +39,6 @@ describe("LearnedTransitionsCard", () => {
           mean_transit_s: 6.25,
           std_transit_s: 1.0,
           last_updated_at: null,
-          gates_revival: false,
         },
       ],
     });
@@ -51,14 +49,14 @@ describe("LearnedTransitionsCard", () => {
     expect(row.text()).toContain("Corridor");
     expect(row.text()).toContain("Kitchen");
     expect(row.text()).toContain("6.3 s");
-    expect(row.text()).toContain("(learning)");
+    expect(row.findAll("td")[2].text()).toBe("2");
   });
 
-  it("explains an empty topology", async () => {
-    getLearnedTransitions.mockResolvedValue({ min_observations_to_gate: 3, transitions: [] });
+  it("explains when there are no handoffs yet", async () => {
+    getLearnedTransitions.mockResolvedValue({ transitions: [] });
     const wrapper = mountCard();
     await flushPromises();
-    expect(wrapper.text()).toContain("No transitions learned yet");
+    expect(wrapper.text()).toContain("No handoffs yet");
   });
 
   it("says when tracking cannot be reached", async () => {

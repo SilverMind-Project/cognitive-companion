@@ -2285,7 +2285,7 @@ export interface paths {
         };
         /**
          * Learned Transitions
-         * @description Return the walk times CTS has learned between cameras, most observed first.
+         * @description Return the handoffs CTS has learned between cameras, most observed first.
          */
         get: operations["learned_transitions"];
         put?: never;
@@ -8589,8 +8589,6 @@ export interface components {
         LearnedTransitionOut: {
             /** From Camera */
             from_camera: string;
-            /** Gates Revival */
-            gates_revival: boolean;
             /** Last Updated At */
             last_updated_at: string | null;
             /** Mean Transit S */
@@ -8604,8 +8602,6 @@ export interface components {
         };
         /** LearnedTransitionsOut */
         LearnedTransitionsOut: {
-            /** Min Observations To Gate */
-            min_observations_to_gate: number;
             /** Transitions */
             transitions: components["schemas"]["LearnedTransitionOut"][];
         };

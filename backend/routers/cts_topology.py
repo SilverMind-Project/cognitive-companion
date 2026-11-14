@@ -1,8 +1,9 @@
-"""Learned camera-to-camera transitions (read-only).
+"""Learned camera-to-camera handoffs (read-only).
 
-CTS learns how long a walk from one camera's view to another's takes from accepted
-cross-camera handoffs and uses it to reject a crossing that is too fast to be the same person.
-Operators do not edit these; the Shared Views page shows them beside the overlap groups.
+CTS records every accepted cross-camera handoff: how many there were per ordered camera pair
+and the delay between the earlier track's close and the new sighting. The delay is measured
+from the close, which comes at least the close grace after the last sighting, so it is not a
+walk time. Operators do not edit these; the Shared Views page shows them beside the groups.
 """
 
 from __future__ import annotations
@@ -28,12 +29,10 @@ class LearnedTransitionOut(BaseModel):
     mean_transit_s: float
     std_transit_s: float
     last_updated_at: datetime | None
-    gates_revival: bool
 
 
 class LearnedTransitionsOut(BaseModel):
     transitions: list[LearnedTransitionOut]
-    min_observations_to_gate: int
 
 
 @router.get("/transitions", response_model=LearnedTransitionsOut)
@@ -41,7 +40,7 @@ async def learned_transitions(
     orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
     _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
 ) -> LearnedTransitionsOut:
-    """Return the walk times CTS has learned between cameras, most observed first."""
+    """Return the handoffs CTS has learned between cameras, most observed first."""
     cts_enabled()
     try:
         payload = await orchestrator.learned_transitions()

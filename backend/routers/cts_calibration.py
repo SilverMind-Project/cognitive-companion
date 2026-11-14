@@ -6,8 +6,9 @@ proxy: it validates camera existence, persists the computed matrix to the CC
 database (for restart durability), and forwards errors from the orchestrator.
 
 Routes:
-    POST /api/v1/cts/calibration/homography
-    GET  /api/v1/cts/calibration/homography/{camera_id}
+    POST   /api/v1/cts/calibration/homography
+    GET    /api/v1/cts/calibration/homography/{camera_id}
+    DELETE /api/v1/cts/calibration/homography/{camera_id}
     POST /api/v1/cts/calibration/auto/{camera_id}
     POST /api/v1/cts/calibration/floor_region/{camera_id}
     POST /api/v1/cts/calibration/privacy_zones
@@ -684,6 +685,45 @@ def get_homography(
         "matrix": matrix,
         "residuals_m": cam.homography_residuals,
     }
+
+
+@router.delete("/homography/{camera_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_homography(
+    camera_id: str,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+) -> None:
+    """Remove a camera's calibration so it tracks in its virtual room again.
+
+    Clears the matrix, its fit, the visibility polygon derived from it, and the drift reference
+    captured with it. The camera's floor region (image space) and floor-plan marker are kept:
+    they do not depend on the matrix and are reused by the next calibration. Tracking drops the
+    runtime matrix at its next CC config sync.
+    """
+    cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+    if not _has_committed_homography(cam):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "cts.calibration.no_homography",
+                "message": f"Camera '{camera_id}' has no calibration to remove.",
+            },
+        )
+    cam.homography = None
+    cam.homography_residuals = None
+    cam.homography_matrix = None
+    cam.homography_residual_m = None
+    cam.homography_method = None
+    cam.homography_set_at = None
+    cam.visibility_polygon = None
+    cam.needs_recalibration = False
+    cam.drift_reason = None
+    cam.calibration_ref_key = None
+    db.commit()
+    logger.info("cts_homography_removed", camera_id=camera_id)
 
 
 # ---------------------------------------------------------------------------

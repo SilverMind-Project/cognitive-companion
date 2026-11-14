@@ -309,6 +309,22 @@ through; a person-id 5xx, timeout, unreachable service, or malformed envelope is
 
 CTS routers expose camera admin, calibration, live data, PH identity review, presence configuration, signals, trajectories, overlap groups, and CTS window trigger definitions. These endpoints require CTS to be enabled through the shared `cts_enabled` dependency.
 
+### CTS floor frame: calibration, shared views, learned transitions
+
+Three different camera relationships, each with one owner. The tracking orchestrator reads the first two on every CC config sync, so a change reaches tracking within one sync interval.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/cts/calibration/homography` | Fit and save one camera's homography (pixel to floor-plan metres). Permission: `cts.calibrate` |
+| `DELETE` | `/cts/calibration/homography/{camera_id}` | Remove a camera's calibration, its visibility polygon, and its drift reference; keeps the floor region and marker. 404 `cts.calibration.no_homography` when there is none. Permission: `cts.calibrate` |
+| `GET` | `/cts/calibration/health` | Per camera: `severity` (`ok`, `info`, `warning`, `error`) and `code` (`not_calibrated`, `elevated_residual`, `high_residual`, `runtime_matrix_missing`, `db_matrix_missing`) |
+| `GET`, `POST` | `/cts/overlap_groups` | Shared views: sets of cameras that see the same floor area at the same time. Create rejects unknown or repeated camera ids with 422. Permissions: `cts.cameras.read`, `cts.cameras.write` |
+| `DELETE` | `/cts/overlap_groups/{group_id}` | Delete a shared view; 404 when absent |
+| `GET` | `/cts/overlap_groups/suggested` | Groups suggested from calibrated cameras whose visibility polygons overlap (coverage IoU at least 0.05), each with `declared` when an existing group already covers it, plus `uncalibrated_camera_ids`. Nothing is saved |
+| `GET` | `/cts/topology/transitions` | Read-only walk times CTS learned between cameras (`observation_count`, `mean_transit_s`, `std_transit_s`, `gates_revival`); 503 when the orchestrator is unreachable |
+
+There is no operator-edited adjacency graph: walk times are learned, and cameras that overlap are declared as shared views.
+
 ### CTS analytics
 
 | Method | Path | Description |

@@ -752,7 +752,16 @@ export interface paths {
         get: operations["get_homography"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Homography
+         * @description Remove a camera's calibration so it tracks in its virtual room again.
+         *
+         *     Clears the matrix, its fit, the visibility polygon derived from it, and the drift reference
+         *     captured with it. The camera's floor region (image space) and floor-plan marker are kept:
+         *     they do not depend on the matrix and are reused by the next calibration. Tracking drops the
+         *     runtime matrix at its next CC config sync.
+         */
+        delete: operations["delete_homography"];
         options?: never;
         head?: never;
         patch?: never;
@@ -12988,6 +12997,35 @@ export interface operations {
                         [key: string]: unknown;
                     };
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_homography: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

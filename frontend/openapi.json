@@ -19882,6 +19882,45 @@
       }
     },
     "/api/v1/cts/calibration/homography/{camera_id}": {
+      "delete": {
+        "description": "Remove a camera's calibration so it tracks in its virtual room again.\n\nClears the matrix, its fit, the visibility polygon derived from it, and the drift reference\ncaptured with it. The camera's floor region (image space) and floor-plan marker are kept:\nthey do not depend on the matrix and are reused by the next calibration. Tracking drops the\nruntime matrix at its next CC config sync.",
+        "operationId": "delete_homography",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Delete Homography",
+        "tags": [
+          "cts-calibration"
+        ]
+      },
       "get": {
         "operationId": "get_homography",
         "parameters": [

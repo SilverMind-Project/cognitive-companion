@@ -76,6 +76,8 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 - CC owns the floor frame's inputs (floor-plan image and `floor_meters_per_pixel` in `household_settings`, room polygons, camera homographies, overlap groups); CTS reads them only through its CC config sync poll. The frame definition (origin at the plan image's top-left, x right, y down, metres, z above the floor) and the two calibration tiers are in `continuous-tracking/.claude/skills/cts-spatial-fusion/reference/floor-frame.md`.
 - Normalized floor-plan coordinates stored by CC are converted to metres as `u * floor_plan_width * floor_meters_per_pixel`; without a scale CTS clears room polygons and transit zones.
 - CTS treats CC as authoritative on every poll: a homography CC no longer holds is removed at runtime, and overlap-group changes apply without a restart. A metre is only a metre on a calibrated camera; the per-camera split is CTS's `cts_worldtracker_observations_by_calibration_total`, never a counter in CC's own registry.
+- Three camera relationships, never conflated: calibration (per camera, Calibration page, `DELETE /cts/calibration/homography/{camera_id}` removes it), shared views (overlap groups: cameras that see the same floor at the same time, Shared Views page), and learned transitions (walk times CTS learns from handoffs, shown read-only through `/cts/topology/transitions`). There is no operator-edited adjacency graph and none may be reintroduced: an edge that tracking never reads is configuration that lies to the operator.
+- One floor plan is one storey. Every frame-bound value names its plan (`homography_floor_plan_id`); a second storey adds a second plan, and a shared view never spans storeys.
 
 ### WebSocket security
 

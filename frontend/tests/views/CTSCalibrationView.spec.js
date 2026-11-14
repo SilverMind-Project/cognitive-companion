@@ -2,20 +2,33 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { ref } from "vue";
 
-const { mockNotify, mockAutoCalibrate, mockPostHomography, mockPostFloorRegion, mockGetCameras } =
-  vi.hoisted(() => ({
-    mockNotify: vi.fn(),
-    mockAutoCalibrate: vi.fn(),
-    mockPostHomography: vi.fn(),
-    mockPostFloorRegion: vi.fn(),
-    mockGetCameras: vi.fn(),
-  }));
+const {
+  mockNotify,
+  mockAutoCalibrate,
+  mockPostHomography,
+  mockPostFloorRegion,
+  mockGetCameras,
+  mockGetHomography,
+  mockDeleteHomography,
+  mockHealthReload,
+  mockShowConfirm,
+} = vi.hoisted(() => ({
+  mockNotify: vi.fn(),
+  mockAutoCalibrate: vi.fn(),
+  mockPostHomography: vi.fn(),
+  mockPostFloorRegion: vi.fn(),
+  mockGetCameras: vi.fn(),
+  mockGetHomography: vi.fn(),
+  mockDeleteHomography: vi.fn(),
+  mockHealthReload: vi.fn(),
+  mockShowConfirm: vi.fn(),
+}));
 
 vi.mock("@/services/cts.js", () => ({
   cts: {
     getCameras: (...a) => mockGetCameras(...a),
     getSnapshot: vi.fn().mockResolvedValue("blob:snapshot"),
-    getHomography: vi.fn().mockRejectedValue(new Error("missing")),
+    getHomography: (...a) => mockGetHomography(...a),
     previewHomography: vi.fn().mockResolvedValue({
       matrix: [
         [1, 0, 0],
@@ -28,8 +41,26 @@ vi.mock("@/services/cts.js", () => ({
     autoCalibrate: mockAutoCalibrate,
     postHomography: mockPostHomography,
     postFloorRegion: mockPostFloorRegion,
+    deleteHomography: (...a) => mockDeleteHomography(...a),
   },
 }));
+
+vi.mock("@/composables/useConfirm.js", async () => {
+  const { ref: vueRef } = await import("vue");
+  return {
+    useConfirm: () => ({
+      confirmDialog: vueRef(false),
+      confirmTitle: vueRef(""),
+      confirmText: vueRef(""),
+      confirmLabel: vueRef("Confirm"),
+      cancelLabel: vueRef("Cancel"),
+      confirmColor: vueRef("error"),
+      showConfirm: mockShowConfirm,
+      onConfirm: vi.fn(),
+      onCancel: vi.fn(),
+    }),
+  };
+});
 
 vi.mock("@/services/household.js", () => ({
   household: {
@@ -64,8 +95,14 @@ vi.mock("@/components/cts/BlurToggle.vue", () => ({
   default: { template: "<div />" },
 }));
 
+// Mirrors the panel's public API: the view reloads it when a calibration is saved or removed.
 vi.mock("@/components/cts/CalibrationHealthPanel.vue", () => ({
-  default: { template: "<div />" },
+  default: {
+    template: "<div />",
+    setup(_props, { expose }) {
+      expose({ reload: mockHealthReload });
+    },
+  },
 }));
 
 // CcSegmentedToggle is NOT mocked: it's a thin real component over v-btn (stubbed below),
@@ -137,9 +174,14 @@ function clickCameraPane(wrapper, clientX, clientY) {
   return wrapper.find(".snapshot-container").trigger("click", { clientX, clientY });
 }
 
+beforeEach(() => {
+  mockGetHomography.mockRejectedValue(new Error("missing"));
+});
+
 describe("CTSCalibrationView auto-calibration draft", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetHomography.mockRejectedValue(new Error("missing"));
     mockGetCameras.mockResolvedValue([
       { id: "cam-1", name: "Cam 1" },
       { id: "cam-2", name: "Cam 2" },
@@ -338,5 +380,49 @@ describe("CTSCalibrationView floor-region overlay", () => {
     await selectCamera(wrapper, "cam-2");
 
     expect(wrapper.text()).not.toContain("Floor Region");
+  });
+});
+
+describe("CTSCalibrationView remove calibration", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetCameras.mockResolvedValue([{ id: "cam-1", name: "Cam 1" }]);
+    mockGetHomography.mockResolvedValue({ camera_id: "cam-1", matrix: [], residuals_m: [] });
+    mockDeleteHomography.mockResolvedValue(null);
+  });
+
+  it("offers removal only for a calibrated camera and removes after confirmation", async () => {
+    const wrapper = await mountView();
+    await selectCamera(wrapper, "cam-1");
+
+    const button = wrapper.find("[data-testid='remove-calibration']");
+    expect(button.exists()).toBe(true);
+
+    mockShowConfirm.mockResolvedValueOnce(false);
+    await button.trigger("click");
+    await flushPromises();
+    expect(mockDeleteHomography).not.toHaveBeenCalled();
+
+    mockShowConfirm.mockResolvedValueOnce(true);
+    await button.trigger("click");
+    await flushPromises();
+
+    expect(mockDeleteHomography).toHaveBeenCalledWith("cam-1");
+    expect(mockNotify).toHaveBeenCalledWith("Calibration removed");
+    expect(mockHealthReload).toHaveBeenCalled();
+    expect(wrapper.find("[data-testid='remove-calibration']").exists()).toBe(false);
+  });
+
+  it("keeps the calibration when removal fails", async () => {
+    mockDeleteHomography.mockRejectedValue(new Error("upstream down"));
+    mockShowConfirm.mockResolvedValue(true);
+    const wrapper = await mountView();
+    await selectCamera(wrapper, "cam-1");
+
+    await wrapper.find("[data-testid='remove-calibration']").trigger("click");
+    await flushPromises();
+
+    expect(mockNotify).toHaveBeenCalledWith("upstream down", "error");
+    expect(wrapper.find("[data-testid='remove-calibration']").exists()).toBe(true);
   });
 });

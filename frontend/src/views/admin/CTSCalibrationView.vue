@@ -167,11 +167,22 @@
 
           <CalibrationResultCard v-if="result" :result="result" />
           <v-card v-else-if="existingCalibration && !autoResult">
-            <v-card-text class="d-flex align-center">
-              <v-icon color="success" class="mr-2">mdi-check-circle</v-icon>
-              <span class="text-body-2">
+            <v-card-text class="d-flex align-center flex-wrap ga-2">
+              <v-icon color="success">mdi-check-circle</v-icon>
+              <span class="text-body-2 flex-grow-1">
                 This camera is already calibrated. Run again to update.
               </span>
+              <v-btn
+                variant="text"
+                color="error"
+                size="small"
+                prepend-icon="mdi-map-marker-remove-outline"
+                :loading="removingCalibration"
+                data-testid="remove-calibration"
+                @click="removeCalibration"
+              >
+                Remove calibration
+              </v-btn>
             </v-card-text>
           </v-card>
 
@@ -202,14 +213,28 @@
         Calibration Health
       </v-card-title>
       <v-card-text>
-        <CalibrationHealthPanel @test-projection="onTestProjection" />
+        <CalibrationHealthPanel ref="healthPanel" @test-projection="onTestProjection" />
       </v-card-text>
     </v-card>
+
+    <v-dialog v-model="confirmDialog" max-width="440" persistent>
+      <v-card rounded="xl">
+        <v-card-title>{{ confirmTitle }}</v-card-title>
+        <v-card-text>{{ confirmText }}</v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
+          <v-btn :color="confirmColor" @click="onConfirm">{{ confirmLabel }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import { cts } from "@/services/cts.js";
+import { useConfirm } from "@/composables/useConfirm.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode.js";
 import { useCalibrationCamera } from "@/composables/useCalibrationCamera.js";
@@ -311,6 +336,45 @@ const { previewStatus, previewCoveragePolygon, pointColor, disposePreviewTimer }
 
 const cameraPaneRef = ref(null);
 const floorPlanPaneRef = ref(null);
+const healthPanel = ref(null);
+const removingCalibration = ref(false);
+const {
+  confirmDialog,
+  confirmTitle,
+  confirmText,
+  confirmLabel,
+  cancelLabel,
+  confirmColor,
+  showConfirm,
+  onConfirm,
+  onCancel,
+} = useConfirm();
+
+// A saved or removed calibration changes the health row of that camera.
+watch(existingCalibration, () => healthPanel.value?.reload());
+
+async function removeCalibration() {
+  const cameraId = selectedCameraId.value;
+  if (!cameraId) return;
+  const ok = await showConfirm(
+    "Remove calibration",
+    `Remove the calibration of ${selectedCamera.value?.name || cameraId}? Within a minute ` +
+      "tracking places this camera's people in its own virtual room again: no floor position, " +
+      "speed, or floor-distance merging with other cameras. Its floor region and marker are kept.",
+  );
+  if (!ok) return;
+  removingCalibration.value = true;
+  try {
+    await cts.deleteHomography(cameraId);
+    existingCalibration.value = false;
+    result.value = null;
+    notify("Calibration removed");
+  } catch (e) {
+    notify(e.message || "Failed to remove calibration", "error");
+  } finally {
+    removingCalibration.value = false;
+  }
+}
 
 async function onCameraChange() {
   points.value = [];

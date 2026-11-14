@@ -70,6 +70,7 @@ def create_app() -> FastAPI:
         cts_reid_review,
         cts_signal_evidence,
         cts_signals,
+        cts_topology,
         cts_trajectory,
         cts_transit_zones,
         cts_window_triggers,
@@ -169,6 +170,7 @@ def create_app() -> FastAPI:
     app.include_router(cts_reid_review.router, prefix=api)
     app.include_router(cts_bboxes.router, prefix=api)
     app.include_router(cts_overlap_groups.router, prefix=api)
+    app.include_router(cts_topology.router, prefix=api)
     app.include_router(cts_diagnostics.router, prefix=api)
     app.include_router(cts_transit_zones.router, prefix=api)
     app.include_router(cts_analytics.router)  # already has /api/v1 prefix

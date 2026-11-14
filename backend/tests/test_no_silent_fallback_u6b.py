@@ -52,23 +52,23 @@ async def test_presence_dwell_logs_warning_on_service_error(caplog):
 
 
 # ---------------------------------------------------------------------------
-# T3: cts_adjacency_inference logs on polygon build failure
+# T3: cts_overlap_suggestions logs on polygon build failure
 # ---------------------------------------------------------------------------
 
 
-def test_cts_adjacency_logs_warning_on_polygon_failure(caplog):
+def test_cts_overlap_suggestions_log_warning_on_polygon_failure(caplog):
     """T3: invalid visibility polygon logs a warning and is skipped."""
-    from backend.services.cts_adjacency_inference import infer_adjacency
+    from backend.services.cts_overlap_suggestions import suggest_overlap_groups
 
     cameras = [
         {"id": "cam-A", "visibility_polygon": [[0, 0], [1, 0], [0.5, 1]]},
         {"id": "cam-bad", "visibility_polygon": "not_a_list"},
     ]
-    with caplog.at_level(logging.WARNING, logger="backend.services.cts_adjacency_inference"):
-        result = infer_adjacency(cameras)
+    with caplog.at_level(logging.WARNING, logger="backend.services.cts_overlap_suggestions"):
+        result = suggest_overlap_groups(cameras)
 
     assert "cam-bad" in result.skipped_camera_ids
-    assert any("cts_adjacency_polygon_build_failed" in r.message for r in caplog.records)
+    assert any("cts_overlap_polygon_build_failed" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,10 @@
-"""CTS camera overlap group CRUD.
+"""CTS camera overlap groups: declare which cameras see the same floor area at the same time.
 
-Phase 6: Cameras in the same overlap group view the same physical space
-from different angles. The orchestrator uses this to merge tracklets
-aggressively and to borrow face anchors across cameras within the group.
+An overlap group is a set of cameras, not a directed edge, and carries no transit time: walk
+times between cameras are learned by CTS (see ``cts_topology``). The tracking orchestrator reads
+the groups on every CC config sync and uses them to merge one person seen by several
+uncalibrated cameras of a group by appearance, to link co-present tracks, and to keep ReID
+embeddings on for those cameras. Suggestions come from calibrated cameras' floor coverage.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_db
 from backend.models.cts_camera import CtsCamera
 from backend.routers.cts_deps import cts_enabled
+from backend.services.cts_overlap_suggestions import suggest_overlap_groups
 
 router = APIRouter(prefix="/cts/overlap_groups", tags=["cts-overlap-groups"])
 
@@ -37,6 +40,47 @@ class OverlapGroupOut(BaseModel):
     name: str
     camera_ids: list[str]
     created_at: str | None = None
+
+
+class SuggestedOverlapGroupOut(BaseModel):
+    camera_ids: list[str]
+    iou: float
+    # True when a declared group already contains every camera of the suggestion.
+    declared: bool
+
+
+class OverlapGroupSuggestionsOut(BaseModel):
+    groups: list[SuggestedOverlapGroupOut]
+    # Enabled cameras without a calibration (no visibility polygon): never suggested.
+    uncalibrated_camera_ids: list[str]
+
+
+@router.get("/suggested", response_model=OverlapGroupSuggestionsOut)
+def suggested_groups(
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+) -> OverlapGroupSuggestionsOut:
+    """Suggest groups from calibrated cameras whose floor coverage overlaps (nothing is saved)."""
+    cts_enabled()
+    cameras = db.scalars(select(CtsCamera).where(CtsCamera.enabled.is_(True))).all()
+    suggestions = suggest_overlap_groups(
+        [{"id": c.id, "visibility_polygon": c.visibility_polygon} for c in cameras]
+    )
+    declared = [
+        set(r.camera_ids or [])
+        for r in db.execute(text("SELECT camera_ids FROM cts_camera_overlap_groups")).fetchall()
+    ]
+    return OverlapGroupSuggestionsOut(
+        groups=[
+            SuggestedOverlapGroupOut(
+                camera_ids=g.camera_ids,
+                iou=g.iou,
+                declared=any(set(g.camera_ids) <= group for group in declared),
+            )
+            for g in suggestions.groups
+        ],
+        uncalibrated_camera_ids=sorted(suggestions.skipped_camera_ids),
+    )
 
 
 @router.get("", response_model=list[OverlapGroupOut])

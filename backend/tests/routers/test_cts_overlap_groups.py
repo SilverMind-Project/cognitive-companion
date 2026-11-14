@@ -83,3 +83,50 @@ def test_repeated_camera_is_rejected(client: TestClient) -> None:
 
 def test_delete_missing_group_is_404(client: TestClient) -> None:
     assert client.delete("/api/v1/cts/overlap_groups/999999").status_code == 404
+
+
+_SQUARE = [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5], [0.1, 0.5]]
+
+
+def _set_polygons(db_engine: Engine, polygons: dict[str, list | None]) -> None:
+    Session = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
+    with Session() as db:
+        for camera_id, polygon in polygons.items():
+            db.get(CtsCamera, camera_id).visibility_polygon = polygon
+        db.commit()
+
+
+def test_suggestions_group_calibrated_cameras_with_shared_coverage(
+    client: TestClient, db_engine: Engine
+) -> None:
+    _set_polygons(db_engine, {"cam-a": _SQUARE, "cam-b": _SQUARE})
+
+    body = client.get("/api/v1/cts/overlap_groups/suggested").json()
+
+    assert [(g["camera_ids"], g["declared"]) for g in body["groups"]] == [
+        (["cam-a", "cam-b"], False)
+    ]
+
+
+def test_suggestion_marked_declared_once_a_group_covers_it(
+    client: TestClient, db_engine: Engine
+) -> None:
+    _set_polygons(db_engine, {"cam-a": _SQUARE, "cam-b": _SQUARE})
+    client.post(
+        "/api/v1/cts/overlap_groups", json={"name": "Living room", "camera_ids": ["cam-b", "cam-a"]}
+    )
+
+    body = client.get("/api/v1/cts/overlap_groups/suggested").json()
+
+    assert body["groups"][0]["declared"] is True
+
+
+def test_uncalibrated_cameras_are_listed_not_suggested(
+    client: TestClient, db_engine: Engine
+) -> None:
+    _set_polygons(db_engine, {"cam-a": None, "cam-b": None})
+
+    body = client.get("/api/v1/cts/overlap_groups/suggested").json()
+
+    assert body["groups"] == []
+    assert {"cam-a", "cam-b"} <= set(body["uncalibrated_camera_ids"])

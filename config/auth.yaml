@@ -267,7 +267,6 @@ permission_map:
   cts_ingress:
     - "GET /api/v1/cts/cameras"
     - "GET /api/v1/cts/overlap_groups"
-    - "GET /api/v1/cts/calibration/adjacency"
     - "GET /api/v1/cts/transit-zones"
     - "GET /api/v1/rooms*"
     - "GET /api/v1/household/floor-plan"

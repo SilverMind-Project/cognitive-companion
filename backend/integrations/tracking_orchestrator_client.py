@@ -103,13 +103,6 @@ class OrchestratorClient(UpstreamClient):
             json={"camera_id": camera_id, "zones": zones},
         )
 
-    async def post_adjacency(self, edges: list[dict]) -> None:
-        await self._request(
-            "POST",
-            "/internal/calibration/camera_adjacency",
-            json={"edges": edges},
-        )
-
     async def post_reload(self) -> None:
         await self._request("POST", "/internal/calibration/reload")
 
@@ -238,6 +231,11 @@ class OrchestratorClient(UpstreamClient):
 
     async def calibration_status(self) -> dict:
         r = await self._request("GET", "/internal/calibration/status")
+        return r.json()
+
+    async def learned_transitions(self) -> dict:
+        """Camera-to-camera walk times CTS learned from handoffs (read-only)."""
+        r = await self._request("GET", "/internal/topology/transitions")
         return r.json()
 
     # -- Keyframe methods (M8) -----------------------------------------------

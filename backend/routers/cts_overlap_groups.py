@@ -8,12 +8,13 @@ aggressively and to borrow face anchors across cameras within the group.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
-from sqlalchemy import text
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_db
+from backend.models.cts_camera import CtsCamera
 from backend.routers.cts_deps import cts_enabled
 
 router = APIRouter(prefix="/cts/overlap_groups", tags=["cts-overlap-groups"])
@@ -22,6 +23,13 @@ router = APIRouter(prefix="/cts/overlap_groups", tags=["cts-overlap-groups"])
 class OverlapGroupIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=256)
     camera_ids: list[str] = Field(..., min_length=2)
+
+    @field_validator("camera_ids")
+    @classmethod
+    def _distinct_cameras(cls, camera_ids: list[str]) -> list[str]:
+        if len(set(camera_ids)) != len(camera_ids):
+            raise ValueError("camera_ids must be distinct")
+        return camera_ids
 
 
 class OverlapGroupOut(BaseModel):
@@ -58,6 +66,14 @@ def create_group(
     _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
 ) -> dict:
     cts_enabled()
+    # A group naming a camera that does not exist is inert in tracking and would hide the typo.
+    known = set(db.scalars(select(CtsCamera.id).where(CtsCamera.id.in_(body.camera_ids))).all())
+    unknown = sorted(set(body.camera_ids) - known)
+    if unknown:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "overlap_group.unknown_camera", "camera_ids": unknown},
+        )
     result = db.execute(
         text(
             "INSERT INTO cts_camera_overlap_groups (name, camera_ids) "

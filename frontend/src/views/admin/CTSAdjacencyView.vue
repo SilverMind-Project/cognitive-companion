@@ -268,6 +268,12 @@
           </div>
         </v-card>
 
+        <OverlapGroupsCard
+          :groups="overlapGroups"
+          :cameras="cameraOptions"
+          @changed="loadOverlapGroups"
+        />
+
         <!-- Skipped cameras -->
         <v-alert
           v-if="skippedCameraIds.length > 0"
@@ -400,6 +406,7 @@ import { cts } from "../../services/cts.js";
 import { household } from "../../services/household.js";
 import { useNotify } from "../../composables/useNotify.js";
 import AppDialog from "../../components/common/AppDialog.vue";
+import OverlapGroupsCard from "../../components/cts/OverlapGroupsCard.vue";
 
 const { notify } = useNotify();
 

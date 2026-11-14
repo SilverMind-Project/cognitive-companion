@@ -43,7 +43,9 @@ const { notify } = useNotify();
 async function loadHealth() {
   loading.value = true;
   try {
-    cameras.value = await cts.getCalibrationHealth();
+    // The endpoint returns { cameras, generated_at }; the panel renders the camera rows.
+    const health = await cts.getCalibrationHealth();
+    cameras.value = health?.cameras ?? [];
   } catch (e) {
     notify.error(e.message || "Failed to load calibration health");
   } finally {

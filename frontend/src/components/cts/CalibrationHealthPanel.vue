@@ -17,11 +17,7 @@
           :data-testid="`calibration-dot-${cam.camera_id}`"
           @click="emit('test-projection', cam.camera_id)"
         >
-          <span
-            class="cal-dot"
-            :class="'cal-dot--' + cam.severity"
-            :title="`${cam.camera_id}: ${cam.severity}${cam.code ? ' (' + cam.code + ')' : ''}${cam.residual_m != null ? ', residual: ' + cam.residual_m.toFixed(3) + 'm' : ''}`"
-          />
+          <span class="cal-dot" :class="'cal-dot--' + cam.severity" :title="describe(cam)" />
           <span class="text-caption">{{ cam.camera_id }}</span>
         </span>
       </div>
@@ -53,6 +49,22 @@ async function loadHealth() {
   }
 }
 
+const CODE_TEXT = {
+  not_calibrated: "not calibrated (tracks in its own virtual room)",
+  elevated_residual: "calibration error is elevated",
+  high_residual: "calibration error is too high",
+  runtime_matrix_missing: "saved but not yet in use by tracking",
+  db_matrix_missing: "in use by tracking but no longer saved",
+};
+
+function describe(cam) {
+  const what = cam.code ? CODE_TEXT[cam.code] || cam.code : "calibrated";
+  const residual = cam.residual_m != null ? `, error ${cam.residual_m.toFixed(2)} m` : "";
+  return `${cam.camera_id}: ${what}${residual}`;
+}
+
+defineExpose({ reload: loadHealth });
+
 onMounted(loadHealth);
 </script>
 
@@ -65,12 +77,16 @@ onMounted(loadHealth);
   flex-shrink: 0;
 }
 .cal-dot--ok {
-  background: #4caf50;
+  background: var(--cc-success);
 }
 .cal-dot--warning {
-  background: #ff9800;
+  background: var(--cc-warning);
 }
 .cal-dot--error {
-  background: #f44336;
+  background: var(--cc-error);
+}
+/* Not calibrated: tracked in its own virtual room, so neither healthy nor failing. */
+.cal-dot--info {
+  border: 1.5px solid var(--cc-text-3);
 }
 </style>

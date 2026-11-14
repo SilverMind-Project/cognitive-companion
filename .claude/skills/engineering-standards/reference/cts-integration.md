@@ -71,6 +71,12 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 - Keep CTS frame references in memory. Never persist CTS-owned frame references to `MediaCache`.
 - Cognitive Companion deletes only its own reCamera objects. It never deletes CTS-owned MinIO objects.
 
+### Household floor frame
+
+- CC owns the floor frame's inputs (floor-plan image and `floor_meters_per_pixel` in `household_settings`, room polygons, camera homographies, overlap groups); CTS reads them only through its CC config sync poll. The frame definition (origin at the plan image's top-left, x right, y down, metres, z above the floor) and the two calibration tiers are in `continuous-tracking/.claude/skills/cts-spatial-fusion/reference/floor-frame.md`.
+- Normalized floor-plan coordinates stored by CC are converted to metres as `u * floor_plan_width * floor_meters_per_pixel`; without a scale CTS clears room polygons and transit zones.
+- CTS treats CC as authoritative on every poll: a homography CC no longer holds is removed at runtime, and overlap-group changes apply without a restart. A metre is only a metre on a calibrated camera; the per-camera split is CTS's `cts_worldtracker_observations_by_calibration_total`, never a counter in CC's own registry.
+
 ### WebSocket security
 
 - The `/ws/cts` WebSocket reads the API key from `sec-websocket-protocol` header, not from a query parameter.

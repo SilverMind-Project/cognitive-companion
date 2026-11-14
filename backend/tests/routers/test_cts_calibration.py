@@ -3,7 +3,7 @@
 Homography computation now runs in the tracking orchestrator.  The CC router
 is a thin proxy that delegates to orchestrator.fit_homography() and persists
 the result to the local DB.  These tests validate the proxy contract and the
-endpoints that remain in CC (privacy zones, adjacency, auto-calibrate).
+endpoints that remain in CC (privacy zones, auto-calibrate).
 
 Pure-function tests for compute_homography / FloorPlaneFitter / AutoCalibrator
 live in the orchestrator's own test suite.
@@ -83,9 +83,8 @@ def _make_client(
     )
     orchestrator.post_homography = AsyncMock(return_value=None)
     orchestrator.post_privacy_zones = AsyncMock(return_value=None)
-    orchestrator.post_adjacency = AsyncMock(return_value=None)
     orchestrator.post_reload = AsyncMock(return_value=None)
-    orchestrator.calibration_status = AsyncMock(return_value={"adjacency_edge_count": 0})
+    orchestrator.calibration_status = AsyncMock(return_value={"homography_camera_ids": []})
 
     ingress = MagicMock()
     ingress.snapshot = AsyncMock(return_value=b"\xff\xd8\xff\xe0fake-jpeg")
@@ -444,45 +443,6 @@ class TestPrivacyZonesEndpoint:
             json={"camera_id": "ghost", "zones": [ZONE]},
         )
         assert r.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# Adjacency endpoint
-# ---------------------------------------------------------------------------
-
-
-EDGE = {"from": "hallway", "to": "kitchen", "min_transit_s": 1.0, "max_transit_s": 20.0}
-
-
-class TestAdjacencyEndpoint:
-    def test_post_adjacency_accepted(self, client: TestClient):
-        r = client.post(
-            "/api/v1/cts/calibration/adjacency",
-            json={"edges": [EDGE]},
-        )
-        assert r.status_code == 204
-
-    def test_inverted_transit_rejected(self, client: TestClient):
-        bad_edge = {**EDGE, "min_transit_s": 30.0, "max_transit_s": 1.0}
-        r = client.post(
-            "/api/v1/cts/calibration/adjacency",
-            json={"edges": [bad_edge]},
-        )
-        assert r.status_code == 422
-        assert "max_transit_s" in r.json()["detail"]["message"]
-
-    def test_default_transit_bounds_accepted(self, client: TestClient):
-        r = client.post(
-            "/api/v1/cts/calibration/adjacency",
-            json={"edges": [{"from": "a", "to": "b"}]},
-        )
-        assert r.status_code == 204
-
-    def test_get_adjacency_returns_count(self, client: TestClient):
-        client.post("/api/v1/cts/calibration/adjacency", json={"edges": [EDGE]})
-        r = client.get("/api/v1/cts/calibration/adjacency")
-        assert r.status_code == 200
-        assert "edge_count" in r.json()
 
 
 # ---------------------------------------------------------------------------

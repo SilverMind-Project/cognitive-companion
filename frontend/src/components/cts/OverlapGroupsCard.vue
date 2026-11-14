@@ -1,13 +1,13 @@
 <template>
-  <v-card class="glass-card mt-3">
+  <v-card class="glass-card">
     <v-card-title class="d-flex align-center text-body-1">
-      Overlap Groups
+      Shared Views
       <v-spacer />
       <span class="text-caption text-medium-emphasis">{{ groups.length }}</span>
     </v-card-title>
     <v-card-subtitle class="text-caption text-wrap">
-      Cameras that see the same floor area. Tracking merges one person seen by several uncalibrated
-      cameras of a group by appearance; changes apply at the next tracking sync, within a minute.
+      Each group lists cameras that see the same floor area at the same time. Changes reach tracking
+      within a minute.
     </v-card-subtitle>
     <v-divider class="mt-2" />
     <v-list v-if="groups.length > 0" density="compact">
@@ -22,7 +22,7 @@
         </template>
         <v-list-item-title class="text-body-2">{{ group.name }}</v-list-item-title>
         <v-list-item-subtitle class="text-caption">
-          {{ (group.camera_ids || []).join(", ") }}
+          {{ cameraLabels(group.camera_ids) }}
         </v-list-item-subtitle>
         <template #append>
           <v-btn
@@ -30,7 +30,7 @@
             size="x-small"
             variant="text"
             color="error"
-            :aria-label="`Delete overlap group ${group.name}`"
+            :aria-label="`Delete shared view ${group.name}`"
             :loading="deletingId === group.id"
             @click="removeGroup(group)"
           />
@@ -38,13 +38,14 @@
       </v-list-item>
     </v-list>
     <div v-else class="pa-4 text-center text-body-2 text-medium-emphasis">
-      No overlap groups. Without one, two uncalibrated cameras never merge a person.
+      No shared views yet. Without one, a person seen at once by an uncalibrated camera and another
+      camera becomes two tracks.
     </div>
     <v-divider />
     <v-card-text>
       <v-text-field
         v-model="newName"
-        label="Group name"
+        label="Name (for example, Living room)"
         density="comfortable"
         variant="outlined"
         hide-details="auto"
@@ -75,7 +76,7 @@
         data-testid="overlap-group-create"
         @click="createGroup"
       >
-        Add group
+        Add shared view
       </v-btn>
     </v-card-actions>
 
@@ -135,6 +136,24 @@ const cameraItems = computed(() =>
   props.cameras.map((c) => ({ title: c.name ? `${c.name} (${c.id})` : c.id, value: c.id })),
 );
 
+const cameraNameById = computed(() =>
+  Object.fromEntries(props.cameras.map((c) => [c.id, c.name || c.id])),
+);
+
+function cameraLabels(ids) {
+  return (ids || []).map((id) => cameraNameById.value[id] || id).join(", ");
+}
+
+/**
+ * Pre-fill the form from a suggestion; the operator names the group and may add cameras.
+ * @param {string[]} cameraIds
+ */
+function prefill(cameraIds) {
+  newCameraIds.value = [...cameraIds];
+}
+
+defineExpose({ prefill });
+
 const canCreate = computed(() => newName.value.trim().length > 0 && newCameraIds.value.length >= 2);
 
 async function createGroup() {
@@ -147,10 +166,10 @@ async function createGroup() {
     });
     newName.value = "";
     newCameraIds.value = [];
-    notify.success("Overlap group added");
+    notify.success("Shared view added");
     emit("changed");
   } catch (e) {
-    notify.error(e.message || "Failed to add overlap group");
+    notify.error(e.message || "Failed to add shared view");
   } finally {
     creating.value = false;
   }
@@ -159,18 +178,18 @@ async function createGroup() {
 /** @param {OverlapGroup} group */
 async function removeGroup(group) {
   const ok = await showConfirm(
-    "Delete overlap group",
-    `Delete "${group.name}" (${(group.camera_ids || []).join(", ")})? ` +
-      "Tracking stops merging these cameras by appearance at the next sync.",
+    "Delete shared view",
+    `Delete "${group.name}" (${cameraLabels(group.camera_ids)})? ` +
+      "Tracking stops treating these cameras as one view within a minute.",
   );
   if (!ok) return;
   deletingId.value = group.id;
   try {
     await cts.deleteOverlapGroup(group.id);
-    notify.success("Overlap group deleted");
+    notify.success("Shared view deleted");
     emit("changed");
   } catch (e) {
-    notify.error(e.message || "Failed to delete overlap group");
+    notify.error(e.message || "Failed to delete shared view");
   } finally {
     deletingId.value = null;
   }

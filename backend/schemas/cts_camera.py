@@ -191,28 +191,6 @@ class HomographyPreviewResult(BaseModel):
     status: str  # "ok" | "warning" | "error"
 
 
-class InferredEdgeOut(BaseModel):
-    from_camera: str = Field(..., alias="from")
-    to_camera: str = Field(..., alias="to")
-    min_transit_s: float
-    max_transit_s: float
-    overlap: bool
-    iou: float
-
-    model_config = {"populate_by_name": True}
-
-
-class InferredOverlapGroupOut(BaseModel):
-    camera_ids: list[str]
-    iou: float
-
-
-class InferredAdjacencyResponse(BaseModel):
-    edges: list[InferredEdgeOut]
-    overlap_groups: list[InferredOverlapGroupOut]
-    skipped_camera_ids: list[str]
-
-
 class PrivacyZoneIn(BaseModel):
     zone_id: str = Field(..., min_length=1)
     name: str = ""
@@ -266,20 +244,6 @@ class VisibilityPolygonsResponse(BaseModel):
     floor_meters_per_pixel: float | None
     floor_plan_width_px: int | None
     floor_plan_height_px: int | None
-
-
-class AdjacencyEdgeIn(BaseModel):
-    from_camera: str = Field(..., alias="from", min_length=1)
-    to_camera: str = Field(..., alias="to", min_length=1)
-    min_transit_s: float = Field(default=0.5, ge=0.0)
-    max_transit_s: float = Field(default=30.0, ge=0.0)
-    overlap: bool = False
-
-    model_config = {"populate_by_name": True}
-
-
-class AdjacencyRequest(BaseModel):
-    edges: list[AdjacencyEdgeIn]
 
 
 class FloorRegionDefaultResponse(BaseModel):

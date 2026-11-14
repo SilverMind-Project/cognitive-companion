@@ -600,52 +600,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cts/calibration/adjacency": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Adjacency
-         * @description Return the persisted adjacency graph from the database.
-         */
-        get: operations["get_adjacency"];
-        put?: never;
-        /**
-         * Post Adjacency
-         * @description Replace the full camera adjacency graph, persist to DB, and push to the orchestrator.
-         */
-        post: operations["post_adjacency"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/cts/calibration/adjacency/inferred": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Inferred Adjacency
-         * @description Infer adjacency edges from stored visibility polygons (read-only, not persisted).
-         *
-         *     The caller decides which edges to adopt by calling ``POST /adjacency``.
-         */
-        get: operations["get_inferred_adjacency"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/cts/calibration/auto/{camera_id}": {
         parameters: {
             query?: never;
@@ -1700,6 +1654,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cts/overlap_groups/suggested": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggested Groups
+         * @description Suggest groups from calibrated cameras whose floor coverage overlaps (nothing is saved).
+         */
+        get: operations["suggested_groups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cts/overlap_groups/{group_id}": {
         parameters: {
             query?: never;
@@ -2285,6 +2259,26 @@ export interface paths {
          * @description Live CTS health snapshot: orchestrator reachability + subscriber states.
          */
         get: operations["get_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cts/topology/transitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Learned Transitions
+         * @description Return the walk times CTS has learned between cameras, most observed first.
+         */
+        get: operations["learned_transitions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5538,33 +5532,6 @@ export interface components {
             /** Last Opened At */
             last_opened_at: string | null;
         };
-        /** AdjacencyEdgeIn */
-        AdjacencyEdgeIn: {
-            /** From */
-            from: string;
-            /**
-             * Max Transit S
-             * @default 30
-             */
-            max_transit_s: number;
-            /**
-             * Min Transit S
-             * @default 0.5
-             */
-            min_transit_s: number;
-            /**
-             * Overlap
-             * @default false
-             */
-            overlap: boolean;
-            /** To */
-            to: string;
-        };
-        /** AdjacencyRequest */
-        AdjacencyRequest: {
-            /** Edges */
-            edges: components["schemas"]["AdjacencyEdgeIn"][];
-        };
         /**
          * AggregatorStateListEnvelope
          * @description Paginated camera aggregator state.
@@ -8139,37 +8106,6 @@ export interface components {
             /** Window Minutes */
             window_minutes: number;
         };
-        /** InferredAdjacencyResponse */
-        InferredAdjacencyResponse: {
-            /** Edges */
-            edges: components["schemas"]["InferredEdgeOut"][];
-            /** Overlap Groups */
-            overlap_groups: components["schemas"]["InferredOverlapGroupOut"][];
-            /** Skipped Camera Ids */
-            skipped_camera_ids: string[];
-        };
-        /** InferredEdgeOut */
-        InferredEdgeOut: {
-            /** From */
-            from: string;
-            /** Iou */
-            iou: number;
-            /** Max Transit S */
-            max_transit_s: number;
-            /** Min Transit S */
-            min_transit_s: number;
-            /** Overlap */
-            overlap: boolean;
-            /** To */
-            to: string;
-        };
-        /** InferredOverlapGroupOut */
-        InferredOverlapGroupOut: {
-            /** Camera Ids */
-            camera_ids: string[];
-            /** Iou */
-            iou: number;
-        };
         /** InfoCardCreate */
         InfoCardCreate: {
             /** Body Text */
@@ -8640,6 +8576,30 @@ export interface components {
             /** Target Width */
             target_width: number;
         };
+        /** LearnedTransitionOut */
+        LearnedTransitionOut: {
+            /** From Camera */
+            from_camera: string;
+            /** Gates Revival */
+            gates_revival: boolean;
+            /** Last Updated At */
+            last_updated_at: string | null;
+            /** Mean Transit S */
+            mean_transit_s: number;
+            /** Observation Count */
+            observation_count: number;
+            /** Std Transit S */
+            std_transit_s: number;
+            /** To Camera */
+            to_camera: string;
+        };
+        /** LearnedTransitionsOut */
+        LearnedTransitionsOut: {
+            /** Min Observations To Gate */
+            min_observations_to_gate: number;
+            /** Transitions */
+            transitions: components["schemas"]["LearnedTransitionOut"][];
+        };
         /**
          * LivenessOut
          * @description Root liveness probe. Must answer before auth config is trusted.
@@ -8895,6 +8855,13 @@ export interface components {
             id: number;
             /** Name */
             name: string;
+        };
+        /** OverlapGroupSuggestionsOut */
+        OverlapGroupSuggestionsOut: {
+            /** Groups */
+            groups: components["schemas"]["SuggestedOverlapGroupOut"][];
+            /** Uncalibrated Camera Ids */
+            uncalibrated_camera_ids: string[];
         };
         /** PHCoPresentItemResponse */
         PHCoPresentItemResponse: {
@@ -11506,6 +11473,15 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** SuggestedOverlapGroupOut */
+        SuggestedOverlapGroupOut: {
+            /** Camera Ids */
+            camera_ids: string[];
+            /** Declared */
+            declared: boolean;
+            /** Iou */
+            iou: number;
+        };
         /** SuppressionIn */
         SuppressionIn: {
             /**
@@ -12800,79 +12776,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_adjacency: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    post_adjacency: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AdjacencyRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_inferred_adjacency: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InferredAdjacencyResponse"];
                 };
             };
         };
@@ -14668,6 +14571,26 @@ export interface operations {
             };
         };
     };
+    suggested_groups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverlapGroupSuggestionsOut"];
+                };
+            };
+        };
+    };
     delete_group: {
         parameters: {
             query?: never;
@@ -15713,6 +15636,26 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    learned_transitions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearnedTransitionsOut"];
                 };
             };
         };

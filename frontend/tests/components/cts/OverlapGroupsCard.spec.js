@@ -95,11 +95,11 @@ describe("OverlapGroupsCard", () => {
 
     const row = wrapper.find("[data-testid='overlap-group-3']");
     expect(row.text()).toContain("Living room");
-    expect(row.text()).toContain("living-room-2, side-corridor");
+    expect(row.text()).toContain("Living room, Side corridor");
   });
 
   it("explains the empty state", () => {
-    expect(mountCard().text()).toContain("No overlap groups");
+    expect(mountCard().text()).toContain("No shared views yet");
   });
 
   it("does not create a group with fewer than two cameras", async () => {
@@ -154,5 +154,25 @@ describe("OverlapGroupsCard", () => {
 
     expect(notifyError).toHaveBeenCalledWith("upstream down");
     expect(wrapper.emitted("changed")).toBeUndefined();
+  });
+});
+
+describe("OverlapGroupsCard prefill", () => {
+  it("fills the camera field from a suggestion", async () => {
+    const wrapper = mountCard();
+    wrapper.vm.prefill(["living-room-2", "side-corridor"]);
+    await flushPromises();
+
+    const [cameraField] = wrapper.findAllComponents(stubs["v-select"]);
+    expect(cameraField.props("modelValue")).toEqual(["living-room-2", "side-corridor"]);
+  });
+
+  it("shows camera names, not ids, in the group list", () => {
+    const wrapper = mountCard([
+      { id: 3, name: "Lounge", camera_ids: ["living-room-2", "side-corridor"] },
+    ]);
+    expect(wrapper.find("[data-testid='overlap-group-3']").text()).toContain(
+      "Living room, Side corridor",
+    );
   });
 });

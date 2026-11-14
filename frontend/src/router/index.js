@@ -201,9 +201,13 @@ const routes = [
         component: () => import("../views/admin/CTSPrivacyView.vue"),
       },
       {
+        path: "cts/shared-views",
+        name: "cts-shared-views",
+        component: () => import("../views/admin/CTSSharedViewsView.vue"),
+      },
+      {
         path: "cts/adjacency",
-        name: "cts-adjacency",
-        component: () => import("../views/admin/CTSAdjacencyView.vue"),
+        redirect: "/admin/cts/shared-views",
       },
       {
         path: "cts/keyframes",

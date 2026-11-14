@@ -82,16 +82,12 @@ export const cts = {
     }),
   getPrivacyZones: (camera_id) => req(`/calibration/privacy_zones/${camera_id}`),
 
-  // ── Calibration: adjacency ──────────────────────────────────────────────────
-  postAdjacency: (edges) =>
-    req("/calibration/adjacency", { method: "POST", body: JSON.stringify({ edges }) }),
-  getAdjacency: () => req("/calibration/adjacency"),
-
-  // ── Overlap groups ──────────────────────────────────────────────────────────
+  // ── Coverage and shared views ───────────────────────────────────────────────
   getVisibilityPolygons: () => req("/calibration/visibility_polygons"),
   recomputeVisibilityPolygons: () =>
     req("/calibration/visibility_polygons/recompute", { method: "POST" }),
-  getInferredAdjacency: () => req("/calibration/adjacency/inferred"),
+  getOverlapGroupSuggestions: () => req("/overlap_groups/suggested"),
+  getLearnedTransitions: () => req("/topology/transitions"),
   getOverlapGroups: () => req("/overlap_groups"),
   createOverlapGroup: (body) =>
     req("/overlap_groups", { method: "POST", body: JSON.stringify(body) }),

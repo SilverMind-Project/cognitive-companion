@@ -439,59 +439,6 @@
         "title": "ActivityTypeHealthOut",
         "type": "object"
       },
-      "AdjacencyEdgeIn": {
-        "properties": {
-          "from": {
-            "minLength": 1,
-            "title": "From",
-            "type": "string"
-          },
-          "max_transit_s": {
-            "default": 30.0,
-            "minimum": 0.0,
-            "title": "Max Transit S",
-            "type": "number"
-          },
-          "min_transit_s": {
-            "default": 0.5,
-            "minimum": 0.0,
-            "title": "Min Transit S",
-            "type": "number"
-          },
-          "overlap": {
-            "default": false,
-            "title": "Overlap",
-            "type": "boolean"
-          },
-          "to": {
-            "minLength": 1,
-            "title": "To",
-            "type": "string"
-          }
-        },
-        "required": [
-          "from",
-          "to"
-        ],
-        "title": "AdjacencyEdgeIn",
-        "type": "object"
-      },
-      "AdjacencyRequest": {
-        "properties": {
-          "edges": {
-            "items": {
-              "$ref": "#/components/schemas/AdjacencyEdgeIn"
-            },
-            "title": "Edges",
-            "type": "array"
-          }
-        },
-        "required": [
-          "edges"
-        ],
-        "title": "AdjacencyRequest",
-        "type": "object"
-      },
       "AggregatorStateListEnvelope": {
         "additionalProperties": false,
         "description": "Paginated camera aggregator state.",
@@ -7669,97 +7616,6 @@
         "title": "InferenceTelemetryOut",
         "type": "object"
       },
-      "InferredAdjacencyResponse": {
-        "properties": {
-          "edges": {
-            "items": {
-              "$ref": "#/components/schemas/InferredEdgeOut"
-            },
-            "title": "Edges",
-            "type": "array"
-          },
-          "overlap_groups": {
-            "items": {
-              "$ref": "#/components/schemas/InferredOverlapGroupOut"
-            },
-            "title": "Overlap Groups",
-            "type": "array"
-          },
-          "skipped_camera_ids": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Skipped Camera Ids",
-            "type": "array"
-          }
-        },
-        "required": [
-          "edges",
-          "overlap_groups",
-          "skipped_camera_ids"
-        ],
-        "title": "InferredAdjacencyResponse",
-        "type": "object"
-      },
-      "InferredEdgeOut": {
-        "properties": {
-          "from": {
-            "title": "From",
-            "type": "string"
-          },
-          "iou": {
-            "title": "Iou",
-            "type": "number"
-          },
-          "max_transit_s": {
-            "title": "Max Transit S",
-            "type": "number"
-          },
-          "min_transit_s": {
-            "title": "Min Transit S",
-            "type": "number"
-          },
-          "overlap": {
-            "title": "Overlap",
-            "type": "boolean"
-          },
-          "to": {
-            "title": "To",
-            "type": "string"
-          }
-        },
-        "required": [
-          "from",
-          "to",
-          "min_transit_s",
-          "max_transit_s",
-          "overlap",
-          "iou"
-        ],
-        "title": "InferredEdgeOut",
-        "type": "object"
-      },
-      "InferredOverlapGroupOut": {
-        "properties": {
-          "camera_ids": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Camera Ids",
-            "type": "array"
-          },
-          "iou": {
-            "title": "Iou",
-            "type": "number"
-          }
-        },
-        "required": [
-          "camera_ids",
-          "iou"
-        ],
-        "title": "InferredOverlapGroupOut",
-        "type": "object"
-      },
       "InfoCardCreate": {
         "additionalProperties": false,
         "properties": {
@@ -9040,6 +8896,78 @@
         "title": "LayoutVariantOut",
         "type": "object"
       },
+      "LearnedTransitionOut": {
+        "properties": {
+          "from_camera": {
+            "title": "From Camera",
+            "type": "string"
+          },
+          "gates_revival": {
+            "title": "Gates Revival",
+            "type": "boolean"
+          },
+          "last_updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Updated At"
+          },
+          "mean_transit_s": {
+            "title": "Mean Transit S",
+            "type": "number"
+          },
+          "observation_count": {
+            "title": "Observation Count",
+            "type": "integer"
+          },
+          "std_transit_s": {
+            "title": "Std Transit S",
+            "type": "number"
+          },
+          "to_camera": {
+            "title": "To Camera",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_camera",
+          "to_camera",
+          "observation_count",
+          "mean_transit_s",
+          "std_transit_s",
+          "last_updated_at",
+          "gates_revival"
+        ],
+        "title": "LearnedTransitionOut",
+        "type": "object"
+      },
+      "LearnedTransitionsOut": {
+        "properties": {
+          "min_observations_to_gate": {
+            "title": "Min Observations To Gate",
+            "type": "integer"
+          },
+          "transitions": {
+            "items": {
+              "$ref": "#/components/schemas/LearnedTransitionOut"
+            },
+            "title": "Transitions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "transitions",
+          "min_observations_to_gate"
+        ],
+        "title": "LearnedTransitionsOut",
+        "type": "object"
+      },
       "LivenessOut": {
         "description": "Root liveness probe. Must answer before auth config is trusted.",
         "properties": {
@@ -9672,6 +9600,30 @@
           "camera_ids"
         ],
         "title": "OverlapGroupOut",
+        "type": "object"
+      },
+      "OverlapGroupSuggestionsOut": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestedOverlapGroupOut"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "uncalibrated_camera_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Uncalibrated Camera Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "groups",
+          "uncalibrated_camera_ids"
+        ],
+        "title": "OverlapGroupSuggestionsOut",
         "type": "object"
       },
       "PHCoPresentItemResponse": {
@@ -16846,6 +16798,32 @@
         "title": "StepTypeOut",
         "type": "object"
       },
+      "SuggestedOverlapGroupOut": {
+        "properties": {
+          "camera_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Camera Ids",
+            "type": "array"
+          },
+          "declared": {
+            "title": "Declared",
+            "type": "boolean"
+          },
+          "iou": {
+            "title": "Iou",
+            "type": "number"
+          }
+        },
+        "required": [
+          "camera_ids",
+          "iou",
+          "declared"
+        ],
+        "title": "SuggestedOverlapGroupOut",
+        "type": "object"
+      },
       "SuppressionIn": {
         "properties": {
           "duration_hours": {
@@ -19621,100 +19599,6 @@
         "summary": "Get Heatmap",
         "tags": [
           "cts-analytics"
-        ]
-      }
-    },
-    "/api/v1/cts/calibration/adjacency": {
-      "get": {
-        "description": "Return the persisted adjacency graph from the database.",
-        "operationId": "get_adjacency",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Adjacency",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ],
-        "summary": "Get Adjacency",
-        "tags": [
-          "cts-calibration"
-        ]
-      },
-      "post": {
-        "description": "Replace the full camera adjacency graph, persist to DB, and push to the orchestrator.",
-        "operationId": "post_adjacency",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdjacencyRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ],
-        "summary": "Post Adjacency",
-        "tags": [
-          "cts-calibration"
-        ]
-      }
-    },
-    "/api/v1/cts/calibration/adjacency/inferred": {
-      "get": {
-        "description": "Infer adjacency edges from stored visibility polygons (read-only, not persisted).\n\nThe caller decides which edges to adopt by calling ``POST /adjacency``.",
-        "operationId": "get_inferred_adjacency",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InferredAdjacencyResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ],
-        "summary": "Get Inferred Adjacency",
-        "tags": [
-          "cts-calibration"
         ]
       }
     },
@@ -22715,6 +22599,33 @@
         ]
       }
     },
+    "/api/v1/cts/overlap_groups/suggested": {
+      "get": {
+        "description": "Suggest groups from calibrated cameras whose floor coverage overlaps (nothing is saved).",
+        "operationId": "suggested_groups",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverlapGroupSuggestionsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Suggested Groups",
+        "tags": [
+          "cts-overlap-groups"
+        ]
+      }
+    },
     "/api/v1/cts/overlap_groups/{group_id}": {
       "delete": {
         "operationId": "delete_group",
@@ -24755,6 +24666,33 @@
         "summary": "Get Status",
         "tags": [
           "cts"
+        ]
+      }
+    },
+    "/api/v1/cts/topology/transitions": {
+      "get": {
+        "description": "Return the walk times CTS has learned between cameras, most observed first.",
+        "operationId": "learned_transitions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnedTransitionsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Learned Transitions",
+        "tags": [
+          "cts-topology"
         ]
       }
     },

@@ -1,4 +1,4 @@
-"""CTS calibration endpoints: homography, privacy zones, and camera adjacency.
+"""CTS calibration endpoints: homography and privacy zones.
 
 Homography computation runs in the tracking orchestrator (``continuous-tracking``),
 which is the authoritative spatial-processing service.  This BFF router is a thin
@@ -12,8 +12,9 @@ Routes:
     POST /api/v1/cts/calibration/floor_region/{camera_id}
     POST /api/v1/cts/calibration/privacy_zones
     GET  /api/v1/cts/calibration/privacy_zones/{camera_id}
-    POST /api/v1/cts/calibration/adjacency
-    GET  /api/v1/cts/calibration/adjacency
+
+The tracking orchestrator reads every saved calibration through its CC config sync, so a save
+or a removal reaches tracking within one sync interval even when the immediate push fails.
 """
 
 from __future__ import annotations
@@ -43,16 +44,12 @@ from backend.routers.dependencies import (
     get_orchestrator_client,
 )
 from backend.schemas.cts_camera import (
-    AdjacencyRequest,
     CameraVisibilityPolygon,
     FloorRegionDefaultResponse,
     HomographyPreviewRequest,
     HomographyPreviewResult,
     HomographyRequest,
     HomographyResult,
-    InferredAdjacencyResponse,
-    InferredEdgeOut,
-    InferredOverlapGroupOut,
     PrivacyZonesRequest,
     VisibilityPolygonsResponse,
 )
@@ -896,128 +893,3 @@ def get_privacy_zones(
     if not cam:
         raise NotFoundError("Camera", camera_id)
     return {"camera_id": camera_id, "zones": cam.privacy_zones or []}
-
-
-# ---------------------------------------------------------------------------
-# Adjacency endpoints
-# ---------------------------------------------------------------------------
-
-
-@router.get("/adjacency/inferred", response_model=InferredAdjacencyResponse)
-def get_inferred_adjacency(
-    db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
-) -> InferredAdjacencyResponse:
-    """Infer adjacency edges from stored visibility polygons (read-only, not persisted).
-
-    The caller decides which edges to adopt by calling ``POST /adjacency``.
-    """
-    from sqlalchemy import select
-
-    from backend.services.cts_adjacency_inference import infer_adjacency
-
-    cts_enabled()
-
-    cameras = (
-        db.execute(
-            select(CtsCamera).where(CtsCamera.enabled == True)  # noqa: E712
-        )
-        .scalars()
-        .all()
-    )
-
-    cam_dicts = [{"id": c.id, "visibility_polygon": c.visibility_polygon} for c in cameras]
-    result = infer_adjacency(cam_dicts)
-
-    return InferredAdjacencyResponse(
-        edges=[
-            InferredEdgeOut(
-                **{"from": e.from_camera, "to": e.to_camera},
-                min_transit_s=e.min_transit_s,
-                max_transit_s=e.max_transit_s,
-                overlap=e.overlap,
-                iou=e.iou,
-            )
-            for e in result.edges
-        ],
-        overlap_groups=[
-            InferredOverlapGroupOut(camera_ids=g.camera_ids, iou=g.iou)
-            for g in result.overlap_groups
-        ],
-        skipped_camera_ids=result.skipped_camera_ids,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Adjacency (persisted) endpoints
-# ---------------------------------------------------------------------------
-
-
-def _get_or_create_settings(db: Session) -> HouseholdSettings:
-    """Return the singleton HouseholdSettings row, creating it if absent."""
-    from sqlalchemy.exc import IntegrityError
-
-    row = db.get(HouseholdSettings, 1)
-    if row is not None:
-        return row
-    row = HouseholdSettings(id=1)
-    db.add(row)
-    try:
-        db.flush()
-    except IntegrityError:
-        db.rollback()
-        row = db.get(HouseholdSettings, 1)
-        if row is None:
-            raise
-    return row
-
-
-@router.post("/adjacency", status_code=status.HTTP_204_NO_CONTENT)
-async def post_adjacency(
-    body: AdjacencyRequest,
-    db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
-    orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
-) -> None:
-    """Replace the full camera adjacency graph, persist to DB, and push to the orchestrator."""
-    cts_enabled()
-
-    for edge in body.edges:
-        if edge.max_transit_s < edge.min_transit_s:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={
-                    "code": "cts.calibration.invalid_transit",
-                    "message": (
-                        f"Edge {edge.from_camera}->{edge.to_camera}: "
-                        "max_transit_s must be >= min_transit_s"
-                    ),
-                },
-            )
-
-    # Persist to DB using from/to alias keys so the orchestrator startup loader
-    # can send them back unchanged.
-    edges_data = [e.model_dump(by_alias=True) for e in body.edges]
-    settings_row = _get_or_create_settings(db)
-    settings_row.cts_adjacency_edges = edges_data
-    db.commit()
-
-    # Push live update to orchestrator (non-fatal if unreachable).
-    try:
-        await orchestrator.post_adjacency(edges=edges_data)
-    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
-        logger.warning("cts_adjacency_push_failed", error=str(exc))
-
-    logger.info("cts_adjacency_saved", edge_count=len(edges_data))
-
-
-@router.get("/adjacency")
-def get_adjacency(
-    db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
-) -> dict:
-    """Return the persisted adjacency graph from the database."""
-    cts_enabled()
-    row = db.get(HouseholdSettings, 1)
-    edges = (row.cts_adjacency_edges or []) if row is not None else []
-    return {"edge_count": len(edges), "edges": edges}

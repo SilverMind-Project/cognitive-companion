@@ -1,6 +1,9 @@
-"""N6: Calibration health endpoint.
+"""Calibration health endpoint.
 
-Returns per-camera calibration status for the admin health panel.
+Returns per-camera calibration status for the admin health panel: the stored homography, whether
+the tracking orchestrator holds the same camera at runtime, and the fit residual. How many
+observations each camera contributes with or without calibration is a CTS metric
+(``cts_worldtracker_observations_by_calibration_total``), not something CC can count.
 """
 
 from __future__ import annotations
@@ -8,32 +11,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
-from prometheus_client import REGISTRY
 from sqlalchemy.orm import Session
 
 from backend.core.auth import require_permission
 from backend.core.database import get_db
-from backend.core.logging import get_logger
 from backend.models.cts_camera import CtsCamera
 from backend.routers.cts_deps import cts_enabled
 
-logger = get_logger(__name__)
-
 router = APIRouter(prefix="/cts", tags=["cts-calibration-health"])
-
-
-def _get_uncalibrated_detection_count() -> int:
-    """Read cumulative uncalibrated detection count from Prometheus registry.
-
-    This is a process-lifetime counter, not a rolling 24-hour window.
-    """
-    try:
-        for metric in REGISTRY.collect():
-            if metric.name == "cts_uncalibrated_detections_total":
-                return int(sum(sample.value for sample in metric.samples))
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("uncalibrated_count_fetch_failed", error=str(exc))
-    return 0
 
 
 @router.get("/calibration/health")
@@ -94,11 +79,7 @@ async def calibration_health(
             }
         )
 
-    uncalibrated_count = _get_uncalibrated_detection_count()
-
     return {
         "cameras": results,
-        "uncalibrated_detection_count": uncalibrated_count,
-        "uncalibrated_count_is_cumulative": True,
         "generated_at": datetime.now(UTC).isoformat(),
     }

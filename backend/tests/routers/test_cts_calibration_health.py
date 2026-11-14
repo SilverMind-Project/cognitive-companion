@@ -69,6 +69,8 @@ def test_calibration_health_reports_runtime_matrix_missing(db_engine: Engine):
         client._patcher.stop()  # type: ignore[attr-defined]
 
     assert response.status_code == 200
+    # The panel reads ``cameras``; no CTS-process counter is reported from CC's registry.
+    assert set(response.json()) == {"cameras", "generated_at"}
     camera = response.json()["cameras"][0]
     assert camera["camera_id"] == "calibrated-cam"
     assert camera["homography_present"] is True

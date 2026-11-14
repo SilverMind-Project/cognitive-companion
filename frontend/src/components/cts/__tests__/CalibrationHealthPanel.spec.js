@@ -19,6 +19,11 @@ const stubs = {
   "v-card": { template: '<div class="v-card"><slot /></div>' },
 };
 
+/** The real response shape of GET /api/v1/cts/calibration/health. */
+function healthResponse(cameras) {
+  return { cameras, generated_at: "2026-11-14T10:00:00+00:00" };
+}
+
 function mountPanel() {
   return mount(CalibrationHealthPanel, {
     global: { stubs },
@@ -31,9 +36,9 @@ describe("CalibrationHealthPanel", () => {
   });
 
   it("calls cts.getCalibrationHealth on mount (not global fetch or localStorage)", async () => {
-    mockGetCalibrationHealth.mockResolvedValue([
-      { camera_id: "cam-1", severity: "ok", code: null, residual_m: 0.012 },
-    ]);
+    mockGetCalibrationHealth.mockResolvedValue(
+      healthResponse([{ camera_id: "cam-1", severity: "ok", code: null, residual_m: 0.012 }]),
+    );
     const localStorageSpy = vi.spyOn(Storage.prototype, "getItem");
     const globalFetchSpy = vi.spyOn(globalThis, "fetch");
 
@@ -46,15 +51,26 @@ describe("CalibrationHealthPanel", () => {
   });
 
   it("renders camera health dots when data loads", async () => {
-    mockGetCalibrationHealth.mockResolvedValue([
-      { camera_id: "cam-1", severity: "ok", code: null, residual_m: null },
-      { camera_id: "cam-2", severity: "warning", code: "low_coverage", residual_m: 0.05 },
-    ]);
+    mockGetCalibrationHealth.mockResolvedValue(
+      healthResponse([
+        { camera_id: "cam-1", severity: "ok", code: null, residual_m: null },
+        { camera_id: "cam-2", severity: "warning", code: "elevated_residual", residual_m: 0.3 },
+      ]),
+    );
     const wrapper = mountPanel();
     await flushPromises();
 
     expect(wrapper.find("[data-testid='calibration-dot-cam-1']").exists()).toBe(true);
     expect(wrapper.find("[data-testid='calibration-dot-cam-2']").exists()).toBe(true);
+  });
+
+  it("shows the empty state only when the response has no cameras", async () => {
+    mockGetCalibrationHealth.mockResolvedValue(healthResponse([]));
+    const wrapper = mountPanel();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("No enabled cameras found.");
+    expect(wrapper.find("[data-testid^='calibration-dot-']").exists()).toBe(false);
   });
 
   it("calls notify.error when service throws", async () => {

@@ -29,7 +29,9 @@ display `Verified`, not a fabricated numeric confidence.
 
 ## Authoritative correction targets
 
-Identity selectors use one BFF correction-target endpoint backed by active household members.
+Identity selectors use one BFF target endpoint, `GET /api/v1/identity/targets` (through the
+`identityTargets` store), backed by active household members; it answers whether or not CTS is
+enabled.
 Gallery contents are metadata, never eligibility. The endpoint must continue to return household
 members when the ReID gallery is empty.
 
@@ -111,7 +113,7 @@ Use stable identity colors plus distinct unknown and conflict styling. Color is 
 Clicking a bbox opens the shared correction workflow.
 
 Filtering, identity aggregation, and pagination are server-side. Filter options come from the
-authoritative correction-target endpoint, not the current result page.
+authoritative target endpoint (`GET /api/v1/identity/targets`), not the current result page.
 
 ## ReID review queue
 

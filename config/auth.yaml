@@ -138,6 +138,7 @@ permission_map:
     - "gate_graphs:write"
     - "identity_readiness:read"
     - "identity_targets:read"
+    - "identity_review:read"
 
   caregiver_admin:
     - "GET /api/v1/*"
@@ -215,6 +216,7 @@ permission_map:
     - "guided_metrics:read"
     - "identity_readiness:read"
     - "identity_targets:read"
+    - "identity_review:read"
 
   operator:
     - "*"
@@ -381,3 +383,7 @@ permission_map:
   # The household members an identity decision may name (every correction and review surface).
   "identity_targets:read":
     - "GET /api/v1/identity/targets"
+
+  # What each identity review decision changes, per surface (static text, no identity data).
+  "identity_review:read":
+    - "GET /api/v1/identity/review-vocabulary"

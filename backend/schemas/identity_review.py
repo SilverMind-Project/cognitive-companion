@@ -21,6 +21,10 @@ from pydantic import BaseModel, Field
 #   not_usable    "Not a usable face or body"
 ReviewVerdict = Literal["is_member", "new_person", "not_enrolled", "not_usable"]
 
+# The review surfaces that speak the shared verdicts. Track corrections (keyframes, the PH
+# inspector, the live view) keep their own correction workflow and are not listed here.
+ReviewSurface = Literal["visitors", "face_calibration", "reid_review"]
+
 ReviewErrorCode = Literal[
     "not_found",
     "already_named",
@@ -28,6 +32,32 @@ ReviewErrorCode = Literal[
     "not_enrolled_member",
     "upstream_error",
 ]
+
+
+class ReviewVerdictOut(BaseModel):
+    verdict: ReviewVerdict
+    effect: str = Field(
+        description=(
+            "What the decision changes, in plain words; may name the chosen member with the "
+            "envelope's member_placeholder"
+        )
+    )
+    needs_target: bool = Field(description="The decision names a household member")
+    needs_enrolled_face: bool = Field(
+        description="The named member must have enrolled faces in person identification"
+    )
+    batch: bool = Field(description="The surface accepts this decision for several subjects")
+
+
+class ReviewSurfaceOut(BaseModel):
+    surface: ReviewSurface
+    guarantee: str = Field(description="Which decisions on this surface can change enrollment")
+    verdicts: list[ReviewVerdictOut] = Field(description="The verdicts this surface accepts")
+
+
+class ReviewVocabularyEnvelope(BaseModel):
+    surfaces: list[ReviewSurfaceOut]
+    member_placeholder: str = Field(description="Replaced by the chosen member's display name")
 
 
 class IdentityTargetOut(BaseModel):

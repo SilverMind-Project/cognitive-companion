@@ -7307,6 +7307,14 @@
             "title": "Checked At",
             "type": "string"
           },
+          "review_queues": {
+            "description": "Every place an operator says who a face or body is, with its waiting count: recurring unrecognized faces, calibration captures, body samples",
+            "items": {
+              "$ref": "#/components/schemas/ReviewQueue"
+            },
+            "title": "Review Queues",
+            "type": "array"
+          },
           "steps": {
             "description": "In setup order",
             "items": {
@@ -7319,6 +7327,7 @@
         "required": [
           "steps",
           "blocking_step",
+          "review_queues",
           "checked_at"
         ],
         "title": "IdentityReadinessEnvelope",
@@ -13423,6 +13432,137 @@
           "ok"
         ],
         "title": "ReviewItemResult",
+        "type": "object"
+      },
+      "ReviewQueue": {
+        "description": "One identity review queue and how much waits in it.",
+        "properties": {
+          "surface": {
+            "enum": [
+              "visitors",
+              "face_calibration",
+              "reid_review"
+            ],
+            "title": "Surface",
+            "type": "string"
+          },
+          "waiting": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Items waiting for a decision; null when the owner could not be read",
+            "title": "Waiting"
+          }
+        },
+        "required": [
+          "surface",
+          "waiting"
+        ],
+        "title": "ReviewQueue",
+        "type": "object"
+      },
+      "ReviewSurfaceOut": {
+        "properties": {
+          "guarantee": {
+            "description": "Which decisions on this surface can change enrollment",
+            "title": "Guarantee",
+            "type": "string"
+          },
+          "surface": {
+            "enum": [
+              "visitors",
+              "face_calibration",
+              "reid_review"
+            ],
+            "title": "Surface",
+            "type": "string"
+          },
+          "verdicts": {
+            "description": "The verdicts this surface accepts",
+            "items": {
+              "$ref": "#/components/schemas/ReviewVerdictOut"
+            },
+            "title": "Verdicts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "surface",
+          "guarantee",
+          "verdicts"
+        ],
+        "title": "ReviewSurfaceOut",
+        "type": "object"
+      },
+      "ReviewVerdictOut": {
+        "properties": {
+          "batch": {
+            "description": "The surface accepts this decision for several subjects",
+            "title": "Batch",
+            "type": "boolean"
+          },
+          "effect": {
+            "description": "What the decision changes, in plain words; may name the chosen member with the envelope's member_placeholder",
+            "title": "Effect",
+            "type": "string"
+          },
+          "needs_enrolled_face": {
+            "description": "The named member must have enrolled faces in person identification",
+            "title": "Needs Enrolled Face",
+            "type": "boolean"
+          },
+          "needs_target": {
+            "description": "The decision names a household member",
+            "title": "Needs Target",
+            "type": "boolean"
+          },
+          "verdict": {
+            "enum": [
+              "is_member",
+              "new_person",
+              "not_enrolled",
+              "not_usable"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict",
+          "effect",
+          "needs_target",
+          "needs_enrolled_face",
+          "batch"
+        ],
+        "title": "ReviewVerdictOut",
+        "type": "object"
+      },
+      "ReviewVocabularyEnvelope": {
+        "properties": {
+          "member_placeholder": {
+            "description": "Replaced by the chosen member's display name",
+            "title": "Member Placeholder",
+            "type": "string"
+          },
+          "surfaces": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewSurfaceOut"
+            },
+            "title": "Surfaces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "surfaces",
+          "member_placeholder"
+        ],
+        "title": "ReviewVocabularyEnvelope",
         "type": "object"
       },
       "RevisionResponse": {
@@ -27778,6 +27918,32 @@
         "summary": "Get Identity Readiness",
         "tags": [
           "identity-readiness"
+        ]
+      }
+    },
+    "/api/v1/identity/review-vocabulary": {
+      "get": {
+        "operationId": "get_review_vocabulary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewVocabularyEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Review Vocabulary",
+        "tags": [
+          "identity-targets"
         ]
       }
     },

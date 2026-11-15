@@ -182,6 +182,11 @@ async def test_todays_household_is_blocked_at_the_floor_frame(db_factory, househ
         "templates": "blocked",
         "body_gallery": "blocked",
     }
+    assert [(q.surface, q.waiting) for q in envelope.review_queues] == [
+        ("visitors", 1),
+        ("face_calibration", 0),
+        ("reid_review", 0),
+    ]
     # Only enabled cameras are probed.
     assert sorted(ingress.calls) == ["hall", "kitchen"]
     assert envelope.checked_at == _AT
@@ -200,6 +205,12 @@ async def test_stopped_person_id_is_unknown_for_its_steps_only(db_factory, house
     states = _states(envelope)
     for key in ("roster", "capture", "labeling", "artifact", "templates"):
         assert states[key] == "unknown", key
+    # A queue whose owner could not be read has no count, never a zero.
+    assert {q.surface: q.waiting for q in envelope.review_queues} == {
+        "visitors": None,
+        "face_calibration": None,
+        "reid_review": 0,
+    }
     assert states["ingest"] == "ready"
     assert states["face_policy"] == "attention"
     assert states["floor_frame"] == "blocked"
@@ -215,6 +226,7 @@ async def test_stopped_cts_is_unknown_for_its_steps_only(db_factory, household) 
     states = _states(envelope)
     for key in ("face_policy", "templates", "body_gallery", "ingest"):
         assert states[key] == "unknown", key
+    assert {q.surface: q.waiting for q in envelope.review_queues}["reid_review"] is None
     assert states["roster"] == "attention"
     assert states["capture"] == "blocked"
 

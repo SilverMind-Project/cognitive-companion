@@ -3018,6 +3018,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/identity/review-vocabulary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Review Vocabulary */
+        get: operations["get_review_vocabulary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/identity/targets": {
         parameters: {
             query?: never;
@@ -8061,6 +8078,11 @@ export interface components {
              */
             checked_at: string;
             /**
+             * Review Queues
+             * @description Every place an operator says who a face or body is, with its waiting count: recurring unrecognized faces, calibration captures, body samples
+             */
+            review_queues: components["schemas"]["ReviewQueue"][];
+            /**
              * Steps
              * @description In setup order
              */
@@ -10267,6 +10289,78 @@ export interface components {
             id: string;
             /** Ok */
             ok: boolean;
+        };
+        /**
+         * ReviewQueue
+         * @description One identity review queue and how much waits in it.
+         */
+        ReviewQueue: {
+            /**
+             * Surface
+             * @enum {string}
+             */
+            surface: "visitors" | "face_calibration" | "reid_review";
+            /**
+             * Waiting
+             * @description Items waiting for a decision; null when the owner could not be read
+             */
+            waiting: number | null;
+        };
+        /** ReviewSurfaceOut */
+        ReviewSurfaceOut: {
+            /**
+             * Guarantee
+             * @description Which decisions on this surface can change enrollment
+             */
+            guarantee: string;
+            /**
+             * Surface
+             * @enum {string}
+             */
+            surface: "visitors" | "face_calibration" | "reid_review";
+            /**
+             * Verdicts
+             * @description The verdicts this surface accepts
+             */
+            verdicts: components["schemas"]["ReviewVerdictOut"][];
+        };
+        /** ReviewVerdictOut */
+        ReviewVerdictOut: {
+            /**
+             * Batch
+             * @description The surface accepts this decision for several subjects
+             */
+            batch: boolean;
+            /**
+             * Effect
+             * @description What the decision changes, in plain words; may name the chosen member with the envelope's member_placeholder
+             */
+            effect: string;
+            /**
+             * Needs Enrolled Face
+             * @description The named member must have enrolled faces in person identification
+             */
+            needs_enrolled_face: boolean;
+            /**
+             * Needs Target
+             * @description The decision names a household member
+             */
+            needs_target: boolean;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "is_member" | "new_person" | "not_enrolled" | "not_usable";
+        };
+        /** ReviewVocabularyEnvelope */
+        ReviewVocabularyEnvelope: {
+            /**
+             * Member Placeholder
+             * @description Replaced by the chosen member's display name
+             */
+            member_placeholder: string;
+            /** Surfaces */
+            surfaces: components["schemas"]["ReviewSurfaceOut"][];
         };
         /** RevisionResponse */
         RevisionResponse: {
@@ -17227,6 +17321,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IdentityReadinessEnvelope"];
+                };
+            };
+        };
+    };
+    get_review_vocabulary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewVocabularyEnvelope"];
                 };
             };
         };

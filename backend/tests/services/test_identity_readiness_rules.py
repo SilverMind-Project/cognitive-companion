@@ -326,3 +326,12 @@ def _counts(pending: int = 0, auto: int = 0, operator: int = 0) -> CTSGalleryCou
 def test_body_gallery(cts: CTSIdentityReadiness, state: str, action: str) -> None:
     step = body_gallery_step(cts)
     assert (step.state, step.next_action) == (state, action)
+
+
+def test_details_count_in_plain_words() -> None:
+    assert roster_step(_roster(members=1)).detail.startswith("1 household member listed")
+    assert "2 recurring visitors, seen" in roster_step(_roster(visitors=2)).detail
+    assert "1 of 3 members has fewer than" in roster_step(_roster(missing=1)).detail
+    assert floor_frame_step(_floor(plan=False), _cts()).detail.endswith("1 overlap group.")
+    refit = artifact_step(_health("ready", ["a"]), _members("a", "b")).detail
+    assert refit.startswith("1 member enrolled after the artifact was fitted gets no")

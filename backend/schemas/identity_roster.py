@@ -26,6 +26,9 @@ class RosterHealthEnvelope(BaseModel):
             "face embeddings"
         )
     )
+    active_member_count: int = Field(
+        ge=0, description="Active, non-guest household members, enrolled or not"
+    )
     min_face_embeddings: int = Field(ge=1)
     visitor_clustering_enabled: bool
     surfaced_unnamed_visitor_clusters: int = Field(

@@ -39,13 +39,15 @@ class RosterHealthService:
         enrolled = {m.person_id: m.embedding_count for m in await self._client.list_members()}
         clustering_enabled, surfaced = await self._surfaced_visitor_clusters()
 
+        members = self._active_resident_members()
         missing = [
             RosterMemberRef(member_id=member_id, name=name, embedding_count=count)
-            for member_id, name in self._active_resident_members()
+            for member_id, name in members
             if (count := enrolled.get(member_id, 0)) < self._min_face_embeddings
         ]
         return RosterHealthEnvelope(
             members_without_face_enrollment=missing,
+            active_member_count=len(members),
             min_face_embeddings=self._min_face_embeddings,
             visitor_clustering_enabled=clustering_enabled,
             surfaced_unnamed_visitor_clusters=surfaced,

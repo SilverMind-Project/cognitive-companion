@@ -25,6 +25,7 @@ _ENVELOPE = RosterHealthEnvelope(
     members_without_face_enrollment=[
         RosterMemberRef(member_id="amma", name="Amma", embedding_count=3)
     ],
+    active_member_count=2,
     min_face_embeddings=5,
     visitor_clustering_enabled=True,
     surfaced_unnamed_visitor_clusters=2,

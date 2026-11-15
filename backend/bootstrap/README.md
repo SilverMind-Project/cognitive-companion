@@ -237,6 +237,7 @@ Also assigns `container.presence` and `container.ha_state_cache` (both via
 | --- | --- | --- |
 | `ingress_admin_client` | constructed | `None` |
 | `orchestrator_client` | constructed | `None` |
+| `identity_readiness_service` | constructed (roster, person-id, both CTS clients) | constructed with no CTS clients: its CTS-sourced steps report `unknown`; also set on the MCP service container |
 | `ph_enrichment_service` | constructed | `None` |
 | `keyframe_read_service` | constructed | `None` |
 | `identity_correction_service` | constructed | `None` |

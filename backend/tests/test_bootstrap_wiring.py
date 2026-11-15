@@ -88,6 +88,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "ha_client",
         "ha_state_cache",
         "identity_correction_service",
+        "identity_readiness_service",
         "identity_revision_subscriber",
         "image_pipeline",
         "inference_telemetry",

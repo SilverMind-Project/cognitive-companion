@@ -1,0 +1,102 @@
+"""Identity readiness envelope: which link of the identity chain is broken, and what to do next.
+
+Identity setup is a chain that crosses three services: enroll everyone (People), capture face
+crops (person-identification-service), label them (Face calibration), fit and deploy the
+calibration artifact, run calibrated face evidence in CTS (shadow, then live), and let calibrated
+faces propose body-appearance samples for the ReID Review Queue. Camera ingest and the floor frame
+are prerequisites beside the chain. Each step reports one state and one next action; the frontend
+maps the action to copy and a link.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+ReadinessStepKey = Literal[
+    "roster",
+    "ingest",
+    "floor_frame",
+    "capture",
+    "labeling",
+    "artifact",
+    "face_policy",
+    "templates",
+    "body_gallery",
+]
+
+# unknown: the step's source failed. The page never guesses a state it could not read.
+ReadinessState = Literal["ready", "attention", "blocked", "unknown"]
+
+ReadinessNextAction = Literal[
+    "none",
+    "enroll_members",
+    "review_visitors",
+    "fix_camera_ingest",
+    "upload_floor_plan",
+    "draw_room_polygons",
+    "calibrate_cameras",
+    "enable_capture",
+    "label_captures",
+    "fit_and_deploy_artifact",
+    "refit_artifact",
+    "review_shadow",
+    "set_policy_calibrated",
+    "enable_templates",
+    "review_body_samples",
+    "check_service",
+]
+
+
+class ReadinessStep(BaseModel):
+    key: ReadinessStepKey
+    state: ReadinessState
+    detail: str = Field(description="One plain sentence or two; counts, never identity ids")
+    next_action: ReadinessNextAction
+    optional: bool = Field(
+        default=False,
+        description="An optional improvement: its state never blocks the steps after it",
+    )
+
+
+class IdentityReadinessEnvelope(BaseModel):
+    steps: list[ReadinessStep] = Field(description="In setup order")
+    blocking_step: ReadinessStepKey | None = Field(
+        description="The first required step that is blocked; null when none is"
+    )
+    checked_at: datetime
+
+
+class CTSGalleryCounts(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    pending_review: int = Field(ge=0)
+    auto_verified: int = Field(ge=0)
+    operator_verified: int = Field(ge=0)
+    rejected: int = Field(ge=0)
+
+
+class CTSCameraCalibration(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    camera_id: str
+    calibrated: bool
+
+
+class CTSIdentityReadiness(BaseModel):
+    """The tracking orchestrator's ``GET /internal/identity/readiness`` response."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    face_evidence_policy: str
+    face_templates_mode: str
+    face_quality_mode: str
+    cc_assertion_mode: str
+    expected_arcface_model_version: str | None
+    expected_quality_version: str
+    reid_gallery_counts: CTSGalleryCounts | None
+    cameras: list[CTSCameraCalibration]
+    overlap_group_count: int | None
+    identities_known: int | None

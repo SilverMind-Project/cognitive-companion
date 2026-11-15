@@ -136,6 +136,7 @@ permission_map:
     - "guided_metrics:read"
     - "gate_graphs:read"
     - "gate_graphs:write"
+    - "identity_readiness:read"
 
   caregiver_admin:
     - "GET /api/v1/*"
@@ -211,6 +212,7 @@ permission_map:
     - "guided_sessions:read"
     - "guided_sessions:takeover"
     - "guided_metrics:read"
+    - "identity_readiness:read"
 
   operator:
     - "*"
@@ -369,3 +371,7 @@ permission_map:
 
   "guided_metrics:read":
     - "GET /api/v1/guided-metrics/*"
+
+  # Identity setup readiness: read-only status of the identity chain (counts, no identity ids).
+  "identity_readiness:read":
+    - "GET /api/v1/identity/readiness"

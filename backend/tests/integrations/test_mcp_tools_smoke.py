@@ -77,9 +77,10 @@ EXPECTED_TOOLS = {
     "record_resident_preference",
     "get_roster_health",
     "get_face_calibration_summary",
+    "get_identity_readiness",
 }
 
-EXPECTED_COUNT = 62
+EXPECTED_COUNT = 63
 
 
 # ---------------------------------------------------------------------------

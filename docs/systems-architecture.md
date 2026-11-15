@@ -338,7 +338,7 @@ Key design principles:
 | `/companion` | Resident-facing PWA widgets, voice, popups, TTS announcements |
 | CTS admin views | Camera calibration, identity review, live tracking, signals, presence |
 | Knowledge views | Documents, generated images, info cards, quizzes, delivery history |
-| People views | Members and enrollment, visitor cluster review, face calibration labeling (`/admin/face-calibration`, a proxy over person-id's calibration capture queue; labels feed the offline calibration fit and never enrollment) |
+| People views | Members and enrollment, visitor cluster review, face calibration labeling (`/admin/face-calibration`, a proxy over person-id's calibration capture queue; labels feed the offline calibration fit and never enrollment), and identity setup (`/admin/identity-setup`: `IdentityReadinessService` in `backend/services/identity_readiness.py` reads roster health, person-id calibration state, CTS `GET /internal/identity/readiness`, rtsp-ingress frame age, and CC's floor plan, rooms, cameras, and overlap groups, read-only, and names the first broken step of the identity chain; the Face calibration and ReID Review Queue pages link to it) |
 
 Frontend code uses Vuetify design tokens from `frontend/src/styles/theme.css`. Read-only charts use ECharts shared components. Vue Flow is reserved for the interactive pipeline authoring canvas.
 

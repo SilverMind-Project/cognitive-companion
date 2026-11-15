@@ -233,6 +233,11 @@ class OrchestratorClient(UpstreamClient):
         r = await self._request("GET", "/internal/calibration/status")
         return r.json()
 
+    async def identity_readiness(self) -> dict:
+        """Identity policies, gallery counts, and camera calibration as CTS runs them."""
+        r = await self._request("GET", "/internal/identity/readiness")
+        return r.json()
+
     async def learned_transitions(self) -> dict:
         """Camera-to-camera handoff counts and delays CTS learned (read-only)."""
         r = await self._request("GET", "/internal/topology/transitions")

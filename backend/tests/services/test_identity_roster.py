@@ -82,6 +82,8 @@ async def test_members_below_threshold_or_unenrolled_are_reported(db_factory, me
         ("uncle", 0),
     ]
     assert health.min_face_embeddings == 5
+    # Guests and inactive members are not residents; only grandma, amma, and uncle count.
+    assert health.active_member_count == 3
     assert health.is_complete is False
 
 

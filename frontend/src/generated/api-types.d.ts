@@ -3001,6 +3001,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/identity/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Identity Readiness */
+        get: operations["get_identity_readiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/image/active": {
         parameters: {
             query?: never;
@@ -8002,6 +8019,24 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /** IdentityReadinessEnvelope */
+        IdentityReadinessEnvelope: {
+            /**
+             * Blocking Step
+             * @description The first required step that is blocked; null when none is
+             */
+            blocking_step: ("roster" | "ingest" | "floor_frame" | "capture" | "labeling" | "artifact" | "face_policy" | "templates" | "body_gallery") | null;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /**
+             * Steps
+             * @description In setup order
+             */
+            steps: components["schemas"]["ReadinessStep"][];
+        };
         /**
          * ImageRenderOut
          * @description Ack for a render/reset against one or more e-ink devices.
@@ -9872,6 +9907,35 @@ export interface components {
              */
             type: number;
         };
+        /** ReadinessStep */
+        ReadinessStep: {
+            /**
+             * Detail
+             * @description One plain sentence or two; counts, never identity ids
+             */
+            detail: string;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "roster" | "ingest" | "floor_frame" | "capture" | "labeling" | "artifact" | "face_policy" | "templates" | "body_gallery";
+            /**
+             * Next Action
+             * @enum {string}
+             */
+            next_action: "none" | "enroll_members" | "review_visitors" | "fix_camera_ingest" | "upload_floor_plan" | "draw_room_polygons" | "calibrate_cameras" | "enable_capture" | "label_captures" | "fit_and_deploy_artifact" | "refit_artifact" | "review_shadow" | "set_policy_calibrated" | "enable_templates" | "review_body_samples" | "check_service";
+            /**
+             * Optional
+             * @description An optional improvement: its state never blocks the steps after it
+             * @default false
+             */
+            optional: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ready" | "attention" | "blocked" | "unknown";
+        };
         /**
          * RecameraUploadOut
          * @description Ack for a reCamera frame upload.
@@ -10378,6 +10442,11 @@ export interface components {
         };
         /** RosterHealthEnvelope */
         RosterHealthEnvelope: {
+            /**
+             * Active Member Count
+             * @description Active, non-guest household members, enrolled or not
+             */
+            active_member_count: number;
             /**
              * Checked At
              * Format: date-time
@@ -17032,6 +17101,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_identity_readiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityReadinessEnvelope"];
                 };
             };
         };

@@ -76,6 +76,7 @@ class MCPServices:
     identity_correction_service: Any = None  # segment correction workflow
     roster_health_service: Any = None  # who still needs face enrollment
     face_calibration_service: Any = None  # face calibration labeling progress
+    identity_readiness_service: Any = None  # which identity setup step is broken
 
 
 _svc = MCPServices()
@@ -1902,6 +1903,23 @@ async def get_face_calibration_summary() -> dict:
     except PersonIDUpstreamError as exc:
         logger.error("mcp_get_face_calibration_summary_error", status=exc.status, error=exc.message)
         return {"error": exc.message}
+
+
+@_register(token=TOOLS_READ)
+async def get_identity_readiness() -> dict:
+    """Get identity setup readiness: which step of the identity chain is broken and what to do.
+
+    Returns:
+        IdentityReadinessEnvelope: ordered steps (roster, ingest, floor_frame, capture, labeling,
+        artifact, face_policy, templates, body_gallery), each with a state (ready, attention,
+        blocked, unknown), a one-sentence detail, and a next action; the first blocking step.
+        A step whose source could not be read is unknown; counts only, no identity ids.
+    """
+    svc = _svc.identity_readiness_service
+    if svc is None:
+        return {"error": "identity_readiness_service unavailable"}
+    envelope = await svc.get_readiness()
+    return envelope.model_dump(mode="json")
 
 
 @_register(token=TOOLS_READ)

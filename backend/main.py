@@ -82,6 +82,7 @@ def create_app() -> FastAPI:
         guided_sessions,
         ha_sync,
         household,
+        identity_readiness,
         image,
         info_cards,
         interactive_responses,
@@ -139,6 +140,7 @@ def create_app() -> FastAPI:
     app.include_router(persons.router, prefix=api)
     app.include_router(visitors.router, prefix=api)
     app.include_router(face_calibration.router, prefix=api)
+    app.include_router(identity_readiness.router, prefix=api)
     app.include_router(workflows.router, prefix=api)
     app.include_router(activities.router, prefix=api)
     app.include_router(webhooks.router, prefix=api)

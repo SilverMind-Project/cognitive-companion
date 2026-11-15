@@ -7266,6 +7266,53 @@
         "title": "HouseholdMemberUpdate",
         "type": "object"
       },
+      "IdentityReadinessEnvelope": {
+        "properties": {
+          "blocking_step": {
+            "anyOf": [
+              {
+                "enum": [
+                  "roster",
+                  "ingest",
+                  "floor_frame",
+                  "capture",
+                  "labeling",
+                  "artifact",
+                  "face_policy",
+                  "templates",
+                  "body_gallery"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first required step that is blocked; null when none is",
+            "title": "Blocking Step"
+          },
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "steps": {
+            "description": "In setup order",
+            "items": {
+              "$ref": "#/components/schemas/ReadinessStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "steps",
+          "blocking_step",
+          "checked_at"
+        ],
+        "title": "IdentityReadinessEnvelope",
+        "type": "object"
+      },
       "ImageRenderOut": {
         "description": "Ack for a render/reset against one or more e-ink devices.",
         "properties": {
@@ -12341,6 +12388,76 @@
         "title": "ReCameraPayload",
         "type": "object"
       },
+      "ReadinessStep": {
+        "properties": {
+          "detail": {
+            "description": "One plain sentence or two; counts, never identity ids",
+            "title": "Detail",
+            "type": "string"
+          },
+          "key": {
+            "enum": [
+              "roster",
+              "ingest",
+              "floor_frame",
+              "capture",
+              "labeling",
+              "artifact",
+              "face_policy",
+              "templates",
+              "body_gallery"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "next_action": {
+            "enum": [
+              "none",
+              "enroll_members",
+              "review_visitors",
+              "fix_camera_ingest",
+              "upload_floor_plan",
+              "draw_room_polygons",
+              "calibrate_cameras",
+              "enable_capture",
+              "label_captures",
+              "fit_and_deploy_artifact",
+              "refit_artifact",
+              "review_shadow",
+              "set_policy_calibrated",
+              "enable_templates",
+              "review_body_samples",
+              "check_service"
+            ],
+            "title": "Next Action",
+            "type": "string"
+          },
+          "optional": {
+            "default": false,
+            "description": "An optional improvement: its state never blocks the steps after it",
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "ready",
+              "attention",
+              "blocked",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "state",
+          "detail",
+          "next_action"
+        ],
+        "title": "ReadinessStep",
+        "type": "object"
+      },
       "RecameraUploadOut": {
         "description": "Ack for a reCamera frame upload.\n\n``object_name`` is absent when the frame was dropped by the label filter, in which case\n``status`` is \"filtered\" and ``reason`` explains why.",
         "properties": {
@@ -13907,6 +14024,12 @@
       },
       "RosterHealthEnvelope": {
         "properties": {
+          "active_member_count": {
+            "description": "Active, non-guest household members, enrolled or not",
+            "minimum": 0.0,
+            "title": "Active Member Count",
+            "type": "integer"
+          },
           "checked_at": {
             "format": "date-time",
             "title": "Checked At",
@@ -13943,6 +14066,7 @@
         },
         "required": [
           "members_without_face_enrollment",
+          "active_member_count",
           "min_face_embeddings",
           "visitor_clustering_enabled",
           "surfaced_unnamed_visitor_clusters",
@@ -27407,6 +27531,32 @@
         "summary": "Post Floor Plan",
         "tags": [
           "household"
+        ]
+      }
+    },
+    "/api/v1/identity/readiness": {
+      "get": {
+        "operationId": "get_identity_readiness",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityReadinessEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Identity Readiness",
+        "tags": [
+          "identity-readiness"
         ]
       }
     },

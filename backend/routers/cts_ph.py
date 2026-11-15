@@ -11,10 +11,8 @@ from collections.abc import Awaitable, Mapping
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, actor_from_auth, require_permission
-from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
@@ -40,8 +38,6 @@ from backend.schemas.cts_ph import (
     BatchMergeResponse,
     CorrectIdentityRequest,
     CorrectIdentityResponse,
-    CorrectionTargetResponse,
-    CorrectionTargetsResponse,
     MergeRequest,
     MergeResponse,
     PaginatedPHList,
@@ -63,7 +59,6 @@ from backend.services.cts.identity_correction_service import (
     IdentityCorrectionService,
 )
 from backend.services.cts.ph_enrichment import PHEnrichmentService
-from backend.services.identity_targets import list_identity_targets
 
 logger = get_logger(__name__)
 
@@ -158,37 +153,6 @@ def _required_value(data: Mapping[str, Any], key: str, *, endpoint: str) -> Any:
 # ---------------------------------------------------------------------------
 # Read endpoints (cts.identity.view)
 # ---------------------------------------------------------------------------
-
-
-@router.get("/identity/correction-targets", response_model=CorrectionTargetsResponse)
-async def get_correction_targets(
-    db: Session = Depends(get_db),
-    client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.view")),
-) -> CorrectionTargetsResponse:
-    """Authoritative correction-target list: active household members.
-
-    Independent of ReID gallery population; gallery counts are decoration only,
-    and an upstream gallery failure is surfaced via ``gallery_available`` rather
-    than dropping targets.
-    """
-    cts_enabled()
-    result = await list_identity_targets(db, client)
-    return CorrectionTargetsResponse(
-        targets=[
-            CorrectionTargetResponse(
-                identity_id=t.identity_id,
-                display_name=t.display_name,
-                is_active=t.is_active,
-                is_guest=t.is_guest,
-                gallery_entry_count=t.gallery_entry_count,
-                gallery_verified_count=t.gallery_verified_count,
-            )
-            for t in result.targets
-        ],
-        gallery_available=result.gallery_available,
-        gallery_error=result.gallery_error,
-    )
 
 
 @router.get("/ph", response_model=PaginatedPHList)

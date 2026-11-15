@@ -86,7 +86,7 @@ async def list_identity_targets(
         except Exception as exc:  # noqa: BLE001 - decoration is best-effort
             gallery_available = False
             gallery_error = str(exc)
-            logger.warning("correction_targets_gallery_unavailable", error=str(exc))
+            logger.warning("identity_targets_gallery_unavailable", error=str(exc))
 
     enrolled: set[str] | None = None
     if person_id_client is not None:

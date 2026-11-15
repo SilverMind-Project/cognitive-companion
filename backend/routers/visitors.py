@@ -26,7 +26,11 @@ from backend.core.auth import AuthContext, actor_from_auth, require_token
 from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
-from backend.routers.dependencies import get_config_minio_client, get_visitor_admin_service
+from backend.routers.dependencies import (
+    get_config_minio_client,
+    get_identity_review_registry,
+    get_visitor_admin_service,
+)
 from backend.schemas.identity_review import BatchReviewResponse, VisitorReviewRequest
 from backend.schemas.visitors import (
     NameVisitorRequest,
@@ -35,6 +39,7 @@ from backend.schemas.visitors import (
     VisitorClusterListResponse,
     VisitorClusterView,
 )
+from backend.services.identity_review.registry import IdentityReviewRegistry, ReviewSubject
 from backend.services.visitors import (
     PersonIDUpstreamError,
     VisitorAdminService,
@@ -129,7 +134,7 @@ async def name_cluster(
 @router.post("/clusters/review", response_model=BatchReviewResponse)
 async def review_clusters(
     body: VisitorReviewRequest,
-    svc: VisitorAdminService = Depends(get_visitor_admin_service),
+    registry: IdentityReviewRegistry = Depends(get_identity_review_registry),
     auth: AuthContext = Depends(require_token(_VISITORS_REVIEW)),
 ) -> BatchReviewResponse:
     """Say who several clusters are: an existing member (attribute) or nobody (dismiss).
@@ -138,7 +143,13 @@ async def review_clusters(
     """
     actor = actor_from_auth(auth)
     try:
-        result = await svc.review_clusters(body, actor=actor)
+        result = await registry.decide(
+            "visitors",
+            body.verdict,
+            [ReviewSubject(id=cluster_id) for cluster_id in body.cluster_ids],
+            actor=actor,
+            target_identity_id=body.target_identity_id,
+        )
     except PersonIDUpstreamError as exc:
         raise _raise_for_upstream(exc) from exc
 

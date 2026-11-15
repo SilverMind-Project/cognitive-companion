@@ -19,7 +19,11 @@ from backend.core.auth import AuthContext, get_auth_context, invalidate_lookup_c
 from backend.core.database import get_db
 from backend.core.exceptions import register_exception_handlers
 from backend.integrations.minio_client import MinioClient
-from backend.routers.dependencies import get_config_minio_client, get_visitor_admin_service
+from backend.routers.dependencies import (
+    get_config_minio_client,
+    get_identity_review_registry,
+    get_visitor_admin_service,
+)
 from backend.routers.visitors import router
 from backend.schemas.identity_review import BatchReviewResponse, ReviewItemResult
 from backend.schemas.visitors import (
@@ -28,6 +32,7 @@ from backend.schemas.visitors import (
     VisitorClusterListResponse,
     VisitorClusterView,
 )
+from backend.services.identity_review.registry import ReviewSubject
 from backend.services.visitors import PersonIDUpstreamError, VisitorPartialFailureError
 
 
@@ -65,17 +70,23 @@ def _mock_service():
             household_member_created=True,
         )
     )
-    svc.review_clusters = AsyncMock(
-        return_value=BatchReviewResponse(
-            results=[ReviewItemResult(id="c1", ok=True)], reviewed=1, failed=0, effect="Dismissed."
-        )
-    )
     svc.merge_clusters = AsyncMock(return_value=_cluster_view())
     return svc
 
 
+def _mock_registry():
+    registry = MagicMock()
+    registry.decide = AsyncMock(
+        return_value=BatchReviewResponse(
+            results=[ReviewItemResult(id="c1", ok=True)], reviewed=1, failed=0, effect="Dismissed."
+        )
+    )
+    return registry
+
+
 def _build_app(permissions: list[str]):
     svc = _mock_service()
+    svc.registry = _mock_registry()
     minio = MagicMock(spec=MinioClient)
     minio.generate_presigned_url.return_value = "https://minio/presigned"
     app = FastAPI()
@@ -85,6 +96,7 @@ def _build_app(permissions: list[str]):
         key="x", name="user", permissions=permissions
     )
     app.dependency_overrides[get_visitor_admin_service] = lambda: svc
+    app.dependency_overrides[get_identity_review_registry] = lambda: svc.registry
     app.dependency_overrides[get_config_minio_client] = lambda: minio
 
     def _mock_db():
@@ -208,13 +220,9 @@ class TestReviewAndMerge:
         resp = client.post("/api/v1/visitors/clusters/review", json=body)
         assert resp.status_code == 200
         assert resp.json()["reviewed"] == 1
-        request = svc.review_clusters.await_args.args[0]
-        assert (request.cluster_ids, request.verdict, request.target_identity_id) == (
-            ["c1"],
-            "is_member",
-            "resident",
-        )
-        assert svc.review_clusters.await_args.kwargs["actor"] == "user"
+        args, kwargs = svc.registry.decide.await_args
+        assert args == ("visitors", "is_member", [ReviewSubject(id="c1")])
+        assert (kwargs["target_identity_id"], kwargs["actor"]) == ("resident", "user")
 
     def test_review_rejects_a_client_supplied_actor(self):
         client, _ = _build_app(["*"])

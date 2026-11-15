@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from backend.services.guided_task.metrics_service import GuidedMetricsService
     from backend.services.guided_task.service import GuidedTaskService
     from backend.services.identity_readiness import IdentityReadinessService
+    from backend.services.identity_review.registry import IdentityReviewRegistry
     from backend.services.identity_roster import RosterHealthService
     from backend.services.identity_targets import IdentityTargetsService
     from backend.services.inference_telemetry import InferenceTelemetryService
@@ -188,6 +189,14 @@ def get_face_calibration_service(request: Request) -> FaceCalibrationReviewServi
     if service is None:
         raise _raise_503("face_calibration_service", "Face calibration review service")
     return service
+
+
+def get_identity_review_registry(request: Request) -> IdentityReviewRegistry:
+    """Return the identity review registry every review decision goes through (503 if unset)."""
+    registry: IdentityReviewRegistry | None = request.app.state.identity_review_registry
+    if registry is None:
+        raise _raise_503("identity_review_registry", "Identity review")
+    return registry
 
 
 def get_visitor_admin_service(request: Request) -> VisitorAdminService:

@@ -125,10 +125,17 @@ def _service(members: list, person_id: AsyncMock) -> IdentityTargetsService:
 
 
 @pytest.mark.asyncio
-async def test_require_enrolled_member_returns_an_eligible_member() -> None:
+async def test_require_member_returns_an_eligible_member() -> None:
     svc = _service([_member("alice", "Alice")], _person_id(("alice", 5)))
-    target = await svc.require_enrolled_member("alice")
+    target = await svc.require_member("alice", enrolled_face=True)
     assert target.display_name == "Alice"
+
+
+@pytest.mark.asyncio
+async def test_require_member_without_enrolled_face_accepts_an_unenrolled_member() -> None:
+    svc = _service([_member("bob", "Bob")], _person_id(("bob", 0)))
+    target = await svc.require_member("bob", enrolled_face=False)
+    assert target.face_enrolled is False
 
 
 @pytest.mark.asyncio
@@ -136,9 +143,9 @@ async def test_require_enrolled_member_returns_an_eligible_member() -> None:
     ("identity_id", "message"),
     [("nobody", "not an active household member"), ("bob", "no enrolled face photos")],
 )
-async def test_require_enrolled_member_rejects_ineligible_targets(
+async def test_require_member_with_enrolled_face_rejects_ineligible_targets(
     identity_id: str, message: str
 ) -> None:
     svc = _service([_member("bob", "Bob")], _person_id(("bob", 0)))
     with pytest.raises(ValidationError, match=message):
-        await svc.require_enrolled_member(identity_id)
+        await svc.require_member(identity_id, enrolled_face=True)

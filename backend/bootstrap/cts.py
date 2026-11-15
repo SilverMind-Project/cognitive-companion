@@ -187,14 +187,15 @@ async def wire_cts(
 def wire_identity_services(app: FastAPI) -> None:
     """Build the identity review services once this phase has set the CTS clients.
 
-    Called from both the enabled and the disabled branch: identity targets, visitor review, and
-    readiness do not depend on tracking. With CTS disabled both clients are None, so targets
+    Called from both the enabled and the disabled branch: identity targets, the review registry,
+    visitor review, and readiness do not depend on tracking. With CTS disabled both clients are None, so targets
     carry no gallery counts and the CTS-sourced readiness steps report ``unknown``.
     """
     from backend.mcp.server import _svc as _mcp_svc
     from backend.services.identity_readiness import IdentityReadinessService
+    from backend.services.identity_review.registry import IdentityReviewRegistry
     from backend.services.identity_targets import IdentityTargetsService
-    from backend.services.visitors import VisitorAdminService
+    from backend.services.visitors import VisitorAdminService, VisitorReviewAdapter
 
     targets = IdentityTargetsService(
         session_factory=get_session,
@@ -202,7 +203,13 @@ def wire_identity_services(app: FastAPI) -> None:
         orchestrator=app.state.orchestrator_client,
     )
     app.state.identity_targets_service = targets
-    app.state.visitor_admin_service = VisitorAdminService(app.state.person_id_client, targets)
+    app.state.visitor_admin_service = VisitorAdminService(app.state.person_id_client)
+
+    # Every review decision goes through one registry; each surface registers its owner's
+    # adapter. ReID review registers in the enabled branch, once its service exists.
+    registry = IdentityReviewRegistry(targets)
+    registry.register(VisitorReviewAdapter(app.state.person_id_client))
+    app.state.identity_review_registry = registry
 
     service = IdentityReadinessService(
         roster=app.state.roster_health_service,

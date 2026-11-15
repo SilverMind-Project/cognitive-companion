@@ -150,16 +150,18 @@ class IdentityTargetsService:
         finally:
             db.close()
 
-    async def require_enrolled_member(self, identity_id: str) -> IdentityTarget:
-        """The active member ``identity_id`` with enrolled faces, or a ValidationError.
+    async def require_member(self, identity_id: str, *, enrolled_face: bool) -> IdentityTarget:
+        """The active member ``identity_id``, or a ValidationError.
 
-        Attributing faces to someone needs their enrolled face to compare against; a guest
-        without photos or an inactive member is not a valid target.
+        With ``enrolled_face``, the member must also have enrolled faces: attributing faces to
+        someone needs their enrolled face to compare against, so a guest without photos is not a
+        valid target. When person identification could not be read, enrollment is unknown and
+        the owner's own check decides.
         """
         result = await self.list_targets()
         target = next((t for t in result.targets if t.identity_id == identity_id), None)
         if target is None:
             raise ValidationError(f"{identity_id} is not an active household member")
-        if target.face_enrolled is False:
+        if enrolled_face and target.face_enrolled is False:
             raise ValidationError(f"{identity_id} has no enrolled face photos")
         return target

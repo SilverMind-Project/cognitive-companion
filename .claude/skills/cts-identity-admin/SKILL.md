@@ -178,7 +178,16 @@ New review code uses them too:
   its labels are ground truth.
 - Several at once: `ReviewSelectionToolbar` (Select several, Select all, count, Clear, the
   surface's decisions in its slot), then a confirm that states the effect, then one batch call.
-- Batch results: `BatchReviewResponse` (`{id, ok, error_code}` per item, the server's `effect`).
+- Batch results: `BatchReviewResponse` (`{id, ok, error_code}` per item, the server's `effect`);
+  the browser reports them with `batchReviewNotices` and drops `appliedIds` from its selection.
+- One backend path: every batch review route calls
+  `IdentityReviewRegistry.decide` (`backend/services/identity_review/registry.py`), which checks
+  the verdict, the one-at-a-time rule, and the target once, then hands the decision to the
+  surface's `ReviewSubjectAdapter` (`VisitorReviewAdapter`, `FaceCalibrationReviewAdapter`,
+  `ReIDReviewAdapter`). A new review surface adds its verdicts to `vocabulary.py` and registers
+  an adapter in `bootstrap/cts.py::wire_identity_services`; it never validates targets or writes
+  effect text itself. Track corrections stay outside the registry (revision ranges and
+  projection acknowledgements are their own governance).
 - Every confirm states what the decision changes, especially that no review action except naming
   a new person changes enrollment.
 - The readiness page lists every review queue with its waiting count (`review_queues`).

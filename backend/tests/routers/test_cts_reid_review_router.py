@@ -18,7 +18,7 @@ from backend.core.auth import AuthContext, get_auth_context, invalidate_lookup_c
 from backend.core.config import Settings, settings
 from backend.core.exceptions import register_exception_handlers
 from backend.routers.cts_reid_review import router
-from backend.routers.dependencies import get_reid_review_service
+from backend.routers.dependencies import get_identity_review_registry, get_reid_review_service
 from backend.schemas.cts_reid_review import (
     EligibilityView,
     ReviewCandidateDetailResponse,
@@ -29,6 +29,7 @@ from backend.schemas.cts_reid_review import (
 )
 from backend.schemas.identity_review import BatchReviewResponse, ReviewItemResult
 from backend.services.cts.reid_review_service import ReviewUpstreamError
+from backend.services.identity_review.registry import ReviewSubject
 
 
 def _candidate(
@@ -80,7 +81,8 @@ def _mock_service() -> MagicMock:
     svc.relabel = AsyncMock(return_value=_candidate(state="operator_verified"))
     svc.demote = AsyncMock(return_value=_candidate(state="pending_review"))
     svc.reject = AsyncMock(return_value=_candidate(state="rejected", crop_url=None))
-    svc.review_batch = AsyncMock(
+    svc.registry = MagicMock()
+    svc.registry.decide = AsyncMock(
         return_value=BatchReviewResponse(
             results=[ReviewItemResult(id="c1", ok=True)], reviewed=1, failed=0, effect="Rejected."
         )
@@ -99,6 +101,7 @@ def _build_app(permissions: list[str]):
         key="x", name="user", permissions=permissions
     )
     app.dependency_overrides[get_reid_review_service] = lambda: svc
+    app.dependency_overrides[get_identity_review_registry] = lambda: svc.registry
     patcher = patch("backend.routers.cts_deps.settings", cfg)
     patcher.start()
     # require_token resolves permissions through the real keystore (auth.yaml).
@@ -252,9 +255,10 @@ def test_batch_review_reports_results_and_records_the_caller(client_authorized):
     )
     assert resp.status_code == 200
     assert resp.json()["reviewed"] == 1
-    request = svc.review_batch.await_args.args[0]
-    assert (request.verdict, request.reject_reason) == ("not_usable", "low_quality")
-    assert svc.review_batch.await_args.kwargs["actor"]
+    args, kwargs = svc.registry.decide.await_args
+    assert args == ("reid_review", "not_usable", [ReviewSubject("c1", 1)])
+    assert (kwargs["reason"], kwargs["note"]) == ("low_quality", None)
+    assert kwargs["actor"]
 
 
 @pytest.mark.parametrize(
@@ -274,7 +278,7 @@ def test_batch_review_refuses_approval_and_mismatched_reasons(client_authorized,
     client, svc = client_authorized
     resp = client.post("/api/v1/cts/identity/reid-review/review", json=body)
     assert resp.status_code == 422
-    svc.review_batch.assert_not_called()
+    svc.registry.decide.assert_not_called()
 
 
 def test_the_old_batch_reject_route_is_gone(client_authorized):

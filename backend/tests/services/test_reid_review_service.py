@@ -7,14 +7,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from backend.core.exceptions import ValidationError as AppValidationError
 from backend.core.upstream_errors import UpstreamError
-from backend.schemas.cts_reid_review import ReIDReviewBatchItem, ReIDReviewBatchRequest
 from backend.services.cts.reid_review_service import (
+    ReIDReviewAdapter,
     ReIDReviewService,
     ReviewContractError,
     ReviewUpstreamError,
 )
-from backend.services.identity_review.vocabulary import effect_text
+from backend.services.identity_review.registry import ReviewDecision, ReviewSubject
 
 
 def _raw_candidate(state: str = "pending_review") -> dict:
@@ -171,7 +172,7 @@ async def test_out_of_vocabulary_state_from_upstream_is_contract_error(service_a
         await service.get_detail("c1", presign=_presign)
 
 
-async def test_batch_review_rejects_each_with_one_reason_and_maps_results(service_and_client):
+async def test_reject_many_sends_one_reason_and_versions_and_maps_results(service_and_client):
     service, client = service_and_client
     client.reject_review_batch = AsyncMock(
         return_value={
@@ -185,38 +186,78 @@ async def test_batch_review_rejects_each_with_one_reason_and_maps_results(servic
             "failed": 3,
         }
     )
-    request = ReIDReviewBatchRequest(
-        verdict="not_enrolled",
-        items=[
-            ReIDReviewBatchItem(candidate_id=c, base_audit_version=i)
-            for i, c in enumerate(["c1", "c2", "c3", "c4"])
-        ],
-    )
+    subjects = [ReviewSubject(c, i) for i, c in enumerate(["c1", "c2", "c3", "c4"])]
 
-    result = await service.review_batch(request, actor="Caregiver Admin")
+    results = await service.reject_many(
+        subjects, actor="Caregiver Admin", reason="wrong_person", note=None
+    )
 
     payload = client.reject_review_batch.await_args.kwargs["payload"]
     assert payload["actor"] == "Caregiver Admin"
     assert {i["reason"] for i in payload["items"]} == {"wrong_person"}
     assert [i["base_audit_version"] for i in payload["items"]] == [0, 1, 2, 3]
-    assert [(r.id, r.ok, r.error_code) for r in result.results] == [
+    assert [(r.id, r.ok, r.error_code) for r in results] == [
         ("c1", True, None),
         ("c2", False, "conflict"),
         ("c3", False, "not_found"),
         ("c4", False, "upstream_error"),
     ]
-    assert (result.reviewed, result.failed) == (1, 3)
-    assert result.effect == effect_text("reid_review", "not_enrolled")
 
 
-async def test_batch_review_malformed_envelope_is_contract_error(service_and_client):
+async def test_reject_many_malformed_envelope_is_contract_error(service_and_client):
     service, client = service_and_client
     client.reject_review_batch = AsyncMock(return_value={"results": [{"ok": True}]})
-    request = ReIDReviewBatchRequest(
-        verdict="not_usable",
-        reason="bad_bbox",
-        items=[ReIDReviewBatchItem(candidate_id="c1", base_audit_version=1)],
-    )
 
     with pytest.raises(ReviewContractError):
-        await service.review_batch(request, actor="a")
+        await service.reject_many([ReviewSubject("c1", 1)], actor="a", reason="bad_bbox", note=None)
+
+
+@pytest.mark.parametrize(
+    ("verdict", "reason", "sent"),
+    [("not_enrolled", None, "wrong_person"), ("not_usable", "low_quality", "low_quality")],
+)
+async def test_adapter_maps_each_rejection_verdict_to_its_reason(verdict, reason, sent):
+    service = MagicMock()
+    service.reject_many = AsyncMock(return_value=[])
+    decision = ReviewDecision(
+        surface="reid_review",
+        verdict=verdict,
+        subjects=(ReviewSubject("c1", 4),),
+        reason=reason,
+        note="n",
+    )
+
+    await ReIDReviewAdapter(service).apply(decision, actor="a")
+
+    service.reject_many.assert_awaited_once_with(
+        decision.subjects, actor="a", reason=sent, note="n"
+    )
+
+
+@pytest.mark.parametrize(
+    "decision",
+    [
+        ReviewDecision(
+            surface="reid_review", verdict="is_member", subjects=(ReviewSubject("c1", 1),)
+        ),
+        ReviewDecision(
+            surface="reid_review", verdict="not_usable", subjects=(ReviewSubject("c1", 1),)
+        ),
+        ReviewDecision(
+            surface="reid_review",
+            verdict="not_usable",
+            subjects=(ReviewSubject("c1", 1),),
+            reason="wrong_person",
+        ),
+        ReviewDecision(
+            surface="reid_review", verdict="not_enrolled", subjects=(ReviewSubject("c1"),)
+        ),
+    ],
+)
+async def test_adapter_refuses_approval_bad_reasons_and_missing_versions(decision):
+    service = MagicMock()
+    service.reject_many = AsyncMock()
+
+    with pytest.raises(AppValidationError):
+        await ReIDReviewAdapter(service).apply(decision, actor="a")
+    service.reject_many.assert_not_called()

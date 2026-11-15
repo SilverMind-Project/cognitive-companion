@@ -82,30 +82,39 @@
         />
       </div>
 
-      <!-- Batch action bar (reject only; bulk approval is disabled by design) -->
-      <v-slide-y-transition>
-        <v-card
-          v-if="state.selectedIds.value.length"
-          variant="tonal"
-          color="error"
-          class="mb-3 pa-2"
+      <!-- Batch decisions: negative verdicts only; approval needs individual visual review -->
+      <ReviewSelectionToolbar
+        class="mb-3"
+        :active="selectMode"
+        :selectable-count="selectableIds.length"
+        :selected-count="state.selectedIds.value.length"
+        @update:active="toggleSelectMode"
+        @select-all="selectAllPending"
+        @clear="actions.clearSelection()"
+      >
+        <v-btn
+          size="small"
+          variant="outlined"
+          prepend-icon="mdi-account-off-outline"
+          :disabled="!state.selectedIds.value.length"
+          :loading="state.acting.value"
+          data-test="batch-not-enrolled"
+          @click="confirmBatchNotEnrolled"
         >
-          <div class="d-flex align-center ga-3">
-            <span class="text-body-2">{{ state.selectedIds.value.length }} selected</span>
-            <v-spacer />
-            <v-btn size="small" variant="text" @click="actions.clearSelection()">Clear</v-btn>
-            <v-btn
-              size="small"
-              color="error"
-              prepend-icon="mdi-close-circle-outline"
-              :loading="state.acting.value"
-              @click="openBatchReject"
-            >
-              Reject selected
-            </v-btn>
-          </div>
-        </v-card>
-      </v-slide-y-transition>
+          {{ VERDICT_LABELS.not_enrolled }}
+        </v-btn>
+        <v-btn
+          size="small"
+          variant="outlined"
+          prepend-icon="mdi-close-circle-outline"
+          :disabled="!state.selectedIds.value.length"
+          :loading="state.acting.value"
+          data-test="batch-not-usable"
+          @click="openBatchReject"
+        >
+          {{ VERDICT_LABELS.not_usable }}
+        </v-btn>
+      </ReviewSelectionToolbar>
 
       <v-alert v-if="state.listError.value" type="error" variant="tonal" class="mb-3">
         {{ state.listError.value }}
@@ -118,7 +127,7 @@
         <v-table density="comfortable">
           <thead>
             <tr>
-              <th style="width: 44px"></th>
+              <th v-if="selectMode" style="width: 44px"></th>
               <th>State</th>
               <th>Pending age</th>
               <th>Proposed identity</th>
@@ -132,12 +141,12 @@
           </thead>
           <tbody>
             <tr v-if="state.listLoading.value && !state.candidates.value.length">
-              <td colspan="10" class="text-center py-8">
+              <td :colspan="columnCount" class="text-center py-8">
                 <v-progress-circular indeterminate size="28" />
               </td>
             </tr>
             <tr v-else-if="!state.candidates.value.length">
-              <td colspan="10" class="text-center py-10">
+              <td :colspan="columnCount" class="text-center py-10">
                 <template v-if="queueEmpty">
                   <v-icon size="40" color="medium-emphasis" class="mb-2">
                     mdi-account-search-outline
@@ -168,7 +177,7 @@
               class="row-clickable"
               @click="actions.openDetail(c.candidate_id)"
             >
-              <td @click.stop>
+              <td v-if="selectMode" @click.stop>
                 <v-checkbox
                   :model-value="state.selected.value.has(c.candidate_id)"
                   density="compact"
@@ -414,77 +423,61 @@
             <!-- Actions -->
             <div v-if="isReviewable">
               <v-divider class="mb-3" />
-              <div class="d-flex ga-2 mb-2 flex-wrap">
-                <v-btn
-                  color="success"
-                  size="small"
-                  prepend-icon="mdi-check"
-                  :disabled="!eligibility.eligible || state.acting.value"
-                  :title="
-                    eligibility.eligible ? 'Verify this candidate' : 'Server eligibility is false'
-                  "
-                  @click="confirmApprove"
-                >
-                  Approve
-                </v-btn>
-                <v-btn
-                  color="warning"
-                  size="small"
-                  prepend-icon="mdi-account-switch-outline"
-                  :disabled="!eligibility.eligible || state.acting.value"
-                  @click="showRelabel = !showRelabel"
-                >
-                  Relabel
-                </v-btn>
+              <div class="text-overline">Whose body is this?</div>
+              <ReviewVerdictBar
+                surface="reid_review"
+                :members="state.targets.value"
+                :proposed-id="proposedId"
+                :disabled="state.acting.value"
+                :members-disabled="!eligibility.eligible"
+                :members-disabled-reason="
+                  eligibility.eligible
+                    ? ''
+                    : `Not eligible for approval: ${eligibility.reasons.join(', ')}.`
+                "
+                :navigable="false"
+                @member="confirmMember"
+                @verdict="onVerdict"
+              >
                 <v-btn
                   v-if="detailCandidate.state === 'auto_verified'"
-                  color="secondary"
                   size="small"
+                  variant="text"
                   prepend-icon="mdi-undo"
                   :disabled="state.acting.value"
                   :loading="state.acting.value"
                   title="Un-trust this auto-verified candidate back to pending review"
+                  data-test="demote"
                   @click="confirmDemote"
                 >
                   Demote
                 </v-btn>
+              </ReviewVerdictBar>
+              <div
+                v-if="eligibility.eligible && state.targets.value.length > MAX_KEYED_MEMBERS"
+                class="pa-2"
+              >
+                <IdentityTargetPicker
+                  v-model="relabelTarget"
+                  label="Someone else in the household"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                />
                 <v-btn
-                  color="error"
                   size="small"
-                  prepend-icon="mdi-close"
-                  :disabled="state.acting.value"
-                  @click="showReject = !showReject"
+                  :disabled="!relabelTarget"
+                  @click="confirmMember(relabelTarget)"
                 >
-                  Reject
+                  Verify as this member
                 </v-btn>
               </div>
-
               <v-expand-transition>
-                <div v-if="showRelabel" class="pa-2">
-                  <IdentityTargetPicker
-                    v-model="relabelTarget"
-                    label="Household target"
-                    density="compact"
-                    hide-details
-                    class="mb-2"
-                  />
-                  <v-btn
-                    size="small"
-                    color="warning"
-                    :disabled="!relabelTarget"
-                    @click="confirmRelabel"
-                  >
-                    Relabel and verify
-                  </v-btn>
-                </div>
-              </v-expand-transition>
-
-              <v-expand-transition>
-                <div v-if="showReject" class="pa-2">
+                <div v-if="showReject" class="pa-2" data-test="reject-panel">
                   <v-select
                     v-model="rejectReason"
-                    label="Reason"
-                    :items="REJECT_REASONS"
+                    label="Why is it not usable?"
+                    :items="UNUSABLE_REASONS"
                     density="compact"
                     hide-details
                     class="mb-2"
@@ -501,14 +494,14 @@
                     size="small"
                     color="error"
                     :disabled="!rejectReason"
-                    @click="confirmReject"
+                    data-test="confirm-unusable"
+                    @click="confirmUnusable"
                   >
-                    Confirm rejection
+                    Reject as not usable
                   </v-btn>
                 </div>
               </v-expand-transition>
             </div>
-
             <!-- Compensating action for a verified candidate -->
             <div v-else-if="detailCandidate.state === 'operator_verified'">
               <v-divider class="mb-3" />
@@ -533,8 +526,8 @@
       size="sm"
       persistent
       icon="mdi-close-circle-outline"
-      label="Batch Reject"
-      :title="`Reject ${state.selectedIds.value.length} candidates`"
+      label="Not usable"
+      :title="`Reject ${state.selectedIds.value.length} samples as not usable`"
       confirm-label="Reject"
       confirm-color="error"
       :confirm-disabled="!batchReason"
@@ -542,7 +535,15 @@
       @confirm="doBatchReject"
     >
       <div class="px-6 py-5">
-        <v-select v-model="batchReason" label="Reason" :items="REJECT_REASONS" class="mb-3" />
+        <p class="text-body-2 text-medium-emphasis mb-3" data-test="batch-effect">
+          {{ review.effect("reid_review", "not_usable") }}
+        </p>
+        <v-select
+          v-model="batchReason"
+          label="Why are they not usable?"
+          :items="UNUSABLE_REASONS"
+          class="mb-3"
+        />
         <v-textarea v-model="batchNote" label="Note (optional)" rows="2" />
       </div>
     </AppDialog>
@@ -577,15 +578,23 @@ import CcSegmentedToggle from "@/components/common/CcSegmentedToggle.vue";
 import BlurToggle from "@/components/cts/BlurToggle.vue";
 import IdentityBboxOverlay from "@/components/cts/identity/IdentityBboxOverlay.vue";
 import IdentityTargetPicker from "@/components/identity/IdentityTargetPicker.vue";
+import ReviewSelectionToolbar from "@/components/identity/ReviewSelectionToolbar.vue";
+import ReviewVerdictBar from "@/components/identity/ReviewVerdictBar.vue";
+import { MAX_KEYED_MEMBERS, VERDICT_LABELS } from "@/constants/identityReview";
+import { useReviewKeys } from "@/composables/useReviewKeys";
+import { useIdentityReviewStore } from "@/stores/identityReview";
 
-const REJECT_REASONS = [
-  { title: "Wrong person", value: "wrong_person" },
-  { title: "Identity uncertain", value: "identity_uncertain" },
+// "Not in the household" is CTS's wrong_person; "Not usable" asks which kind of unusable,
+// because CTS records a reason code on every rejection.
+const NOT_ENROLLED_REASON = "wrong_person";
+const UNUSABLE_REASONS = [
   { title: "Low quality", value: "low_quality" },
-  { title: "Duplicate candidate", value: "duplicate_candidate" },
-  { title: "Bad bbox", value: "bad_bbox" },
+  { title: "Bad box", value: "bad_bbox" },
+  { title: "Identity uncertain", value: "identity_uncertain" },
+  { title: "Duplicate sample", value: "duplicate_candidate" },
   { title: "Other", value: "other" },
 ];
+const DEFAULT_UNUSABLE_REASON = "low_quality";
 const ORIENTATIONS = ["back", "left", "front", "right", "unknown"];
 
 const { notify } = useNotify();
@@ -606,7 +615,6 @@ const { displaySrc } = useDisplaySrc(blurMode);
 
 const forbidden = ref(false);
 const neighbors = ref([]);
-const showRelabel = ref(false);
 const showReject = ref(false);
 const relabelTarget = ref("");
 const rejectReason = ref("");
@@ -721,7 +729,6 @@ watch(
   () => detailCandidate.value.candidate_id,
   async (id) => {
     neighbors.value = [];
-    showRelabel.value = false;
     showReject.value = false;
     relabelTarget.value = "";
     rejectReason.value = "";
@@ -742,25 +749,75 @@ function targetName(id) {
   return t?.display_name || id;
 }
 
-async function confirmApprove() {
+const review = useIdentityReviewStore();
+const selectMode = ref(false);
+const columnCount = computed(() => (selectMode.value ? 10 : 9));
+// The member the system proposes; choosing them approves, choosing anyone else relabels.
+const proposedId = computed(
+  () => detailCandidate.value.proposed_identity_id || detailCandidate.value.identity_id || null,
+);
+const selectableIds = computed(() =>
+  state.candidates.value.filter((c) => c.state === "pending_review").map((c) => c.candidate_id),
+);
+
+function toggleSelectMode(active) {
+  selectMode.value = active;
+  actions.clearSelection();
+}
+
+function selectAllPending() {
+  for (const id of selectableIds.value) {
+    if (!state.selected.value.has(id)) actions.toggleSelected(id);
+  }
+}
+
+/** Every member decision goes through a confirm that states the server's effect. */
+async function confirmMember(identityId) {
+  if (!identityId || !eligibility.value.eligible) return;
+  const name = targetName(identityId);
+  const isProposal = identityId === proposedId.value;
   const ok = await showConfirm(
-    "Approve candidate",
-    `Verify this candidate as ${detailCandidate.value.proposed_identity_id || detailCandidate.value.identity_id || "the proposed identity"}? It will start influencing identity resolution.`,
+    isProposal ? `Verify as ${name}` : `Relabel to ${name} and verify`,
+    review.effect("reid_review", "is_member", name),
   );
   if (!ok) return;
-  await actions.approve(detailCandidate.value.candidate_id).catch(() => {});
+  const id = detailCandidate.value.candidate_id;
+  const done = isProposal
+    ? actions.approve(id)
+    : actions.relabel(id, { target_identity_id: identityId });
+  await done.catch(() => {});
 }
-async function confirmRelabel() {
-  if (!relabelTarget.value) return;
+
+async function onVerdict(verdict) {
+  if (verdict === "not_enrolled") {
+    const ok = await showConfirm(
+      VERDICT_LABELS.not_enrolled,
+      review.effect("reid_review", "not_enrolled"),
+    );
+    if (!ok) return;
+    await actions
+      .reject(detailCandidate.value.candidate_id, { reason: NOT_ENROLLED_REASON })
+      .catch(() => {});
+  } else if (verdict === "not_usable") {
+    rejectReason.value = rejectReason.value || DEFAULT_UNUSABLE_REASON;
+    showReject.value = true;
+  }
+}
+
+async function confirmUnusable() {
   const ok = await showConfirm(
-    "Relabel and verify",
-    `Relabel this candidate to ${targetName(relabelTarget.value)} and verify it?`,
+    VERDICT_LABELS.not_usable,
+    review.effect("reid_review", "not_usable"),
   );
   if (!ok) return;
   await actions
-    .relabel(detailCandidate.value.candidate_id, { target_identity_id: relabelTarget.value })
+    .reject(detailCandidate.value.candidate_id, {
+      reason: rejectReason.value,
+      note: rejectNote.value || null,
+    })
     .catch(() => {});
 }
+
 async function confirmDemote() {
   const ok = await showConfirm(
     "Demote candidate",
@@ -769,20 +826,22 @@ async function confirmDemote() {
   if (!ok) return;
   await actions.demote(detailCandidate.value.candidate_id).catch(() => {});
 }
-async function confirmReject() {
-  await actions
-    .reject(detailCandidate.value.candidate_id, {
-      reason: rejectReason.value,
-      note: rejectNote.value || null,
-    })
-    .catch(() => {});
-}
 async function confirmCompensate() {
   await actions.compensate(detailCandidate.value.candidate_id).catch(() => {});
 }
 
+async function confirmBatchNotEnrolled() {
+  const n = state.selectedIds.value.length;
+  const ok = await showConfirm(
+    `${VERDICT_LABELS.not_enrolled}: ${n} sample${n === 1 ? "" : "s"}`,
+    review.effect("reid_review", "not_enrolled"),
+  );
+  if (!ok) return;
+  await actions.rejectSelected({ reason: NOT_ENROLLED_REASON }).catch(() => {});
+}
+
 function openBatchReject() {
-  batchReason.value = "";
+  batchReason.value = DEFAULT_UNUSABLE_REASON;
   batchNote.value = "";
   batchDialog.value = true;
 }
@@ -793,9 +852,26 @@ async function doBatchReject() {
   batchDialog.value = false;
 }
 
+// Keys act only in the open drawer, and a member key still goes through the confirm.
+useReviewKeys({
+  enabled: () =>
+    isReviewable.value &&
+    !state.acting.value &&
+    !confirmDialog.value &&
+    !batchDialog.value &&
+    !showReject.value,
+  verdicts: () => review.surface("reid_review")?.verdicts.map((v) => v.verdict) ?? [],
+  onMember: (position) => {
+    const member = state.targets.value[position];
+    if (member) void confirmMember(member.identity_id);
+  },
+  onVerdict: (verdict) => void onVerdict(verdict),
+});
+
 onMounted(() => {
   void refreshAll();
   void readiness.actions.load();
+  void review.load();
 });
 </script>
 

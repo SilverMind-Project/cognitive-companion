@@ -128,7 +128,9 @@ Each item shows:
   `operator_verified`, `rejected`; identity-continuity M02 added `auto_verified`), and a state
   filter option covering all four.
 
-Actions are `Approve`, `Reject`, `Relabel`, and `Demote`. No bulk approval. Batch rejection is
+Actions are `Approve`, `Reject`, `Relabel`, and `Demote`, offered through the shared verdict bar:
+choosing the proposed member approves, choosing another relabels, "Not in the household" rejects as
+`wrong_person`, and "Not usable" rejects with a chosen reason code. No bulk approval. Batch rejection is
 allowed for obvious low-quality candidates. Approval/relabel/reject act on a row in
 `pending_review` or `auto_verified` (an `auto_verified` row is machine-trusted but still fully
 operator-governable); demote acts only on `auto_verified` and returns it to `pending_review`
@@ -154,18 +156,30 @@ through one batch call with per-item results.
 
 Every surface where an operator says who a face, body, or track belongs to converges on the same
 pieces; the design and its phases are
-`/home/sriram/code/nanai/identity-recognition-s06-unified-identity-review.md`. Targets are shared by
-every surface today; the verdicts, batch results, and effect notes are used by Visitors, and Face
-calibration and ReID review adopt them in later phases. New review code uses all of them:
+`/home/sriram/code/nanai/identity-recognition-s06-unified-identity-review.md`. Visitors, Face
+calibration, and the ReID Review Queue use all of them; track corrections keep their own workflow.
+New review code uses them too:
 
 - Targets: the `identityTargets` store over `GET /api/v1/identity/targets` and
   `IdentityTargetPicker` (`require-enrolled-face` disables members without enrolled faces). Never
   load the household list another way.
 - Verdicts: `backend/schemas/identity_review.py` (`is_member`, `new_person`, `not_enrolled`,
-  `not_usable`) and their labels in `frontend/src/constants/identityReview.ts`.
+  `not_usable`); labels and keys in `frontend/src/constants/identityReview.ts`.
+- Effects: `backend/services/identity_review/vocabulary.py` states what each verdict changes on
+  each surface, once. The browser reads it through the `identityReview` store
+  (`GET /api/v1/identity/review-vocabulary`) and previews it before a decision; batch responses
+  report the same sentence. Never write an effect sentence in the frontend.
+- One subject at a time: `ReviewVerdictBar` (numbered members, the server's other verdicts with
+  their keys, the surface's guarantee underneath) and `useReviewKeys` (1 to 9 a member, `n` not in
+  the household, `x` not usable, arrows to move). A member decision that grants authority (ReID
+  approval) still goes through a confirm, by key or click. Face calibration highlights no member:
+  its labels are ground truth.
+- Several at once: `ReviewSelectionToolbar` (Select several, Select all, count, Clear, the
+  surface's decisions in its slot), then a confirm that states the effect, then one batch call.
 - Batch results: `BatchReviewResponse` (`{id, ok, error_code}` per item, the server's `effect`).
 - Every confirm states what the decision changes, especially that no review action except naming
   a new person changes enrollment.
+- The readiness page lists every review queue with its waiting count (`review_queues`).
 
 ## Face calibration review surface
 

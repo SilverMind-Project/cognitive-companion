@@ -40,6 +40,10 @@ vi.mock("@/composables/useIdentityReadiness", async () => {
   };
 });
 
+vi.mock("@/services/modules/identity_targets", async () =>
+  (await import("../support/reviewVocabulary")).identityTargetsModuleMock(),
+);
+
 import FaceCalibrationView from "@/views/admin/FaceCalibrationView.vue";
 
 const stubs = {
@@ -47,7 +51,10 @@ const stubs = {
   "v-spacer": { template: "<span />" },
   "v-chip": { template: "<span class='v-chip'><slot /></span>", props: ["color"] },
   "v-alert": { template: "<div class='v-alert'><slot /><slot name='append' /></div>" },
-  "v-btn": { template: "<button :disabled='disabled'><slot /></button>", props: ["disabled"] },
+  "v-btn": {
+    template: "<button :disabled='disabled' :title='title'><slot /></button>",
+    props: ["disabled", "title"],
+  },
   "v-progress-circular": { template: "<div />" },
   "v-progress-linear": { template: "<div />", props: ["modelValue"] },
   "v-row": { template: "<div><slot /></div>" },
@@ -174,6 +181,7 @@ describe("FaceCalibrationView", () => {
 
   it("labels from the keyboard: numbers for residents, n and x for the rest", async () => {
     const wrapper = mountView({ attachTo: document.body });
+    await flushPromises();
     press("1");
     press("n");
     press("x");
@@ -197,6 +205,25 @@ describe("FaceCalibrationView", () => {
     expect(current().actions.labelResident).not.toHaveBeenCalled();
     expect(current().actions.labelNotEnrolled).not.toHaveBeenCalled();
     input.remove();
+  });
+
+  it("offers the shared decisions with the server's effects and guarantee", async () => {
+    const wrapper = mountView({ attachTo: document.body });
+    await flushPromises();
+    const bar = wrapper.get("[data-test='verdict-bar']");
+    expect(bar.get("[data-test='member-amma']").attributes("title")).toBe(
+      "Server: labeled as Amma.",
+    );
+    expect(bar.get("[data-test='verdict-not_enrolled']").text()).toContain("Not in the household");
+    expect(bar.get("[data-test='verdict-not_usable']").attributes("title")).toBe(
+      "Server: left out of the fit.",
+    );
+    expect(bar.get("[data-test='verdict-guarantee']").text()).toBe(
+      "Server: labels feed only the calibration fit.",
+    );
+    await bar.get("[data-test='verdict-not_usable']").trigger("click");
+    expect(current().actions.labelNotAFace).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
   });
 
   it("deletes only after confirmation", async () => {

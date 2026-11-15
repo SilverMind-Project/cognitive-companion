@@ -14,6 +14,7 @@ type Schemas = components["schemas"];
 export type CalibrationCandidateView = Schemas["CalibrationCandidateView"];
 export type FaceCalibrationSummary = Schemas["FaceCalibrationSummaryEnvelope"];
 export type CalibrationLabel = Schemas["LabelCalibrationCandidateRequest"];
+export type CalibrationBatchReview = Schemas["FaceCalibrationReviewRequest"];
 export type CalibrationState = "unlabeled" | "labeled" | "rejected";
 
 export const listCalibrationCandidates = (
@@ -51,3 +52,7 @@ export const deleteCalibrationCandidate = (candidateId: string) =>
 
 export const getFaceCalibrationSummary = () =>
   unwrap(client.GET("/api/v1/face-calibration/summary", {}));
+
+/** Label several captures not in the household or not usable; member labels go one at a time. */
+export const reviewCalibrationCandidates = (body: CalibrationBatchReview) =>
+  unwrap(client.POST("/api/v1/face-calibration/candidates/review", { body }));

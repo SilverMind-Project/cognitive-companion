@@ -3,7 +3,7 @@
  *
  * Owns the review queue lifecycle for `CTSReIDReviewView`: paginated/filtered
  * candidate list, selection, the detail drawer, the approve/relabel/reject/
- * batch-reject/compensate mutations, and the shared invalidation that refreshes
+ * batch-review/compensate mutations, and the shared invalidation that refreshes
  * the queue and the Keyframe/PH pending-review counts after any action.
  *
  * Returns `{ state, actions }` per engineering-standards Section 17. The server
@@ -17,6 +17,7 @@
 
 import { computed, ref } from "vue";
 import { ctsReidReview, CorrectionError } from "@/services/cts_identity";
+import { appliedIds, batchReviewNotices } from "@/constants/identityReview";
 import { useIdentityTargetsStore } from "@/stores/identityTargets";
 
 const PAGE_SIZE = 25;
@@ -231,16 +232,32 @@ export function useReIDReview(notify) {
     );
   }
 
-  function rejectSelected({ reason, note = null }) {
+  /**
+   * Reject the selected samples as not in the household or not usable (with its reason), in one
+   * batch. The server's effect is the success notice; a sample that changed since it was loaded
+   * stays selected and is reported, without failing the rest.
+   */
+  async function reviewSelected({ verdict, reason = null, note = null }) {
     const items = selectedIds.value.map((id) => ({
       candidate_id: id,
       base_audit_version: _baseVersion(id),
     }));
-    return _runAction("Selected candidates rejected", async () => {
-      const result = await ctsReidReview.rejectBatch({ reason, note, items });
-      clearSelection();
+    acting.value = true;
+    try {
+      const result = await ctsReidReview.reviewBatch({ verdict, reason, note, items });
+      const notices = batchReviewNotices(result);
+      if (notify && notices.success) notify.success(notices.success);
+      if (notify && notices.warning) notify.warning(notices.warning);
+      const applied = appliedIds(result);
+      selected.value = new Set([...selected.value].filter((id) => !applied.has(id)));
+      await invalidate();
       return result;
-    });
+    } catch (err) {
+      if (notify) notify.error(err.message || String(err));
+      throw err;
+    } finally {
+      acting.value = false;
+    }
   }
 
   function compensate(candidateId) {
@@ -285,7 +302,7 @@ export function useReIDReview(notify) {
       relabel,
       demote,
       reject,
-      rejectSelected,
+      reviewSelected,
       compensate,
     },
   };

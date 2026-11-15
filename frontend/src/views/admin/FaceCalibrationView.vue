@@ -43,9 +43,57 @@
       </template>
     </v-alert>
 
+    <ReviewSelectionToolbar
+      v-if="!state.loading && !state.forbidden && state.queue.length"
+      class="mb-4"
+      :active="state.selecting"
+      :selectable-count="state.queue.length"
+      :selected-count="state.selection.length"
+      @update:active="actions.setSelecting"
+      @select-all="actions.selectAll"
+      @clear="actions.clearSelection"
+    >
+      <v-btn
+        v-for="verdict in batchVerdicts"
+        :key="verdict.verdict"
+        size="small"
+        variant="outlined"
+        :disabled="!state.selection.length"
+        :loading="state.acting"
+        :data-test="`batch-${verdict.verdict}`"
+        @click="onBatch(verdict.verdict)"
+      >
+        {{ VERDICT_LABELS[verdict.verdict] }}
+      </v-btn>
+      <span class="text-caption text-medium-emphasis">
+        Members are labeled one face at a time.
+      </span>
+    </ReviewSelectionToolbar>
+
     <div v-if="state.loading" class="d-flex justify-center pa-8">
       <v-progress-circular indeterminate color="primary" />
     </div>
+
+    <v-row v-else-if="!state.forbidden && state.selecting" data-test="selection-grid">
+      <v-col v-for="capture in state.queue" :key="capture.candidate_id" cols="6" sm="3" md="2">
+        <button
+          type="button"
+          class="calibration-tile"
+          :class="{ 'calibration-tile--selected': state.selection.includes(capture.candidate_id) }"
+          :aria-pressed="state.selection.includes(capture.candidate_id)"
+          :data-test="`tile-${capture.candidate_id}`"
+          @click="actions.toggleSelection(capture.candidate_id)"
+        >
+          <img
+            v-if="capture.crop_url"
+            :src="capture.crop_url"
+            alt="Aligned face crop"
+            class="calibration-tile__crop"
+          />
+          <span v-else class="text-caption">Crop unavailable</span>
+        </button>
+      </v-col>
+    </v-row>
 
     <v-row v-else-if="!state.forbidden">
       <v-col cols="12" md="7">
@@ -173,12 +221,13 @@
 
     <v-dialog v-model="confirmDialog" max-width="400" persistent>
       <v-card rounded="xl">
-        <v-card-title>{{ confirmTitle }}</v-card-title>
-        <v-card-text>{{ confirmText }}</v-card-text>
+        <v-card-text class="pt-6">{{ confirmText }}</v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="onCancel">Cancel</v-btn>
-          <v-btn color="error" data-test="confirm-delete" @click="onConfirm">Delete</v-btn>
+          <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
+          <v-btn :color="confirmColor" variant="flat" data-test="confirm" @click="onConfirm">{{
+            confirmLabel
+          }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -187,8 +236,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
+import ReviewSelectionToolbar from "@/components/identity/ReviewSelectionToolbar.vue";
 import ReviewVerdictBar from "@/components/identity/ReviewVerdictBar.vue";
-import type { ReviewVerdict } from "@/constants/identityReview";
+import { VERDICT_LABELS, type ReviewVerdict } from "@/constants/identityReview";
 import { useReviewKeys } from "@/composables/useReviewKeys";
 import { useIdentityReviewStore } from "@/stores/identityReview";
 import { useConfirm } from "@/composables/useConfirm.js";
@@ -200,7 +250,16 @@ import { formatDateTime } from "@/services/timezone.js";
 
 const { notify } = useNotify();
 const { state, current, keyedResidents, actions } = useFaceCalibrationReview(notify);
-const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
+const {
+  confirmDialog,
+  confirmText,
+  confirmLabel,
+  cancelLabel,
+  confirmColor,
+  require: confirmRequire,
+  onConfirm,
+  onCancel,
+} = useConfirm();
 // Readiness only adds a hint to the empty queue; if it fails to load the page works without it.
 const readiness = useIdentityReadiness();
 
@@ -216,7 +275,11 @@ function residentName(id: string): string {
 }
 
 async function onDelete() {
-  if (await showConfirm("Delete capture", "The face crop and its label are deleted permanently.")) {
+  const ok = await confirmRequire(
+    "Delete this capture? The face crop and its label are deleted permanently.",
+    { confirmText: "Delete" },
+  );
+  if (ok) {
     await actions.remove();
   }
 }
@@ -234,8 +297,25 @@ function onVerdict(verdict: ReviewVerdict) {
 }
 
 const review = useIdentityReviewStore();
+// The server says which verdicts may apply to several captures at once (never a member label).
+const batchVerdicts = computed(
+  () => review.surface("face_calibration")?.verdicts.filter((v) => v.batch) ?? [],
+);
+
+async function onBatch(verdict: ReviewVerdict) {
+  if (verdict !== "not_enrolled" && verdict !== "not_usable") return;
+  const n = state.selection.length;
+  const ok = await confirmRequire(
+    `Label ${n} face${n === 1 ? "" : "s"} "${VERDICT_LABELS[verdict]}"? ` +
+      review.effect("face_calibration", verdict),
+    { confirmText: VERDICT_LABELS[verdict], color: "primary" },
+  );
+  if (ok) await actions.reviewSelected(verdict);
+}
+
 useReviewKeys({
-  enabled: () => !confirmDialog.value && !state.acting && current.value !== null,
+  enabled: () =>
+    !confirmDialog.value && !state.acting && !state.selecting && current.value !== null,
   verdicts: () => review.surface("face_calibration")?.verdicts.map((v) => v.verdict) ?? [],
   onMember: (position) => void actions.labelResident(position),
   onVerdict,
@@ -250,6 +330,26 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.calibration-tile {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--cc-radius-md);
+  background: var(--cc-surface-2);
+  overflow: hidden;
+  cursor: pointer;
+}
+.calibration-tile--selected {
+  border-color: var(--cc-brand);
+}
+.calibration-tile__crop {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
 .calibration-crop {
   width: 224px;
   height: 224px;

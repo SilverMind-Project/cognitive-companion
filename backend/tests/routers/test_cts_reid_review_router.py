@@ -20,8 +20,6 @@ from backend.core.exceptions import register_exception_handlers
 from backend.routers.cts_reid_review import router
 from backend.routers.dependencies import get_reid_review_service
 from backend.schemas.cts_reid_review import (
-    BatchRejectResponse,
-    BatchRejectResultItem,
     EligibilityView,
     ReviewCandidateDetailResponse,
     ReviewCandidateListResponse,
@@ -29,6 +27,7 @@ from backend.schemas.cts_reid_review import (
     ReviewCountsResponse,
     ReviewEventsResponse,
 )
+from backend.schemas.identity_review import BatchReviewResponse, ReviewItemResult
 from backend.services.cts.reid_review_service import ReviewUpstreamError
 
 
@@ -81,11 +80,9 @@ def _mock_service() -> MagicMock:
     svc.relabel = AsyncMock(return_value=_candidate(state="operator_verified"))
     svc.demote = AsyncMock(return_value=_candidate(state="pending_review"))
     svc.reject = AsyncMock(return_value=_candidate(state="rejected", crop_url=None))
-    svc.reject_batch = AsyncMock(
-        return_value=BatchRejectResponse(
-            results=[BatchRejectResultItem(candidate_id="c1", ok=True)],
-            rejected=1,
-            failed=0,
+    svc.review_batch = AsyncMock(
+        return_value=BatchReviewResponse(
+            results=[ReviewItemResult(id="c1", ok=True)], reviewed=1, failed=0, effect="Rejected."
         )
     )
     svc.compensate = AsyncMock(return_value=_candidate())
@@ -136,8 +133,8 @@ _ROUTES = [
     ),
     (
         "post",
-        "/api/v1/cts/identity/reid-review/reject-batch",
-        {"reason": "wrong_person", "items": [{"candidate_id": "c1", "base_audit_version": 1}]},
+        "/api/v1/cts/identity/reid-review/review",
+        {"verdict": "not_enrolled", "items": [{"candidate_id": "c1", "base_audit_version": 1}]},
     ),
     ("post", "/api/v1/cts/identity/reid-review/candidates/c1/compensate", {}),
 ]
@@ -243,14 +240,49 @@ def test_no_bulk_approve_route(client_authorized):
     assert client.post("/api/v1/cts/identity/reid-review/approve-batch", json={}).status_code == 404
 
 
-def test_batch_reject_reports_results(client_authorized):
-    client, _ = client_authorized
+def test_batch_review_reports_results_and_records_the_caller(client_authorized):
+    client, svc = client_authorized
     resp = client.post(
-        "/api/v1/cts/identity/reid-review/reject-batch",
-        json={"reason": "wrong_person", "items": [{"candidate_id": "c1", "base_audit_version": 1}]},
+        "/api/v1/cts/identity/reid-review/review",
+        json={
+            "verdict": "not_usable",
+            "reason": "low_quality",
+            "items": [{"candidate_id": "c1", "base_audit_version": 1}],
+        },
     )
     assert resp.status_code == 200
-    assert resp.json()["rejected"] == 1
+    assert resp.json()["reviewed"] == 1
+    request = svc.review_batch.await_args.args[0]
+    assert (request.verdict, request.reject_reason) == ("not_usable", "low_quality")
+    assert svc.review_batch.await_args.kwargs["actor"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"verdict": "not_usable", "items": [{"candidate_id": "c1", "base_audit_version": 1}]},
+        {
+            "verdict": "not_enrolled",
+            "reason": "low_quality",
+            "items": [{"candidate_id": "c1", "base_audit_version": 1}],
+        },
+        {"verdict": "is_member", "items": [{"candidate_id": "c1", "base_audit_version": 1}]},
+        {"verdict": "not_usable", "reason": "wrong_person", "items": []},
+    ],
+)
+def test_batch_review_refuses_approval_and_mismatched_reasons(client_authorized, body):
+    client, svc = client_authorized
+    resp = client.post("/api/v1/cts/identity/reid-review/review", json=body)
+    assert resp.status_code == 422
+    svc.review_batch.assert_not_called()
+
+
+def test_the_old_batch_reject_route_is_gone(client_authorized):
+    client, _ = client_authorized
+    assert client.post("/api/v1/cts/identity/reid-review/reject-batch", json={}).status_code in (
+        404,
+        405,
+    )
 
 
 def test_stale_upstream_409_passthrough(client_authorized):

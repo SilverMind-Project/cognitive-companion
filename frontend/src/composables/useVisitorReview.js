@@ -13,7 +13,7 @@
 
 import { reactive } from "vue";
 import { ApiError } from "@/services/http";
-import { REVIEW_ERROR_LABELS } from "@/constants/identityReview";
+import { appliedIds, batchReviewNotices } from "@/constants/identityReview";
 import { useIdentityTargetsStore } from "@/stores/identityTargets";
 import {
   getVisitorCluster,
@@ -134,20 +134,11 @@ export function useVisitorReview(notify) {
         ...(targetIdentityId ? { target_identity_id: targetIdentityId } : {}),
       });
       state.disabled = false;
-      if (result.reviewed && notify) notify.success(result.effect);
-      if (result.failed && notify) {
-        const reasons = [
-          ...new Set(
-            result.results
-              .filter((r) => !r.ok)
-              .map((r) => REVIEW_ERROR_LABELS[r.error_code] ?? "could not be updated"),
-          ),
-        ];
-        notify.warning(`${result.failed} not updated: ${reasons.join("; ")}.`);
-      }
-      state.selection = state.selection.filter(
-        (id) => !result.results.some((r) => r.ok && r.id === id),
-      );
+      const notices = batchReviewNotices(result);
+      if (notices.success && notify) notify.success(notices.success);
+      if (notices.warning && notify) notify.warning(notices.warning);
+      const applied = appliedIds(result);
+      state.selection = state.selection.filter((id) => !applied.has(id));
       await invalidate();
       return result;
     } catch (err) {

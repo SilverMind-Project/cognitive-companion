@@ -19,6 +19,7 @@ from backend.schemas.face_calibration import (
     CalibrationCandidateView,
     FaceCalibrationSummaryEnvelope,
 )
+from backend.schemas.identity_review import BatchReviewResponse, ReviewItemResult
 
 _VIEW = CalibrationCandidateView(
     candidate_id="c1",
@@ -52,6 +53,11 @@ def _build(permissions: list[str], *, name: str = "caregiver-ops"):
     )
     svc.label = AsyncMock(return_value=_VIEW)
     svc.reject = AsyncMock(return_value=_VIEW)
+    svc.review = AsyncMock(
+        return_value=BatchReviewResponse(
+            results=[ReviewItemResult(id="c1", ok=True)], reviewed=1, failed=0, effect="Labeled."
+        )
+    )
     svc.delete = AsyncMock(return_value=None)
     svc.get_summary = AsyncMock(return_value=_SUMMARY)
     minio = MagicMock(spec=MinioClient)
@@ -72,6 +78,12 @@ _ROUTES = [
     ("get", "/api/v1/face-calibration/candidates", None, 200),
     ("post", "/api/v1/face-calibration/candidates/c1/label", {"label_kind": "not_a_face"}, 200),
     ("post", "/api/v1/face-calibration/candidates/c1/reject", {}, 200),
+    (
+        "post",
+        "/api/v1/face-calibration/candidates/review",
+        {"candidate_ids": ["c1"], "verdict": "not_enrolled"},
+        200,
+    ),
     ("delete", "/api/v1/face-calibration/candidates/c1", None, 204),
     ("get", "/api/v1/face-calibration/summary", None, 200),
 ]
@@ -124,6 +136,25 @@ def test_label_records_the_authenticated_caller_not_the_browser() -> None:
         "amma",
         "admin-tablet",
     )
+
+
+def test_batch_review_records_the_caller_and_refuses_member_labels() -> None:
+    client, svc, _ = _build(["*"], name="admin-tablet")
+    ok = client.post(
+        "/api/v1/face-calibration/candidates/review",
+        json={"candidate_ids": ["c1", "c2"], "verdict": "not_usable"},
+    )
+    assert ok.status_code == 200
+    request = svc.review.await_args.args[0]
+    assert (request.candidate_ids, request.verdict) == (["c1", "c2"], "not_usable")
+    assert svc.review.await_args.kwargs["actor"] == "admin-tablet"
+
+    member = client.post(
+        "/api/v1/face-calibration/candidates/review",
+        json={"candidate_ids": ["c1"], "verdict": "is_member", "target_identity_id": "amma"},
+    )
+    assert member.status_code == 422
+    assert svc.review.await_count == 1
 
 
 @pytest.mark.parametrize(

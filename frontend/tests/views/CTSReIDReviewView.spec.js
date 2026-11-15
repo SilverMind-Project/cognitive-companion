@@ -114,7 +114,7 @@ function makeStore(overrides = {}) {
       relabel: vi.fn().mockResolvedValue(),
       demote: vi.fn().mockResolvedValue(),
       reject: vi.fn().mockResolvedValue(),
-      rejectSelected: vi.fn().mockResolvedValue(),
+      reviewSelected: vi.fn().mockResolvedValue(),
       compensate: vi.fn().mockResolvedValue(),
     },
   };

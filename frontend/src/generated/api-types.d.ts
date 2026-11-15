@@ -1536,7 +1536,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cts/identity/reid-review/reject-batch": {
+    "/api/v1/cts/identity/reid-review/review": {
         parameters: {
             query?: never;
             header?: never;
@@ -1545,8 +1545,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reject Batch */
-        post: operations["reject_batch"];
+        /**
+         * Review Batch
+         * @description Reject several samples as not in the household or not usable; there is no batch approve.
+         */
+        post: operations["review_batch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2400,6 +2403,26 @@ export interface paths {
         get: operations["list_calibration_candidates"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/face-calibration/candidates/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review Calibration Candidates
+         * @description Label several captures not in the household or not usable; member labels go one by one.
+         */
+        post: operations["review_calibration_candidates"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5779,45 +5802,6 @@ export interface components {
             /** Positions */
             positions: components["schemas"]["StepPositionUpdate"][];
         };
-        /** BatchRejectItemRequest */
-        BatchRejectItemRequest: {
-            /** Base Audit Version */
-            base_audit_version: number;
-            /** Candidate Id */
-            candidate_id: string;
-        };
-        /** BatchRejectRequest */
-        BatchRejectRequest: {
-            /** Items */
-            items: components["schemas"]["BatchRejectItemRequest"][];
-            /** Note */
-            note?: string | null;
-            /**
-             * Reason
-             * @enum {string}
-             */
-            reason: "wrong_person" | "identity_uncertain" | "low_quality" | "duplicate_candidate" | "bad_bbox" | "other";
-        };
-        /** BatchRejectResponse */
-        BatchRejectResponse: {
-            /** Failed */
-            failed: number;
-            /** Rejected */
-            rejected: number;
-            /** Results */
-            results: components["schemas"]["BatchRejectResultItem"][];
-        };
-        /** BatchRejectResultItem */
-        BatchRejectResultItem: {
-            /** Candidate Id */
-            candidate_id: string;
-            /** Error Code */
-            error_code?: string | null;
-            /** Error Message */
-            error_message?: string | null;
-            /** Ok */
-            ok: boolean;
-        };
         /** BatchReviewResponse */
         BatchReviewResponse: {
             /**
@@ -7252,6 +7236,21 @@ export interface components {
             rule_id: number;
             /** Status */
             status: string;
+        };
+        /**
+         * FaceCalibrationReviewRequest
+         * @description Decide about several captures at once, only with verdicts that name nobody.
+         *
+         *     A member label is a genuine pair in the calibration fit, so it is given one face at a time.
+         */
+        FaceCalibrationReviewRequest: {
+            /** Candidate Ids */
+            candidate_ids: string[];
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "not_enrolled" | "not_usable";
         };
         /**
          * FaceCalibrationSummaryEnvelope
@@ -9945,6 +9944,32 @@ export interface components {
              */
             type: number;
         };
+        /** ReIDReviewBatchItem */
+        ReIDReviewBatchItem: {
+            /** Base Audit Version */
+            base_audit_version: number;
+            /** Candidate Id */
+            candidate_id: string;
+        };
+        /**
+         * ReIDReviewBatchRequest
+         * @description Decide about several body samples at once: only rejections, never approval.
+         *
+         *     ``not_enrolled`` rejects as ``wrong_person``; ``not_usable`` needs the unusable ``reason``.
+         */
+        ReIDReviewBatchRequest: {
+            /** Items */
+            items: components["schemas"]["ReIDReviewBatchItem"][];
+            /** Note */
+            note?: string | null;
+            /** Reason */
+            reason?: ("identity_uncertain" | "low_quality" | "duplicate_candidate" | "bad_bbox" | "other") | null;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "not_enrolled" | "not_usable";
+        };
         /** ReadinessStep */
         ReadinessStep: {
             /**
@@ -10230,7 +10255,7 @@ export interface components {
         /** ReviewItemResult */
         ReviewItemResult: {
             /** Error Code */
-            error_code?: ("not_found" | "already_named" | "unknown_member" | "not_enrolled_member" | "upstream_error") | null;
+            error_code?: ("not_found" | "already_named" | "unknown_member" | "not_enrolled_member" | "conflict" | "upstream_error") | null;
             /** Id */
             id: string;
             /** Ok */
@@ -14593,7 +14618,7 @@ export interface operations {
             };
         };
     };
-    reject_batch: {
+    review_batch: {
         parameters: {
             query?: never;
             header?: never;
@@ -14602,7 +14627,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BatchRejectRequest"];
+                "application/json": components["schemas"]["ReIDReviewBatchRequest"];
             };
         };
         responses: {
@@ -14612,7 +14637,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BatchRejectResponse"];
+                    "application/json": components["schemas"]["BatchReviewResponse"];
                 };
             };
             /** @description Validation Error */
@@ -16194,6 +16219,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CalibrationCandidateListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_calibration_candidates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceCalibrationReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchReviewResponse"];
                 };
             };
             /** @description Validation Error */

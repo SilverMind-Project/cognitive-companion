@@ -57,15 +57,21 @@ describe("ctsReidReview service", () => {
     });
   });
 
-  it("batch reject posts items and reason", async () => {
-    global.fetch = mockFetch(200, { results: [], rejected: 0, failed: 0 });
-    await ctsReidReview.rejectBatch({
-      reason: "wrong_person",
+  it("batch review posts the verdict, reason, and versioned items", async () => {
+    global.fetch = mockFetch(200, { results: [], reviewed: 0, failed: 0, effect: "" });
+    await ctsReidReview.reviewBatch({
+      verdict: "not_usable",
+      reason: "low_quality",
       items: [{ candidate_id: "c1", base_audit_version: 1 }],
     });
     const [url, opts] = global.fetch.mock.calls[0];
-    expect(url).toContain("/identity/reid-review/reject-batch");
-    expect(JSON.parse(opts.body).reason).toBe("wrong_person");
+    expect(url).toContain("/identity/reid-review/review");
+    expect(JSON.parse(opts.body)).toEqual({
+      verdict: "not_usable",
+      reason: "low_quality",
+      note: null,
+      items: [{ candidate_id: "c1", base_audit_version: 1 }],
+    });
   });
 
   it("surfaces a 403 forbidden as CorrectionError", async () => {

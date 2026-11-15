@@ -1,4 +1,4 @@
-"""M09: ReID review BFF service - media state-awareness, mapping, error semantics."""
+"""ReID review BFF service - media state-awareness, mapping, error semantics."""
 
 from __future__ import annotations
 
@@ -8,11 +8,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from backend.core.upstream_errors import UpstreamError
+from backend.schemas.cts_reid_review import ReIDReviewBatchItem, ReIDReviewBatchRequest
 from backend.services.cts.reid_review_service import (
     ReIDReviewService,
     ReviewContractError,
     ReviewUpstreamError,
 )
+from backend.services.identity_review.vocabulary import effect_text
 
 
 def _raw_candidate(state: str = "pending_review") -> dict:
@@ -167,3 +169,54 @@ async def test_out_of_vocabulary_state_from_upstream_is_contract_error(service_a
     )
     with pytest.raises(ReviewContractError):
         await service.get_detail("c1", presign=_presign)
+
+
+async def test_batch_review_rejects_each_with_one_reason_and_maps_results(service_and_client):
+    service, client = service_and_client
+    client.reject_review_batch = AsyncMock(
+        return_value={
+            "results": [
+                {"candidate_id": "c1", "ok": True},
+                {"candidate_id": "c2", "ok": False, "error_code": "conflict"},
+                {"candidate_id": "c3", "ok": False, "error_code": "not_found"},
+                {"candidate_id": "c4", "ok": False, "error_code": "surprise"},
+            ],
+            "rejected": 1,
+            "failed": 3,
+        }
+    )
+    request = ReIDReviewBatchRequest(
+        verdict="not_enrolled",
+        items=[
+            ReIDReviewBatchItem(candidate_id=c, base_audit_version=i)
+            for i, c in enumerate(["c1", "c2", "c3", "c4"])
+        ],
+    )
+
+    result = await service.review_batch(request, actor="Caregiver Admin")
+
+    payload = client.reject_review_batch.await_args.kwargs["payload"]
+    assert payload["actor"] == "Caregiver Admin"
+    assert {i["reason"] for i in payload["items"]} == {"wrong_person"}
+    assert [i["base_audit_version"] for i in payload["items"]] == [0, 1, 2, 3]
+    assert [(r.id, r.ok, r.error_code) for r in result.results] == [
+        ("c1", True, None),
+        ("c2", False, "conflict"),
+        ("c3", False, "not_found"),
+        ("c4", False, "upstream_error"),
+    ]
+    assert (result.reviewed, result.failed) == (1, 3)
+    assert result.effect == effect_text("reid_review", "not_enrolled")
+
+
+async def test_batch_review_malformed_envelope_is_contract_error(service_and_client):
+    service, client = service_and_client
+    client.reject_review_batch = AsyncMock(return_value={"results": [{"ok": True}]})
+    request = ReIDReviewBatchRequest(
+        verdict="not_usable",
+        reason="bad_bbox",
+        items=[ReIDReviewBatchItem(candidate_id="c1", base_audit_version=1)],
+    )
+
+    with pytest.raises(ReviewContractError):
+        await service.review_batch(request, actor="a")

@@ -139,11 +139,14 @@ export const ctsReidReview = {
       body: JSON.stringify({ base_audit_version, reason, note }),
     }),
 
-  /** Batch rejection (the only batch action; bulk approval does not exist). */
-  rejectBatch: ({ reason, note = null, items }) =>
-    req("/identity/reid-review/reject-batch", {
+  /**
+   * Decide about several samples at once: `not_enrolled` or `not_usable` (with its `reason`).
+   * Rejection is the only batch decision; bulk approval does not exist.
+   */
+  reviewBatch: ({ verdict, reason = null, note = null, items }) =>
+    req("/identity/reid-review/review", {
       method: "POST",
-      body: JSON.stringify({ reason, note, items }),
+      body: JSON.stringify({ verdict, reason, note, items }),
     }),
 
   /** Compensating action: un-verify an approved candidate from its history. */

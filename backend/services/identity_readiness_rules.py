@@ -27,9 +27,6 @@ STALE_FRAME_S = 60.0
 # A camera with this role is an identification point, not a tracking camera: it needs no
 # floor homography for the floor frame to be complete.
 FACE_ONLY_ROLE = "face_capable"
-# A household with fewer active members than this cannot be the full roster: nearest-centroid
-# matching would pull every face toward the one or two people enrolled.
-MIN_ROSTER_MEMBERS = 2
 ARTIFACT_READY = "ready"
 ARTIFACT_MISSING = "degraded_missing"
 
@@ -86,54 +83,58 @@ def _unknown(
     )
 
 
+def _clusters(n: int) -> str:
+    return (
+        f"{_count(n, 'group')} of recurring unrecognized faces "
+        f"{'is' if n == 1 else 'are'} waiting for review. Many are usually faces of someone "
+        "already enrolled: mark those as theirs, name only someone new, and dismiss the rest."
+    )
+
+
 def roster_step(roster: RosterHealthEnvelope | SourceFailure) -> ReadinessStep:
     if isinstance(roster, SourceFailure):
         return _unknown("roster", roster)
     missing = len(roster.members_without_face_enrollment)
-    if roster.active_member_count < MIN_ROSTER_MEMBERS:
+    clusters = roster.surfaced_unnamed_visitor_clusters
+    if roster.active_member_count == 0:
         return ReadinessStep(
             key="roster",
             state="blocked",
             detail=(
-                f"{_count(roster.active_member_count, 'household member')} listed; every person "
-                "who lives "
-                f"in or regularly visits the house must be listed and enrolled. {_ROSTER_SCOPE}"
+                "Nobody is listed. List and enroll every person who lives in the house. "
+                + _ROSTER_SCOPE
             ),
             next_action="enroll_members",
         )
     if missing:
         return ReadinessStep(
             key="roster",
-            state="blocked" if roster.surfaced_unnamed_visitor_clusters else "attention",
+            state="attention",
             detail=(
                 f"{missing} of {_count(roster.active_member_count, 'member')} "
                 f"{'has' if missing == 1 else 'have'} fewer than "
-                f"{roster.min_face_embeddings} enrolled face photos"
-                + (
-                    f"; {_count(roster.surfaced_unnamed_visitor_clusters, 'unnamed visitor cluster')}"
-                    " (recurring unrecognized faces) awaiting naming or dismissal"
-                    if roster.surfaced_unnamed_visitor_clusters
-                    else ""
-                )
-                + f". {_ROSTER_SCOPE}"
+                f"{roster.min_face_embeddings} enrolled face photos. "
+                + (_clusters(clusters) + " " if clusters else "")
+                + _ROSTER_SCOPE
             ),
             next_action="enroll_members",
         )
-    if roster.surfaced_unnamed_visitor_clusters:
+    if clusters:
         return ReadinessStep(
             key="roster",
-            state="blocked",
-            detail=(
-                f"{_count(roster.surfaced_unnamed_visitor_clusters, 'unnamed visitor cluster')} "
-                "(recurring unrecognized faces, each seen on several days) awaiting naming or "
-                f"dismissal. One person can appear as several clusters. {_ROSTER_SCOPE}"
-            ),
+            state="attention",
+            detail=f"{_clusters(clusters)} {_ROSTER_SCOPE}",
             next_action="review_visitors",
         )
+    everyone = (
+        "The one member is"
+        if roster.active_member_count == 1
+        else f"All {roster.active_member_count} members are"
+    )
     return ReadinessStep(
         key="roster",
         state="ready",
-        detail=f"All {roster.active_member_count} members are enrolled. {_ROSTER_SCOPE}",
+        detail=f"{everyone} enrolled. {_ROSTER_SCOPE}",
         next_action="none",
     )
 

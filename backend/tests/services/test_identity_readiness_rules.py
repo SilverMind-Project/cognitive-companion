@@ -134,9 +134,12 @@ def _floor(
 @pytest.mark.parametrize(
     ("roster", "state", "action"),
     [
-        (_roster(members=1), "blocked", "enroll_members"),
-        (_roster(missing=1, visitors=1), "blocked", "enroll_members"),
-        (_roster(visitors=2), "blocked", "review_visitors"),
+        (_roster(members=0), "blocked", "enroll_members"),
+        # One resident is a complete household.
+        (_roster(members=1), "ready", "none"),
+        (_roster(missing=1, visitors=1), "attention", "enroll_members"),
+        # Recurring faces are usually members' own: review them, never a blocker.
+        (_roster(visitors=2), "attention", "review_visitors"),
         (_roster(missing=1), "attention", "enroll_members"),
         (_roster(), "ready", "none"),
     ],
@@ -329,8 +332,15 @@ def test_body_gallery(cts: CTSIdentityReadiness, state: str, action: str) -> Non
 
 
 def test_details_count_in_plain_words() -> None:
-    assert roster_step(_roster(members=1)).detail.startswith("1 household member listed")
-    assert "2 unnamed visitor clusters (recurring" in roster_step(_roster(visitors=2)).detail
+    assert roster_step(_roster(members=1)).detail.startswith("The one member is enrolled.")
+    assert roster_step(_roster()).detail.startswith("All 3 members are enrolled.")
+    two = roster_step(_roster(visitors=2)).detail
+    assert two.startswith("2 groups of recurring unrecognized faces are waiting for review.")
+    assert "mark those as theirs" in two
+    assert (
+        "1 group of recurring unrecognized faces is waiting"
+        in roster_step(_roster(visitors=1)).detail
+    )
     assert "1 of 3 members has fewer than" in roster_step(_roster(missing=1)).detail
     assert floor_frame_step(_floor(plan=False), _cts()).detail.endswith("1 overlap group.")
     refit = artifact_step(_health("ready", ["a"]), _members("a", "b")).detail

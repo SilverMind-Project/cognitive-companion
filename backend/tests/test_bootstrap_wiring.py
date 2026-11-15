@@ -302,6 +302,12 @@ def test_lifespan_wires_exactly_the_frozen_app_state_attributes(
             assert main_module.app.state.person_location_service is not None, (
                 "person_location_service must be constructed even with cts.enabled=false"
             )
+
+            # Review decisions never depend on tracking; only ReID review needs CTS.
+            assert main_module.app.state.identity_review_registry.surfaces() == [
+                "visitors",
+                "face_calibration",
+            ]
     finally:
         auth_module._DECLARED_TOKENS.clear()
         auth_module._DECLARED_TOKENS.update(original_declared_tokens)
@@ -345,3 +351,36 @@ def test_import_backend_main_performs_no_io() -> None:
     assert result.returncode == 0, (
         f"import backend.main failed or attempted I/O:\nstdout={result.stdout}\nstderr={result.stderr}"
     )
+
+
+def test_cts_enabled_registers_reid_review_as_the_third_review_surface() -> None:
+    """The enabled branch's ReID wiring, without booting CTS: one registry, three surfaces."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from backend.bootstrap.cts import wire_identity_services, wire_reid_review
+
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            person_id_client=MagicMock(),
+            orchestrator_client=MagicMock(),
+            ingress_admin_client=MagicMock(),
+            roster_health_service=MagicMock(),
+        )
+    )
+    from backend.mcp.server import _svc as mcp_services
+
+    original = mcp_services.identity_readiness_service
+    try:
+        wire_identity_services(app)  # type: ignore[arg-type]
+        wire_reid_review(app)  # type: ignore[arg-type]
+    finally:
+        # wire_identity_services also publishes readiness on the MCP container.
+        mcp_services.identity_readiness_service = original
+
+    assert app.state.identity_review_registry.surfaces() == [
+        "visitors",
+        "face_calibration",
+        "reid_review",
+    ]
+    assert app.state.reid_review_service is not None

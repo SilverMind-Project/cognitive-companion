@@ -74,7 +74,10 @@
       <v-progress-circular indeterminate color="primary" />
     </div>
 
-    <v-row v-else-if="!state.forbidden && state.selecting" data-test="selection-grid">
+    <v-row
+      v-else-if="!state.forbidden && state.selecting && state.queue.length"
+      data-test="selection-grid"
+    >
       <v-col v-for="capture in state.queue" :key="capture.candidate_id" cols="6" sm="3" md="2">
         <button
           type="button"

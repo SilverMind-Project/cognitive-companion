@@ -209,6 +209,8 @@ export function useFaceCalibrationReview(notify: Notify) {
       state.selection = state.selection.filter((id) => !applied.has(id));
       state.index = Math.min(state.index, Math.max(0, state.queue.length - 1));
       await loadMoreIfNeeded();
+      // Nothing left to select: leave selection so the page shows its empty state.
+      if (!state.queue.length) setSelecting(false);
       await refreshSummary().catch(() => undefined);
     } catch (err) {
       notify.error(`Could not save the labels: ${errorText(err)}`);

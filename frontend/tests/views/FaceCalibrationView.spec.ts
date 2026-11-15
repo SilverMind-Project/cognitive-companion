@@ -266,6 +266,16 @@ describe("FaceCalibrationView", () => {
     wrapper.unmount();
   });
 
+  it("shows the empty state, not an empty grid, when selecting with nothing left", async () => {
+    const s = current();
+    s.state.selecting = true;
+    s.state.queue = [];
+    const wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.find("[data-test='selection-grid']").exists()).toBe(false);
+    expect(wrapper.find("[data-test='empty-queue']").exists()).toBe(true);
+  });
+
   it("deletes only after confirmation", async () => {
     const wrapper = mountView({ attachTo: document.body });
     confirmResult.value = false;

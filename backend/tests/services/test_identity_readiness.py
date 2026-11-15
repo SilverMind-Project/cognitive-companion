@@ -153,7 +153,7 @@ def _states(envelope) -> dict[str, str]:
     return {s.key: s.state for s in envelope.steps}
 
 
-async def test_todays_household_is_blocked_at_the_roster(db_factory, household) -> None:
+async def test_todays_household_is_blocked_at_the_floor_frame(db_factory, household) -> None:
     ingress = _Ingress({"hall": 0.4, "kitchen": 0.9})
     envelope = await _service(
         db_factory, orchestrator=_Orchestrator(_CTS_BODY), ingress=ingress
@@ -170,9 +170,9 @@ async def test_todays_household_is_blocked_at_the_roster(db_factory, household) 
         "templates",
         "body_gallery",
     ]
-    assert envelope.blocking_step == "roster"
+    assert envelope.blocking_step == "floor_frame"
     assert _states(envelope) == {
-        "roster": "blocked",
+        "roster": "attention",
         "ingest": "ready",
         "floor_frame": "blocked",
         "capture": "blocked",
@@ -215,7 +215,7 @@ async def test_stopped_cts_is_unknown_for_its_steps_only(db_factory, household) 
     states = _states(envelope)
     for key in ("face_policy", "templates", "body_gallery", "ingest"):
         assert states[key] == "unknown", key
-    assert states["roster"] == "blocked"
+    assert states["roster"] == "attention"
     assert states["capture"] == "blocked"
 
 

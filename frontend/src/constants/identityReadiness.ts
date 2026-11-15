@@ -49,7 +49,10 @@ export const ACTION_PRESENTATION: Record<ReadinessNextAction, ActionPresentation
     text: "List and enroll every person who lives in or regularly visits the house",
     to: "/admin/persons",
   },
-  review_visitors: { text: "Name or dismiss recurring visitors", to: "/admin/visitors" },
+  review_visitors: {
+    text: "Review recurring faces: mark them as a member's, name someone new, or dismiss",
+    to: "/admin/visitors",
+  },
   fix_camera_ingest: { text: "Check the cameras", to: "/admin/cts/cameras" },
   upload_floor_plan: {
     text: "Upload the floor plan and set its scale",

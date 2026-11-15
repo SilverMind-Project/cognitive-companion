@@ -273,6 +273,7 @@ import { cts } from "../../services/cts.js";
 import { formatDateTime } from "../../services/timezone.js";
 import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
 import { useNotify } from "../../composables/useNotify.js";
+import { useIdentityTargetsStore } from "@/stores/identityTargets";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
 import AppDialog from "../../components/common/AppDialog.vue";
 import KeyframeAnnotationDialog from "../../components/cts/keyframes/KeyframeAnnotationDialog.vue";
@@ -332,13 +333,17 @@ function refreshTriggerReasons() {
   }
 }
 
-// Filter options come from the authoritative correction-target endpoint
-// (active household members), not the current result page. An explicit Unknown
+// Filter options come from the shared identity target list (active household
+// members), not the current result page. An explicit Unknown
 // option maps to the server-side explicit_unknown filter.
 const UNKNOWN_OPTION = "__unknown__";
-const personsLoading = ref(false);
-const targets = ref([]);
-const personOptions = ref([{ title: "Unknown", value: UNKNOWN_OPTION }]);
+const targetsStore = useIdentityTargetsStore();
+const personsLoading = computed(() => targetsStore.loading);
+const targets = computed(() => targetsStore.targets);
+const personOptions = computed(() => [
+  { title: "Unknown", value: UNKNOWN_OPTION },
+  ...targets.value.map((t) => ({ title: t.display_name || t.identity_id, value: t.identity_id })),
+]);
 
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / filters.value.limit)));
 
@@ -361,25 +366,11 @@ const reviewedBbox = computed(() => {
 });
 
 function identityName(id) {
-  if (!id) return "Unknown";
-  return targets.value.find((t) => t.identity_id === id)?.display_name || id;
+  return id ? targetsStore.nameOf(id) : "Unknown";
 }
 
-async function loadPersonOptions() {
-  personsLoading.value = true;
-  try {
-    const data = await cts.getCorrectionTargets();
-    targets.value = data?.targets || [];
-    const opts = targets.value.map((t) => ({
-      title: t.display_name || t.identity_id,
-      value: t.identity_id,
-    }));
-    personOptions.value = [{ title: "Unknown", value: UNKNOWN_OPTION }, ...opts];
-  } catch (e) {
-    console.error("Failed to load correction targets:", e);
-  } finally {
-    personsLoading.value = false;
-  }
+function loadPersonOptions() {
+  return targetsStore.load();
 }
 
 function toggleFilter(key) {
@@ -393,7 +384,7 @@ function onFilterChange() {
 }
 
 onMounted(() => {
-  loadPersonOptions();
+  void loadPersonOptions();
   loadKeyframes();
 });
 

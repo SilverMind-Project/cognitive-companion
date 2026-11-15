@@ -1,8 +1,8 @@
 /**
  * the one identity-correction composable.
  *
- * Shared by the Keyframes surface and the PH inspector. Owns correction
- * targets, the segment proposal + optimistic version token, apply (frame-only,
+ * Shared by the Keyframes surface and the PH inspector. Reads correction targets
+ * from the shared `identityTargets` store, and owns the segment proposal + optimistic version token, apply (frame-only,
  * bounded, or explicit Set-to-Unknown), compensation, and projection-job
  * polling. Returns `{ state, actions }` per engineering-standards Section 17.
  *
@@ -12,17 +12,19 @@
  * (HTTP 409) re-propose-and-reconfirm flow.
  */
 
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { ctsIdentity, CorrectionError } from "@/services/cts_identity";
+import { useIdentityTargetsStore } from "@/stores/identityTargets";
 
 const TERMINAL = new Set(["completed", "failed"]);
 
 export function useIdentityCorrection(notify) {
-  // -- correction targets (active household roster) -------------------------
-  const targets = ref([]);
-  const targetsLoading = ref(false);
-  const targetsError = ref("");
-  const galleryAvailable = ref(true);
+  // -- correction targets: the shared household list every identity surface uses --
+  const targetsStore = useIdentityTargetsStore();
+  const targets = computed(() => targetsStore.targets);
+  const targetsLoading = computed(() => targetsStore.loading);
+  const targetsError = computed(() => targetsStore.error);
+  const galleryAvailable = computed(() => targetsStore.galleryAvailable);
 
   // -- proposal + version token --------------------------------------------
   const proposal = ref(null);
@@ -35,20 +37,11 @@ export function useIdentityCorrection(notify) {
   const job = ref(null);
   const jobPolling = ref(false);
 
+  /** Reload the shared list; throws when it could not be read, like the other actions. */
   async function loadTargets() {
-    targetsLoading.value = true;
-    targetsError.value = "";
-    try {
-      const data = await ctsIdentity.correctionTargets();
-      targets.value = data?.targets || [];
-      galleryAvailable.value = data?.gallery_available !== false;
-      return targets.value;
-    } catch (err) {
-      targetsError.value = err.message || String(err);
-      throw err;
-    } finally {
-      targetsLoading.value = false;
-    }
+    await targetsStore.load(true);
+    if (targetsStore.error) throw new Error(targetsStore.error);
+    return targetsStore.targets;
   }
 
   async function propose({ ph_id, observation_id = null, at = null } = {}) {

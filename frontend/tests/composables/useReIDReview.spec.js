@@ -13,8 +13,10 @@ const { mockSvc, mockIdentity } = vi.hoisted(() => ({
     rejectBatch: vi.fn(),
     compensate: vi.fn(),
   },
-  mockIdentity: { correctionTargets: vi.fn() },
+  mockIdentity: { getIdentityTargets: vi.fn() },
 }));
+
+vi.mock("@/services/modules/identity_targets", () => mockIdentity);
 
 vi.mock("@/services/cts_identity", () => {
   class CorrectionError extends Error {
@@ -27,7 +29,7 @@ vi.mock("@/services/cts_identity", () => {
       return this.status === 409 && this.code === "correction.stale_version";
     }
   }
-  return { ctsReidReview: mockSvc, ctsIdentity: mockIdentity, CorrectionError };
+  return { ctsReidReview: mockSvc, CorrectionError };
 });
 
 import { useReIDReview } from "@/composables/useReIDReview.js";
@@ -43,8 +45,9 @@ beforeEach(() => {
     operator_verified: 1,
     rejected: 2,
   });
-  mockIdentity.correctionTargets.mockResolvedValue({
+  mockIdentity.getIdentityTargets.mockResolvedValue({
     targets: [{ identity_id: "amma", display_name: "Amma" }],
+    enrollment_available: true,
     gallery_available: true,
   });
 });
@@ -137,7 +140,7 @@ describe("useReIDReview", () => {
   it("loads household targets independent of gallery population", async () => {
     const { state, actions } = useReIDReview(notify);
     await actions.loadTargets();
-    expect(mockIdentity.correctionTargets).toHaveBeenCalled();
+    expect(mockIdentity.getIdentityTargets).toHaveBeenCalled();
     expect(state.targets.value).toEqual([{ identity_id: "amma", display_name: "Amma" }]);
   });
 

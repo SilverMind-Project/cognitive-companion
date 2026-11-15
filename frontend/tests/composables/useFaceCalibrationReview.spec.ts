@@ -7,10 +7,10 @@ const calibration = vi.hoisted(() => ({
   deleteCalibrationCandidate: vi.fn(),
   getFaceCalibrationSummary: vi.fn(),
 }));
-const persons = vi.hoisted(() => ({ getPersons: vi.fn() }));
+const targetsApi = vi.hoisted(() => ({ getIdentityTargets: vi.fn() }));
 
 vi.mock("@/services/modules/face_calibration", () => calibration);
-vi.mock("@/services/modules/persons", () => persons);
+vi.mock("@/services/modules/identity_targets", () => targetsApi);
 
 import { useFaceCalibrationReview } from "@/composables/useFaceCalibrationReview";
 import { ApiError } from "@/services/http";
@@ -37,20 +37,24 @@ beforeEach(() => {
   calibration.getFaceCalibrationSummary.mockResolvedValue({ identities: [] });
   calibration.labelCalibrationCandidate.mockResolvedValue({});
   calibration.rejectCalibrationCandidate.mockResolvedValue({});
-  persons.getPersons.mockResolvedValue([
-    { id: "grandma", name: "Grandma", is_active: true, is_guest: false },
-    { id: "nurse", name: "Nurse", is_active: true, is_guest: true },
-    { id: "amma", name: "Amma", is_active: true, is_guest: false },
-    { id: "gone", name: "Aaron", is_active: false, is_guest: false },
-  ]);
+  // The shared list holds active members in name order (the server's contract).
+  targetsApi.getIdentityTargets.mockResolvedValue({
+    targets: [
+      { identity_id: "amma", display_name: "Amma", is_active: true, is_guest: false },
+      { identity_id: "grandma", display_name: "Grandma", is_active: true, is_guest: false },
+      { identity_id: "nurse", display_name: "Nurse", is_active: true, is_guest: true },
+    ],
+    enrollment_available: true,
+    gallery_available: true,
+  });
 });
 
 describe("useFaceCalibrationReview", () => {
-  it("keys active non-guest residents in name order", async () => {
+  it("keys non-guest residents from the shared list, in its name order", async () => {
     calibration.listCalibrationCandidates.mockResolvedValue({ candidates: [], next_cursor: null });
     const { keyedResidents, actions } = useFaceCalibrationReview(notify);
     await actions.load();
-    expect(keyedResidents.value.map((r) => r.id)).toEqual(["amma", "grandma"]);
+    expect(keyedResidents.value.map((r) => r.identity_id)).toEqual(["amma", "grandma"]);
   });
 
   it("labels the current capture as a resident and advances", async () => {

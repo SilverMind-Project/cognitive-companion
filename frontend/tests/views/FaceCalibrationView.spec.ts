@@ -82,7 +82,7 @@ function makeStore() {
     ],
     nextCursor: null,
     index: 0,
-    residents: [{ id: "amma", name: "Amma" }],
+    residents: [{ identity_id: "amma", display_name: "Amma" }],
     summary: {
       identities: [
         { identity_id: "amma", labeled_faces: 30, episodes: 4, target_labeled_faces: 150 },

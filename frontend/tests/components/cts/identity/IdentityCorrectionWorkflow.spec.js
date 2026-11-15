@@ -6,6 +6,17 @@ vi.mock("@/composables/useNotify.js", () => ({
   useNotify: () => ({ notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }),
 }));
 vi.mock("@/services/timezone.js", () => ({ formatDateTime: (v) => v || "" }));
+// The selector is the shared IdentityTargetPicker, which reads the shared targets store.
+vi.mock("@/services/modules/identity_targets", () => ({
+  getIdentityTargets: vi.fn().mockResolvedValue({
+    targets: [
+      { identity_id: "amma", display_name: "Amma", is_active: true, is_guest: false },
+      { identity_id: "appa", display_name: "Appa", is_active: true, is_guest: false },
+    ],
+    enrollment_available: true,
+    gallery_available: true,
+  }),
+}));
 vi.mock("@/composables/useBlurMode.js", () => ({
   useBlurMode: () => ({ blurMode: ref(false) }),
   useDisplaySrc: () => ({ displaySrc: (u) => u }),

@@ -16,7 +16,8 @@
  */
 
 import { computed, ref } from "vue";
-import { ctsReidReview, ctsIdentity, CorrectionError } from "@/services/cts_identity";
+import { ctsReidReview, CorrectionError } from "@/services/cts_identity";
+import { useIdentityTargetsStore } from "@/stores/identityTargets";
 
 const PAGE_SIZE = 25;
 
@@ -54,9 +55,10 @@ export function useReIDReview(notify) {
   const countsLoaded = ref(false);
   const countsError = ref("");
 
-  // -- relabel targets (active household roster, not gallery identities) ----
-  const targets = ref([]);
-  const targetsLoading = ref(false);
+  // -- relabel targets: the shared household list every identity surface uses --
+  const targetsStore = useIdentityTargetsStore();
+  const targets = computed(() => targetsStore.targets);
+  const targetsLoading = computed(() => targetsStore.loading);
 
   let _listSeq = 0;
 
@@ -106,16 +108,8 @@ export function useReIDReview(notify) {
   /** Load the active household roster used as relabel targets. Independent of
    *  gallery population: relabel assigns a household member, never a gallery id. */
   async function loadTargets() {
-    targetsLoading.value = true;
-    try {
-      const data = await ctsIdentity.correctionTargets();
-      targets.value = data?.targets || [];
-      return targets.value;
-    } catch {
-      return targets.value;
-    } finally {
-      targetsLoading.value = false;
-    }
+    await targetsStore.load();
+    return targetsStore.targets;
   }
 
   /** One invalidation path: refresh queue, counts, and the open detail. */

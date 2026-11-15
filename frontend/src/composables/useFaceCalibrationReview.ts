@@ -20,7 +20,8 @@ import {
   type CalibrationCandidateView,
   type FaceCalibrationSummary,
 } from "@/services/modules/face_calibration";
-import { getPersons, type HouseholdMemberOut } from "@/services/modules/persons";
+import type { IdentityTarget } from "@/services/modules/identity_targets";
+import { useIdentityTargetsStore } from "@/stores/identityTargets";
 import { ApiError } from "@/services/http";
 
 interface Notify {
@@ -36,11 +37,12 @@ function errorText(err: unknown): string {
 }
 
 export function useFaceCalibrationReview(notify: Notify) {
+  const targets = useIdentityTargetsStore();
   const state = reactive({
     queue: [] as CalibrationCandidateView[],
     nextCursor: null as string | null,
     index: 0,
-    residents: [] as HouseholdMemberOut[],
+    residents: [] as IdentityTarget[],
     summary: null as FaceCalibrationSummary | null,
     loading: false,
     error: "",
@@ -61,17 +63,17 @@ export function useFaceCalibrationReview(notify: Notify) {
     state.error = "";
     state.forbidden = false;
     try {
-      const [page, persons] = await Promise.all([
+      const [page] = await Promise.all([
         listCalibrationCandidates("unlabeled"),
-        getPersons(),
+        targets.load(),
         refreshSummary(),
       ]);
+      if (targets.error) throw new Error(targets.error);
       state.queue = page?.candidates ?? [];
       state.nextCursor = page?.next_cursor ?? null;
       state.index = 0;
-      state.residents = (persons ?? [])
-        .filter((m: HouseholdMemberOut) => m.is_active && !m.is_guest)
-        .sort((a: HouseholdMemberOut, b: HouseholdMemberOut) => a.name.localeCompare(b.name));
+      // The shared list is already active members in name order; residents exclude guests.
+      state.residents = targets.targets.filter((t) => !t.is_guest);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) state.forbidden = true;
       else state.error = errorText(err);
@@ -118,7 +120,7 @@ export function useFaceCalibrationReview(notify: Notify) {
       () =>
         labelCalibrationCandidate(candidate.candidate_id, {
           label_kind: "member",
-          label_identity_id: resident.id,
+          label_identity_id: resident.identity_id,
         }),
       "Could not save the label",
     );

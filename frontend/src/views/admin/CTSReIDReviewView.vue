@@ -461,13 +461,9 @@
 
               <v-expand-transition>
                 <div v-if="showRelabel" class="pa-2">
-                  <v-autocomplete
+                  <IdentityTargetPicker
                     v-model="relabelTarget"
                     label="Household target"
-                    :items="state.targets.value"
-                    item-title="display_name"
-                    item-value="identity_id"
-                    :loading="state.targetsLoading.value"
                     density="compact"
                     hide-details
                     class="mb-2"
@@ -580,6 +576,7 @@ import AppDialog from "@/components/common/AppDialog.vue";
 import CcSegmentedToggle from "@/components/common/CcSegmentedToggle.vue";
 import BlurToggle from "@/components/cts/BlurToggle.vue";
 import IdentityBboxOverlay from "@/components/cts/identity/IdentityBboxOverlay.vue";
+import IdentityTargetPicker from "@/components/identity/IdentityTargetPicker.vue";
 
 const REJECT_REASONS = [
   { title: "Wrong person", value: "wrong_person" },

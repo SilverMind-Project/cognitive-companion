@@ -65,10 +65,10 @@ const { mockGetKeyframes, mockGetCorrectionTargets } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/services/cts", () => ({
-  cts: {
-    getKeyframes: mockGetKeyframes,
-    getCorrectionTargets: mockGetCorrectionTargets,
-  },
+  cts: { getKeyframes: mockGetKeyframes },
+}));
+vi.mock("@/services/modules/identity_targets", () => ({
+  getIdentityTargets: mockGetCorrectionTargets,
 }));
 
 const CARD = {
@@ -157,6 +157,7 @@ beforeEach(() => {
       { identity_id: "amma", display_name: "Amma" },
       { identity_id: "grandma", display_name: "Grandma" },
     ],
+    enrollment_available: true,
     gallery_available: true,
   });
 });

@@ -60,17 +60,13 @@
         </v-alert>
 
         <!-- Identity selector. Clearing it never submits. -->
-        <v-autocomplete
+        <IdentityTargetPicker
           v-model="selectedTarget"
-          :items="targetItems"
-          item-title="title"
-          item-value="value"
           label="Correct to"
           placeholder="Select household member"
-          variant="outlined"
           density="compact"
-          clearable
           hide-details
+          hide-status
           class="mb-2"
         />
 
@@ -174,6 +170,7 @@ import { useNotify } from "@/composables/useNotify.js";
 import IdentityEvidenceBadges from "./IdentityEvidenceBadges.vue";
 import CorrectionRangeSelector from "./CorrectionRangeSelector.vue";
 import CorrectionJobStatus from "./CorrectionJobStatus.vue";
+import IdentityTargetPicker from "@/components/identity/IdentityTargetPicker.vue";
 
 const props = defineProps({
   phId: { type: String, required: true },
@@ -219,13 +216,6 @@ const allowFrameOnly = computed(() => props.sourceView === "keyframe");
 
 // ReID verification eligibility is server-owned; surfaced only when present.
 const reidVerification = computed(() => props.bbox?.reid_verification || null);
-
-const targetItems = computed(() =>
-  state.targets.value.map((t) => ({
-    title: t.display_name || t.identity_id,
-    value: t.identity_id,
-  })),
-);
 
 // A correction needs an explicit target (Set to Unknown is a separate action),
 // a fresh proposal, and not be mid-submit. Clearing the selector never submits.

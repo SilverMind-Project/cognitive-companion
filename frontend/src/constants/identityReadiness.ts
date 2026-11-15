@@ -61,7 +61,7 @@ export const ACTION_PRESENTATION: Record<ReadinessNextAction, ActionPresentation
   },
   calibrate_cameras: { text: "Calibrate the cameras", to: "/admin/cts/calibration" },
   enable_capture: {
-    text: "Set calibration_capture.enabled to true in the person identification settings and redeploy it",
+    text: "Once everyone is enrolled, set calibration_capture.enabled to true in the person identification settings and redeploy it",
   },
   label_captures: { text: "Label captured faces", to: "/admin/face-calibration" },
   fit_and_deploy_artifact: {

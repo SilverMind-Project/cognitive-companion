@@ -330,8 +330,20 @@ def test_body_gallery(cts: CTSIdentityReadiness, state: str, action: str) -> Non
 
 def test_details_count_in_plain_words() -> None:
     assert roster_step(_roster(members=1)).detail.startswith("1 household member listed")
-    assert "2 recurring visitors, seen" in roster_step(_roster(visitors=2)).detail
+    assert "2 unnamed visitor clusters (recurring" in roster_step(_roster(visitors=2)).detail
     assert "1 of 3 members has fewer than" in roster_step(_roster(missing=1)).detail
     assert floor_frame_step(_floor(plan=False), _cts()).detail.endswith("1 overlap group.")
     refit = artifact_step(_health("ready", ["a"]), _members("a", "b")).detail
     assert refit.startswith("1 member enrolled after the artifact was fitted gets no")
+
+
+def test_a_household_with_no_rooms_has_no_room_polygons() -> None:
+    step = floor_frame_step(_floor(rooms=0, polygons=0), _cts())
+    assert (step.state, step.next_action) == ("attention", "draw_room_polygons")
+    assert step.detail.startswith("No rooms are defined.")
+
+
+def test_enabled_templates_without_their_artifact_say_so() -> None:
+    step = templates_step(_cts(templates="enabled"), _health(template_status="degraded_missing"))
+    assert step.state == "blocked"
+    assert "enabled but their calibration artifact is not deployed" in step.detail

@@ -110,8 +110,8 @@ def roster_step(roster: RosterHealthEnvelope | SourceFailure) -> ReadinessStep:
                 f"{'has' if missing == 1 else 'have'} fewer than "
                 f"{roster.min_face_embeddings} enrolled face photos"
                 + (
-                    f"; {_count(roster.surfaced_unnamed_visitor_clusters, 'recurring visitor')} "
-                    "awaiting naming or dismissal"
+                    f"; {_count(roster.surfaced_unnamed_visitor_clusters, 'unnamed visitor cluster')}"
+                    " (recurring unrecognized faces) awaiting naming or dismissal"
                     if roster.surfaced_unnamed_visitor_clusters
                     else ""
                 )
@@ -124,8 +124,9 @@ def roster_step(roster: RosterHealthEnvelope | SourceFailure) -> ReadinessStep:
             key="roster",
             state="blocked",
             detail=(
-                f"{_count(roster.surfaced_unnamed_visitor_clusters, 'recurring visitor')}, seen "
-                f"on several days, awaiting naming or dismissal. {_ROSTER_SCOPE}"
+                f"{_count(roster.surfaced_unnamed_visitor_clusters, 'unnamed visitor cluster')} "
+                "(recurring unrecognized faces, each seen on several days) awaiting naming or "
+                f"dismissal. One person can appear as several clusters. {_ROSTER_SCOPE}"
             ),
             next_action="review_visitors",
         )
@@ -184,14 +185,17 @@ def floor_frame_step(
             + groups,
             next_action="upload_floor_plan",
         )
-    if household.rooms_with_polygon < household.room_count:
+    if household.room_count == 0 or household.rooms_with_polygon < household.room_count:
         return ReadinessStep(
             key="floor_frame",
             state="attention",
             detail=(
-                f"{household.rooms_with_polygon} of {household.room_count} rooms have a polygon "
-                "on the floor plan. " + groups
-            ),
+                "No rooms are defined. "
+                if household.room_count == 0
+                else f"{household.rooms_with_polygon} of {household.room_count} rooms have a "
+                "polygon on the floor plan. "
+            )
+            + groups,
             next_action="draw_room_polygons",
         )
     tracking = [c for c in household.cameras if c.role != FACE_ONLY_ROLE]
@@ -391,7 +395,11 @@ def templates_step(
         detail = "Face templates run in shadow."
     elif health.template_status != ARTIFACT_READY:
         state, action = "blocked", "fit_and_deploy_artifact"
-        detail = "Face templates are off; they need their own calibration artifact first."
+        detail = (
+            f"Face templates are {mode}; they need their own calibration artifact first."
+            if mode == "off"
+            else f"Face templates are {mode} but their calibration artifact is not deployed."
+        )
     else:
         state, action = "attention", "enable_templates"
         detail = f"A template artifact is deployed; templates are {mode}."

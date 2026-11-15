@@ -123,5 +123,15 @@ class UpstreamClient:
                     ms=round(elapsed_ms, 2),
                 )
                 raise UpstreamTimeout(self.SERVICE_NAME, str(exc)) from exc
+            except httpx.TransportError as exc:
+                # Connection refused or reset: the service is down, which callers handle as
+                # unavailable (and the retry above covers), not as an unexpected crash.
+                logger.warning(
+                    "upstream_unreachable",
+                    service=self.SERVICE_NAME,
+                    path=path,
+                    error=type(exc).__name__,
+                )
+                raise UpstreamUnavailable(self.SERVICE_NAME, 503, str(exc)) from exc
 
         return await _do()

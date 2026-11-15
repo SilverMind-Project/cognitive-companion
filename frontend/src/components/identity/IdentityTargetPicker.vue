@@ -1,7 +1,7 @@
 <template>
   <div>
     <v-alert
-      v-if="store.forbidden"
+      v-if="!hideStatus && store.forbidden"
       type="warning"
       variant="tonal"
       density="compact"
@@ -11,7 +11,7 @@
       You do not have permission to see the household list.
     </v-alert>
     <v-alert
-      v-else-if="store.error"
+      v-else-if="!hideStatus && store.error"
       type="error"
       variant="tonal"
       density="compact"
@@ -35,6 +35,7 @@
       :no-data-text="store.loading ? 'Loading household members' : 'No household members'"
       variant="outlined"
       clearable
+      v-bind="$attrs"
       data-test="identity-target-picker"
       @update:model-value="$emit('update:modelValue', $event)"
     />
@@ -47,11 +48,15 @@
  *
  * The one selector every identity review surface uses, over the shared `identityTargets` store.
  * With `requireEnrolledFace`, members without enrolled face photos are shown but disabled, with
- * the reason, because the decision needs their enrolled face (visitor attribution).
+ * the reason, because the decision needs their enrolled face (visitor attribution). Field
+ * attributes (`density`, `hide-details`, `class`) go to the autocomplete; a surface that renders
+ * its own loading and error states passes `hideStatus`.
  */
 import { computed, onMounted } from "vue";
 
 import { useIdentityTargetsStore } from "@/stores/identityTargets";
+
+defineOptions({ inheritAttrs: false });
 
 const props = withDefaults(
   defineProps<{
@@ -59,8 +64,9 @@ const props = withDefaults(
     label?: string;
     requireEnrolledFace?: boolean;
     disabled?: boolean;
+    hideStatus?: boolean;
   }>(),
-  { label: "Household member", requireEnrolledFace: false, disabled: false },
+  { label: "Household member", requireEnrolledFace: false, disabled: false, hideStatus: false },
 );
 defineEmits<{ "update:modelValue": [value: string | null] }>();
 

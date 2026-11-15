@@ -2,7 +2,7 @@
  * shared identity-correction BFF client.
  *
  * One service module for the correction workflow used by BOTH the Keyframes
- * surface and the PH inspector: correction targets, segment proposals, apply,
+ * surface and the PH inspector: segment proposals, apply,
  * compensate, and projection-job status.
  *
  * Errors carry the upstream HTTP `status` and domain `code` so the composable
@@ -54,9 +54,6 @@ async function req(path, options = {}) {
 }
 
 export const ctsIdentity = {
-  /** Active household roster -- the authoritative correction targets. */
-  correctionTargets: () => req("/identity/correction-targets"),
-
   /** Advisory observation-bounded segment proposal. */
   propose: ({ ph_id, observation_id = null, at = null } = {}) =>
     req("/identity/corrections/propose", {

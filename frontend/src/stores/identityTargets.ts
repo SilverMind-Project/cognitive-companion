@@ -15,6 +15,7 @@ import { getIdentityTargets, type IdentityTarget } from "@/services/modules/iden
 export const useIdentityTargetsStore = defineStore("identityTargets", () => {
   const targets = ref<IdentityTarget[]>([]);
   const enrollmentAvailable = ref(true);
+  const galleryAvailable = ref(true);
   const loading = ref(false);
   const loaded = ref(false);
   const error = ref("");
@@ -31,6 +32,7 @@ export const useIdentityTargetsStore = defineStore("identityTargets", () => {
       const envelope = await getIdentityTargets();
       targets.value = envelope.targets;
       enrollmentAvailable.value = envelope.enrollment_available;
+      galleryAvailable.value = envelope.gallery_available;
       loaded.value = true;
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) forbidden.value = true;
@@ -54,5 +56,16 @@ export const useIdentityTargetsStore = defineStore("identityTargets", () => {
     return byId.value.get(identityId)?.display_name ?? identityId;
   }
 
-  return { targets, enrollmentAvailable, loading, loaded, error, forbidden, byId, load, nameOf };
+  return {
+    targets,
+    enrollmentAvailable,
+    galleryAvailable,
+    loading,
+    loaded,
+    error,
+    forbidden,
+    byId,
+    load,
+    nameOf,
+  };
 });

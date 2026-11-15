@@ -2,13 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { mockSvc } = vi.hoisted(() => ({
   mockSvc: {
-    correctionTargets: vi.fn(),
     propose: vi.fn(),
     apply: vi.fn(),
     compensate: vi.fn(),
     job: vi.fn(),
   },
 }));
+
+const targetsApi = vi.hoisted(() => ({ getIdentityTargets: vi.fn() }));
+vi.mock("@/services/modules/identity_targets", () => targetsApi);
 
 vi.mock("@/services/cts_identity", () => {
   class CorrectionError extends Error {
@@ -34,9 +36,10 @@ beforeEach(() => {
 });
 
 describe("useIdentityCorrection", () => {
-  it("loads correction targets and gallery availability", async () => {
-    mockSvc.correctionTargets.mockResolvedValue({
+  it("loads correction targets and gallery availability from the shared list", async () => {
+    targetsApi.getIdentityTargets.mockResolvedValue({
       targets: [{ identity_id: "amma", display_name: "Amma" }],
+      enrollment_available: true,
       gallery_available: false,
     });
     const { state, actions } = useIdentityCorrection(notify);
@@ -46,7 +49,7 @@ describe("useIdentityCorrection", () => {
   });
 
   it("surfaces a targets error for retry", async () => {
-    mockSvc.correctionTargets.mockRejectedValue(new Error("boom"));
+    targetsApi.getIdentityTargets.mockRejectedValue(new Error("boom"));
     const { state, actions } = useIdentityCorrection(notify);
     await expect(actions.loadTargets()).rejects.toThrow();
     expect(state.targetsError.value).toBe("boom");

@@ -87,15 +87,15 @@
           <div class="d-flex flex-wrap ga-2 mt-4">
             <v-btn
               v-for="(resident, position) in keyedResidents"
-              :key="resident.id"
+              :key="resident.identity_id"
               size="small"
               variant="tonal"
               :disabled="state.acting"
-              :data-test="`resident-${resident.id}`"
+              :data-test="`resident-${resident.identity_id}`"
               @click="actions.labelResident(position)"
             >
               <kbd class="mr-2">{{ position + 1 }}</kbd
-              >{{ resident.name }}
+              >{{ resident.display_name }}
             </v-btn>
             <v-btn
               size="small"
@@ -230,7 +230,7 @@ const captureOffNextAction = computed(() => {
 });
 
 function residentName(id: string): string {
-  return state.residents.find((r) => r.id === id)?.name ?? id;
+  return state.residents.find((r) => r.identity_id === id)?.display_name ?? id;
 }
 
 async function onDelete() {

@@ -147,7 +147,6 @@ Also assigns `container.scene_analysis_client`, `.semantic_memory_client`,
 | Attribute | Depends on |
 | --- | --- |
 | `person_id_client` | -- |
-| `visitor_admin_service` | `person_id_client` (identity-continuity M07; unconditional, not gated by `cts.enabled`) |
 | `roster_health_service` | `person_id_client` (members with too few face embeddings; also set on the MCP service container) |
 | `face_calibration_service` | `person_id_client` (face calibration capture review; also set on the MCP service container) |
 | `scene_analysis_client` | -- |
@@ -237,6 +236,8 @@ Also assigns `container.presence` and `container.ha_state_cache` (both via
 | --- | --- | --- |
 | `ingress_admin_client` | constructed | `None` |
 | `orchestrator_client` | constructed | `None` |
+| `identity_targets_service` | constructed (person-id and orchestrator clients) | constructed without the orchestrator: no gallery counts |
+| `visitor_admin_service` | constructed (person-id client, `identity_targets_service`) | same; visitor review never depends on tracking |
 | `identity_readiness_service` | constructed (roster, person-id, both CTS clients) | constructed with no CTS clients: its CTS-sourced steps report `unknown`; also set on the MCP service container |
 | `ph_enrichment_service` | constructed | `None` |
 | `keyframe_read_service` | constructed | `None` |

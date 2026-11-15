@@ -26,7 +26,7 @@ from backend.routers.dependencies import (
     get_visitor_admin_service,
 )
 from backend.schemas.cts_reid_review import ReviewCandidateView
-from backend.schemas.visitors import DismissVisitorResponse
+from backend.schemas.identity_review import BatchReviewResponse, ReviewItemResult
 
 _KEY_NAME = "Caregiver Admin"
 
@@ -107,20 +107,23 @@ def test_ph_correction_sends_the_key_name_to_cts() -> None:
     assert client.correct_ph_identity.await_args.kwargs["actor"] == _KEY_NAME
 
 
-def test_visitor_dismissal_logs_the_key_name() -> None:
+def test_visitor_review_records_the_key_name() -> None:
     svc = MagicMock()
-    svc.dismiss_cluster = AsyncMock(
-        return_value=DismissVisitorResponse(cluster_id="v1", status="dismissed")
+    svc.review_clusters = AsyncMock(
+        return_value=BatchReviewResponse(
+            results=[ReviewItemResult(id="v1", ok=True)], reviewed=1, failed=0, effect="Dismissed."
+        )
     )
     app = _app(visitors.router)
     app.dependency_overrides[get_visitor_admin_service] = lambda: svc
     app.dependency_overrides[get_config_minio_client] = lambda: MagicMock()
 
-    with patch.object(visitors, "logger") as logger:
-        response = TestClient(app).post("/api/v1/visitors/clusters/v1/dismiss")
+    response = TestClient(app).post(
+        "/api/v1/visitors/clusters/review", json={"cluster_ids": ["v1"], "verdict": "not_usable"}
+    )
 
     assert response.status_code == 200
-    logger.info.assert_called_once_with("visitor_cluster_dismissed", cluster_id="v1", actor=_KEY_NAME)
+    assert svc.review_clusters.await_args.kwargs["actor"] == _KEY_NAME
 
 
 def test_quiz_approval_stores_the_key_name() -> None:

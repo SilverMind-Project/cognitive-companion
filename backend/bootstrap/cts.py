@@ -69,7 +69,7 @@ async def wire_cts(
 
     app.state.ingress_admin_client = IngressAdminClient()
     app.state.orchestrator_client = OrchestratorClient()
-    wire_identity_readiness(app)
+    wire_identity_services(app)
     app.state.ph_enrichment_service = PHEnrichmentService(app.state.orchestrator_client)
 
     from backend.services.cts.keyframe_read_service import KeyframeReadService
@@ -184,14 +184,25 @@ async def wire_cts(
     return cts_runtime
 
 
-def wire_identity_readiness(app: FastAPI) -> None:
-    """Build the identity readiness service once this phase has set the CTS clients.
+def wire_identity_services(app: FastAPI) -> None:
+    """Build the identity review services once this phase has set the CTS clients.
 
-    With CTS disabled both clients are None and the CTS-sourced steps report ``unknown``; the
-    roster and calibration steps still work, so the service is built either way.
+    Called from both the enabled and the disabled branch: identity targets, visitor review, and
+    readiness do not depend on tracking. With CTS disabled both clients are None, so targets
+    carry no gallery counts and the CTS-sourced readiness steps report ``unknown``.
     """
     from backend.mcp.server import _svc as _mcp_svc
     from backend.services.identity_readiness import IdentityReadinessService
+    from backend.services.identity_targets import IdentityTargetsService
+    from backend.services.visitors import VisitorAdminService
+
+    targets = IdentityTargetsService(
+        session_factory=get_session,
+        person_id=app.state.person_id_client,
+        orchestrator=app.state.orchestrator_client,
+    )
+    app.state.identity_targets_service = targets
+    app.state.visitor_admin_service = VisitorAdminService(app.state.person_id_client, targets)
 
     service = IdentityReadinessService(
         roster=app.state.roster_health_service,
@@ -207,7 +218,7 @@ def wire_identity_readiness(app: FastAPI) -> None:
 def wire_cts_disabled(app: FastAPI) -> None:
     app.state.ingress_admin_client = None
     app.state.orchestrator_client = None
-    wire_identity_readiness(app)
+    wire_identity_services(app)
     app.state.ph_enrichment_service = None
     app.state.keyframe_read_service = None
     app.state.identity_correction_service = None

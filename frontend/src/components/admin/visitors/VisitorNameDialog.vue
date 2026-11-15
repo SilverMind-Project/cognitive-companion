@@ -7,14 +7,31 @@
     title="Name this visitor"
     confirm-label="Name visitor"
     :confirm-loading="saving"
-    :confirm-disabled="!nameValid || !personIdValid"
+    :confirm-disabled="!nameValid || !personIdValid || !!existingById"
     @update:model-value="$emit('update:modelValue', $event)"
     @confirm="onConfirm"
   >
     <div class="pa-4">
       <p class="text-body-2 text-medium-emphasis mb-4">
-        Naming creates a household member and lets this visitor be recognized on future visits.
+        Naming creates a new household member from these faces and lets them be recognized on future
+        visits. If these are faces of someone already enrolled, mark them as theirs instead.
       </p>
+      <v-alert
+        v-if="existing"
+        type="warning"
+        variant="tonal"
+        density="compact"
+        class="mb-4"
+        data-test="already-enrolled"
+      >
+        {{ existing.display_name }} is already in the household. Naming would create a second
+        identity for the same person.
+        <template #append>
+          <v-btn size="small" variant="text" @click="$emit('attribute', existing.identity_id)">
+            Mark as theirs
+          </v-btn>
+        </template>
+      </v-alert>
       <v-text-field
         v-model="name"
         label="Name"
@@ -40,13 +57,16 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import AppDialog from "@/components/common/AppDialog.vue";
+import { useIdentityTargetsStore } from "@/stores/identityTargets";
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },
   saving: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(["update:modelValue", "submit"]);
+const emit = defineEmits(["update:modelValue", "submit", "attribute"]);
+
+const targets = useIdentityTargetsStore();
 
 const name = ref("");
 const personId = ref("");
@@ -66,6 +86,18 @@ function onNameChange(value) {
   if (!personIdTouched.value) personId.value = slugify(value ?? "");
 }
 
+// A member with this id already exists: naming is refused, so offer attribution instead.
+const existingById = computed(() => targets.byId.get(personId.value) ?? null);
+// Same id, or same display name ignoring case: very likely the same person.
+const existing = computed(
+  () =>
+    existingById.value ??
+    targets.targets.find(
+      (t) => name.value.trim() && t.display_name.toLowerCase() === name.value.trim().toLowerCase(),
+    ) ??
+    null,
+);
+
 const nameValid = computed(() => name.value.trim().length > 0);
 const nameError = computed(() => (nameValid.value ? [] : ["Name is required"]));
 
@@ -78,6 +110,7 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) {
+      void targets.load();
       name.value = "";
       personId.value = "";
       personIdTouched.value = false;

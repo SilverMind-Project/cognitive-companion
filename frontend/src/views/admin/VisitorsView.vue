@@ -4,8 +4,9 @@
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Visitors</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">
-          Recurring unnamed visitors surfaced from the household cameras. Name someone the household
-          recognizes so they can be tracked like a household member.
+          Faces the cameras keep seeing but cannot match to anyone. Many are faces of people already
+          enrolled, seen at an angle or from far away: mark those as theirs. Name only someone new,
+          and dismiss the rest.
         </div>
       </div>
       <v-spacer />
@@ -17,32 +18,57 @@
       />
     </div>
 
-    <div class="d-flex align-center ga-3 mb-4">
+    <div class="d-flex align-center flex-wrap ga-3 mb-4" data-test="selection-toolbar">
       <v-btn
         size="small"
-        :variant="mergeMode ? 'flat' : 'outlined'"
-        :color="mergeMode ? 'primary' : undefined"
-        prepend-icon="mdi-call-merge"
-        @click="toggleMergeMode"
+        :variant="selectMode ? 'flat' : 'outlined'"
+        :color="selectMode ? 'primary' : undefined"
+        prepend-icon="mdi-checkbox-multiple-marked-outline"
+        data-test="select-mode"
+        @click="toggleSelectMode"
       >
-        {{ mergeMode ? "Cancel merge" : "Merge duplicates" }}
+        {{ selectMode ? "Done selecting" : "Select several" }}
       </v-btn>
-      <template v-if="mergeMode">
-        <span class="text-body-2 text-medium-emphasis">
-          Select two clusters that are the same person.
-        </span>
-        <v-chip v-if="state.mergeSelection.length" size="small" variant="tonal">
-          {{ state.mergeSelection.length }} / 2 selected
+      <template v-if="selectMode">
+        <v-btn size="small" variant="text" data-test="select-all" @click="selectAll">
+          Select all {{ state.clusters.length }}
+        </v-btn>
+        <v-chip size="small" variant="tonal" data-test="selection-count">
+          {{ state.selection.length }} selected
         </v-chip>
         <v-btn
           size="small"
           color="primary"
           variant="flat"
-          :disabled="state.mergeSelection.length !== 2"
+          prepend-icon="mdi-account-check-outline"
+          :disabled="!state.selection.length"
           :loading="state.acting"
+          data-test="attribute-selected"
+          @click="openAttribute(state.selection)"
+        >
+          {{ VERDICT_LABELS.is_member }}
+        </v-btn>
+        <v-btn
+          size="small"
+          variant="outlined"
+          prepend-icon="mdi-close"
+          :disabled="!state.selection.length"
+          :loading="state.acting"
+          data-test="dismiss-selected"
+          @click="onDismiss(state.selection)"
+        >
+          {{ VERDICT_LABELS.not_usable }}
+        </v-btn>
+        <v-btn
+          size="small"
+          variant="text"
+          prepend-icon="mdi-call-merge"
+          :disabled="state.selection.length !== 2"
+          :loading="state.acting"
+          data-test="merge-selected"
           @click="onMerge"
         >
-          Merge selected
+          Merge two
         </v-btn>
       </template>
     </div>
@@ -86,16 +112,28 @@
       >
         <VisitorClusterCard
           :cluster="cluster"
-          :merge-mode="mergeMode"
-          :selected="state.mergeSelection.includes(cluster.cluster_id)"
+          :select-mode="selectMode"
+          :selected="state.selection.includes(cluster.cluster_id)"
           @name="openNameDialog"
-          @dismiss="onDismiss"
-          @toggle-select="actions.toggleMergeSelection"
+          @attribute="(id) => openAttribute([id])"
+          @dismiss="(id) => onDismiss([id])"
+          @toggle-select="actions.toggleSelection"
         />
       </v-col>
     </v-row>
 
-    <VisitorNameDialog v-model="nameDialogOpen" :saving="state.acting" @submit="onName" />
+    <VisitorNameDialog
+      v-model="nameDialogOpen"
+      :saving="state.acting"
+      @submit="onName"
+      @attribute="onNameAsExisting"
+    />
+    <VisitorAttributeDialog
+      v-model="attributeDialogOpen"
+      :count="attributeIds.length"
+      :saving="state.acting"
+      @submit="onAttribute"
+    />
 
     <v-dialog v-model="confirmDialog" max-width="400" persistent>
       <v-card rounded="xl">
@@ -115,7 +153,9 @@
 import { onMounted, ref } from "vue";
 import CcSegmentedToggle from "@/components/common/CcSegmentedToggle.vue";
 import VisitorClusterCard from "@/components/admin/visitors/VisitorClusterCard.vue";
+import VisitorAttributeDialog from "@/components/admin/visitors/VisitorAttributeDialog.vue";
 import VisitorNameDialog from "@/components/admin/visitors/VisitorNameDialog.vue";
+import { VERDICT_LABELS, VISITOR_EFFECTS } from "@/constants/identityReview";
 import { useVisitorReview } from "@/composables/useVisitorReview.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
@@ -123,6 +163,7 @@ import { useConfirm } from "@/composables/useConfirm.js";
 const STATUS_OPTIONS = [
   { value: "surfaced", label: "Surfaced" },
   { value: "candidate", label: "Candidate" },
+  { value: "attributed", label: "Marked as member" },
   { value: "named", label: "Named" },
   { value: "dismissed", label: "Dismissed" },
 ];
@@ -141,13 +182,41 @@ const {
   onCancel,
 } = useConfirm();
 
-const mergeMode = ref(false);
+const selectMode = ref(false);
 const nameDialogOpen = ref(false);
 const nameTargetId = ref(null);
+const attributeDialogOpen = ref(false);
+const attributeIds = ref([]);
 
-function toggleMergeMode() {
-  mergeMode.value = !mergeMode.value;
-  actions.clearMergeSelection();
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value;
+  actions.clearSelection();
+}
+
+function selectAll() {
+  for (const c of state.clusters) {
+    if (!state.selection.includes(c.cluster_id)) actions.toggleSelection(c.cluster_id);
+  }
+}
+
+function openAttribute(clusterIds) {
+  attributeIds.value = [...clusterIds];
+  attributeDialogOpen.value = true;
+}
+
+async function onAttribute(identityId) {
+  try {
+    await actions.review(attributeIds.value, "is_member", identityId);
+    attributeDialogOpen.value = false;
+  } catch {
+    // Error surfaced via notify inside the composable; keep the dialog open for a retry.
+  }
+}
+
+function onNameAsExisting(identityId) {
+  nameDialogOpen.value = false;
+  attributeIds.value = [nameTargetId.value];
+  actions.review(attributeIds.value, "is_member", identityId).catch(() => {});
 }
 
 function openNameDialog(cluster) {
@@ -164,19 +233,17 @@ async function onName({ name, personId }) {
   }
 }
 
-async function onDismiss(clusterId) {
-  const ok = await confirmRequire(
-    "Dismiss this cluster? It will no longer be surfaced for review.",
-  );
+async function onDismiss(clusterIds) {
+  const what = clusterIds.length === 1 ? "this group" : `these ${clusterIds.length} groups`;
+  const ok = await confirmRequire(`Dismiss ${what}? ${VISITOR_EFFECTS.not_usable}`);
   if (!ok) return;
-  await actions.dismissCluster(clusterId).catch(() => {});
+  await actions.review([...clusterIds], "not_usable").catch(() => {});
 }
 
 async function onMerge() {
   const ok = await confirmRequire("Merge these two clusters into one? This cannot be undone.");
   if (!ok) return;
   await actions.mergeSelected().catch(() => {});
-  mergeMode.value = false;
 }
 
 onMounted(() => actions.loadList());

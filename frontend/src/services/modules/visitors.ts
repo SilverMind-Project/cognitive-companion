@@ -3,7 +3,7 @@
  *
  * Proxies person-identification-service's visitor clustering API through the CC BFF.
  * Naming a cluster is a two-system transaction (face-service member + CC household member);
- * dismiss and merge only affect the review queue.
+ * review (attribute to an existing member, or dismiss) and merge only affect the review queue.
  */
 
 import { client, unwrap } from "@/services/http";
@@ -33,12 +33,11 @@ export const nameVisitorCluster = (clusterId: string, body: Schemas["NameVisitor
     }),
   );
 
-export const dismissVisitorCluster = (clusterId: string) =>
-  unwrap(
-    client.POST("/api/v1/visitors/clusters/{cluster_id}/dismiss", {
-      params: { path: { cluster_id: clusterId } },
-    }),
-  );
+export type VisitorReviewRequest = Schemas["VisitorReviewRequest"];
+
+/** Attribute clusters to an enrolled member, or dismiss them. Never enrolls anything. */
+export const reviewVisitorClusters = (body: VisitorReviewRequest) =>
+  unwrap(client.POST("/api/v1/visitors/clusters/review", { body }));
 
 export const mergeVisitorClusters = (clusterA: string, clusterB: string) =>
   unwrap(

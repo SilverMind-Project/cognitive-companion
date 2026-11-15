@@ -192,6 +192,7 @@ def wire_identity_services(app: FastAPI) -> None:
     carry no gallery counts and the CTS-sourced readiness steps report ``unknown``.
     """
     from backend.mcp.server import _svc as _mcp_svc
+    from backend.services.face_calibration import FaceCalibrationReviewAdapter
     from backend.services.identity_readiness import IdentityReadinessService
     from backend.services.identity_review.registry import IdentityReviewRegistry
     from backend.services.identity_targets import IdentityTargetsService
@@ -209,6 +210,7 @@ def wire_identity_services(app: FastAPI) -> None:
     # adapter. ReID review registers in the enabled branch, once its service exists.
     registry = IdentityReviewRegistry(targets)
     registry.register(VisitorReviewAdapter(app.state.person_id_client))
+    registry.register(FaceCalibrationReviewAdapter(app.state.person_id_client))
     app.state.identity_review_registry = registry
 
     service = IdentityReadinessService(

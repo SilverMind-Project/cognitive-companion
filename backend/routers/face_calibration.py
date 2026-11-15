@@ -16,7 +16,11 @@ from backend.core.auth import AuthContext, actor_from_auth, require_token
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
 from backend.integrations.person_id_client import PersonIDUpstreamError
-from backend.routers.dependencies import get_config_minio_client, get_face_calibration_service
+from backend.routers.dependencies import (
+    get_config_minio_client,
+    get_face_calibration_service,
+    get_identity_review_registry,
+)
 from backend.schemas.face_calibration import (
     CalibrationCandidateListResponse,
     CalibrationCandidateView,
@@ -26,6 +30,7 @@ from backend.schemas.face_calibration import (
 )
 from backend.schemas.identity_review import BatchReviewResponse
 from backend.services.face_calibration import FaceCalibrationReviewService
+from backend.services.identity_review.registry import IdentityReviewRegistry, ReviewSubject
 
 logger = get_logger(__name__)
 
@@ -96,13 +101,18 @@ async def label_calibration_candidate(
 @router.post("/candidates/review", response_model=BatchReviewResponse)
 async def review_calibration_candidates(
     body: FaceCalibrationReviewRequest,
-    svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
+    registry: IdentityReviewRegistry = Depends(get_identity_review_registry),
     auth: AuthContext = Depends(require_token(_REVIEW)),
 ) -> BatchReviewResponse:
     """Label several captures not in the household or not usable; member labels go one by one."""
     actor = actor_from_auth(auth)
     try:
-        result = await svc.review(body, actor=actor)
+        result = await registry.decide(
+            "face_calibration",
+            body.verdict,
+            [ReviewSubject(id=candidate_id) for candidate_id in body.candidate_ids],
+            actor=actor,
+        )
     except PersonIDUpstreamError as exc:
         raise _upstream(exc) from exc
     logger.info(

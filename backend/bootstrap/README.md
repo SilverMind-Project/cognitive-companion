@@ -238,7 +238,7 @@ Also assigns `container.presence` and `container.ha_state_cache` (both via
 | `orchestrator_client` | constructed | `None` |
 | `identity_targets_service` | constructed (person-id and orchestrator clients) | constructed without the orchestrator: no gallery counts |
 | `visitor_admin_service` | constructed (person-id client) | same; visitor review never depends on tracking |
-| `identity_review_registry` | constructed (`identity_targets_service`) with the review adapters: visitors | same; review decisions never depend on tracking |
+| `identity_review_registry` | constructed (`identity_targets_service`) with the review adapters: visitors, face calibration | same; review decisions never depend on tracking |
 | `identity_readiness_service` | constructed (roster, person-id, both CTS clients) | constructed with no CTS clients: its CTS-sourced steps report `unknown`; also set on the MCP service container |
 | `ph_enrichment_service` | constructed | `None` |
 | `keyframe_read_service` | constructed | `None` |

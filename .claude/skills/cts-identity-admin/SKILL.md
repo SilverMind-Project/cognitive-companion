@@ -153,8 +153,7 @@ household calibration. It is a biometric-admin surface, separate from visitor re
   `face_calibration.review` (granted to `caregiver_admin` only). Do not widen it to a caregiver
   role or fold it into `cts.identity.visitors.review`.
 - The labeler recorded on a label is `auth.name` from `require_token`, never a client-supplied
-  field. The shared `_actor()` helper in other routers returns `"system"` today; do not copy it
-  here.
+  field.
 - person-id returns MinIO crop keys, never URLs. `backend/routers/face_calibration.py` presigns
   them per request into `crop_url` with the same `MinioClient` and one-hour TTL the visitor routes
   use; the key itself is never sent to the browser, and neither is an embedding.
@@ -169,6 +168,13 @@ Required tests: router permission and presign tests, the person-id client envelo
 a malformed upstream), the MCP/BFF parity test for the summary, and composable and view tests for
 keyboard labeling, a failed label keeping the capture, load errors with retry, a 403 shown as the
 forbidden state (no queue, no retry), confirm-before-delete, and the empty queue.
+
+## Who did it
+
+Every review, correction, visitor, or approval action records its actor with
+`actor_from_auth(auth)` (`backend/core/auth.py`) on the `AuthContext` the route received from
+`require_permission` or `require_token`: the API key's name. Never read `request.state`, never
+accept an actor from the request body, and never fall back to a placeholder such as "system".
 
 ## Identity setup readiness
 

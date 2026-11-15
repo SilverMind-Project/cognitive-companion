@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from backend.core.auth import require_permission
+from backend.core.auth import AuthContext, actor_from_auth, require_permission
 from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError
@@ -330,18 +330,13 @@ async def get_co_present(
 # ---------------------------------------------------------------------------
 
 
-def _actor(request: Request) -> str:
-    auth = getattr(request.state, "auth_context", None)
-    return getattr(auth, "subject", "system") if auth else "system"
-
-
 @router.post("/ph/{ph_id}/correct", response_model=CorrectIdentityResponse)
 async def correct_identity(
     ph_id: str,
     body: CorrectIdentityRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
 ) -> CorrectIdentityResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -349,7 +344,7 @@ async def correct_identity(
         ph_id=ph_id,
         new_identity_id=body.new_identity_id,
         reason=body.reason,
-        actor=_actor(request),
+        actor=actor_from_auth(auth),
         idempotency_key=idempotency_key,
     )
     return CorrectIdentityResponse(**data)
@@ -360,7 +355,7 @@ async def merge_phs(
     body: MergeRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
 ) -> MergeResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -368,7 +363,7 @@ async def merge_phs(
         source_ph_id=body.source_ph_id,
         target_ph_id=body.target_ph_id,
         reason=body.reason,
-        actor=_actor(request),
+        actor=actor_from_auth(auth),
         idempotency_key=idempotency_key,
     )
     return MergeResponse(**data)
@@ -379,7 +374,7 @@ async def batch_merge_phs(
     body: BatchMergeRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
 ) -> BatchMergeResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -387,7 +382,7 @@ async def batch_merge_phs(
         source_ph_ids=body.source_ph_ids,
         target_ph_id=body.target_ph_id,
         reason=body.reason,
-        actor=_actor(request),
+        actor=actor_from_auth(auth),
         idempotency_key=idempotency_key,
     )
     return BatchMergeResponse(**data)
@@ -399,7 +394,7 @@ async def split_ph(
     body: SplitRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
 ) -> SplitResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -407,7 +402,7 @@ async def split_ph(
         ph_id=ph_id,
         at_observation_id=body.at_observation_id,
         reason=body.reason,
-        actor=_actor(request),
+        actor=actor_from_auth(auth),
         idempotency_key=idempotency_key,
     )
     return SplitResponse(**data)
@@ -418,14 +413,14 @@ async def batch_correct(
     body: BatchCorrectRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
 ) -> BatchCorrectResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
     corrections = [item.model_dump() for item in body.corrections]
     data = await client.batch_correct_phs(
         corrections=corrections,
-        actor=_actor(request),
+        actor=actor_from_auth(auth),
         idempotency_key=idempotency_key,
     )
     return BatchCorrectResponse(**data)
@@ -436,14 +431,14 @@ async def batch_delete(
     body: BatchDeleteRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
 ) -> BatchDeleteResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
     data = await client.batch_delete_phs(
         ph_ids=body.ph_ids,
         reason=body.reason,
-        actor=_actor(request),
+        actor=actor_from_auth(auth),
         idempotency_key=idempotency_key,
     )
     return BatchDeleteResponse(**data)
@@ -454,14 +449,14 @@ async def purge_unknown(
     body: PurgeUnknownRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
 ) -> PurgeUnknownResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
     data = await client.purge_unknown_phs(
         older_than_days=body.older_than_days,
         limit=body.limit,
-        actor=_actor(request),
+        actor=actor_from_auth(auth),
         idempotency_key=idempotency_key,
     )
     return PurgeUnknownResponse(**data)
@@ -507,9 +502,8 @@ async def propose_correction_segment(
 @router.post("/identity/corrections/apply", response_model=CorrectionResultResponse)
 async def apply_correction_segment(
     body: ApplySegmentRequest,
-    request: Request,
     svc: IdentityCorrectionService = Depends(get_identity_correction_service),
-    _auth=Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
 ) -> CorrectionResultResponse:
     """Apply an explicit frame-only/bounded correction or Set-to-Unknown.
 
@@ -519,7 +513,7 @@ async def apply_correction_segment(
     cts_enabled()
     try:
         return await svc.apply_correction(
-            payload=body.model_dump(exclude_none=True), actor=_actor(request)
+            payload=body.model_dump(exclude_none=True), actor=actor_from_auth(auth)
         )
     except CorrectionUpstreamError as exc:
         raise _raise_for_correction(exc) from exc
@@ -536,14 +530,13 @@ async def apply_correction_segment(
 )
 async def compensate_correction(
     correction_id: str,
-    request: Request,
     svc: IdentityCorrectionService = Depends(get_identity_correction_service),
-    _auth=Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
 ) -> CorrectionResultResponse:
     """Undo a correction via a compensating revision (never deletes the original)."""
     cts_enabled()
     try:
-        return await svc.compensate(correction_id=correction_id, actor=_actor(request))
+        return await svc.compensate(correction_id=correction_id, actor=actor_from_auth(auth))
     except CorrectionUpstreamError as exc:
         raise _raise_for_correction(exc) from exc
     except CorrectionContractError as exc:

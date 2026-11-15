@@ -18,15 +18,18 @@ from backend.core.auth import AuthContext, actor_from_auth, get_auth_context
 from backend.core.config import Settings
 from backend.core.database import get_db
 from backend.core.exceptions import AuthenticationError, register_exception_handlers
+from backend.integrations.person_id_client import VisitorReviewItem
 from backend.routers import cts_ph, cts_reid_review, quizzes, visitors
 from backend.routers.dependencies import (
     get_config_minio_client,
+    get_identity_review_registry,
     get_orchestrator_client,
     get_reid_review_service,
     get_visitor_admin_service,
 )
 from backend.schemas.cts_reid_review import ReviewCandidateView
-from backend.schemas.identity_review import BatchReviewResponse, ReviewItemResult
+from backend.services.identity_review.registry import IdentityReviewRegistry
+from backend.services.visitors import VisitorReviewAdapter
 
 _KEY_NAME = "Caregiver Admin"
 
@@ -108,14 +111,16 @@ def test_ph_correction_sends_the_key_name_to_cts() -> None:
 
 
 def test_visitor_review_records_the_key_name() -> None:
-    svc = MagicMock()
-    svc.review_clusters = AsyncMock(
-        return_value=BatchReviewResponse(
-            results=[ReviewItemResult(id="v1", ok=True)], reviewed=1, failed=0, effect="Dismissed."
-        )
-    )
+    # A real registry and adapter, so the actor is checked where person-id receives it.
+    client = AsyncMock()
+    client.review_visitor_clusters.return_value = [
+        VisitorReviewItem(cluster_id="v1", ok=True, error_code=None)
+    ]
+    registry = IdentityReviewRegistry(AsyncMock())
+    registry.register(VisitorReviewAdapter(client))
     app = _app(visitors.router)
-    app.dependency_overrides[get_visitor_admin_service] = lambda: svc
+    app.dependency_overrides[get_identity_review_registry] = lambda: registry
+    app.dependency_overrides[get_visitor_admin_service] = lambda: MagicMock()
     app.dependency_overrides[get_config_minio_client] = lambda: MagicMock()
 
     response = TestClient(app).post(
@@ -123,7 +128,7 @@ def test_visitor_review_records_the_key_name() -> None:
     )
 
     assert response.status_code == 200
-    assert svc.review_clusters.await_args.kwargs["actor"] == _KEY_NAME
+    assert client.review_visitor_clusters.await_args.kwargs["actor"] == _KEY_NAME
 
 
 def test_quiz_approval_stores_the_key_name() -> None:

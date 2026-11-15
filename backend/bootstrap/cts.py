@@ -82,10 +82,7 @@ async def wire_cts(
 
     app.state.identity_correction_service = IdentityCorrectionService(app.state.orchestrator_client)
 
-    from backend.services.cts.reid_review_service import ReIDReviewAdapter, ReIDReviewService
-
-    app.state.reid_review_service = ReIDReviewService(app.state.orchestrator_client)
-    app.state.identity_review_registry.register(ReIDReviewAdapter(app.state.reid_review_service))
+    wire_reid_review(app)
 
     from backend.services.gait_trend_service import GaitTrendService
 
@@ -183,6 +180,17 @@ async def wire_cts(
     logger.info("cts_drift_poll_scheduled", interval_s=drift_poll_interval_s)
 
     return cts_runtime
+
+
+def wire_reid_review(app: FastAPI) -> None:
+    """Build the ReID review service and register it as a review surface (CTS enabled only).
+
+    Runs after ``wire_identity_services``, which built the registry and the orchestrator client.
+    """
+    from backend.services.cts.reid_review_service import ReIDReviewAdapter, ReIDReviewService
+
+    app.state.reid_review_service = ReIDReviewService(app.state.orchestrator_client)
+    app.state.identity_review_registry.register(ReIDReviewAdapter(app.state.reid_review_service))
 
 
 def wire_identity_services(app: FastAPI) -> None:

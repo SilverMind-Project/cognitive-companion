@@ -69,6 +69,7 @@ async def wire_cts(
 
     app.state.ingress_admin_client = IngressAdminClient()
     app.state.orchestrator_client = OrchestratorClient()
+    wire_identity_readiness(app)
     app.state.ph_enrichment_service = PHEnrichmentService(app.state.orchestrator_client)
 
     from backend.services.cts.keyframe_read_service import KeyframeReadService
@@ -183,9 +184,30 @@ async def wire_cts(
     return cts_runtime
 
 
+def wire_identity_readiness(app: FastAPI) -> None:
+    """Build the identity readiness service once this phase has set the CTS clients.
+
+    With CTS disabled both clients are None and the CTS-sourced steps report ``unknown``; the
+    roster and calibration steps still work, so the service is built either way.
+    """
+    from backend.mcp.server import _svc as _mcp_svc
+    from backend.services.identity_readiness import IdentityReadinessService
+
+    service = IdentityReadinessService(
+        roster=app.state.roster_health_service,
+        person_id=app.state.person_id_client,
+        session_factory=get_session,
+        orchestrator=app.state.orchestrator_client,
+        ingress=app.state.ingress_admin_client,
+    )
+    app.state.identity_readiness_service = service
+    _mcp_svc.identity_readiness_service = service
+
+
 def wire_cts_disabled(app: FastAPI) -> None:
     app.state.ingress_admin_client = None
     app.state.orchestrator_client = None
+    wire_identity_readiness(app)
     app.state.ph_enrichment_service = None
     app.state.keyframe_read_service = None
     app.state.identity_correction_service = None

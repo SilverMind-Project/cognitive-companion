@@ -190,6 +190,16 @@ class CalibrationSummaryInfo:
 
 
 @dataclass
+class CalibrationHealthInfo:
+    """Calibration artifact state from person-id ``/health``; no crop, embedding, or score."""
+
+    status: str
+    # Identities the single-frame artifact was fitted for; None when no artifact is loaded.
+    covered_identities: list[str] | None
+    template_status: str
+
+
+@dataclass
 class VisitorClusterSummary:
     cluster_id: str
     status: VisitorClusterStatus
@@ -694,6 +704,20 @@ class PersonIDClient:
             )
         except (KeyError, TypeError, ValueError, AttributeError) as exc:
             raise PersonIDUpstreamError(502, f"malformed calibration summary: {exc}") from exc
+
+    async def get_calibration_health(self) -> CalibrationHealthInfo:
+        """Calibration artifact status; raises instead of guessing when ``/health`` fails."""
+        data = await self._request_or_raise("GET", "/health")
+        try:
+            calibration = data["calibration"]
+            covered = calibration["covered_identities"]
+            return CalibrationHealthInfo(
+                status=str(calibration["status"]),
+                covered_identities=None if covered is None else [str(i) for i in covered],
+                template_status=str(data["template_calibration"]["status"]),
+            )
+        except (KeyError, TypeError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed health response: {exc}") from exc
 
     def _calibration_candidate_or_502(self, data: Any) -> CalibrationCandidateInfo:
         try:

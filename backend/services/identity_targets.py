@@ -1,7 +1,8 @@
-"""Authoritative correction-target list for the identity correction UI (M06).
+"""The household members an operator may say a face, body, or track belongs to.
 
-The set of identities an operator may assign is the active household roster, NOT
-the ReID gallery. The gallery can be empty, stale, or polluted; it must never
+Every identity decision in the admin UI picks from this one list: track and keyframe
+corrections, ReID relabels, visitor attribution, and face calibration labels. The set of
+identities an operator may assign is the active household roster, NOT the ReID gallery. The gallery can be empty, stale, or polluted; it must never
 gate who a person can be corrected to. Gallery/review counts are attached only as
 non-authoritative decoration, and an upstream gallery failure is surfaced
 explicitly rather than hidden or allowed to empty the list.
@@ -24,7 +25,7 @@ logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
-class CorrectionTarget:
+class IdentityTarget:
     identity_id: str
     display_name: str
     is_active: bool
@@ -35,17 +36,17 @@ class CorrectionTarget:
 
 
 @dataclass
-class CorrectionTargetsResult:
-    targets: list[CorrectionTarget] = field(default_factory=list)
+class IdentityTargetsResult:
+    targets: list[IdentityTarget] = field(default_factory=list)
     # True when gallery decoration was fetched; False when the upstream errored.
     gallery_available: bool = True
     gallery_error: str | None = None
 
 
-async def list_correction_targets(
+async def list_identity_targets(
     db: Session,
     orchestrator_client: object | None,
-) -> CorrectionTargetsResult:
+) -> IdentityTargetsResult:
     """Return active household members, decorated with optional gallery counts."""
     members = (
         db.execute(
@@ -75,11 +76,11 @@ async def list_correction_targets(
             gallery_error = str(exc)
             logger.warning("correction_targets_gallery_unavailable", error=str(exc))
 
-    targets: list[CorrectionTarget] = []
+    targets: list[IdentityTarget] = []
     for m in members:
         decoration = gallery_by_id.get(m.id, {})
         targets.append(
-            CorrectionTarget(
+            IdentityTarget(
                 identity_id=m.id,
                 display_name=m.name,
                 is_active=m.is_active,
@@ -93,7 +94,7 @@ async def list_correction_targets(
             )
         )
 
-    return CorrectionTargetsResult(
+    return IdentityTargetsResult(
         targets=targets,
         gallery_available=gallery_available,
         gallery_error=gallery_error,

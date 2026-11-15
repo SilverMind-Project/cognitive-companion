@@ -42,6 +42,7 @@ from backend.core.logging import get_logger
 __all__ = [
     "AuthContext",
     "KeyStore",
+    "actor_from_auth",
     "assert_declared_tokens_known",
     "declare_internal_tokens",
     "declare_tokens",
@@ -67,6 +68,18 @@ class AuthContext:
     permissions: list[str] = field(default_factory=list)
     device_type: str | None = None
     sensor_id: str | None = None
+
+
+def actor_from_auth(auth: AuthContext | None) -> str:
+    """The name an audit record stores for whoever made this request: the API key's name.
+
+    Pass the ``AuthContext`` a route received from ``require_permission`` or ``require_token``.
+    A review or correction must never be recorded as made by nobody, so a missing context or a
+    nameless key raises instead of falling back to a placeholder such as "system".
+    """
+    if auth is None or not auth.name:
+        raise AuthenticationError()
+    return auth.name
 
 
 class KeyStore:

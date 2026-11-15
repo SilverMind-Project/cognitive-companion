@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from backend.core.auth import require_permission
+from backend.core.auth import AuthContext, actor_from_auth, require_permission
 from backend.core.database import get_db
 from backend.core.exceptions import NotFoundError, ValidationError
 from backend.models.knowledge import Quiz, QuizQuestion
@@ -160,7 +160,7 @@ async def approve_quiz(
     quiz_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
+    auth: AuthContext = Depends(require_permission("POST /api/v1/quizzes")),
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
@@ -170,9 +170,7 @@ async def approve_quiz(
     from datetime import UTC, datetime
 
     quiz.approved_at = datetime.now(UTC)
-    quiz.approved_by = getattr(request.state, "auth_context", None)
-    if quiz.approved_by and hasattr(quiz.approved_by, "name"):
-        quiz.approved_by = quiz.approved_by.name
+    quiz.approved_by = actor_from_auth(auth)
     db.commit()
     db.refresh(quiz)
     return _quiz_out(quiz, request.app.state.minio_client)

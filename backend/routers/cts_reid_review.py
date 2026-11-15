@@ -23,7 +23,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from backend.core.auth import require_token
+from backend.core.auth import AuthContext, actor_from_auth, require_token
 from backend.routers.cts_deps import cts_enabled, presigned_image_url
 from backend.routers.dependencies import get_reid_review_service
 from backend.schemas.cts_reid_review import (
@@ -48,11 +48,6 @@ from backend.services.cts.reid_review_service import (
 router = APIRouter(prefix="/cts", tags=["cts-reid-review"])
 
 _GALLERY_REVIEW = "cts.identity.gallery_review"
-
-
-def _actor(request: Request) -> str:
-    auth = getattr(request.state, "auth_context", None)
-    return getattr(auth, "subject", "system") if auth else "system"
 
 
 def _presigner(request: Request):
@@ -170,13 +165,13 @@ async def approve_candidate(
     body: ApproveRequest,
     request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    _auth=Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
 ) -> ReviewCandidateView:
     cts_enabled()
     try:
         return await svc.approve(
             candidate_id,
-            actor=_actor(request),
+            actor=actor_from_auth(auth),
             base_audit_version=body.base_audit_version,
             note=body.note,
             presign=_presigner(request),
@@ -196,13 +191,13 @@ async def relabel_candidate(
     body: RelabelRequest,
     request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    _auth=Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
 ) -> ReviewCandidateView:
     cts_enabled()
     try:
         return await svc.relabel(
             candidate_id,
-            actor=_actor(request),
+            actor=actor_from_auth(auth),
             base_audit_version=body.base_audit_version,
             target_identity_id=body.target_identity_id,
             note=body.note,
@@ -223,13 +218,13 @@ async def demote_candidate(
     body: DemoteRequest,
     request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    _auth=Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
 ) -> ReviewCandidateView:
     cts_enabled()
     try:
         return await svc.demote(
             candidate_id,
-            actor=_actor(request),
+            actor=actor_from_auth(auth),
             base_audit_version=body.base_audit_version,
             note=body.note,
             presign=_presigner(request),
@@ -249,13 +244,13 @@ async def reject_candidate(
     body: RejectRequest,
     request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    _auth=Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
 ) -> ReviewCandidateView:
     cts_enabled()
     try:
         return await svc.reject(
             candidate_id,
-            actor=_actor(request),
+            actor=actor_from_auth(auth),
             base_audit_version=body.base_audit_version,
             reason=body.reason,
             note=body.note,
@@ -270,14 +265,13 @@ async def reject_candidate(
 @router.post("/identity/reid-review/reject-batch", response_model=BatchRejectResponse)
 async def reject_batch(
     body: BatchRejectRequest,
-    request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    _auth=Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
 ) -> BatchRejectResponse:
     cts_enabled()
     try:
         return await svc.reject_batch(
-            actor=_actor(request),
+            actor=actor_from_auth(auth),
             reason=body.reason,
             note=body.note,
             items=[item.model_dump() for item in body.items],
@@ -296,12 +290,12 @@ async def compensate_candidate(
     candidate_id: str,
     request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    _auth=Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
 ) -> ReviewCandidateView:
     cts_enabled()
     try:
         return await svc.compensate(
-            candidate_id, actor=_actor(request), presign=_presigner(request)
+            candidate_id, actor=actor_from_auth(auth), presign=_presigner(request)
         )
     except ReviewUpstreamError as exc:
         raise _raise_for_review(exc) from exc

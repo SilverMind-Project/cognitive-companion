@@ -39,6 +39,10 @@ _ROSTER_SCOPE = (
 )
 
 
+def _count(n: int, singular: str, plural: str | None = None) -> str:
+    return f"{n} {singular if n == 1 else plural or singular + 's'}"
+
+
 @dataclass(frozen=True)
 class SourceFailure:
     """A source that could not be read; its steps report ``unknown``."""
@@ -91,7 +95,8 @@ def roster_step(roster: RosterHealthEnvelope | SourceFailure) -> ReadinessStep:
             key="roster",
             state="blocked",
             detail=(
-                f"{roster.active_member_count} household member(s) listed; every person who lives "
+                f"{_count(roster.active_member_count, 'household member')} listed; every person "
+                "who lives "
                 f"in or regularly visits the house must be listed and enrolled. {_ROSTER_SCOPE}"
             ),
             next_action="enroll_members",
@@ -101,11 +106,12 @@ def roster_step(roster: RosterHealthEnvelope | SourceFailure) -> ReadinessStep:
             key="roster",
             state="blocked" if roster.surfaced_unnamed_visitor_clusters else "attention",
             detail=(
-                f"{missing} of {roster.active_member_count} members have fewer than "
+                f"{missing} of {_count(roster.active_member_count, 'member')} "
+                f"{'has' if missing == 1 else 'have'} fewer than "
                 f"{roster.min_face_embeddings} enrolled face photos"
                 + (
-                    f"; {roster.surfaced_unnamed_visitor_clusters} recurring visitor(s) await "
-                    "naming or dismissal"
+                    f"; {_count(roster.surfaced_unnamed_visitor_clusters, 'recurring visitor')} "
+                    "awaiting naming or dismissal"
                     if roster.surfaced_unnamed_visitor_clusters
                     else ""
                 )
@@ -118,8 +124,8 @@ def roster_step(roster: RosterHealthEnvelope | SourceFailure) -> ReadinessStep:
             key="roster",
             state="blocked",
             detail=(
-                f"{roster.surfaced_unnamed_visitor_clusters} recurring visitor(s), seen on several "
-                f"days, await naming or dismissal. {_ROSTER_SCOPE}"
+                f"{_count(roster.surfaced_unnamed_visitor_clusters, 'recurring visitor')}, seen "
+                f"on several days, awaiting naming or dismissal. {_ROSTER_SCOPE}"
             ),
             next_action="review_visitors",
         )
@@ -169,7 +175,7 @@ def ingest_step(ingest: IngestHealth | SourceFailure) -> ReadinessStep:
 def floor_frame_step(
     household: HouseholdFloorFrame, cts: CTSIdentityReadiness | SourceFailure
 ) -> ReadinessStep:
-    groups = f"{household.overlap_group_count} overlap group(s)."
+    groups = f"{_count(household.overlap_group_count, 'overlap group')}."
     if not (household.has_floor_plan and household.has_scale):
         return ReadinessStep(
             key="floor_frame",
@@ -320,8 +326,9 @@ def artifact_step(
             key="artifact",
             state="attention",
             detail=(
-                f"{uncovered} enrolled member(s) were enrolled after the artifact was fitted "
-                "and get no calibrated confidence until it is refitted."
+                f"{_count(uncovered, 'member')} enrolled after the artifact was fitted "
+                f"{'gets' if uncovered == 1 else 'get'} no calibrated confidence until it is "
+                "refitted."
             ),
             next_action="refit_artifact",
         )

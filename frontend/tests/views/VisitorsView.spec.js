@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { reactive } from "vue";
+import { createPinia, setActivePinia } from "pinia";
+
+vi.mock("@/services/modules/identity_targets", async () =>
+  (await import("../support/reviewVocabulary")).identityTargetsModuleMock(),
+);
 
 vi.mock("@/composables/useNotify.js", () => ({
   useNotify: () => ({
@@ -118,6 +123,7 @@ function mountView() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  setActivePinia(createPinia());
 });
 
 describe("VisitorsView", () => {
@@ -204,7 +210,8 @@ describe("VisitorsView", () => {
     // The confirm dialog is open; the action has not fired yet.
     expect(store.value.actions.review).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain("Dismiss this group?");
-    expect(wrapper.text()).toContain("Nothing is enrolled anywhere.");
+    // The effect is the server's sentence, not a copy kept in the page.
+    expect(wrapper.text()).toContain("Server: dismissed, nothing enrolled.");
 
     const confirmBtn = wrapper.findAll("button").find((b) => b.text() === "Confirm");
     await confirmBtn.trigger("click");

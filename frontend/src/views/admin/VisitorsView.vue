@@ -18,60 +18,50 @@
       />
     </div>
 
-    <div class="d-flex align-center flex-wrap ga-3 mb-4" data-test="selection-toolbar">
+    <ReviewSelectionToolbar
+      class="mb-4"
+      :active="selectMode"
+      :selectable-count="state.clusters.length"
+      :selected-count="state.selection.length"
+      @update:active="toggleSelectMode"
+      @select-all="selectAll"
+      @clear="actions.clearSelection"
+    >
       <v-btn
         size="small"
-        :variant="selectMode ? 'flat' : 'outlined'"
-        :color="selectMode ? 'primary' : undefined"
-        prepend-icon="mdi-checkbox-multiple-marked-outline"
-        data-test="select-mode"
-        @click="toggleSelectMode"
+        color="primary"
+        variant="flat"
+        prepend-icon="mdi-account-check-outline"
+        :disabled="!state.selection.length"
+        :loading="state.acting"
+        data-test="attribute-selected"
+        @click="openAttribute(state.selection)"
       >
-        {{ selectMode ? "Done selecting" : "Select several" }}
+        {{ VERDICT_LABELS.is_member }}
       </v-btn>
-      <template v-if="selectMode">
-        <v-btn size="small" variant="text" data-test="select-all" @click="selectAll">
-          Select all {{ state.clusters.length }}
-        </v-btn>
-        <v-chip size="small" variant="tonal" data-test="selection-count">
-          {{ state.selection.length }} selected
-        </v-chip>
-        <v-btn
-          size="small"
-          color="primary"
-          variant="flat"
-          prepend-icon="mdi-account-check-outline"
-          :disabled="!state.selection.length"
-          :loading="state.acting"
-          data-test="attribute-selected"
-          @click="openAttribute(state.selection)"
-        >
-          {{ VERDICT_LABELS.is_member }}
-        </v-btn>
-        <v-btn
-          size="small"
-          variant="outlined"
-          prepend-icon="mdi-close"
-          :disabled="!state.selection.length"
-          :loading="state.acting"
-          data-test="dismiss-selected"
-          @click="onDismiss(state.selection)"
-        >
-          {{ VERDICT_LABELS.not_usable }}
-        </v-btn>
-        <v-btn
-          size="small"
-          variant="text"
-          prepend-icon="mdi-call-merge"
-          :disabled="state.selection.length !== 2"
-          :loading="state.acting"
-          data-test="merge-selected"
-          @click="onMerge"
-        >
-          Merge two
-        </v-btn>
-      </template>
-    </div>
+      <v-btn
+        size="small"
+        variant="outlined"
+        prepend-icon="mdi-close"
+        :disabled="!state.selection.length"
+        :loading="state.acting"
+        data-test="dismiss-selected"
+        @click="onDismiss(state.selection)"
+      >
+        {{ VISITOR_DISMISS_LABEL }}
+      </v-btn>
+      <v-btn
+        size="small"
+        variant="text"
+        prepend-icon="mdi-call-merge"
+        :disabled="state.selection.length !== 2"
+        :loading="state.acting"
+        data-test="merge-selected"
+        @click="onMerge"
+      >
+        Merge two
+      </v-btn>
+    </ReviewSelectionToolbar>
 
     <v-alert
       v-if="state.disabled"
@@ -152,10 +142,12 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import CcSegmentedToggle from "@/components/common/CcSegmentedToggle.vue";
+import ReviewSelectionToolbar from "@/components/identity/ReviewSelectionToolbar.vue";
 import VisitorClusterCard from "@/components/admin/visitors/VisitorClusterCard.vue";
 import VisitorAttributeDialog from "@/components/admin/visitors/VisitorAttributeDialog.vue";
 import VisitorNameDialog from "@/components/admin/visitors/VisitorNameDialog.vue";
-import { VERDICT_LABELS, VISITOR_EFFECTS } from "@/constants/identityReview";
+import { VERDICT_LABELS, VISITOR_DISMISS_LABEL } from "@/constants/identityReview";
+import { useIdentityReviewStore } from "@/stores/identityReview";
 import { useVisitorReview } from "@/composables/useVisitorReview.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
@@ -170,6 +162,7 @@ const STATUS_OPTIONS = [
 
 const { notify } = useNotify();
 const { state, actions } = useVisitorReview(notify);
+const review = useIdentityReviewStore();
 const {
   confirmDialog,
   confirmTitle,
@@ -235,7 +228,7 @@ async function onName({ name, personId }) {
 
 async function onDismiss(clusterIds) {
   const what = clusterIds.length === 1 ? "this group" : `these ${clusterIds.length} groups`;
-  const ok = await confirmRequire(`Dismiss ${what}? ${VISITOR_EFFECTS.not_usable}`);
+  const ok = await confirmRequire(`Dismiss ${what}? ${review.effect("visitors", "not_usable")}`);
   if (!ok) return;
   await actions.review([...clusterIds], "not_usable").catch(() => {});
 }
@@ -246,5 +239,8 @@ async function onMerge() {
   await actions.mergeSelected().catch(() => {});
 }
 
-onMounted(() => actions.loadList());
+onMounted(() => {
+  void review.load();
+  void actions.loadList();
+});
 </script>

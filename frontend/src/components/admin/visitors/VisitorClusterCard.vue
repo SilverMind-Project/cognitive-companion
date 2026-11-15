@@ -76,7 +76,7 @@
         data-test="dismiss"
         @click="$emit('dismiss', cluster.cluster_id)"
       >
-        {{ VERDICT_LABELS.not_usable }}
+        {{ VISITOR_DISMISS_LABEL }}
       </v-btn>
     </div>
   </v-card>
@@ -86,7 +86,7 @@
 import { computed } from "vue";
 import { formatDateOnly } from "@/services/timezone.js";
 import { formatRelative } from "@/composables/useFormatRelative.js";
-import { VERDICT_LABELS } from "@/constants/identityReview";
+import { VERDICT_LABELS, VISITOR_DISMISS_LABEL } from "@/constants/identityReview";
 import { useIdentityTargetsStore } from "@/stores/identityTargets";
 
 const props = defineProps({

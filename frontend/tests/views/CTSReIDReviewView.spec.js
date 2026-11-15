@@ -58,6 +58,10 @@ vi.mock("@/services/cts_identity", () => {
   return { CorrectionError };
 });
 
+vi.mock("@/services/modules/identity_targets", async () =>
+  (await import("../support/reviewVocabulary")).identityTargetsModuleMock(),
+);
+
 import CTSReIDReviewView from "@/views/admin/CTSReIDReviewView.vue";
 
 function makeStore(overrides = {}) {
@@ -89,7 +93,10 @@ function makeStore(overrides = {}) {
       counts: ref({ pending_review: 4, auto_verified: 3, operator_verified: 2, rejected: 1 }),
       countsLoaded: ref(true),
       countsError: ref(""),
-      targets: ref([{ identity_id: "amma", display_name: "Amma" }]),
+      targets: ref([
+        { identity_id: "amma", display_name: "Amma" },
+        { identity_id: "appa", display_name: "Appa" },
+      ]),
       targetsLoading: ref(false),
     },
     actions: {
@@ -103,12 +110,12 @@ function makeStore(overrides = {}) {
       closeDetail: vi.fn(),
       toggleSelected: vi.fn(),
       clearSelection: vi.fn(),
-      approve: vi.fn(),
-      relabel: vi.fn(),
-      demote: vi.fn(),
-      reject: vi.fn(),
-      rejectSelected: vi.fn(),
-      compensate: vi.fn(),
+      approve: vi.fn().mockResolvedValue(),
+      relabel: vi.fn().mockResolvedValue(),
+      demote: vi.fn().mockResolvedValue(),
+      reject: vi.fn().mockResolvedValue(),
+      rejectSelected: vi.fn().mockResolvedValue(),
+      compensate: vi.fn().mockResolvedValue(),
     },
   };
 }
@@ -116,7 +123,10 @@ function makeStore(overrides = {}) {
 const stubs = {
   "v-chip": { template: "<span class='v-chip'><slot /></span>" },
   "v-spacer": { template: "<span />" },
-  "v-btn": { template: "<button :disabled='disabled'><slot /></button>", props: ["disabled"] },
+  "v-btn": {
+    template: "<button :disabled='disabled' :title='title'><slot /></button>",
+    props: ["disabled", "title"],
+  },
   "v-alert": { template: "<div class='v-alert'><slot /></div>" },
   "v-card": { template: "<div><slot /></div>" },
   "v-select": { template: "<select />", props: ["modelValue", "items"] },
@@ -163,6 +173,24 @@ beforeEach(() => {
   vi.clearAllMocks();
   readinessSteps.value = {};
 });
+
+function detailOf(candidate = {}, eligibility = null) {
+  return {
+    candidate: {
+      candidate_id: "c1",
+      state: "pending_review",
+      audit_version: 1,
+      model_version: "v1",
+      ...candidate,
+    },
+    events: [],
+    eligibility: eligibility ?? { eligible: true, model_compatible: true, reasons: [] },
+  };
+}
+
+function confirmButton(wrapper) {
+  return wrapper.findAll("button").find((b) => b.text() === "Confirm");
+}
 
 function emptyQueueStore() {
   const s = makeStore({ candidates: [] });
@@ -259,26 +287,63 @@ describe("CTSReIDReviewView", () => {
     expect(wrapper.text()).toContain("Auto-verified");
   });
 
-  it("offers a Demote action for an auto_verified candidate, not Approve-only", async () => {
-    store.value = makeStore({
-      detail: {
-        candidate: {
-          candidate_id: "c1",
-          state: "auto_verified",
-          audit_version: 1,
-          model_version: "v1",
-        },
-        events: [],
-        eligibility: { eligible: true, model_compatible: true, reasons: [] },
-      },
-    });
+  it("offers the shared decisions plus Demote for an auto_verified candidate", async () => {
+    store.value = makeStore({ detail: detailOf({ state: "auto_verified" }) });
     const wrapper = mountView();
     await flushPromises();
-    const buttons = wrapper.findAll("button").map((b) => b.text());
-    expect(buttons).toContain("Demote");
-    expect(buttons).toContain("Approve");
-    const approveBtn = wrapper.findAll("button").find((b) => b.text() === "Approve");
-    expect(approveBtn.attributes("disabled")).toBeUndefined();
+    const bar = wrapper.get("[data-test='verdict-bar']");
+    expect(bar.get("[data-test='demote']").text()).toBe("Demote");
+    expect(bar.get("[data-test='member-amma']").attributes("disabled")).toBeUndefined();
+    expect(bar.get("[data-test='member-amma']").attributes("title")).toBe(
+      "Server: verified as Amma.",
+    );
+    expect(bar.get("[data-test='verdict-not_enrolled']").text()).toContain("Not in the household");
+    expect(bar.get("[data-test='verdict-guarantee']").text()).toBe(
+      "Server: body samples never change face enrollment.",
+    );
+  });
+
+  it("approves the proposal and relabels anyone else, each only after a confirm", async () => {
+    store.value = makeStore({ detail: detailOf({ proposed_identity_id: "amma" }) });
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.get("[data-test='member-amma']").trigger("click");
+    await flushPromises();
+    expect(store.value.actions.approve).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain("Server: verified as Amma.");
+    await confirmButton(wrapper).trigger("click");
+    await flushPromises();
+    expect(store.value.actions.approve).toHaveBeenCalledWith("c1");
+
+    await wrapper.get("[data-test='member-appa']").trigger("click");
+    await flushPromises();
+    await confirmButton(wrapper).trigger("click");
+    await flushPromises();
+    expect(store.value.actions.relabel).toHaveBeenCalledWith("c1", { target_identity_id: "appa" });
+  });
+
+  it("a member key opens the confirm instead of approving", async () => {
+    store.value = makeStore({ detail: detailOf({ proposed_identity_id: "amma" }) });
+    const wrapper = mountView();
+    await flushPromises();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "1" }));
+    await flushPromises();
+    expect(store.value.actions.approve).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain("Verify as Amma");
+    wrapper.unmount();
+  });
+
+  it("not in the household rejects as the wrong person after a confirm", async () => {
+    store.value = makeStore({ detail: detailOf() });
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.get("[data-test='verdict-not_enrolled']").trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("Server: rejected as the wrong person.");
+    await confirmButton(wrapper).trigger("click");
+    await flushPromises();
+    expect(store.value.actions.reject).toHaveBeenCalledWith("c1", { reason: "wrong_person" });
   });
 
   it("has no bulk-approve control (batch is reject-only)", async () => {
@@ -290,28 +355,21 @@ describe("CTSReIDReviewView", () => {
     expect(wrapper.text().toLowerCase()).not.toContain("approve selected");
   });
 
-  it("disables Approve when server eligibility is false", async () => {
+  it("disables member decisions, and says why, when server eligibility is false", async () => {
     store.value = makeStore({
-      detail: {
-        candidate: {
-          candidate_id: "c1",
-          state: "pending_review",
-          audit_version: 1,
-          model_version: "v0",
-        },
-        events: [],
-        eligibility: {
-          eligible: false,
-          model_compatible: false,
-          reasons: ["incompatible_model:v0"],
-        },
-      },
+      detail: detailOf(
+        { model_version: "v0" },
+        { eligible: false, model_compatible: false, reasons: ["incompatible_model:v0"] },
+      ),
     });
     const wrapper = mountView();
     await flushPromises();
-    const approveBtn = wrapper.findAll("button").find((b) => b.text() === "Approve");
-    expect(approveBtn).toBeTruthy();
-    expect(approveBtn.attributes("disabled")).toBeDefined();
+    expect(wrapper.get("[data-test='member-amma']").attributes("disabled")).toBeDefined();
+    expect(wrapper.get("[data-test='members-disabled-reason']").text()).toContain(
+      "incompatible_model:v0",
+    );
+    // A rejection stays possible.
+    expect(wrapper.get("[data-test='verdict-not_usable']").attributes("disabled")).toBeUndefined();
   });
 
   it("shows a deleted-crop state for a rejected candidate without a broken image", async () => {

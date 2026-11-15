@@ -84,38 +84,14 @@
             </div>
           </div>
 
-          <div class="d-flex flex-wrap ga-2 mt-4">
-            <v-btn
-              v-for="(resident, position) in keyedResidents"
-              :key="resident.identity_id"
-              size="small"
-              variant="tonal"
-              :disabled="state.acting"
-              :data-test="`resident-${resident.identity_id}`"
-              @click="actions.labelResident(position)"
-            >
-              <kbd class="mr-2">{{ position + 1 }}</kbd
-              >{{ resident.display_name }}
-            </v-btn>
-            <v-btn
-              size="small"
-              variant="tonal"
-              :disabled="state.acting"
-              data-test="not-enrolled"
-              @click="actions.labelNotEnrolled"
-            >
-              <kbd class="mr-2">n</kbd>Not enrolled
-            </v-btn>
-            <v-btn
-              size="small"
-              variant="tonal"
-              :disabled="state.acting"
-              data-test="not-a-face"
-              @click="actions.labelNotAFace"
-            >
-              <kbd class="mr-2">x</kbd>Not a face
-            </v-btn>
-          </div>
+          <ReviewVerdictBar
+            class="mt-4"
+            surface="face_calibration"
+            :members="keyedResidents"
+            :disabled="state.acting"
+            @member="onMember"
+            @verdict="onVerdict"
+          />
           <div class="d-flex ga-2 mt-3">
             <v-btn size="small" variant="text" :disabled="state.acting" @click="actions.previous"
               >Previous</v-btn
@@ -124,8 +100,14 @@
               >Skip</v-btn
             >
             <v-spacer />
-            <v-btn size="small" variant="text" :disabled="state.acting" @click="actions.reject"
-              >Unusable</v-btn
+            <v-btn
+              size="small"
+              variant="text"
+              :disabled="state.acting"
+              title="Unusable for any purpose: the capture is set aside and deleted with the rest"
+              data-test="reject"
+              @click="actions.reject"
+              >Reject capture</v-btn
             >
             <v-btn
               size="small"
@@ -137,10 +119,6 @@
             >
               Delete
             </v-btn>
-          </div>
-          <div class="text-caption text-medium-emphasis mt-2">
-            Keys: number for a resident, n for someone not enrolled, x for not a face, arrows to
-            move.
           </div>
         </v-card>
 
@@ -208,7 +186,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from "vue";
+import { computed, onMounted } from "vue";
+import ReviewVerdictBar from "@/components/identity/ReviewVerdictBar.vue";
+import type { ReviewVerdict } from "@/constants/identityReview";
+import { useReviewKeys } from "@/composables/useReviewKeys";
+import { useIdentityReviewStore } from "@/stores/identityReview";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { useFaceCalibrationReview } from "@/composables/useFaceCalibrationReview";
 import { useIdentityReadiness } from "@/composables/useIdentityReadiness";
@@ -239,33 +221,32 @@ async function onDelete() {
   }
 }
 
-function onKeydown(event: KeyboardEvent) {
-  const target = event.target as HTMLElement | null;
-  if (confirmDialog.value || event.ctrlKey || event.metaKey || event.altKey) return;
-  if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
-  const key = event.key;
-  if (/^[1-9]$/.test(key)) {
-    void actions.labelResident(Number(key) - 1);
-  } else if (key === "n") {
-    void actions.labelNotEnrolled();
-  } else if (key === "x") {
-    void actions.labelNotAFace();
-  } else if (key === "ArrowRight") {
-    actions.next();
-  } else if (key === "ArrowLeft") {
-    actions.previous();
-  } else {
-    return;
-  }
-  event.preventDefault();
+// No member is highlighted here: these labels are ground truth for the calibration fit, and
+// pointing at the closest match would bias the labeler toward the model's own guess.
+function onMember(identityId: string) {
+  const position = keyedResidents.value.findIndex((r) => r.identity_id === identityId);
+  if (position >= 0) void actions.labelResident(position);
 }
 
+function onVerdict(verdict: ReviewVerdict) {
+  if (verdict === "not_enrolled") void actions.labelNotEnrolled();
+  else if (verdict === "not_usable") void actions.labelNotAFace();
+}
+
+const review = useIdentityReviewStore();
+useReviewKeys({
+  enabled: () => !confirmDialog.value && !state.acting && current.value !== null,
+  verdicts: () => review.surface("face_calibration")?.verdicts.map((v) => v.verdict) ?? [],
+  onMember: (position) => void actions.labelResident(position),
+  onVerdict,
+  onNext: actions.next,
+  onPrevious: actions.previous,
+});
+
 onMounted(() => {
-  window.addEventListener("keydown", onKeydown);
   void actions.load();
   void readiness.actions.load();
 });
-onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 </script>
 
 <style scoped>

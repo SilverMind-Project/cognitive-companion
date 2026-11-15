@@ -110,7 +110,7 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) {
-      void targets.load();
+      void targets.load(true);
       name.value = "";
       personId.value = "";
       personIdTouched.value = false;

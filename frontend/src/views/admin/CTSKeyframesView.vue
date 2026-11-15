@@ -370,7 +370,7 @@ function identityName(id) {
 }
 
 function loadPersonOptions() {
-  return targetsStore.load();
+  return targetsStore.load(true);
 }
 
 function toggleFilter(key) {

@@ -140,7 +140,10 @@ describe("useReIDReview", () => {
   it("loads household targets independent of gallery population", async () => {
     const { state, actions } = useReIDReview(notify);
     await actions.loadTargets();
-    expect(mockIdentity.getIdentityTargets).toHaveBeenCalled();
+    expect(mockIdentity.getIdentityTargets).toHaveBeenCalledTimes(1);
+    // Opening the page again refetches, so a member added elsewhere appears.
+    await useReIDReview(notify).actions.loadTargets();
+    expect(mockIdentity.getIdentityTargets).toHaveBeenCalledTimes(2);
     expect(state.targets.value).toEqual([{ identity_id: "amma", display_name: "Amma" }]);
   });
 

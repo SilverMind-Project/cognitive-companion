@@ -108,7 +108,7 @@ export function useReIDReview(notify) {
   /** Load the active household roster used as relabel targets. Independent of
    *  gallery population: relabel assigns a household member, never a gallery id. */
   async function loadTargets() {
-    await targetsStore.load();
+    await targetsStore.load(true);
     return targetsStore.targets;
   }
 

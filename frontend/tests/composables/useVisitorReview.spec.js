@@ -10,6 +10,15 @@ const mockModule = vi.hoisted(() => ({
 
 vi.mock("@/services/modules/visitors", () => mockModule);
 
+const targetsApi = vi.hoisted(() => ({
+  getIdentityTargets: vi.fn().mockResolvedValue({
+    targets: [],
+    enrollment_available: true,
+    gallery_available: true,
+  }),
+}));
+vi.mock("@/services/modules/identity_targets", () => targetsApi);
+
 vi.mock("@/services/http", () => {
   class ApiError extends Error {
     constructor(status, detail) {
@@ -89,6 +98,8 @@ describe("useVisitorReview", () => {
       name: "Nurse Priya",
     });
     expect(notify.success).toHaveBeenCalled();
+    // The new member must appear in every picker without a reload.
+    expect(targetsApi.getIdentityTargets).toHaveBeenCalledTimes(1);
   });
 
   it("review sends one batch and shows the server's effect", async () => {

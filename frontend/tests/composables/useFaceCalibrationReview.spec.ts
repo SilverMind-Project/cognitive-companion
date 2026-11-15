@@ -83,6 +83,29 @@ describe("useFaceCalibrationReview", () => {
     expect(state.selection).toEqual(["c2"]);
   });
 
+  it("leaves selection when a batch empties the last page, so the empty state shows", async () => {
+    calibration.listCalibrationCandidates.mockResolvedValue({
+      candidates: [capture("c1")],
+      next_cursor: null,
+    });
+    calibration.reviewCalibrationCandidates.mockResolvedValue({
+      results: [{ id: "c1", ok: true, error_code: null }],
+      reviewed: 1,
+      failed: 0,
+      effect: "Left out of the fit.",
+    });
+    const { state, current, actions } = useFaceCalibrationReview(notify);
+    await actions.load();
+    actions.setSelecting(true);
+    actions.selectAll();
+
+    await actions.reviewSelected("not_usable");
+
+    expect(state.queue).toEqual([]);
+    expect(state.selecting).toBe(false);
+    expect(current.value).toBeNull();
+  });
+
   it("select all takes the loaded queue and leaving selection clears it", async () => {
     calibration.listCalibrationCandidates.mockResolvedValue({
       candidates: [capture("c1"), capture("c2")],

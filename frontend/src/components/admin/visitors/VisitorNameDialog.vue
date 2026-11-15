@@ -13,8 +13,8 @@
   >
     <div class="pa-4">
       <p class="text-body-2 text-medium-emphasis mb-4">
-        Naming creates a new household member from these faces and lets them be recognized on future
-        visits. If these are faces of someone already enrolled, mark them as theirs instead.
+        {{ review.effect("visitors", "new_person") }} If these are faces of someone already
+        enrolled, mark them as theirs instead.
       </p>
       <v-alert
         v-if="existing"
@@ -57,6 +57,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import AppDialog from "@/components/common/AppDialog.vue";
+import { useIdentityReviewStore } from "@/stores/identityReview";
 import { useIdentityTargetsStore } from "@/stores/identityTargets";
 
 const props = defineProps({
@@ -67,6 +68,7 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue", "submit", "attribute"]);
 
 const targets = useIdentityTargetsStore();
+const review = useIdentityReviewStore();
 
 const name = ref("");
 const personId = ref("");
@@ -111,6 +113,7 @@ watch(
   (open) => {
     if (open) {
       void targets.load(true);
+      void review.load();
       name.value = "";
       personId.value = "";
       personIdTouched.value = false;

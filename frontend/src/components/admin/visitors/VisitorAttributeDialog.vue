@@ -14,7 +14,7 @@
     <div class="pa-4">
       <IdentityTargetPicker v-model="target" require-enrolled-face class="mb-2" />
       <p class="text-body-2 text-medium-emphasis" data-test="attribute-effect">
-        {{ VISITOR_EFFECTS.is_member }}
+        {{ review.effect("visitors", "is_member", targets.nameOf(target) || null) }}
       </p>
     </div>
   </AppDialog>
@@ -25,16 +25,23 @@ import { ref, watch } from "vue";
 
 import AppDialog from "@/components/common/AppDialog.vue";
 import IdentityTargetPicker from "@/components/identity/IdentityTargetPicker.vue";
-import { VISITOR_EFFECTS } from "@/constants/identityReview";
+import { useIdentityReviewStore } from "@/stores/identityReview";
+import { useIdentityTargetsStore } from "@/stores/identityTargets";
 
 const props = defineProps<{ modelValue: boolean; count: number; saving?: boolean }>();
 defineEmits<{ "update:modelValue": [value: boolean]; submit: [identityId: string | null] }>();
 
+const review = useIdentityReviewStore();
+const targets = useIdentityTargetsStore();
 const target = ref<string | null>(null);
 watch(
   () => props.modelValue,
   (open) => {
-    if (open) target.value = null;
+    if (open) {
+      target.value = null;
+      void review.load();
+    }
   },
+  { immediate: true },
 );
 </script>

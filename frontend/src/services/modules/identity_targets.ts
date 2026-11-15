@@ -12,3 +12,11 @@ import type { components } from "@/generated/api-types";
 export type IdentityTarget = components["schemas"]["IdentityTargetOut"];
 
 export const getIdentityTargets = () => unwrap(client.GET("/api/v1/identity/targets", {}));
+
+export type ReviewVocabulary = components["schemas"]["ReviewVocabularyEnvelope"];
+export type ReviewSurface = components["schemas"]["ReviewSurfaceOut"]["surface"];
+export type ReviewVerdict = components["schemas"]["ReviewVerdictOut"]["verdict"];
+
+/** What each review decision changes, per surface. Read it through the `identityReview` store. */
+export const getReviewVocabulary = () =>
+  unwrap(client.GET("/api/v1/identity/review-vocabulary", {}));

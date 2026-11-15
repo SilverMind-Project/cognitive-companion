@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.core.auth import AuthContext, actor_from_auth, require_token
 from backend.routers.cts_deps import cts_enabled, presigned_image_url
-from backend.routers.dependencies import get_reid_review_service
+from backend.routers.dependencies import get_identity_review_registry, get_reid_review_service
 from backend.schemas.cts_reid_review import (
     ApproveRequest,
     DemoteRequest,
@@ -44,6 +44,7 @@ from backend.services.cts.reid_review_service import (
     ReviewContractError,
     ReviewUpstreamError,
 )
+from backend.services.identity_review.registry import IdentityReviewRegistry, ReviewSubject
 
 router = APIRouter(prefix="/cts", tags=["cts-reid-review"])
 
@@ -265,13 +266,20 @@ async def reject_candidate(
 @router.post("/identity/reid-review/review", response_model=BatchReviewResponse)
 async def review_batch(
     body: ReIDReviewBatchRequest,
-    svc: ReIDReviewService = Depends(get_reid_review_service),
+    registry: IdentityReviewRegistry = Depends(get_identity_review_registry),
     auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
 ) -> BatchReviewResponse:
     """Reject several samples as not in the household or not usable; there is no batch approve."""
     cts_enabled()
     try:
-        return await svc.review_batch(body, actor=actor_from_auth(auth))
+        return await registry.decide(
+            "reid_review",
+            body.verdict,
+            [ReviewSubject(id=i.candidate_id, version=i.base_audit_version) for i in body.items],
+            actor=actor_from_auth(auth),
+            reason=body.reason,
+            note=body.note,
+        )
     except ReviewUpstreamError as exc:
         raise _raise_for_review(exc) from exc
     except ReviewContractError as exc:

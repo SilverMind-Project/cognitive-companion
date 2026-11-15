@@ -188,7 +188,3 @@ class ReIDReviewBatchRequest(BaseModel):
         if (self.verdict == "not_usable") != (self.reason is not None):
             raise ValueError("reason is required for not_usable and only for it")
         return self
-
-    @property
-    def reject_reason(self) -> RejectReasonCode:
-        return "wrong_person" if self.reason is None else self.reason

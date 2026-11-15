@@ -82,9 +82,10 @@ async def wire_cts(
 
     app.state.identity_correction_service = IdentityCorrectionService(app.state.orchestrator_client)
 
-    from backend.services.cts.reid_review_service import ReIDReviewService
+    from backend.services.cts.reid_review_service import ReIDReviewAdapter, ReIDReviewService
 
     app.state.reid_review_service = ReIDReviewService(app.state.orchestrator_client)
+    app.state.identity_review_registry.register(ReIDReviewAdapter(app.state.reid_review_service))
 
     from backend.services.gait_trend_service import GaitTrendService
 
@@ -207,7 +208,8 @@ def wire_identity_services(app: FastAPI) -> None:
     app.state.visitor_admin_service = VisitorAdminService(app.state.person_id_client)
 
     # Every review decision goes through one registry; each surface registers its owner's
-    # adapter. ReID review registers in the enabled branch, once its service exists.
+    # adapter. ReID review registers in the enabled branch once its service exists; with CTS
+    # disabled its decisions answer 503.
     registry = IdentityReviewRegistry(targets)
     registry.register(VisitorReviewAdapter(app.state.person_id_client))
     registry.register(FaceCalibrationReviewAdapter(app.state.person_id_client))

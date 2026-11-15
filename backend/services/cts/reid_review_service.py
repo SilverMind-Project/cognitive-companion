@@ -19,34 +19,33 @@ from __future__ import annotations
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from typing import cast, get_args
 
 from pydantic import ValidationError
 
+from backend.core.exceptions import ValidationError as AppValidationError
 from backend.core.upstream_errors import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.schemas.cts_reid_review import (
     EligibilityView,
-    ReIDReviewBatchRequest,
+    RejectReasonCode,
     ReviewCandidateDetailResponse,
     ReviewCandidateListResponse,
     ReviewCandidateView,
     ReviewCountsResponse,
     ReviewEventsResponse,
     ReviewEventView,
+    UnusableReasonCode,
 )
-from backend.schemas.identity_review import (
-    BatchReviewResponse,
-    ReviewErrorCode,
-    ReviewItemResult,
-)
+from backend.schemas.identity_review import ReviewErrorCode, ReviewItemResult, ReviewSurface
 from backend.services.cts.metrics import (
     cts_reid_review_action_latency_seconds,
     cts_reid_review_actions_total,
     cts_reid_review_failures_total,
     cts_reid_review_relabels_total,
 )
-from backend.services.identity_review.vocabulary import effect_text
+from backend.services.identity_review.registry import ReviewDecision, ReviewSubject
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +82,8 @@ def _translate(exc: UpstreamError) -> ReviewUpstreamError:
     status = 502 if exc.status >= 500 else exc.status
     return ReviewUpstreamError(status=status, code=code, message=message)
 
+
+_UNUSABLE_REASONS: frozenset[str] = frozenset(get_args(UnusableReasonCode))
 
 # The orchestrator's per-item batch error codes; anything else is reported as an upstream error.
 _BATCH_ERROR_CODES: dict[str, ReviewErrorCode] = {"not_found": "not_found", "conflict": "conflict"}
@@ -238,26 +239,29 @@ class ReIDReviewService:
             presign,
         )
 
-    async def review_batch(
-        self, request: ReIDReviewBatchRequest, *, actor: str
-    ) -> BatchReviewResponse:
-        """Reject several samples as not in the household or not usable; one result each.
+    async def reject_many(
+        self,
+        subjects: Sequence[ReviewSubject],
+        *,
+        actor: str,
+        reason: RejectReasonCode,
+        note: str | None,
+    ) -> list[ReviewItemResult]:
+        """Reject several samples with one reason; one result each, never aborting the batch.
 
-        There is no batch approval: verifying a sample needs a look at that sample. Each item
-        carries the version the operator saw, so a sample that moved since is reported as a
-        ``conflict`` without stopping the others.
+        Each subject carries the version the operator saw, so a sample that moved since is
+        reported as a ``conflict`` without stopping the others.
         """
-        reason = request.reject_reason
         payload = {
             "actor": actor,
             "items": [
                 {
-                    "candidate_id": item.candidate_id,
-                    "base_audit_version": item.base_audit_version,
+                    "candidate_id": s.id,
+                    "base_audit_version": s.version,
                     "reason": reason,
-                    "note": request.note,
+                    "note": note,
                 }
-                for item in request.items
+                for s in subjects
             ],
         }
         started = time.perf_counter()
@@ -272,7 +276,7 @@ class ReIDReviewService:
             )
         cts_reid_review_actions_total.labels(action="reject_batch").inc()
         try:
-            results = [
+            return [
                 ReviewItemResult(
                     id=r["candidate_id"],
                     ok=bool(r["ok"]),
@@ -284,13 +288,6 @@ class ReIDReviewService:
             ]
         except (KeyError, TypeError, ValidationError) as exc:
             raise ReviewContractError("malformed batch reject envelope") from exc
-        reviewed = sum(1 for r in results if r.ok)
-        return BatchReviewResponse(
-            results=results,
-            reviewed=reviewed,
-            failed=len(results) - reviewed,
-            effect=effect_text("reid_review", request.verdict),
-        )
 
     async def compensate(
         self, candidate_id: str, *, actor: str, presign: Presigner = _no_presign
@@ -392,4 +389,35 @@ class ReIDReviewService:
             eligible=raw["eligible"],
             model_compatible=raw["model_compatible"],
             reasons=list(raw["reasons"]),
+        )
+
+
+class ReIDReviewAdapter:
+    """Body samples as a review surface: the orchestrator rejects them in one batch.
+
+    Only rejections arrive here: approving or relabeling a sample needs a look at that sample, so
+    those stay single-sample routes and the vocabulary marks them one at a time. ``not_enrolled``
+    rejects as ``wrong_person``; ``not_usable`` carries its unusable reason code. Every subject
+    needs the ``audit_version`` the operator saw.
+    """
+
+    surface: ReviewSurface = "reid_review"
+
+    def __init__(self, service: ReIDReviewService) -> None:
+        self._service = service
+
+    async def apply(self, decision: ReviewDecision, *, actor: str) -> list[ReviewItemResult]:
+        reason: RejectReasonCode
+        if decision.verdict == "not_enrolled":
+            reason = "wrong_person"
+        elif decision.verdict == "not_usable" and decision.reason in _UNUSABLE_REASONS:
+            reason = cast(RejectReasonCode, decision.reason)
+        else:
+            raise AppValidationError(
+                f"reid review cannot batch-apply {decision.verdict} with reason {decision.reason}"
+            )
+        if any(s.version is None for s in decision.subjects):
+            raise AppValidationError("every body sample needs the audit_version that was reviewed")
+        return await self._service.reject_many(
+            decision.subjects, actor=actor, reason=reason, note=decision.note
         )

@@ -58,6 +58,18 @@ class LabelCalibrationCandidateRequest(BaseModel):
         return self
 
 
+class FaceCalibrationReviewRequest(BaseModel):
+    """Decide about several captures at once, only with verdicts that name nobody.
+
+    A member label is a genuine pair in the calibration fit, so it is given one face at a time.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    candidate_ids: list[str] = Field(..., min_length=1, max_length=200)
+    verdict: Literal["not_enrolled", "not_usable"]
+
+
 class CalibrationIdentityProgressView(BaseModel):
     identity_id: str
     labeled_faces: int

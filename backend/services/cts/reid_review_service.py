@@ -26,9 +26,8 @@ from pydantic import ValidationError
 from backend.core.upstream_errors import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.schemas.cts_reid_review import (
-    BatchRejectResponse,
-    BatchRejectResultItem,
     EligibilityView,
+    ReIDReviewBatchRequest,
     ReviewCandidateDetailResponse,
     ReviewCandidateListResponse,
     ReviewCandidateView,
@@ -36,12 +35,18 @@ from backend.schemas.cts_reid_review import (
     ReviewEventsResponse,
     ReviewEventView,
 )
+from backend.schemas.identity_review import (
+    BatchReviewResponse,
+    ReviewErrorCode,
+    ReviewItemResult,
+)
 from backend.services.cts.metrics import (
     cts_reid_review_action_latency_seconds,
     cts_reid_review_actions_total,
     cts_reid_review_failures_total,
     cts_reid_review_relabels_total,
 )
+from backend.services.identity_review.vocabulary import effect_text
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +82,10 @@ def _translate(exc: UpstreamError) -> ReviewUpstreamError:
         pass
     status = 502 if exc.status >= 500 else exc.status
     return ReviewUpstreamError(status=status, code=code, message=message)
+
+
+# The orchestrator's per-item batch error codes; anything else is reported as an upstream error.
+_BATCH_ERROR_CODES: dict[str, ReviewErrorCode] = {"not_found": "not_found", "conflict": "conflict"}
 
 
 def _no_presign(_key: str | None) -> str | None:
@@ -229,19 +238,26 @@ class ReIDReviewService:
             presign,
         )
 
-    async def reject_batch(
-        self, *, actor: str, reason: str, note: str | None, items: list[dict]
-    ) -> BatchRejectResponse:
+    async def review_batch(
+        self, request: ReIDReviewBatchRequest, *, actor: str
+    ) -> BatchReviewResponse:
+        """Reject several samples as not in the household or not usable; one result each.
+
+        There is no batch approval: verifying a sample needs a look at that sample. Each item
+        carries the version the operator saw, so a sample that moved since is reported as a
+        ``conflict`` without stopping the others.
+        """
+        reason = request.reject_reason
         payload = {
             "actor": actor,
             "items": [
                 {
-                    "candidate_id": item["candidate_id"],
-                    "base_audit_version": item["base_audit_version"],
+                    "candidate_id": item.candidate_id,
+                    "base_audit_version": item.base_audit_version,
                     "reason": reason,
-                    "note": note,
+                    "note": request.note,
                 }
-                for item in items
+                for item in request.items
             ],
         }
         started = time.perf_counter()
@@ -256,21 +272,25 @@ class ReIDReviewService:
             )
         cts_reid_review_actions_total.labels(action="reject_batch").inc()
         try:
-            return BatchRejectResponse(
-                results=[
-                    BatchRejectResultItem(
-                        candidate_id=r["candidate_id"],
-                        ok=r["ok"],
-                        error_code=r.get("error_code"),
-                        error_message=r.get("error_message"),
-                    )
-                    for r in raw["results"]
-                ],
-                rejected=raw["rejected"],
-                failed=raw["failed"],
-            )
+            results = [
+                ReviewItemResult(
+                    id=r["candidate_id"],
+                    ok=bool(r["ok"]),
+                    error_code=None
+                    if r["ok"]
+                    else _BATCH_ERROR_CODES.get(r.get("error_code") or "", "upstream_error"),
+                )
+                for r in raw["results"]
+            ]
         except (KeyError, TypeError, ValidationError) as exc:
             raise ReviewContractError("malformed batch reject envelope") from exc
+        reviewed = sum(1 for r in results if r.ok)
+        return BatchReviewResponse(
+            results=results,
+            reviewed=reviewed,
+            failed=len(results) - reviewed,
+            effect=effect_text("reid_review", request.verdict),
+        )
 
     async def compensate(
         self, candidate_id: str, *, actor: str, presign: Presigner = _no_presign

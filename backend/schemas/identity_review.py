@@ -30,6 +30,8 @@ ReviewErrorCode = Literal[
     "already_named",
     "unknown_member",
     "not_enrolled_member",
+    # The subject changed since it was loaded (a stale version) or is no longer eligible.
+    "conflict",
     "upstream_error",
 ]
 

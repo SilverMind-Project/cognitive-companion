@@ -303,6 +303,7 @@ read-only `get_face_calibration_summary`; labeling, rejecting, and deleting are 
 | --- | --- | --- |
 | `GET` | `/face-calibration/candidates` | Captures, newest first. Query: `state` (`unlabeled` default \| `labeled` \| `rejected`), `limit` (1 to 200, default 50), `cursor` |
 | `POST` | `/face-calibration/candidates/{candidate_id}/label` | Label a capture. Body: `label_kind` (`member` \| `not_enrolled` \| `not_a_face`), `label_identity_id` (required for `member` only; must be enrolled, else 422) |
+| `POST` | `/face-calibration/candidates/review` | Label several captures at once (`FaceCalibrationReviewRequest`: `candidate_ids`, `verdict` `not_enrolled` \| `not_usable`, stored as `not_a_face`). Member labels are refused (one face at a time). Returns `BatchReviewResponse` with the effect sentence |
 | `POST` | `/face-calibration/candidates/{candidate_id}/reject` | Mark a capture unusable; it is purged with unlabeled ones after 30 days |
 | `DELETE` | `/face-calibration/candidates/{candidate_id}` | Delete a capture and its crop (204) |
 | `GET` | `/face-calibration/summary` | Counts by state, label kind, quality decile, and camera; labeled faces and walks per resident against the target |

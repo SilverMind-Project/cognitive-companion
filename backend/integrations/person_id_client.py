@@ -229,6 +229,13 @@ class VisitorReviewItem:
     error_code: str | None
 
 
+@dataclass(frozen=True)
+class CalibrationLabelItem:
+    candidate_id: str
+    ok: bool
+    error_code: str | None
+
+
 @dataclass
 class VisitorClusterListResult:
     clusters: list[VisitorClusterSummary]
@@ -709,6 +716,31 @@ class PersonIDClient:
             },
         )
         return self._calibration_candidate_or_502(data)
+
+    async def label_calibration_candidates(
+        self, candidate_ids: list[str], *, label_kind: str, labeled_by: str
+    ) -> list[CalibrationLabelItem]:
+        """Label several captures ``not_enrolled`` or ``not_a_face``; one result each."""
+        data = await self._request_or_raise(
+            "POST",
+            "/api/v1/calibration/candidates/label-batch",
+            json={
+                "candidate_ids": candidate_ids,
+                "label_kind": label_kind,
+                "labeled_by": labeled_by,
+            },
+        )
+        try:
+            return [
+                CalibrationLabelItem(
+                    candidate_id=str(r["candidate_id"]),
+                    ok=bool(r["ok"]),
+                    error_code=r["error_code"],
+                )
+                for r in data["results"]
+            ]
+        except (KeyError, TypeError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed label batch envelope: {exc}") from exc
 
     async def reject_calibration_candidate(self, candidate_id: str) -> CalibrationCandidateInfo:
         data = await self._request_or_raise(

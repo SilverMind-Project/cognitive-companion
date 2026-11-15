@@ -98,6 +98,8 @@ SURFACES: dict[ReviewSurface, SurfaceSpec] = {
                 ),
                 needs_target=True,
                 needs_enrolled_face=True,
+                # One face at a time: a member label is a genuine pair in the fit.
+                batch=False,
             ),
             VerdictSpec(
                 verdict="not_enrolled",
@@ -105,10 +107,12 @@ SURFACES: dict[ReviewSurface, SurfaceSpec] = {
                     "The face is labeled as someone outside the household, which teaches the "
                     "calibration fit what a non-match looks like. Nothing is enrolled."
                 ),
+                batch=True,
             ),
             VerdictSpec(
                 verdict="not_usable",
                 effect="The face is left out of the calibration fit. Nothing is enrolled.",
+                batch=True,
             ),
         ),
     ),

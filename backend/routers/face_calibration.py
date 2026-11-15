@@ -12,7 +12,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from backend.core.auth import AuthContext, require_token
+from backend.core.auth import AuthContext, actor_from_auth, require_token
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
 from backend.integrations.person_id_client import PersonIDUpstreamError
@@ -20,9 +20,11 @@ from backend.routers.dependencies import get_config_minio_client, get_face_calib
 from backend.schemas.face_calibration import (
     CalibrationCandidateListResponse,
     CalibrationCandidateView,
+    FaceCalibrationReviewRequest,
     FaceCalibrationSummaryEnvelope,
     LabelCalibrationCandidateRequest,
 )
+from backend.schemas.identity_review import BatchReviewResponse
 from backend.services.face_calibration import FaceCalibrationReviewService
 
 logger = get_logger(__name__)
@@ -71,7 +73,7 @@ async def label_calibration_candidate(
     minio: MinioClient = Depends(get_config_minio_client),
     auth: AuthContext = Depends(require_token(_REVIEW)),
 ) -> CalibrationCandidateView:
-    actor = auth.name
+    actor = actor_from_auth(auth)
     try:
         result = await svc.label(
             candidate_id,
@@ -86,6 +88,28 @@ async def label_calibration_candidate(
         "face_calibration_labeled",
         candidate_id=candidate_id,
         label_kind=body.label_kind,
+        actor=actor,
+    )
+    return result
+
+
+@router.post("/candidates/review", response_model=BatchReviewResponse)
+async def review_calibration_candidates(
+    body: FaceCalibrationReviewRequest,
+    svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
+    auth: AuthContext = Depends(require_token(_REVIEW)),
+) -> BatchReviewResponse:
+    """Label several captures not in the household or not usable; member labels go one by one."""
+    actor = actor_from_auth(auth)
+    try:
+        result = await svc.review(body, actor=actor)
+    except PersonIDUpstreamError as exc:
+        raise _upstream(exc) from exc
+    logger.info(
+        "face_calibration_reviewed",
+        verdict=body.verdict,
+        reviewed=result.reviewed,
+        failed=result.failed,
         actor=actor,
     )
     return result

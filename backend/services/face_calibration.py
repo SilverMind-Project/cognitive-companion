@@ -14,11 +14,18 @@ from backend.schemas.face_calibration import (
     CalibrationCandidateListResponse,
     CalibrationCandidateView,
     CalibrationIdentityProgressView,
+    FaceCalibrationReviewRequest,
     FaceCalibrationSummaryEnvelope,
 )
+from backend.schemas.identity_review import BatchReviewResponse, ReviewItemResult
+from backend.services.identity_review.vocabulary import effect_text
 
 # Maps a MinIO key (or None) to a browser-reachable URL (or None).
 Presigner = Callable[[str | None], str | None]
+
+
+# The calibration label each batch verdict is stored as.
+_LABEL_FOR_VERDICT = {"not_enrolled": "not_enrolled", "not_usable": "not_a_face"}
 
 
 def _no_presign(_key: str | None) -> str | None:
@@ -61,6 +68,37 @@ class FaceCalibrationReviewService:
             labeled_by=actor,
         )
         return self._view(labeled, presign)
+
+    async def review(
+        self, request: FaceCalibrationReviewRequest, *, actor: str
+    ) -> BatchReviewResponse:
+        """Label several captures as someone not in the household, or not usable.
+
+        ``not_usable`` is stored as ``not_a_face``, which the calibration fit skips. A missing
+        capture is reported per item; the rest are labeled.
+        """
+        items = await self._client.label_calibration_candidates(
+            request.candidate_ids,
+            label_kind=_LABEL_FOR_VERDICT[request.verdict],
+            labeled_by=actor,
+        )
+        results = [
+            ReviewItemResult(
+                id=item.candidate_id,
+                ok=item.ok,
+                error_code=None
+                if item.ok
+                else ("not_found" if item.error_code == "not_found" else "upstream_error"),
+            )
+            for item in items
+        ]
+        reviewed = sum(1 for r in results if r.ok)
+        return BatchReviewResponse(
+            results=results,
+            reviewed=reviewed,
+            failed=len(results) - reviewed,
+            effect=effect_text("face_calibration", request.verdict),
+        )
 
     async def reject(
         self, candidate_id: str, *, presign: Presigner = _no_presign

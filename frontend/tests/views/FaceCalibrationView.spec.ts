@@ -6,15 +6,20 @@ vi.mock("@/composables/useNotify.js", () => ({
   useNotify: () => ({ notify: { success: vi.fn(), error: vi.fn() } }),
 }));
 
-const confirmResult = vi.hoisted(() => ({ value: true }));
+const confirmResult = vi.hoisted(() => ({ value: true, asked: [] as string[] }));
 vi.mock("@/composables/useConfirm.js", async () => {
   const { ref } = await import("vue");
   return {
     useConfirm: () => ({
       confirmDialog: ref(false),
-      confirmTitle: ref(""),
       confirmText: ref(""),
-      showConfirm: () => Promise.resolve(confirmResult.value),
+      confirmLabel: ref("Confirm"),
+      cancelLabel: ref("Cancel"),
+      confirmColor: ref("error"),
+      require: (text: string) => {
+        confirmResult.asked.push(text);
+        return Promise.resolve(confirmResult.value);
+      },
       onConfirm: vi.fn(),
       onCancel: vi.fn(),
     }),
@@ -52,8 +57,10 @@ const stubs = {
   "v-chip": { template: "<span class='v-chip'><slot /></span>", props: ["color"] },
   "v-alert": { template: "<div class='v-alert'><slot /><slot name='append' /></div>" },
   "v-btn": {
-    template: "<button :disabled='disabled' :title='title'><slot /></button>",
+    template:
+      "<button :disabled='disabled' :title='title' @click=\"$emit('click')\"><slot /></button>",
     props: ["disabled", "title"],
+    emits: ["click"],
   },
   "v-progress-circular": { template: "<div />" },
   "v-progress-linear": { template: "<div />", props: ["modelValue"] },
@@ -101,6 +108,8 @@ function makeStore() {
     error: "",
     forbidden: false,
     acting: false,
+    selecting: false,
+    selection: [] as string[],
   });
   const actions = {
     load: vi.fn(),
@@ -111,6 +120,15 @@ function makeStore() {
     remove: vi.fn(),
     next: vi.fn(),
     previous: vi.fn(),
+    setSelecting: vi.fn((on: boolean) => {
+      state.selecting = on;
+    }),
+    toggleSelection: vi.fn((id: string) => {
+      state.selection = [...state.selection, id];
+    }),
+    selectAll: vi.fn(),
+    clearSelection: vi.fn(),
+    reviewSelected: vi.fn(),
   };
   return {
     state,
@@ -127,6 +145,7 @@ function press(key: string, target: EventTarget = window) {
 beforeEach(() => {
   store.value = makeStore();
   confirmResult.value = true;
+  confirmResult.asked = [];
   readinessSteps.value = {};
 });
 
@@ -223,6 +242,27 @@ describe("FaceCalibrationView", () => {
     );
     await bar.get("[data-test='verdict-not_usable']").trigger("click");
     expect(current().actions.labelNotAFace).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+
+  it("labels several faces with a negative verdict only, after a confirm stating the effect", async () => {
+    const wrapper = mountView({ attachTo: document.body });
+    await flushPromises();
+    await wrapper.get("[data-test='select-mode']").trigger("click");
+    await flushPromises();
+    expect(wrapper.find("[data-test='current-capture']").exists()).toBe(false);
+    await wrapper.get("[data-test='tile-c1']").trigger("click");
+
+    // The vocabulary allows batch only for verdicts that name nobody.
+    expect(wrapper.find("[data-test='batch-is_member']").exists()).toBe(false);
+    await wrapper.get("[data-test='batch-not_enrolled']").trigger("click");
+    await flushPromises();
+
+    expect(confirmResult.asked[0]).toContain("Server: labeled as outside the household.");
+    expect(current().actions.reviewSelected).toHaveBeenCalledWith("not_enrolled");
+    // Keys do nothing while selecting.
+    press("1");
+    expect(current().actions.labelResident).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 

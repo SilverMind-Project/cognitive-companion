@@ -837,7 +837,7 @@ async function confirmBatchNotEnrolled() {
     review.effect("reid_review", "not_enrolled"),
   );
   if (!ok) return;
-  await actions.rejectSelected({ reason: NOT_ENROLLED_REASON }).catch(() => {});
+  await actions.reviewSelected({ verdict: "not_enrolled" }).catch(() => {});
 }
 
 function openBatchReject() {
@@ -847,7 +847,11 @@ function openBatchReject() {
 }
 async function doBatchReject() {
   await actions
-    .rejectSelected({ reason: batchReason.value, note: batchNote.value || null })
+    .reviewSelected({
+      verdict: "not_usable",
+      reason: batchReason.value,
+      note: batchNote.value || null,
+    })
     .catch(() => {});
   batchDialog.value = false;
 }

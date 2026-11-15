@@ -10,7 +10,7 @@ const { mockSvc, mockIdentity } = vi.hoisted(() => ({
     relabel: vi.fn(),
     demote: vi.fn(),
     reject: vi.fn(),
-    rejectBatch: vi.fn(),
+    reviewBatch: vi.fn(),
     compensate: vi.fn(),
   },
   mockIdentity: { getIdentityTargets: vi.fn() },
@@ -180,25 +180,36 @@ describe("useReIDReview", () => {
     expect(mockSvc.counts).toHaveBeenCalled();
   });
 
-  it("rejectSelected sends one batch and clears the selection", async () => {
+  it("reviewSelected sends one batch, states the effect, and keeps what did not apply", async () => {
     mockSvc.list.mockResolvedValue({
       candidates: [candidate("c1", 2), candidate("c2", 3)],
       total: 2,
       limit: 25,
       offset: 0,
     });
-    mockSvc.rejectBatch.mockResolvedValue({ results: [], rejected: 2, failed: 0 });
+    mockSvc.reviewBatch.mockResolvedValue({
+      results: [
+        { id: "c1", ok: true, error_code: null },
+        { id: "c2", ok: false, error_code: "conflict" },
+      ],
+      reviewed: 1,
+      failed: 1,
+      effect: "Rejected as the wrong person.",
+    });
     const { state, actions } = useReIDReview(notify);
     await actions.loadList();
     actions.toggleSelected("c1");
     actions.toggleSelected("c2");
-    await actions.rejectSelected({ reason: "wrong_person" });
-    const arg = mockSvc.rejectBatch.mock.calls[0][0];
+    await actions.reviewSelected({ verdict: "not_enrolled" });
+    const arg = mockSvc.reviewBatch.mock.calls[0][0];
+    expect(arg.verdict).toBe("not_enrolled");
     expect(arg.items).toEqual([
       { candidate_id: "c1", base_audit_version: 2 },
       { candidate_id: "c2", base_audit_version: 3 },
     ]);
-    expect(state.selectedIds.value).toEqual([]);
+    expect(notify.success).toHaveBeenCalledWith("Rejected as the wrong person.");
+    expect(notify.warning).toHaveBeenCalledWith("1 not updated: changed since it was loaded.");
+    expect(state.selectedIds.value).toEqual(["c2"]);
   });
 
   it("records a counts failure instead of passing placeholder zeros off as real", async () => {

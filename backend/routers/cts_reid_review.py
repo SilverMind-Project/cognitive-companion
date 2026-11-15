@@ -1,4 +1,4 @@
-"""M09 ReID review-queue routes (browser-facing BFF surface).
+"""ReID review-queue routes (browser-facing BFF surface).
 
 Every route is gated by ``require_token("cts.identity.gallery_review")``, a strict
 token check that ignores the broad ``GET /api/v1/*`` and ``POST
@@ -28,9 +28,8 @@ from backend.routers.cts_deps import cts_enabled, presigned_image_url
 from backend.routers.dependencies import get_reid_review_service
 from backend.schemas.cts_reid_review import (
     ApproveRequest,
-    BatchRejectRequest,
-    BatchRejectResponse,
     DemoteRequest,
+    ReIDReviewBatchRequest,
     RejectRequest,
     RelabelRequest,
     ReviewCandidateDetailResponse,
@@ -39,6 +38,7 @@ from backend.schemas.cts_reid_review import (
     ReviewCountsResponse,
     ReviewEventsResponse,
 )
+from backend.schemas.identity_review import BatchReviewResponse
 from backend.services.cts.reid_review_service import (
     ReIDReviewService,
     ReviewContractError,
@@ -262,20 +262,16 @@ async def reject_candidate(
         raise _contract_502(exc) from exc
 
 
-@router.post("/identity/reid-review/reject-batch", response_model=BatchRejectResponse)
-async def reject_batch(
-    body: BatchRejectRequest,
+@router.post("/identity/reid-review/review", response_model=BatchReviewResponse)
+async def review_batch(
+    body: ReIDReviewBatchRequest,
     svc: ReIDReviewService = Depends(get_reid_review_service),
     auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
-) -> BatchRejectResponse:
+) -> BatchReviewResponse:
+    """Reject several samples as not in the household or not usable; there is no batch approve."""
     cts_enabled()
     try:
-        return await svc.reject_batch(
-            actor=actor_from_auth(auth),
-            reason=body.reason,
-            note=body.note,
-            items=[item.model_dump() for item in body.items],
-        )
+        return await svc.review_batch(body, actor=actor_from_auth(auth))
     except ReviewUpstreamError as exc:
         raise _raise_for_review(exc) from exc
     except ReviewContractError as exc:

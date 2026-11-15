@@ -169,6 +169,42 @@ class TestMutations:
             await client.review_visitor_clusters(["c1"], "dismiss", actor="Admin")
         assert exc_info.value.status == 502
 
+    async def test_label_calibration_candidates_parses_results_and_sends_the_labeler(self):
+        client = _make_client()
+        payload = {
+            "results": [
+                {"candidate_id": "k1", "ok": True, "error_code": None},
+                {"candidate_id": "k2", "ok": False, "error_code": "not_found"},
+            ],
+            "labeled": 1,
+            "failed": 1,
+        }
+        with patch(_HTTPX_TARGET, return_value=_mock_http(payload)) as factory:
+            items = await client.label_calibration_candidates(
+                ["k1", "k2"], label_kind="not_a_face", labeled_by="Admin"
+            )
+        assert [(i.candidate_id, i.ok, i.error_code) for i in items] == [
+            ("k1", True, None),
+            ("k2", False, "not_found"),
+        ]
+        request = factory.return_value.__aenter__.return_value.request
+        assert request.call_args.kwargs["json"] == {
+            "candidate_ids": ["k1", "k2"],
+            "label_kind": "not_a_face",
+            "labeled_by": "Admin",
+        }
+
+    async def test_label_calibration_candidates_malformed_envelope_is_502(self):
+        client = _make_client()
+        with (
+            patch(_HTTPX_TARGET, return_value=_mock_http({"results": [{"ok": True}]})),
+            pytest.raises(PersonIDUpstreamError) as exc_info,
+        ):
+            await client.label_calibration_candidates(
+                ["k1"], label_kind="not_a_face", labeled_by="A"
+            )
+        assert exc_info.value.status == 502
+
     async def test_merge_visitor_clusters_success(self):
         client = _make_client()
         with patch(_HTTPX_TARGET, return_value=_mock_http(_CLUSTER)):

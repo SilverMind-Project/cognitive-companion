@@ -987,137 +987,6 @@
         "title": "BatchPositionUpdate",
         "type": "object"
       },
-      "BatchRejectItemRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "base_audit_version": {
-            "title": "Base Audit Version",
-            "type": "integer"
-          },
-          "candidate_id": {
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Candidate Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "candidate_id",
-          "base_audit_version"
-        ],
-        "title": "BatchRejectItemRequest",
-        "type": "object"
-      },
-      "BatchRejectRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/BatchRejectItemRequest"
-            },
-            "maxItems": 200,
-            "minItems": 1,
-            "title": "Items",
-            "type": "array"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "maxLength": 2048,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "reason": {
-            "enum": [
-              "wrong_person",
-              "identity_uncertain",
-              "low_quality",
-              "duplicate_candidate",
-              "bad_bbox",
-              "other"
-            ],
-            "title": "Reason",
-            "type": "string"
-          }
-        },
-        "required": [
-          "reason",
-          "items"
-        ],
-        "title": "BatchRejectRequest",
-        "type": "object"
-      },
-      "BatchRejectResponse": {
-        "properties": {
-          "failed": {
-            "title": "Failed",
-            "type": "integer"
-          },
-          "rejected": {
-            "title": "Rejected",
-            "type": "integer"
-          },
-          "results": {
-            "items": {
-              "$ref": "#/components/schemas/BatchRejectResultItem"
-            },
-            "title": "Results",
-            "type": "array"
-          }
-        },
-        "required": [
-          "results",
-          "rejected",
-          "failed"
-        ],
-        "title": "BatchRejectResponse",
-        "type": "object"
-      },
-      "BatchRejectResultItem": {
-        "properties": {
-          "candidate_id": {
-            "title": "Candidate Id",
-            "type": "string"
-          },
-          "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Code"
-          },
-          "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Message"
-          },
-          "ok": {
-            "title": "Ok",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "candidate_id",
-          "ok"
-        ],
-        "title": "BatchRejectResultItem",
-        "type": "object"
-      },
       "BatchReviewResponse": {
         "properties": {
           "effect": {
@@ -5119,6 +4988,35 @@
           "status"
         ],
         "title": "ExecutionRerunOut",
+        "type": "object"
+      },
+      "FaceCalibrationReviewRequest": {
+        "additionalProperties": false,
+        "description": "Decide about several captures at once, only with verdicts that name nobody.\n\nA member label is a genuine pair in the calibration fit, so it is given one face at a time.",
+        "properties": {
+          "candidate_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Candidate Ids",
+            "type": "array"
+          },
+          "verdict": {
+            "enum": [
+              "not_enrolled",
+              "not_usable"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidate_ids",
+          "verdict"
+        ],
+        "title": "FaceCalibrationReviewRequest",
         "type": "object"
       },
       "FaceCalibrationSummaryEnvelope": {
@@ -12423,6 +12321,86 @@
         "title": "ReCameraPayload",
         "type": "object"
       },
+      "ReIDReviewBatchItem": {
+        "additionalProperties": false,
+        "properties": {
+          "base_audit_version": {
+            "title": "Base Audit Version",
+            "type": "integer"
+          },
+          "candidate_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Candidate Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidate_id",
+          "base_audit_version"
+        ],
+        "title": "ReIDReviewBatchItem",
+        "type": "object"
+      },
+      "ReIDReviewBatchRequest": {
+        "additionalProperties": false,
+        "description": "Decide about several body samples at once: only rejections, never approval.\n\n``not_enrolled`` rejects as ``wrong_person``; ``not_usable`` needs the unusable ``reason``.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReIDReviewBatchItem"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "identity_uncertain",
+                  "low_quality",
+                  "duplicate_candidate",
+                  "bad_bbox",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "verdict": {
+            "enum": [
+              "not_enrolled",
+              "not_usable"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict",
+          "items"
+        ],
+        "title": "ReIDReviewBatchRequest",
+        "type": "object"
+      },
       "ReadinessStep": {
         "properties": {
           "detail": {
@@ -13329,6 +13307,7 @@
                   "already_named",
                   "unknown_member",
                   "not_enrolled_member",
+                  "conflict",
                   "upstream_error"
                 ],
                 "type": "string"
@@ -22559,14 +22538,15 @@
         ]
       }
     },
-    "/api/v1/cts/identity/reid-review/reject-batch": {
+    "/api/v1/cts/identity/reid-review/review": {
       "post": {
-        "operationId": "reject_batch",
+        "description": "Reject several samples as not in the household or not usable; there is no batch approve.",
+        "operationId": "review_batch",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BatchRejectRequest"
+                "$ref": "#/components/schemas/ReIDReviewBatchRequest"
               }
             }
           },
@@ -22577,7 +22557,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BatchRejectResponse"
+                  "$ref": "#/components/schemas/BatchReviewResponse"
                 }
               }
             },
@@ -22599,7 +22579,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Reject Batch",
+        "summary": "Review Batch",
         "tags": [
           "cts-reid-review"
         ]
@@ -25729,6 +25709,53 @@
           }
         ],
         "summary": "List Calibration Candidates",
+        "tags": [
+          "face-calibration"
+        ]
+      }
+    },
+    "/api/v1/face-calibration/candidates/review": {
+      "post": {
+        "description": "Label several captures not in the household or not usable; member labels go one by one.",
+        "operationId": "review_calibration_candidates",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FaceCalibrationReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchReviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Review Calibration Candidates",
         "tags": [
           "face-calibration"
         ]

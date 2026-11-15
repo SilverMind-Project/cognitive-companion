@@ -6,6 +6,7 @@
  * lists for it.
  */
 
+import type { components } from "@/generated/api-types";
 import type { ReviewSurface, ReviewVerdict } from "@/services/modules/identity_targets";
 
 export type { ReviewVerdict };
@@ -36,13 +37,42 @@ export const VERDICT_KEYS: Partial<Record<ReviewVerdict, string>> = {
 /** Members reachable by a single number key. */
 export const MAX_KEYED_MEMBERS = 9;
 
-export const REVIEW_ERROR_LABELS: Record<string, string> = {
+const REVIEW_ERROR_LABELS: Record<string, string> = {
   not_found: "no longer exists",
   already_named: "is already named",
   unknown_member: "names someone who is not enrolled",
   not_enrolled_member: "names someone without enrolled faces",
+  conflict: "changed since it was loaded",
   upstream_error: "could not be updated",
 };
+
+export type BatchReviewResponse = components["schemas"]["BatchReviewResponse"];
+
+/**
+ * The notices a batch decision produces: the server's effect when anything applied, and a count
+ * with distinct reasons when some subjects could not be updated (never a failed batch).
+ */
+export function batchReviewNotices(result: BatchReviewResponse): {
+  success: string;
+  warning: string;
+} {
+  const reasons = [
+    ...new Set(
+      result.results
+        .filter((r) => !r.ok)
+        .map((r) => REVIEW_ERROR_LABELS[r.error_code ?? ""] ?? "could not be updated"),
+    ),
+  ];
+  return {
+    success: result.reviewed ? result.effect : "",
+    warning: result.failed ? `${result.failed} not updated: ${reasons.join("; ")}.` : "",
+  };
+}
+
+/** The ids a batch decision applied to, to drop from a selection or queue. */
+export function appliedIds(result: BatchReviewResponse): Set<string> {
+  return new Set(result.results.filter((r) => r.ok).map((r) => r.id));
+}
 
 /** Each review queue: where it lives and what an operator decides there. */
 export const REVIEW_QUEUE_PRESENTATION: Record<

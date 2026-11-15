@@ -131,7 +131,9 @@ Each item shows:
 Actions are `Approve`, `Reject`, `Relabel`, and `Demote`, offered through the shared verdict bar:
 choosing the proposed member approves, choosing another relabels, "Not in the household" rejects as
 `wrong_person`, and "Not usable" rejects with a chosen reason code. No bulk approval. Batch rejection is
-allowed for obvious low-quality candidates. Approval/relabel/reject act on a row in
+allowed (`POST /api/v1/cts/identity/reid-review/review`, verdict `not_enrolled` or `not_usable`
+with its reason, per-item `base_audit_version`, `BatchReviewResponse` with `conflict` for a sample
+that moved). Approval/relabel/reject act on a row in
 `pending_review` or `auto_verified` (an `auto_verified` row is machine-trusted but still fully
 operator-governable); demote acts only on `auto_verified` and returns it to `pending_review`
 without touching its embedding, unlike reject. Approval/relabel require individual visual review.
@@ -189,8 +191,10 @@ household calibration. It is a biometric-admin surface, separate from visitor re
 - Every BFF route under `/api/v1/face-calibration` requires the strict token
   `face_calibration.review` (granted to `caregiver_admin` only). Do not widen it to a caregiver
   role or fold it into `cts.identity.visitors.review`.
-- The labeler recorded on a label is `auth.name` from `require_token`, never a client-supplied
-  field.
+- The labeler recorded on a label is `actor_from_auth(auth)`, never a client-supplied field.
+- Batch labeling (`POST /api/v1/face-calibration/candidates/review`, person-id
+  `label-batch`) accepts only `not_enrolled` and `not_usable` (stored as `not_a_face`). A member
+  label is a genuine pair in the calibration fit, so it is given one face at a time.
 - person-id returns MinIO crop keys, never URLs. `backend/routers/face_calibration.py` presigns
   them per request into `crop_url` with the same `MinioClient` and one-hour TTL the visitor routes
   use; the key itself is never sent to the browser, and neither is an embedding.

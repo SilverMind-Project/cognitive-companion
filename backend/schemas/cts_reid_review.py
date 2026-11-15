@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 RejectReasonCode = Literal[
     "wrong_person",
@@ -157,29 +157,38 @@ class RejectRequest(BaseModel):
     note: str | None = Field(default=None, max_length=2048)
 
 
-class BatchRejectItemRequest(BaseModel):
+# "Not usable" says which kind; "not in the household" is always wrong_person.
+UnusableReasonCode = Literal[
+    "identity_uncertain", "low_quality", "duplicate_candidate", "bad_bbox", "other"
+]
+
+
+class ReIDReviewBatchItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     candidate_id: str = Field(min_length=1, max_length=128)
     base_audit_version: int
 
 
-class BatchRejectRequest(BaseModel):
+class ReIDReviewBatchRequest(BaseModel):
+    """Decide about several body samples at once: only rejections, never approval.
+
+    ``not_enrolled`` rejects as ``wrong_person``; ``not_usable`` needs the unusable ``reason``.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
-    reason: RejectReasonCode
+    verdict: Literal["not_enrolled", "not_usable"]
+    reason: UnusableReasonCode | None = None
     note: str | None = Field(default=None, max_length=2048)
-    items: list[BatchRejectItemRequest] = Field(min_length=1, max_length=200)
+    items: list[ReIDReviewBatchItem] = Field(min_length=1, max_length=200)
 
+    @model_validator(mode="after")
+    def _reason_only_when_unusable(self) -> ReIDReviewBatchRequest:
+        if (self.verdict == "not_usable") != (self.reason is not None):
+            raise ValueError("reason is required for not_usable and only for it")
+        return self
 
-class BatchRejectResultItem(BaseModel):
-    candidate_id: str
-    ok: bool
-    error_code: str | None = None
-    error_message: str | None = None
-
-
-class BatchRejectResponse(BaseModel):
-    results: list[BatchRejectResultItem]
-    rejected: int
-    failed: int
+    @property
+    def reject_reason(self) -> RejectReasonCode:
+        return "wrong_person" if self.reason is None else self.reason

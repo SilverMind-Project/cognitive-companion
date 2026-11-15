@@ -11,12 +11,15 @@
  */
 
 import { computed, reactive } from "vue";
+import { appliedIds, batchReviewNotices } from "@/constants/identityReview";
 import {
   deleteCalibrationCandidate,
   getFaceCalibrationSummary,
   labelCalibrationCandidate,
   listCalibrationCandidates,
   rejectCalibrationCandidate,
+  reviewCalibrationCandidates,
+  type CalibrationBatchReview,
   type CalibrationCandidateView,
   type FaceCalibrationSummary,
 } from "@/services/modules/face_calibration";
@@ -27,6 +30,7 @@ import { ApiError } from "@/services/http";
 interface Notify {
   success: (message: string) => void;
   error: (message: string) => void;
+  warning: (message: string) => void;
 }
 
 /** Residents reachable by a single number key. */
@@ -49,6 +53,9 @@ export function useFaceCalibrationReview(notify: Notify) {
     // The caller lacks `face_calibration.review`; retrying cannot help, so the view shows no queue.
     forbidden: false,
     acting: false,
+    // Select several: the operator picks captures from the loaded queue for one batch decision.
+    selecting: false,
+    selection: [] as string[],
   });
 
   const current = computed(() => state.queue[state.index] ?? null);
@@ -162,6 +169,54 @@ export function useFaceCalibrationReview(notify: Notify) {
     );
   }
 
+  function setSelecting(on: boolean) {
+    state.selecting = on;
+    state.selection = [];
+  }
+
+  function toggleSelection(candidateId: string) {
+    state.selection = state.selection.includes(candidateId)
+      ? state.selection.filter((id) => id !== candidateId)
+      : [...state.selection, candidateId];
+  }
+
+  function selectAll() {
+    state.selection = state.queue.map((c) => c.candidate_id);
+  }
+
+  function clearSelection() {
+    state.selection = [];
+  }
+
+  /**
+   * Label the selected captures in one batch. Only verdicts that name nobody are offered here; a
+   * member label is given one face at a time. Applied captures leave the queue; any that could
+   * not be updated stay selected and are reported.
+   */
+  async function reviewSelected(verdict: CalibrationBatchReview["verdict"]) {
+    if (!state.selection.length || state.acting) return;
+    state.acting = true;
+    try {
+      const result = await reviewCalibrationCandidates({
+        candidate_ids: [...state.selection],
+        verdict,
+      });
+      const notices = batchReviewNotices(result);
+      if (notices.success) notify.success(notices.success);
+      if (notices.warning) notify.warning(notices.warning);
+      const applied = appliedIds(result);
+      state.queue = state.queue.filter((c) => !applied.has(c.candidate_id));
+      state.selection = state.selection.filter((id) => !applied.has(id));
+      state.index = Math.min(state.index, Math.max(0, state.queue.length - 1));
+      await loadMoreIfNeeded();
+      await refreshSummary().catch(() => undefined);
+    } catch (err) {
+      notify.error(`Could not save the labels: ${errorText(err)}`);
+    } finally {
+      state.acting = false;
+    }
+  }
+
   function next() {
     if (state.index < state.queue.length - 1) state.index += 1;
   }
@@ -183,6 +238,11 @@ export function useFaceCalibrationReview(notify: Notify) {
       remove,
       next,
       previous,
+      setSelecting,
+      toggleSelection,
+      selectAll,
+      clearSelection,
+      reviewSelected,
     },
   };
 }

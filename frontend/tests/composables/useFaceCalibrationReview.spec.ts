@@ -6,6 +6,7 @@ const calibration = vi.hoisted(() => ({
   rejectCalibrationCandidate: vi.fn(),
   deleteCalibrationCandidate: vi.fn(),
   getFaceCalibrationSummary: vi.fn(),
+  reviewCalibrationCandidates: vi.fn(),
 }));
 const targetsApi = vi.hoisted(() => ({ getIdentityTargets: vi.fn() }));
 
@@ -15,7 +16,7 @@ vi.mock("@/services/modules/identity_targets", () => targetsApi);
 import { useFaceCalibrationReview } from "@/composables/useFaceCalibrationReview";
 import { ApiError } from "@/services/http";
 
-const notify = { success: vi.fn(), error: vi.fn() };
+const notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
 
 function capture(id: string) {
   return {
@@ -50,6 +51,52 @@ beforeEach(() => {
 });
 
 describe("useFaceCalibrationReview", () => {
+  it("labels selected captures in one batch and keeps the ones that could not be updated", async () => {
+    calibration.listCalibrationCandidates.mockResolvedValue({
+      candidates: [capture("c1"), capture("c2"), capture("c3")],
+      next_cursor: null,
+    });
+    calibration.reviewCalibrationCandidates.mockResolvedValue({
+      results: [
+        { id: "c1", ok: true, error_code: null },
+        { id: "c2", ok: false, error_code: "not_found" },
+      ],
+      reviewed: 1,
+      failed: 1,
+      effect: "Left out of the fit.",
+    });
+    const { state, actions } = useFaceCalibrationReview(notify);
+    await actions.load();
+    actions.setSelecting(true);
+    actions.toggleSelection("c1");
+    actions.toggleSelection("c2");
+
+    await actions.reviewSelected("not_usable");
+
+    expect(calibration.reviewCalibrationCandidates).toHaveBeenCalledWith({
+      candidate_ids: ["c1", "c2"],
+      verdict: "not_usable",
+    });
+    expect(notify.success).toHaveBeenCalledWith("Left out of the fit.");
+    expect(notify.warning).toHaveBeenCalledWith("1 not updated: no longer exists.");
+    expect(state.queue.map((c) => c.candidate_id)).toEqual(["c2", "c3"]);
+    expect(state.selection).toEqual(["c2"]);
+  });
+
+  it("select all takes the loaded queue and leaving selection clears it", async () => {
+    calibration.listCalibrationCandidates.mockResolvedValue({
+      candidates: [capture("c1"), capture("c2")],
+      next_cursor: null,
+    });
+    const { state, actions } = useFaceCalibrationReview(notify);
+    await actions.load();
+    actions.setSelecting(true);
+    actions.selectAll();
+    expect(state.selection).toEqual(["c1", "c2"]);
+    actions.setSelecting(false);
+    expect(state.selection).toEqual([]);
+  });
+
   it("keys non-guest residents from the shared list, in its name order", async () => {
     calibration.listCalibrationCandidates.mockResolvedValue({ candidates: [], next_cursor: null });
     const { keyedResidents, actions } = useFaceCalibrationReview(notify);

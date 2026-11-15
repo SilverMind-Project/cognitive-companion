@@ -12,7 +12,11 @@ from backend.core.auth import AuthContext, get_auth_context, invalidate_lookup_c
 from backend.core.exceptions import register_exception_handlers
 from backend.integrations.minio_client import MinioClient
 from backend.integrations.person_id_client import PersonIDUpstreamError
-from backend.routers.dependencies import get_config_minio_client, get_face_calibration_service
+from backend.routers.dependencies import (
+    get_config_minio_client,
+    get_face_calibration_service,
+    get_identity_review_registry,
+)
 from backend.routers.face_calibration import router
 from backend.schemas.face_calibration import (
     CalibrationCandidateListResponse,
@@ -20,6 +24,7 @@ from backend.schemas.face_calibration import (
     FaceCalibrationSummaryEnvelope,
 )
 from backend.schemas.identity_review import BatchReviewResponse, ReviewItemResult
+from backend.services.identity_review.registry import ReviewSubject
 
 _VIEW = CalibrationCandidateView(
     candidate_id="c1",
@@ -53,7 +58,8 @@ def _build(permissions: list[str], *, name: str = "caregiver-ops"):
     )
     svc.label = AsyncMock(return_value=_VIEW)
     svc.reject = AsyncMock(return_value=_VIEW)
-    svc.review = AsyncMock(
+    svc.registry = MagicMock()
+    svc.registry.decide = AsyncMock(
         return_value=BatchReviewResponse(
             results=[ReviewItemResult(id="c1", ok=True)], reviewed=1, failed=0, effect="Labeled."
         )
@@ -69,6 +75,7 @@ def _build(permissions: list[str], *, name: str = "caregiver-ops"):
         key="x", name=name, permissions=permissions
     )
     app.dependency_overrides[get_face_calibration_service] = lambda: svc
+    app.dependency_overrides[get_identity_review_registry] = lambda: svc.registry
     app.dependency_overrides[get_config_minio_client] = lambda: minio
     invalidate_lookup_cache()
     return TestClient(app), svc, minio
@@ -145,16 +152,16 @@ def test_batch_review_records_the_caller_and_refuses_member_labels() -> None:
         json={"candidate_ids": ["c1", "c2"], "verdict": "not_usable"},
     )
     assert ok.status_code == 200
-    request = svc.review.await_args.args[0]
-    assert (request.candidate_ids, request.verdict) == (["c1", "c2"], "not_usable")
-    assert svc.review.await_args.kwargs["actor"] == "admin-tablet"
+    args, kwargs = svc.registry.decide.await_args
+    assert args == ("face_calibration", "not_usable", [ReviewSubject("c1"), ReviewSubject("c2")])
+    assert kwargs["actor"] == "admin-tablet"
 
     member = client.post(
         "/api/v1/face-calibration/candidates/review",
         json={"candidate_ids": ["c1"], "verdict": "is_member", "target_identity_id": "amma"},
     )
     assert member.status_code == 422
-    assert svc.review.await_count == 1
+    assert svc.registry.decide.await_count == 1
 
 
 @pytest.mark.parametrize(

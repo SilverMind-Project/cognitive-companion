@@ -5,14 +5,19 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from backend.core.exceptions import ValidationError
 from backend.integrations.person_id_client import (
     CalibrationCandidateInfo,
     CalibrationCandidatePage,
     CalibrationLabelItem,
 )
-from backend.schemas.face_calibration import FaceCalibrationReviewRequest
-from backend.services.face_calibration import FaceCalibrationReviewService
-from backend.services.identity_review.vocabulary import effect_text
+from backend.services.face_calibration import (
+    FaceCalibrationReviewAdapter,
+    FaceCalibrationReviewService,
+)
+from backend.services.identity_review.registry import ReviewDecision, ReviewSubject
 
 _INFO = CalibrationCandidateInfo(
     candidate_id="c1",
@@ -67,7 +72,7 @@ async def test_label_passes_the_actor_as_labeler() -> None:
     assert view.crop_url is None  # no presigner given
 
 
-async def test_review_labels_each_capture_and_states_the_effect() -> None:
+async def test_review_adapter_labels_each_capture_as_its_stored_kind() -> None:
     client = MagicMock()
     client.label_calibration_candidates = AsyncMock(
         return_value=[
@@ -76,21 +81,32 @@ async def test_review_labels_each_capture_and_states_the_effect() -> None:
             CalibrationLabelItem(candidate_id="c3", ok=False, error_code="other"),
         ]
     )
-    svc = FaceCalibrationReviewService(client)
-
-    result = await svc.review(
-        FaceCalibrationReviewRequest(candidate_ids=["c1", "c2", "c3"], verdict="not_usable"),
-        actor="Caregiver Admin",
+    decision = ReviewDecision(
+        surface="face_calibration",
+        verdict="not_usable",
+        subjects=(ReviewSubject("c1"), ReviewSubject("c2"), ReviewSubject("c3")),
     )
+
+    results = await FaceCalibrationReviewAdapter(client).apply(decision, actor="Caregiver Admin")
 
     # Not usable is stored as not_a_face, which the calibration fit skips.
     client.label_calibration_candidates.assert_awaited_once_with(
         ["c1", "c2", "c3"], label_kind="not_a_face", labeled_by="Caregiver Admin"
     )
-    assert [(r.id, r.ok, r.error_code) for r in result.results] == [
+    assert [(r.id, r.ok, r.error_code) for r in results] == [
         ("c1", True, None),
         ("c2", False, "not_found"),
         ("c3", False, "upstream_error"),
     ]
-    assert (result.reviewed, result.failed) == (1, 2)
-    assert result.effect == effect_text("face_calibration", "not_usable")
+
+
+async def test_review_adapter_never_applies_a_member_label() -> None:
+    client = MagicMock()
+    client.label_calibration_candidates = AsyncMock()
+    decision = ReviewDecision(
+        surface="face_calibration", verdict="is_member", subjects=(ReviewSubject("c1"),)
+    )
+
+    with pytest.raises(ValidationError):
+        await FaceCalibrationReviewAdapter(client).apply(decision, actor="a")
+    client.label_calibration_candidates.assert_not_called()

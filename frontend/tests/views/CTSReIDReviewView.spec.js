@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mount, flushPromises } from "@vue/test-utils";
+import { mount, flushPromises, RouterLinkStub } from "@vue/test-utils";
 import { ref, computed } from "vue";
 
 vi.mock("@/composables/useNotify", () => ({
@@ -32,7 +32,18 @@ vi.mock("@/components/cts/identity/IdentityBboxOverlay.vue", () => ({
   },
 }));
 
-const { store } = vi.hoisted(() => ({ store: {} }));
+const { store, readinessSteps } = vi.hoisted(() => ({ store: {}, readinessSteps: { value: {} } }));
+
+vi.mock("@/composables/useIdentityReadiness", async () => {
+  const { computed } = await import("vue");
+  return {
+    useIdentityReadiness: () => ({
+      state: {},
+      stepByKey: computed(() => readinessSteps.value),
+      actions: { load: vi.fn() },
+    }),
+  };
+});
 
 vi.mock("@/composables/useReIDReview", () => ({
   useReIDReview: () => store.value,
@@ -141,13 +152,23 @@ const stubs = {
 
 function mountView() {
   return mount(CTSReIDReviewView, {
-    global: { stubs, mocks: { $vuetify: { display: { smAndDown: false } } } },
+    global: {
+      stubs: { ...stubs, RouterLink: RouterLinkStub },
+      mocks: { $vuetify: { display: { smAndDown: false } } },
+    },
   });
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  readinessSteps.value = {};
 });
+
+function emptyQueueStore() {
+  const s = makeStore({ candidates: [] });
+  s.state.counts.value = { pending_review: 0, auto_verified: 0, operator_verified: 0, rejected: 0 };
+  return s;
+}
 
 describe("CTSReIDReviewView", () => {
   it("uses the standard admin page title", async () => {
@@ -186,6 +207,38 @@ describe("CTSReIDReviewView", () => {
     expect(wrapper.text()).toContain("The review queue is empty");
     expect(wrapper.text()).toContain("calibrated face match");
     expect(wrapper.text()).not.toContain("No candidates match");
+  });
+
+  it("says no samples can be proposed while calibrated faces are not live", async () => {
+    readinessSteps.value = {
+      artifact: { key: "artifact", state: "blocked" },
+      face_policy: { key: "face_policy", state: "attention" },
+    };
+    store.value = emptyQueueStore();
+    const wrapper = mountView();
+    await flushPromises();
+    const hint = wrapper.get("[data-test='not-proposable']");
+    expect(hint.text()).toContain("no samples can be proposed");
+    expect(hint.text()).toContain("See identity setup");
+  });
+
+  it("drops the readiness hint once calibrated faces are live", async () => {
+    readinessSteps.value = {
+      artifact: { key: "artifact", state: "ready" },
+      face_policy: { key: "face_policy", state: "ready" },
+    };
+    store.value = emptyQueueStore();
+    const wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.text()).toContain("The review queue is empty");
+    expect(wrapper.find("[data-test='not-proposable']").exists()).toBe(false);
+  });
+
+  it("shows no readiness hint when readiness could not be read", async () => {
+    store.value = emptyQueueStore();
+    const wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.find("[data-test='not-proposable']").exists()).toBe(false);
   });
 
   it("switches lifecycle state through the segmented picker", async () => {

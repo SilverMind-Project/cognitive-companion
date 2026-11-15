@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { flushPromises, mount } from "@vue/test-utils";
+import { flushPromises, mount, RouterLinkStub } from "@vue/test-utils";
 import { computed, reactive } from "vue";
 
 vi.mock("@/composables/useNotify.js", () => ({
@@ -26,7 +26,42 @@ vi.mock("@/composables/useFaceCalibrationReview", () => ({
   useFaceCalibrationReview: () => store.value,
 }));
 
+const { readinessSteps } = vi.hoisted(() => ({
+  readinessSteps: { value: {} as Record<string, unknown> },
+}));
+vi.mock("@/composables/useIdentityReadiness", async () => {
+  const { computed } = await import("vue");
+  return {
+    useIdentityReadiness: () => ({
+      state: {},
+      stepByKey: computed(() => readinessSteps.value),
+      actions: { load: vi.fn() },
+    }),
+  };
+});
+
 import FaceCalibrationView from "@/views/admin/FaceCalibrationView.vue";
+
+const stubs = {
+  RouterLink: RouterLinkStub,
+  "v-spacer": { template: "<span />" },
+  "v-chip": { template: "<span class='v-chip'><slot /></span>", props: ["color"] },
+  "v-alert": { template: "<div class='v-alert'><slot /><slot name='append' /></div>" },
+  "v-btn": { template: "<button :disabled='disabled'><slot /></button>", props: ["disabled"] },
+  "v-progress-circular": { template: "<div />" },
+  "v-progress-linear": { template: "<div />", props: ["modelValue"] },
+  "v-row": { template: "<div><slot /></div>" },
+  "v-col": { template: "<div><slot /></div>" },
+  "v-card": { template: "<div><slot /></div>" },
+  "v-card-title": { template: "<div><slot /></div>" },
+  "v-card-text": { template: "<div><slot /></div>" },
+  "v-card-actions": { template: "<div><slot /></div>" },
+  "v-dialog": { template: "<div v-if='modelValue'><slot /></div>", props: ["modelValue"] },
+};
+
+function mountView(options: { attachTo?: HTMLElement } = {}) {
+  return mount(FaceCalibrationView, { ...options, global: { stubs } });
+}
 
 type Store = ReturnType<typeof makeStore>;
 const current = () => store.value as Store;
@@ -85,11 +120,49 @@ function press(key: string, target: EventTarget = window) {
 beforeEach(() => {
   store.value = makeStore();
   confirmResult.value = true;
+  readinessSteps.value = {};
 });
 
+function emptyAndCaptureOff() {
+  const s = current();
+  s.state.queue = [];
+  s.state.summary = { ...s.state.summary, capture_enabled: false };
+}
+
 describe("FaceCalibrationView", () => {
+  it("links to identity setup as step 3 of 8", () => {
+    const wrapper = mountView();
+    const link = wrapper.get("[data-test='setup-link']");
+    expect(link.text()).toBe("Step 3 of 8 in identity setup");
+    expect(wrapper.getComponent(RouterLinkStub).props("to")).toBe("/admin/identity-setup");
+    wrapper.unmount();
+  });
+
+  it("names the next step in the empty queue when capture is off", async () => {
+    emptyAndCaptureOff();
+    readinessSteps.value = {
+      capture: { key: "capture", state: "blocked", next_action: "enable_capture" },
+    };
+    const wrapper = mountView();
+    await flushPromises();
+    const next = wrapper.get("[data-test='capture-next']").text();
+    expect(next).toContain("calibration_capture.enabled");
+    expect(next).toContain("See identity setup");
+    wrapper.unmount();
+  });
+
+  it("keeps the plain empty state while capture is on or readiness is unavailable", async () => {
+    const s = current();
+    s.state.queue = [];
+    const wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.find("[data-test='capture-next']").exists()).toBe(false);
+    expect(wrapper.get("[data-test='empty-queue']").text()).toContain("switched on");
+    wrapper.unmount();
+  });
+
   it("loads on mount and shows the capture without a percentage", async () => {
-    const wrapper = mount(FaceCalibrationView, { attachTo: document.body });
+    const wrapper = mountView({ attachTo: document.body });
     await flushPromises();
     expect(current().actions.load).toHaveBeenCalled();
     const text = wrapper.get("[data-test='current-capture']").text();
@@ -100,7 +173,7 @@ describe("FaceCalibrationView", () => {
   });
 
   it("labels from the keyboard: numbers for residents, n and x for the rest", async () => {
-    const wrapper = mount(FaceCalibrationView, { attachTo: document.body });
+    const wrapper = mountView({ attachTo: document.body });
     press("1");
     press("n");
     press("x");
@@ -115,7 +188,7 @@ describe("FaceCalibrationView", () => {
   });
 
   it("ignores keys typed into an input and stops listening after unmount", async () => {
-    const wrapper = mount(FaceCalibrationView, { attachTo: document.body });
+    const wrapper = mountView({ attachTo: document.body });
     const input = document.createElement("input");
     document.body.appendChild(input);
     press("1", input);
@@ -127,7 +200,7 @@ describe("FaceCalibrationView", () => {
   });
 
   it("deletes only after confirmation", async () => {
-    const wrapper = mount(FaceCalibrationView, { attachTo: document.body });
+    const wrapper = mountView({ attachTo: document.body });
     confirmResult.value = false;
     await wrapper.get("[data-test='delete']").trigger("click");
     await flushPromises();
@@ -141,7 +214,7 @@ describe("FaceCalibrationView", () => {
 
   it("shows an empty state when nothing is waiting", async () => {
     current().state.queue = [];
-    const wrapper = mount(FaceCalibrationView);
+    const wrapper = mountView();
     expect(wrapper.find("[data-test='empty-queue']").exists()).toBe(true);
     wrapper.unmount();
   });
@@ -149,7 +222,7 @@ describe("FaceCalibrationView", () => {
   it("shows the forbidden state instead of the queue", async () => {
     current().state.queue = [];
     current().state.forbidden = true;
-    const wrapper = mount(FaceCalibrationView);
+    const wrapper = mountView();
     expect(wrapper.find("[data-test='forbidden']").exists()).toBe(true);
     expect(wrapper.find("[data-test='empty-queue']").exists()).toBe(false);
     expect(wrapper.find("[data-test='load-error']").exists()).toBe(false);

@@ -77,6 +77,11 @@ const routes = [
         component: () => import("../views/admin/VisitorsView.vue"),
       },
       {
+        path: "identity-setup",
+        name: "admin-identity-setup",
+        component: () => import("../views/admin/IdentityReadinessView.vue"),
+      },
+      {
         path: "face-calibration",
         name: "admin-face-calibration",
         component: () => import("../views/admin/FaceCalibrationView.vue"),

@@ -148,6 +148,14 @@
                     face match confirms the person a track is already following. Samples appear here
                     as household members are recognized by face on camera.
                   </div>
+                  <div
+                    v-if="calibratedFacesNotLive"
+                    class="text-body-2 empty-explainer mx-auto mt-2"
+                    data-test="not-proposable"
+                  >
+                    Calibrated faces are not live yet, so no samples can be proposed.
+                    <router-link to="/admin/identity-setup">See identity setup</router-link>
+                  </div>
                 </template>
                 <span v-else class="text-medium-emphasis">
                   No candidates match the current filters.
@@ -561,6 +569,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import { useReIDReview } from "@/composables/useReIDReview";
+import { useIdentityReadiness } from "@/composables/useIdentityReadiness";
 import { useNotify } from "@/composables/useNotify";
 import { useConfirm } from "@/composables/useConfirm";
 import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode";
@@ -634,6 +643,14 @@ const stateOptions = computed(() =>
       : STATE_LABELS[value],
   })),
 );
+
+// Readiness only explains an empty queue; if it fails to load, the queue works without it.
+const readiness = useIdentityReadiness();
+const calibratedFacesNotLive = computed(() => {
+  const steps = readiness.stepByKey.value;
+  if (!steps.artifact || !steps.face_policy) return false;
+  return steps.artifact.state !== "ready" || steps.face_policy.state !== "ready";
+});
 
 // Counts span every state, so all-zero means nothing has ever been proposed (not a filter miss).
 const queueEmpty = computed(
@@ -779,7 +796,10 @@ async function doBatchReject() {
   batchDialog.value = false;
 }
 
-onMounted(refreshAll);
+onMounted(() => {
+  void refreshAll();
+  void readiness.actions.load();
+});
 </script>
 
 <style scoped>

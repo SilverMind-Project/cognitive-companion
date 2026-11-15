@@ -170,6 +170,15 @@ a malformed upstream), the MCP/BFF parity test for the summary, and composable a
 keyboard labeling, a failed label keeping the capture, load errors with retry, a 403 shown as the
 forbidden state (no queue, no retry), confirm-before-delete, and the empty queue.
 
+## Identity setup readiness
+
+`/admin/identity-setup` (`IdentityReadinessView`) is the one status surface for the identity
+chain: enroll, capture, label, fit and deploy, calibrated faces, body samples, review, vote.
+Identity admin pages link to it instead of explaining the chain themselves, and a new step joins
+`IdentityReadinessService` (`backend/services/identity_readiness_rules.py`) instead of becoming a
+new panel. The server decides every state and next action; `constants/identityReadiness.ts` only
+words them. A page that shows a readiness hint must work when readiness fails to load.
+
 ## Component and composable boundaries
 
 Required shared ownership:

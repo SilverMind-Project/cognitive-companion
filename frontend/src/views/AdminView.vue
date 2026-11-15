@@ -308,6 +308,7 @@ const navSections = [
     items: [
       { to: "/admin/persons", icon: "mdi-account-group-outline", title: "Members & Enrollment" },
       { to: "/admin/visitors", icon: "mdi-account-question-outline", title: "Visitors" },
+      { to: "/admin/identity-setup", icon: "mdi-clipboard-check-outline", title: "Identity Setup" },
       { to: "/admin/face-calibration", icon: "mdi-face-recognition", title: "Face Calibration" },
       { to: "/admin/activities", icon: "mdi-run", title: "Activities" },
       { to: "/admin/reports", icon: "mdi-chart-box", title: "Daily Reports" },

@@ -7,6 +7,11 @@
           Label faces captured by the household cameras so face matches can be turned into a
           trustworthy probability. Unlabeled captures are deleted after 30 days.
         </div>
+        <div class="text-caption mt-1">
+          <router-link to="/admin/identity-setup" data-test="setup-link"
+            >Step 3 of {{ IDENTITY_CHAIN_LENGTH }} in identity setup</router-link
+          >
+        </div>
       </div>
       <v-spacer />
       <v-chip
@@ -141,7 +146,12 @@
 
         <v-card v-else flat class="pa-8 text-center glass-card" data-test="empty-queue">
           <v-card-text class="text-grey text-h6">Nothing waiting to be labeled</v-card-text>
-          <v-card-text class="text-grey">
+          <v-card-text v-if="captureOffNextAction" class="text-grey" data-test="capture-next">
+            Capture is off, so there is nothing to label. Next:
+            {{ captureOffNextAction }}.
+            <router-link to="/admin/identity-setup">See identity setup</router-link>
+          </v-card-text>
+          <v-card-text v-else class="text-grey">
             Captures appear here while calibration capture is switched on in the person
             identification service settings.
           </v-card-text>
@@ -198,15 +208,26 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted } from "vue";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { useFaceCalibrationReview } from "@/composables/useFaceCalibrationReview";
+import { useIdentityReadiness } from "@/composables/useIdentityReadiness";
+import { ACTION_PRESENTATION, IDENTITY_CHAIN_LENGTH } from "@/constants/identityReadiness";
 import { useNotify } from "@/composables/useNotify.js";
 import { formatDateTime } from "@/services/timezone.js";
 
 const { notify } = useNotify();
 const { state, current, keyedResidents, actions } = useFaceCalibrationReview(notify);
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
+// Readiness only adds a hint to the empty queue; if it fails to load the page works without it.
+const readiness = useIdentityReadiness();
+
+const captureOffNextAction = computed(() => {
+  if (!state.summary || state.summary.capture_enabled) return "";
+  const step = readiness.stepByKey.value.capture;
+  if (!step || step.next_action === "none") return "";
+  return ACTION_PRESENTATION[step.next_action].text;
+});
 
 function residentName(id: string): string {
   return state.residents.find((r) => r.id === id)?.name ?? id;
@@ -242,6 +263,7 @@ function onKeydown(event: KeyboardEvent) {
 onMounted(() => {
   window.addEventListener("keydown", onKeydown);
   void actions.load();
+  void readiness.actions.load();
 });
 onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 </script>

@@ -2,8 +2,9 @@
  * The household members an operator may say a face, body, or track belongs to.
  *
  * One store for every identity decision surface, so they all offer the same people with the same
- * names. Loaded once per session and refreshed on demand (after a member is added or named); a
- * load already in flight is shared instead of repeated.
+ * names. Each review page refreshes it when it opens (`load(true)`), and naming a visitor
+ * refreshes it, so a member added elsewhere appears without a reload; a picker on the same page
+ * reuses the cached list, and a load already in flight is shared instead of repeated.
  */
 
 import { defineStore } from "pinia";

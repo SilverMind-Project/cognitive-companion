@@ -65,7 +65,7 @@ export function useFaceCalibrationReview(notify: Notify) {
     try {
       const [page] = await Promise.all([
         listCalibrationCandidates("unlabeled"),
-        targets.load(),
+        targets.load(true),
         refreshSummary(),
       ]);
       if (targets.error) throw new Error(targets.error);

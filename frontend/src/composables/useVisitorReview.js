@@ -14,6 +14,7 @@
 import { reactive } from "vue";
 import { ApiError } from "@/services/http";
 import { REVIEW_ERROR_LABELS } from "@/constants/identityReview";
+import { useIdentityTargetsStore } from "@/stores/identityTargets";
 import {
   getVisitorCluster,
   listVisitorClusters,
@@ -23,6 +24,7 @@ import {
 } from "@/services/modules/visitors";
 
 export function useVisitorReview(notify) {
+  const targets = useIdentityTargetsStore();
   const state = reactive({
     clusters: [],
     total: 0,
@@ -111,7 +113,11 @@ export function useVisitorReview(notify) {
   function nameCluster(clusterId, { personId, name }) {
     return _runAction("Visitor named", () =>
       nameVisitorCluster(clusterId, { person_id: personId, name }),
-    );
+    ).then((result) => {
+      // Naming created a household member: every picker must offer them from now on.
+      void targets.load(true);
+      return result;
+    });
   }
 
   /**

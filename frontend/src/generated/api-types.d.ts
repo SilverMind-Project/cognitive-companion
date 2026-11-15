@@ -1263,30 +1263,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cts/identity/correction-targets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Correction Targets
-         * @description Authoritative correction-target list: active household members.
-         *
-         *     Independent of ReID gallery population; gallery counts are decoration only,
-         *     and an upstream gallery failure is surfaced via ``gallery_available`` rather
-         *     than dropping targets.
-         */
-        get: operations["get_correction_targets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/cts/identity/corrections/apply": {
         parameters: {
             query?: never;
@@ -6513,36 +6489,6 @@ export interface components {
             range_id: string;
             /** Revision Id */
             revision_id: string;
-        };
-        /** CorrectionTargetResponse */
-        CorrectionTargetResponse: {
-            /** Display Name */
-            display_name: string;
-            /** Gallery Entry Count */
-            gallery_entry_count?: number | null;
-            /** Gallery Verified Count */
-            gallery_verified_count?: number | null;
-            /** Identity Id */
-            identity_id: string;
-            /** Is Active */
-            is_active: boolean;
-            /**
-             * Is Guest
-             * @default false
-             */
-            is_guest: boolean;
-        };
-        /** CorrectionTargetsResponse */
-        CorrectionTargetsResponse: {
-            /**
-             * Gallery Available
-             * @default true
-             */
-            gallery_available: boolean;
-            /** Gallery Error */
-            gallery_error?: string | null;
-            /** Targets */
-            targets?: components["schemas"]["CorrectionTargetResponse"][];
         };
         /** CronExpressionRef */
         CronExpressionRef: {
@@ -14170,26 +14116,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_correction_targets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CorrectionTargetsResponse"];
                 };
             };
         };

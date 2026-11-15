@@ -221,8 +221,6 @@ export const cts = {
 
   // ── Identity corrections ──────────────────────────────────────────────────
   getIdentities: () => req("/identity/identities"),
-  // Authoritative correction targets (active household members), independent of
-  // the ReID gallery. Used for filter options, not page-derived identities.
   mergeIdentities: (payload) =>
     req("/identity/merges", {
       method: "POST",

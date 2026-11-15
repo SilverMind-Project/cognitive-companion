@@ -2994,85 +2994,6 @@
         "title": "CorrectionResultResponse",
         "type": "object"
       },
-      "CorrectionTargetResponse": {
-        "properties": {
-          "display_name": {
-            "title": "Display Name",
-            "type": "string"
-          },
-          "gallery_entry_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gallery Entry Count"
-          },
-          "gallery_verified_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gallery Verified Count"
-          },
-          "identity_id": {
-            "title": "Identity Id",
-            "type": "string"
-          },
-          "is_active": {
-            "title": "Is Active",
-            "type": "boolean"
-          },
-          "is_guest": {
-            "default": false,
-            "title": "Is Guest",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "identity_id",
-          "display_name",
-          "is_active"
-        ],
-        "title": "CorrectionTargetResponse",
-        "type": "object"
-      },
-      "CorrectionTargetsResponse": {
-        "properties": {
-          "gallery_available": {
-            "default": true,
-            "title": "Gallery Available",
-            "type": "boolean"
-          },
-          "gallery_error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gallery Error"
-          },
-          "targets": {
-            "items": {
-              "$ref": "#/components/schemas/CorrectionTargetResponse"
-            },
-            "title": "Targets",
-            "type": "array"
-          }
-        },
-        "title": "CorrectionTargetsResponse",
-        "type": "object"
-      },
       "CronExpressionRef": {
         "properties": {
           "expression": {
@@ -21804,33 +21725,6 @@
         "summary": "Override Bbox",
         "tags": [
           "cts-bboxes"
-        ]
-      }
-    },
-    "/api/v1/cts/identity/correction-targets": {
-      "get": {
-        "description": "Authoritative correction-target list: active household members.\n\nIndependent of ReID gallery population; gallery counts are decoration only,\nand an upstream gallery failure is surfaced via ``gallery_available`` rather\nthan dropping targets.",
-        "operationId": "get_correction_targets",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CorrectionTargetsResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ],
-        "summary": "Get Correction Targets",
-        "tags": [
-          "cts-ph"
         ]
       }
     },

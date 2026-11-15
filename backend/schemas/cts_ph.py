@@ -284,27 +284,6 @@ class PHCoPresentResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# correction targets (active household roster, gallery-independent)
-# ---------------------------------------------------------------------------
-
-
-class CorrectionTargetResponse(BaseModel):
-    identity_id: str
-    display_name: str
-    is_active: bool
-    is_guest: bool = False
-    # Non-authoritative gallery decoration; null when gallery is unavailable.
-    gallery_entry_count: int | None = None
-    gallery_verified_count: int | None = None
-
-
-class CorrectionTargetsResponse(BaseModel):
-    targets: list[CorrectionTargetResponse] = Field(default_factory=list)
-    gallery_available: bool = True
-    gallery_error: str | None = None
-
-
-# ---------------------------------------------------------------------------
 # WebSocket event payloads
 # Re-exported from cts_ph_ws for backward compatibility.
 # ---------------------------------------------------------------------------

@@ -57,13 +57,13 @@ from backend.schemas.cts_ph import (
     SplitRequest,
     SplitResponse,
 )
-from backend.services.cts.correction_targets import list_correction_targets
 from backend.services.cts.identity_correction_service import (
     CorrectionContractError,
     CorrectionUpstreamError,
     IdentityCorrectionService,
 )
 from backend.services.cts.ph_enrichment import PHEnrichmentService
+from backend.services.identity_targets import list_identity_targets
 
 logger = get_logger(__name__)
 
@@ -173,7 +173,7 @@ async def get_correction_targets(
     than dropping targets.
     """
     cts_enabled()
-    result = await list_correction_targets(db, client)
+    result = await list_identity_targets(db, client)
     return CorrectionTargetsResponse(
         targets=[
             CorrectionTargetResponse(

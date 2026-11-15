@@ -64,3 +64,21 @@ def test_caregiver_roles_get_the_targets(role: str) -> None:
 
 def test_a_key_without_the_token_is_forbidden() -> None:
     assert _client(["rooms:read"]).get("/api/v1/identity/targets").status_code == 403
+
+
+@pytest.mark.parametrize("role", ["caregiver", "caregiver_admin"])
+def test_caregiver_roles_read_the_review_vocabulary(role: str) -> None:
+    body = _client([role]).get("/api/v1/identity/review-vocabulary").json()
+
+    by_surface = {s["surface"]: s for s in body["surfaces"]}
+    assert set(by_surface) == {"visitors", "face_calibration", "reid_review"}
+    visitors = {v["verdict"]: v for v in by_surface["visitors"]["verdicts"]}
+    assert visitors["is_member"]["needs_enrolled_face"] is True
+    assert body["member_placeholder"] in visitors["is_member"]["effect"]
+
+
+def test_review_vocabulary_needs_its_token() -> None:
+    assert (
+        _client(["identity_targets:read"]).get("/api/v1/identity/review-vocabulary").status_code
+        == 403
+    )

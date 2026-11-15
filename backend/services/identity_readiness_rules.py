@@ -19,6 +19,7 @@ from backend.schemas.identity_readiness import (
     ReadinessState,
     ReadinessStep,
     ReadinessStepKey,
+    ReviewQueue,
 )
 from backend.schemas.identity_roster import RosterHealthEnvelope
 
@@ -450,3 +451,23 @@ def body_gallery_step(cts: CTSIdentityReadiness | SourceFailure) -> ReadinessSte
             next_action="none" if live else "set_policy_calibrated",
         )
     return ReadinessStep(key="body_gallery", state="ready", detail=summary, next_action="none")
+
+
+def review_queues(
+    roster: RosterHealthEnvelope | SourceFailure,
+    summary: CalibrationSummaryInfo | SourceFailure,
+    cts: CTSIdentityReadiness | SourceFailure,
+) -> list[ReviewQueue]:
+    """How much waits on each review surface, from the reads the steps already made."""
+    visitors = (
+        None if isinstance(roster, SourceFailure) else roster.surfaced_unnamed_visitor_clusters
+    )
+    captures = None if isinstance(summary, SourceFailure) else summary.by_state.get("unlabeled", 0)
+    gallery = None if isinstance(cts, SourceFailure) else cts.reid_gallery_counts
+    return [
+        ReviewQueue(surface="visitors", waiting=visitors),
+        ReviewQueue(surface="face_calibration", waiting=captures),
+        ReviewQueue(
+            surface="reid_review", waiting=None if gallery is None else gallery.pending_review
+        ),
+    ]

@@ -42,6 +42,7 @@ from backend.services.identity_readiness_rules import (
     floor_frame_step,
     ingest_step,
     labeling_step,
+    review_queues,
     roster_step,
     templates_step,
 )
@@ -100,7 +101,10 @@ class IdentityReadinessService:
         ]
         blocking = next((s.key for s in steps if s.state == "blocked" and not s.optional), None)
         return IdentityReadinessEnvelope(
-            steps=steps, blocking_step=blocking, checked_at=self._clock()
+            steps=steps,
+            blocking_step=blocking,
+            review_queues=review_queues(roster, summary, cts),
+            checked_at=self._clock(),
         )
 
     async def _cts_readiness(self) -> CTSIdentityReadiness | SourceFailure:

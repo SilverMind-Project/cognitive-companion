@@ -15,6 +15,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from backend.schemas.identity_review import ReviewSurface
+
 ReadinessStepKey = Literal[
     "roster",
     "ingest",
@@ -61,10 +63,25 @@ class ReadinessStep(BaseModel):
     )
 
 
+class ReviewQueue(BaseModel):
+    """One identity review queue and how much waits in it."""
+
+    surface: ReviewSurface
+    waiting: int | None = Field(
+        ge=0, description="Items waiting for a decision; null when the owner could not be read"
+    )
+
+
 class IdentityReadinessEnvelope(BaseModel):
     steps: list[ReadinessStep] = Field(description="In setup order")
     blocking_step: ReadinessStepKey | None = Field(
         description="The first required step that is blocked; null when none is"
+    )
+    review_queues: list[ReviewQueue] = Field(
+        description=(
+            "Every place an operator says who a face or body is, with its waiting count: "
+            "recurring unrecognized faces, calibration captures, body samples"
+        )
     )
     checked_at: datetime
 

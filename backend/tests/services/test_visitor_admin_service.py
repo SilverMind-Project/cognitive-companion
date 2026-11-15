@@ -27,6 +27,7 @@ from backend.integrations.person_id_client import (
 )
 from backend.models.person import HouseholdMember
 from backend.schemas.identity_review import VisitorReviewRequest
+from backend.services.identity_review.vocabulary import effect_text
 from backend.services.identity_targets import IdentityTarget
 from backend.services.visitors import VisitorAdminService, VisitorPartialFailureError
 
@@ -233,7 +234,9 @@ class TestDismissAndMerge:
             ("c2", False, "already_named"),
         ]
         assert (result.reviewed, result.failed) == (1, 1)
-        assert "Nothing was added to their enrollment" in result.effect
+        # The applied effect is the same sentence the browser previewed, naming the member.
+        assert result.effect == effect_text("visitors", "is_member", member="Resident")
+        assert "Nothing is added to Resident's enrollment" in result.effect
 
     @pytest.mark.parametrize("verdict", ["not_enrolled", "not_usable"])
     async def test_not_a_member_dismisses(self, verdict):

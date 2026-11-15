@@ -15,7 +15,11 @@ from backend.mcp.server import _svc
 from backend.mcp.server import get_identity_readiness as mcp_get_identity_readiness
 from backend.routers.dependencies import get_identity_readiness_service
 from backend.routers.identity_readiness import router
-from backend.schemas.identity_readiness import IdentityReadinessEnvelope, ReadinessStep
+from backend.schemas.identity_readiness import (
+    IdentityReadinessEnvelope,
+    ReadinessStep,
+    ReviewQueue,
+)
 
 _ENVELOPE = IdentityReadinessEnvelope(
     steps=[
@@ -33,6 +37,11 @@ _ENVELOPE = IdentityReadinessEnvelope(
         ),
     ],
     blocking_step="roster",
+    review_queues=[
+        ReviewQueue(surface="visitors", waiting=1),
+        ReviewQueue(surface="face_calibration", waiting=None),
+        ReviewQueue(surface="reid_review", waiting=0),
+    ],
     checked_at=datetime(2026, 11, 14, 9, 0, tzinfo=UTC),
 )
 

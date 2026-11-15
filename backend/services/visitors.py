@@ -42,6 +42,7 @@ from backend.schemas.visitors import (
     VisitorClusterView,
     VisitorSightingView,
 )
+from backend.services.identity_review.vocabulary import effect_text
 from backend.services.identity_targets import IdentityTargetsService
 from backend.services.persons import insert_household_member
 
@@ -162,18 +163,12 @@ class VisitorAdminService:
             items = await self._client.review_visitor_clusters(
                 request.cluster_ids, "attribute", actor=actor, person_id=target.identity_id
             )
-            effect = (
-                f"Marked as faces of {target.display_name}. Nothing was added to their "
-                "enrollment; look-alike faces now join these groups without being shown again."
-            )
+            effect = effect_text("visitors", "is_member", member=target.display_name)
         else:
             items = await self._client.review_visitor_clusters(
                 request.cluster_ids, "dismiss", actor=actor
             )
-            effect = (
-                "Dismissed. Nothing was enrolled; look-alike faces now join these groups without "
-                "being shown again."
-            )
+            effect = effect_text("visitors", request.verdict)
         results = [
             ReviewItemResult(
                 id=item.cluster_id,

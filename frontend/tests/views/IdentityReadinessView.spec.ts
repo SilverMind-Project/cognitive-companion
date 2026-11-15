@@ -28,6 +28,11 @@ const TODAY = {
     step("body_gallery", "unknown", "check_service"),
   ],
   blocking_step: "roster",
+  review_queues: [
+    { surface: "visitors", waiting: 84 },
+    { surface: "face_calibration", waiting: 0 },
+    { surface: "reid_review", waiting: null },
+  ],
   checked_at: "2026-11-14T09:00:00Z",
 };
 
@@ -44,7 +49,7 @@ const stubs = {
   "v-progress-circular": { template: "<div />" },
   "v-card": { template: "<div><slot /></div>" },
   "v-list": { template: "<ul><slot /></ul>" },
-  "v-list-item": { template: "<li><slot name='prepend' /><slot /></li>" },
+  "v-list-item": { template: "<li><slot name='prepend' /><slot /><slot name='append' /></li>" },
   "v-list-item-title": { template: "<div><slot /></div>" },
   "v-divider": { template: "<hr />" },
   "v-chip": { template: "<span class='v-chip'><slot /></span>", props: ["color"] },
@@ -102,6 +107,22 @@ describe("IdentityReadinessView", () => {
       "calibration_capture.enabled",
     );
     expect(wrapper.find("[data-test='action-ingest']").exists()).toBe(false);
+  });
+
+  it("lists every review queue with its waiting count and a link", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.get("[data-test='waiting-visitors']").text()).toBe("84 waiting");
+    expect(wrapper.get("[data-test='waiting-face_calibration']").text()).toBe("Nothing waiting");
+    // An unreadable owner is never shown as an empty queue.
+    expect(wrapper.get("[data-test='waiting-reid_review']").text()).toBe("Count unavailable");
+    expect(wrapper.get("[data-test='open-visitors']").attributes("data-to")).toBe(
+      "/admin/visitors",
+    );
+    expect(wrapper.get("[data-test='open-reid_review']").attributes("data-to")).toBe(
+      "/admin/cts/reid-review",
+    );
   });
 
   it("has no blocking summary when nothing is blocked", async () => {

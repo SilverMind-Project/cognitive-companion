@@ -107,6 +107,45 @@
         </v-card>
       </section>
 
+      <section v-if="state.readiness.review_queues.length" class="mb-6" data-test="review-queues">
+        <div class="text-subtitle-1 font-weight-bold mb-2">Review queues</div>
+        <v-card class="glass-card">
+          <v-list lines="two" class="py-0">
+            <template v-for="(queue, i) in state.readiness.review_queues" :key="queue.surface">
+              <v-divider v-if="i > 0" />
+              <v-list-item :data-test="`queue-${queue.surface}`" class="py-3">
+                <v-list-item-title class="d-flex align-center flex-wrap ga-2">
+                  <span class="font-weight-medium">{{
+                    REVIEW_QUEUE_PRESENTATION[queue.surface].title
+                  }}</span>
+                  <v-chip
+                    size="small"
+                    variant="tonal"
+                    :color="queue.waiting ? 'warning' : undefined"
+                    :data-test="`waiting-${queue.surface}`"
+                  >
+                    {{ waitingLabel(queue.waiting) }}
+                  </v-chip>
+                </v-list-item-title>
+                <div class="text-body-2 mt-1">
+                  {{ REVIEW_QUEUE_PRESENTATION[queue.surface].subject }}
+                </div>
+                <template #append>
+                  <v-btn
+                    size="small"
+                    variant="text"
+                    :to="REVIEW_QUEUE_PRESENTATION[queue.surface].to"
+                    :data-test="`open-${queue.surface}`"
+                  >
+                    Open
+                  </v-btn>
+                </template>
+              </v-list-item>
+            </template>
+          </v-list>
+        </v-card>
+      </section>
+
       <div class="text-caption text-medium-emphasis">
         Checked {{ formatDateTime(state.readiness.checked_at) }}. Face calibration labels face crops
         so a face score becomes a trustworthy probability; the ReID Review Queue reviews
@@ -126,6 +165,7 @@ import {
   STEP_PRESENTATION,
   type ReadinessStepKey,
 } from "@/constants/identityReadiness";
+import { REVIEW_QUEUE_PRESENTATION } from "@/constants/identityReview";
 import { formatDateTime } from "@/services/timezone.js";
 
 const { state, actions } = useIdentityReadiness();
@@ -150,6 +190,12 @@ function chainLabel(key: ReadinessStepKey): string {
   const links = STEP_PRESENTATION[key].chain;
   if (!links.length) return "";
   return links.length === 1 ? String(links[0]) : `${links[0]}-${links[links.length - 1]}`;
+}
+
+// A queue whose owner could not be read has no count; it is never shown as empty.
+function waitingLabel(waiting: number | null): string {
+  if (waiting === null) return "Count unavailable";
+  return waiting === 0 ? "Nothing waiting" : `${waiting} waiting`;
 }
 
 onMounted(() => void actions.load());

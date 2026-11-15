@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from backend.core.exceptions import ValidationError
 from backend.integrations.person_id_client import (
     PersonIDUpstreamError,
     VisitorClusterDetail,
@@ -26,10 +25,18 @@ from backend.integrations.person_id_client import (
     VisitorSightingInfo,
 )
 from backend.models.person import HouseholdMember
-from backend.schemas.identity_review import VisitorReviewRequest
+from backend.services.identity_review.registry import (
+    IdentityReviewRegistry,
+    ReviewDecision,
+    ReviewSubject,
+)
 from backend.services.identity_review.vocabulary import effect_text
 from backend.services.identity_targets import IdentityTarget
-from backend.services.visitors import VisitorAdminService, VisitorPartialFailureError
+from backend.services.visitors import (
+    VisitorAdminService,
+    VisitorPartialFailureError,
+    VisitorReviewAdapter,
+)
 
 _NOW = datetime(2026, 7, 19, 10, 0, 0, tzinfo=UTC)
 
@@ -50,15 +57,9 @@ def _summary(**overrides) -> VisitorClusterSummary:
     return VisitorClusterSummary(**base)
 
 
-def _targets(target: IdentityTarget | Exception | None = None) -> AsyncMock:
-    targets = AsyncMock()
-    if isinstance(target, Exception):
-        targets.require_enrolled_member.side_effect = target
-    else:
-        targets.require_enrolled_member.return_value = target or IdentityTarget(
-            identity_id="resident", display_name="Resident", is_active=True, is_guest=False
-        )
-    return targets
+_RESIDENT = IdentityTarget(
+    identity_id="resident", display_name="Resident", is_active=True, is_guest=False
+)
 
 
 def _presign(key):
@@ -71,7 +72,7 @@ class TestReads:
         client.list_visitor_clusters.return_value = VisitorClusterListResult(
             clusters=[_summary()], total=1
         )
-        svc = VisitorAdminService(client, _targets())
+        svc = VisitorAdminService(client)
 
         result = await svc.list_clusters(status="surfaced", presign=_presign)
 
@@ -84,7 +85,7 @@ class TestReads:
         client.list_visitor_clusters.return_value = VisitorClusterListResult(
             clusters=[_summary()], total=1
         )
-        svc = VisitorAdminService(client, _targets())
+        svc = VisitorAdminService(client)
 
         result = await svc.list_clusters(status=None)
 
@@ -104,7 +105,7 @@ class TestReads:
             recent_crop_keys=[],
             recent_sightings=[VisitorSightingInfo(seen_at=_NOW, quality=0.9, crop_object="k1")],
         )
-        svc = VisitorAdminService(client, _targets())
+        svc = VisitorAdminService(client)
 
         result = await svc.get_cluster("c1", presign=_presign)
 
@@ -114,7 +115,7 @@ class TestReads:
     async def test_read_propagates_upstream_error(self):
         client = AsyncMock()
         client.list_visitor_clusters.side_effect = PersonIDUpstreamError(502, "boom")
-        svc = VisitorAdminService(client, _targets())
+        svc = VisitorAdminService(client)
 
         with pytest.raises(PersonIDUpstreamError):
             await svc.list_clusters(status=None)
@@ -130,7 +131,7 @@ class TestNamingTransaction:
             member_name="Nurse Priya",
             embedding_count=5,
         )
-        svc = VisitorAdminService(client, _targets())
+        svc = VisitorAdminService(client)
 
         result = await svc.name_cluster(
             "c1", person_id="nurse-priya", name="Nurse Priya", db=db_session
@@ -158,7 +159,7 @@ class TestNamingTransaction:
             member_name="Nurse Priya",
             embedding_count=5,
         )
-        svc = VisitorAdminService(client, _targets())
+        svc = VisitorAdminService(client)
 
         result = await svc.name_cluster(
             "c1", person_id="nurse-priya", name="Nurse Priya", db=db_session
@@ -175,7 +176,7 @@ class TestNamingTransaction:
         client.name_visitor_cluster.side_effect = PersonIDUpstreamError(
             409, "Visitor clustering is disabled"
         )
-        svc = VisitorAdminService(client, _targets())
+        svc = VisitorAdminService(client)
 
         with pytest.raises(PersonIDUpstreamError) as exc_info:
             await svc.name_cluster("c1", person_id="nurse-priya", name="Nurse Priya", db=db_session)
@@ -193,7 +194,7 @@ class TestNamingTransaction:
             member_name="Nurse Priya",
             embedding_count=5,
         )
-        svc = VisitorAdminService(client, _targets())
+        svc = VisitorAdminService(client)
 
         from sqlalchemy.exc import SQLAlchemyError
 
@@ -207,36 +208,32 @@ class TestNamingTransaction:
         assert exc_info.value.person_id == "nurse-priya"
 
 
-class TestDismissAndMerge:
+class TestReviewAdapter:
+    """Visitors as a review surface; validation and effects are the registry's."""
+
     async def test_is_member_attributes_to_the_validated_member_and_never_names(self):
         client = AsyncMock()
         client.review_visitor_clusters.return_value = [
             VisitorReviewItem(cluster_id="c1", ok=True, error_code=None),
             VisitorReviewItem(cluster_id="c2", ok=False, error_code="already_named"),
         ]
-        targets = _targets()
-        svc = VisitorAdminService(client, targets)
-
-        result = await svc.review_clusters(
-            VisitorReviewRequest(
-                cluster_ids=["c1", "c2"], verdict="is_member", target_identity_id="resident"
-            ),
-            actor="Caregiver Admin",
+        decision = ReviewDecision(
+            surface="visitors",
+            verdict="is_member",
+            subjects=(ReviewSubject("c1"), ReviewSubject("c2")),
+            target=_RESIDENT,
         )
 
-        targets.require_enrolled_member.assert_awaited_once_with("resident")
+        results = await VisitorReviewAdapter(client).apply(decision, actor="Caregiver Admin")
+
         client.review_visitor_clusters.assert_awaited_once_with(
             ["c1", "c2"], "attribute", actor="Caregiver Admin", person_id="resident"
         )
         client.name_visitor_cluster.assert_not_called()
-        assert [(r.id, r.ok, r.error_code) for r in result.results] == [
+        assert [(r.id, r.ok, r.error_code) for r in results] == [
             ("c1", True, None),
             ("c2", False, "already_named"),
         ]
-        assert (result.reviewed, result.failed) == (1, 1)
-        # The applied effect is the same sentence the browser previewed, naming the member.
-        assert result.effect == effect_text("visitors", "is_member", member="Resident")
-        assert "Nothing is added to Resident's enrollment" in result.effect
 
     @pytest.mark.parametrize("verdict", ["not_enrolled", "not_usable"])
     async def test_not_a_member_dismisses(self, verdict):
@@ -244,55 +241,57 @@ class TestDismissAndMerge:
         client.review_visitor_clusters.return_value = [
             VisitorReviewItem(cluster_id="c1", ok=True, error_code=None)
         ]
-        svc = VisitorAdminService(client, _targets())
-
-        result = await svc.review_clusters(
-            VisitorReviewRequest(cluster_ids=["c1"], verdict=verdict), actor="a"
+        decision = ReviewDecision(
+            surface="visitors", verdict=verdict, subjects=(ReviewSubject("c1"),)
         )
 
+        results = await VisitorReviewAdapter(client).apply(decision, actor="a")
+
         client.review_visitor_clusters.assert_awaited_once_with(["c1"], "dismiss", actor="a")
-        assert result.reviewed == 1
-
-    async def test_is_member_without_a_target_is_rejected_before_any_call(self):
-        client = AsyncMock()
-        svc = VisitorAdminService(client, _targets())
-
-        with pytest.raises(ValidationError):
-            await svc.review_clusters(
-                VisitorReviewRequest(cluster_ids=["c1"], verdict="is_member"), actor="a"
-            )
-        client.review_visitor_clusters.assert_not_called()
-
-    async def test_an_ineligible_target_is_rejected_before_any_call(self):
-        client = AsyncMock()
-        svc = VisitorAdminService(client, _targets(ValidationError("guest has no faces")))
-
-        with pytest.raises(ValidationError):
-            await svc.review_clusters(
-                VisitorReviewRequest(
-                    cluster_ids=["c1"], verdict="is_member", target_identity_id="guest"
-                ),
-                actor="a",
-            )
-        client.review_visitor_clusters.assert_not_called()
+        assert results[0].ok
 
     async def test_an_unrecognized_upstream_error_code_is_reported_as_upstream_error(self):
         client = AsyncMock()
         client.review_visitor_clusters.return_value = [
             VisitorReviewItem(cluster_id="c1", ok=False, error_code="something_new")
         ]
-        svc = VisitorAdminService(client, _targets())
-
-        result = await svc.review_clusters(
-            VisitorReviewRequest(cluster_ids=["c1"], verdict="not_usable"), actor="a"
+        decision = ReviewDecision(
+            surface="visitors", verdict="not_usable", subjects=(ReviewSubject("c1"),)
         )
 
-        assert result.results[0].error_code == "upstream_error"
+        results = await VisitorReviewAdapter(client).apply(decision, actor="a")
 
+        assert results[0].error_code == "upstream_error"
+
+    async def test_through_the_registry_the_effect_names_the_member(self):
+        client = AsyncMock()
+        client.review_visitor_clusters.return_value = [
+            VisitorReviewItem(cluster_id="c1", ok=True, error_code=None)
+        ]
+        targets = AsyncMock()
+        targets.require_member.return_value = _RESIDENT
+        registry = IdentityReviewRegistry(targets)
+        registry.register(VisitorReviewAdapter(client))
+
+        result = await registry.decide(
+            "visitors",
+            "is_member",
+            [ReviewSubject("c1")],
+            actor="a",
+            target_identity_id="resident",
+        )
+
+        # Attribution needs the member's enrolled face to compare against.
+        targets.require_member.assert_awaited_once_with("resident", enrolled_face=True)
+        assert result.effect == effect_text("visitors", "is_member", member="Resident")
+        assert "Nothing is added to Resident's enrollment" in result.effect
+
+
+class TestMerge:
     async def test_merge_clusters_presigns_result(self):
         client = AsyncMock()
         client.merge_visitor_clusters.return_value = _summary(cluster_id="c1")
-        svc = VisitorAdminService(client, _targets())
+        svc = VisitorAdminService(client)
 
         result = await svc.merge_clusters("c1", "c2", presign=_presign)
 

@@ -11,6 +11,9 @@ one already committed, the caller must retry safely: M06 was extended
 (2026-07-21 dated rider, see the M06 milestone doc) so re-naming a cluster
 already named to the same ``person_id`` returns success rather than a 409, so
 this service's retry-on-partial-failure story actually works end to end.
+
+Saying who clusters are (a member, or nobody) is a review decision: it goes through the identity
+review registry, which validates it and hands it to ``VisitorReviewAdapter``.
 """
 
 from __future__ import annotations
@@ -29,12 +32,7 @@ from backend.integrations.person_id_client import (
     VisitorClusterSummary,
 )
 from backend.models.person import HouseholdMember
-from backend.schemas.identity_review import (
-    BatchReviewResponse,
-    ReviewErrorCode,
-    ReviewItemResult,
-    VisitorReviewRequest,
-)
+from backend.schemas.identity_review import ReviewErrorCode, ReviewItemResult, ReviewSurface
 from backend.schemas.visitors import (
     NameVisitorResponse,
     VisitorClusterDetailView,
@@ -42,8 +40,7 @@ from backend.schemas.visitors import (
     VisitorClusterView,
     VisitorSightingView,
 )
-from backend.services.identity_review.vocabulary import effect_text
-from backend.services.identity_targets import IdentityTargetsService
+from backend.services.identity_review.registry import ReviewDecision
 from backend.services.persons import insert_household_member
 
 logger = logging.getLogger(__name__)
@@ -81,9 +78,8 @@ class VisitorPartialFailureError(Exception):
 class VisitorAdminService:
     """Compose browser-facing visitor review responses from the face service."""
 
-    def __init__(self, client: PersonIDClient, targets: IdentityTargetsService) -> None:
+    def __init__(self, client: PersonIDClient) -> None:
         self._client = client
-        self._targets = targets
 
     # -- reads ------------------------------------------------------------
 
@@ -147,43 +143,6 @@ class VisitorAdminService:
             household_member_created=created,
         )
 
-    async def review_clusters(
-        self, request: VisitorReviewRequest, *, actor: str
-    ) -> BatchReviewResponse:
-        """Say who several clusters are: an existing member, or nobody to track.
-
-        ``is_member`` attributes the clusters to an active member with enrolled faces;
-        ``not_enrolled`` and ``not_usable`` dismiss them. Neither changes anyone's enrollment;
-        only naming a new person does. Raises ValidationError for a missing or ineligible target.
-        """
-        if request.verdict == "is_member":
-            if request.target_identity_id is None:
-                raise ValidationError("is_member needs target_identity_id")
-            target = await self._targets.require_enrolled_member(request.target_identity_id)
-            items = await self._client.review_visitor_clusters(
-                request.cluster_ids, "attribute", actor=actor, person_id=target.identity_id
-            )
-            effect = effect_text("visitors", "is_member", member=target.display_name)
-        else:
-            items = await self._client.review_visitor_clusters(
-                request.cluster_ids, "dismiss", actor=actor
-            )
-            effect = effect_text("visitors", request.verdict)
-        results = [
-            ReviewItemResult(
-                id=item.cluster_id,
-                ok=item.ok,
-                error_code=None
-                if item.ok
-                else _ERROR_CODES.get(item.error_code or "", "upstream_error"),
-            )
-            for item in items
-        ]
-        reviewed = sum(1 for r in results if r.ok)
-        return BatchReviewResponse(
-            results=results, reviewed=reviewed, failed=len(results) - reviewed, effect=effect
-        )
-
     async def merge_clusters(
         self, cluster_a: str, cluster_b: str, *, presign: Presigner = _no_presign
     ) -> VisitorClusterView:
@@ -214,4 +173,44 @@ class VisitorAdminService:
         )
 
 
-__all__ = ["PersonIDUpstreamError", "VisitorAdminService", "VisitorPartialFailureError"]
+class VisitorReviewAdapter:
+    """Visitor clusters as a review surface: person-id attributes or dismisses them.
+
+    ``is_member`` attributes the clusters to the (already validated, enrolled) member;
+    ``not_enrolled`` and ``not_usable`` both dismiss. Neither changes anyone's enrollment; only
+    naming a new person does, and that is ``VisitorAdminService.name_cluster``.
+    """
+
+    surface: ReviewSurface = "visitors"
+
+    def __init__(self, client: PersonIDClient) -> None:
+        self._client = client
+
+    async def apply(self, decision: ReviewDecision, *, actor: str) -> list[ReviewItemResult]:
+        cluster_ids = [s.id for s in decision.subjects]
+        if decision.verdict == "is_member" and decision.target is not None:
+            items = await self._client.review_visitor_clusters(
+                cluster_ids, "attribute", actor=actor, person_id=decision.target.identity_id
+            )
+        elif decision.verdict in ("not_enrolled", "not_usable"):
+            items = await self._client.review_visitor_clusters(cluster_ids, "dismiss", actor=actor)
+        else:
+            raise ValidationError(f"visitors cannot apply {decision.verdict} in a review")
+        return [
+            ReviewItemResult(
+                id=item.cluster_id,
+                ok=item.ok,
+                error_code=None
+                if item.ok
+                else _ERROR_CODES.get(item.error_code or "", "upstream_error"),
+            )
+            for item in items
+        ]
+
+
+__all__ = [
+    "PersonIDUpstreamError",
+    "VisitorAdminService",
+    "VisitorPartialFailureError",
+    "VisitorReviewAdapter",
+]

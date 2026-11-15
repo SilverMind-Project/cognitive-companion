@@ -89,6 +89,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "ha_state_cache",
         "identity_correction_service",
         "identity_readiness_service",
+        "identity_review_registry",
         "identity_targets_service",
         "identity_revision_subscriber",
         "image_pipeline",

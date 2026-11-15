@@ -141,8 +141,31 @@ never reveal unblurred media to an unauthorized user.
 
 ## Visitor review surface
 
-A dedicated review surface exists for unmatched face clusters (`cts.identity.visitors.review` token required).
-The UI connects to the BFF's visitor endpoints, not the ReID endpoints. It displays cross-visit clusters (seen on >= 3 distinct days within 30 days) and allows operators to name a cluster (creating a guest `HouseholdMember` and enrolling the faces for tracking) or dismiss it.
+A dedicated review surface exists for unmatched face clusters (`visitors.review` token required).
+The UI connects to the BFF's visitor endpoints, not the ReID endpoints. It displays cross-visit
+clusters (seen on >= 3 distinct days within 30 days). Most are often faces of someone already
+enrolled, so the first action is "Someone enrolled": attribute the clusters to an existing member
+(`POST /api/v1/visitors/clusters/review`, `is_member`), which never touches enrollment. "Someone
+new" names a cluster (creates a guest `HouseholdMember` and enrolls its faces), and is blocked when
+the person already exists. Dismiss closes a cluster. Decisions apply to one cluster or a selection,
+through one batch call with per-item results.
+
+## Shared identity review pieces
+
+Every surface where an operator says who a face, body, or track belongs to converges on the same
+pieces; the design and its phases are
+`/home/sriram/code/nanai/identity-recognition-s06-unified-identity-review.md`. Targets are shared by
+every surface today; the verdicts, batch results, and effect notes are used by Visitors, and Face
+calibration and ReID review adopt them in later phases. New review code uses all of them:
+
+- Targets: the `identityTargets` store over `GET /api/v1/identity/targets` and
+  `IdentityTargetPicker` (`require-enrolled-face` disables members without enrolled faces). Never
+  load the household list another way.
+- Verdicts: `backend/schemas/identity_review.py` (`is_member`, `new_person`, `not_enrolled`,
+  `not_usable`) and their labels in `frontend/src/constants/identityReview.ts`.
+- Batch results: `BatchReviewResponse` (`{id, ok, error_code}` per item, the server's `effect`).
+- Every confirm states what the decision changes, especially that no review action except naming
+  a new person changes enrollment.
 
 ## Face calibration review surface
 

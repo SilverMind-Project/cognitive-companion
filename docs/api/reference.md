@@ -252,6 +252,7 @@ health service itself is unwired.
 | `GET` | `/persons/{person_id}/enrollment` | Get enrollment status |
 | `DELETE` | `/persons/{person_id}/enrollment` | Delete enrollment |
 | `GET` | `/persons/roster-health` | Roster health: active, non-guest members with fewer than `roster.min_face_embeddings` enrolled face embeddings, plus the count of recurring visitor clusters awaiting review. Upstream failures return 502 rather than an empty roster |
+| `GET` | `/identity/targets` | The household members every identity decision picks from (`identity_targets:read`, caregiver roles): active members by name with `is_guest`, `face_enrolled` (null when person identification is down), and optional ReID gallery counts. Not gated on CTS. Every admin selector reads it through the `identityTargets` store |
 | `GET` | `/identity/readiness` | Identity setup readiness (`identity_readiness:read`): nine ordered steps (`roster`, `ingest`, `floor_frame`, `capture`, `labeling`, `artifact`, `face_policy`, `templates`, `body_gallery`), each with a `state` (`ready`, `attention`, `blocked`, `unknown`), a one-sentence `detail`, a closed `next_action`, and `optional`; plus `blocking_step`, the first required step that is blocked. Read-only. A source that cannot be read (person-id, the tracking orchestrator's `GET /internal/identity/readiness`, rtsp-ingress) marks only its steps `unknown`; the route still answers 200. Counts only, never an identity id |
 | `GET` | `/persons/{person_id}/location` | Current fused location envelope |
 | `GET` | `/persons/locations` | Current fused locations for all tracked members |
@@ -275,10 +276,10 @@ caregiver-admin action, not agent-facing (see `test_no_mcp_tool_for_visitor_muta
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/visitors/clusters` | List visitor clusters. Query: `status` (`candidate`\|`surfaced`\|`named`\|`dismissed`) |
+| `GET` | `/visitors/clusters` | List visitor clusters. Query: `status` (`candidate`\|`surfaced`\|`named`\|`dismissed`\|`attributed`); an attributed cluster carries `attributed_person_id`, `reviewed_by`, `reviewed_at` |
 | `GET` | `/visitors/clusters/{cluster_id}` | Cluster detail with recent sightings |
 | `POST` | `/visitors/clusters/{cluster_id}/name` | Name a cluster: creates the face-service member and the CC household member |
-| `POST` | `/visitors/clusters/{cluster_id}/dismiss` | Dismiss a cluster from the review queue |
+| `POST` | `/visitors/clusters/review` | Decide about several clusters at once (`VisitorReviewRequest`: `cluster_ids`, `verdict`, `target_identity_id`). `is_member` attributes them to an active member with enrolled faces (422 otherwise); `not_enrolled` and `not_usable` dismiss them. Never enrolls anything. Returns `BatchReviewResponse`: one `{id, ok, error_code}` per cluster, `reviewed`, `failed`, and the `effect` sentence. The actor is the API key's name |
 | `POST` | `/visitors/clusters/{cluster_a}/merge/{cluster_b}` | Merge two clusters (same physical person split across two clusters) |
 
 A 409 from any mutation means visitor clustering is disabled upstream (`visitors.clustering_enabled:

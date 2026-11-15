@@ -9,6 +9,7 @@ vi.mock("@/composables/useFormatRelative.js", () => ({
 }));
 
 import VisitorClusterCard from "@/components/admin/visitors/VisitorClusterCard.vue";
+import { useIdentityTargetsStore } from "@/stores/identityTargets";
 
 const stubs = {
   "v-card": { template: "<div><slot /></div>" },
@@ -76,8 +77,8 @@ describe("VisitorClusterCard", () => {
   it("emits name and dismiss with the right payloads", async () => {
     const wrapper = mountCard({ cluster: baseCluster() });
 
-    await wrapper.findAll("button")[0].trigger("click");
-    await wrapper.findAll("button")[1].trigger("click");
+    await wrapper.find("[data-test='name']").trigger("click");
+    await wrapper.find("[data-test='dismiss']").trigger("click");
 
     expect(wrapper.emitted("name")[0]).toEqual([baseCluster()]);
     expect(wrapper.emitted("dismiss")[0]).toEqual(["c1"]);
@@ -91,8 +92,8 @@ describe("VisitorClusterCard", () => {
     expect(buttons[1].attributes("disabled")).toBeDefined();
   });
 
-  it("shows a checkbox and forwards toggle-select in merge mode", async () => {
-    const wrapper = mountCard({ cluster: baseCluster(), mergeMode: true, selected: false });
+  it("shows a checkbox and forwards toggle-select in select mode", async () => {
+    const wrapper = mountCard({ cluster: baseCluster(), selectMode: true, selected: false });
 
     const checkbox = wrapper.find("input[type='checkbox']");
     expect(checkbox.exists()).toBe(true);
@@ -101,9 +102,32 @@ describe("VisitorClusterCard", () => {
     expect(wrapper.emitted("toggle-select")[0]).toEqual(["c1"]);
   });
 
-  it("hides the checkbox outside merge mode", () => {
-    const wrapper = mountCard({ cluster: baseCluster(), mergeMode: false });
+  it("hides the checkbox outside select mode", () => {
+    const wrapper = mountCard({ cluster: baseCluster(), selectMode: false });
 
     expect(wrapper.find("input[type='checkbox']").exists()).toBe(false);
+  });
+
+  it("emits attribute for 'Someone enrolled' and name for 'Someone new'", async () => {
+    const wrapper = mountCard({ cluster: baseCluster() });
+
+    await wrapper.find("[data-test='attribute']").trigger("click");
+    await wrapper.find("[data-test='name']").trigger("click");
+
+    expect(wrapper.emitted("attribute")[0]).toEqual(["c1"]);
+    expect(wrapper.emitted("name")[0][0].cluster_id).toBe("c1");
+  });
+
+  it("shows whose faces an attributed cluster holds and lets it be reviewed again", () => {
+    useIdentityTargetsStore().targets = [
+      { identity_id: "resident", display_name: "Resident", is_active: true, is_guest: false },
+    ];
+    const wrapper = mountCard({
+      cluster: baseCluster({ status: "attributed", attributed_person_id: "resident" }),
+    });
+
+    expect(wrapper.find("[data-test='attributed-to']").text()).toBe("Faces of Resident");
+    expect(wrapper.find(".v-chip").text()).toBe("Marked as member");
+    expect(wrapper.find("[data-test='dismiss']").attributes("disabled")).toBeUndefined();
   });
 });

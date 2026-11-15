@@ -4,7 +4,7 @@ const mockModule = vi.hoisted(() => ({
   listVisitorClusters: vi.fn(),
   getVisitorCluster: vi.fn(),
   nameVisitorCluster: vi.fn(),
-  dismissVisitorCluster: vi.fn(),
+  reviewVisitorClusters: vi.fn(),
   mergeVisitorClusters: vi.fn(),
 }));
 
@@ -91,60 +91,102 @@ describe("useVisitorReview", () => {
     expect(notify.success).toHaveBeenCalled();
   });
 
-  it("dismissCluster calls the module and refreshes", async () => {
-    mockModule.dismissVisitorCluster.mockResolvedValue({ cluster_id: "c1", status: "dismissed" });
+  it("review sends one batch and shows the server's effect", async () => {
+    mockModule.reviewVisitorClusters.mockResolvedValue({
+      results: [
+        { id: "c1", ok: true, error_code: null },
+        { id: "c2", ok: true, error_code: null },
+      ],
+      reviewed: 2,
+      failed: 0,
+      effect: "Marked as faces of Resident.",
+    });
+    mockModule.listVisitorClusters.mockResolvedValue({ clusters: [], total: 0 });
+    const { state, actions } = useVisitorReview(notify);
+    actions.toggleSelection("c1");
+    actions.toggleSelection("c2");
+    actions.toggleSelection("c3");
+
+    await actions.review(["c1", "c2"], "is_member", "resident");
+
+    expect(mockModule.reviewVisitorClusters).toHaveBeenCalledWith({
+      cluster_ids: ["c1", "c2"],
+      verdict: "is_member",
+      target_identity_id: "resident",
+    });
+    expect(notify.success).toHaveBeenCalledWith("Marked as faces of Resident.");
+    // Reviewed clusters leave the selection; the rest stay selected.
+    expect(state.selection).toEqual(["c3"]);
+    expect(mockModule.listVisitorClusters).toHaveBeenCalled();
+  });
+
+  it("review without a target omits it and reports partial failures by reason", async () => {
+    mockModule.reviewVisitorClusters.mockResolvedValue({
+      results: [
+        { id: "c1", ok: true, error_code: null },
+        { id: "c2", ok: false, error_code: "already_named" },
+        { id: "c3", ok: false, error_code: "already_named" },
+      ],
+      reviewed: 1,
+      failed: 2,
+      effect: "Dismissed.",
+    });
     mockModule.listVisitorClusters.mockResolvedValue({ clusters: [], total: 0 });
     const { actions } = useVisitorReview(notify);
 
-    await actions.dismissCluster("c1");
+    await actions.review(["c1", "c2", "c3"], "not_usable");
 
-    expect(mockModule.dismissVisitorCluster).toHaveBeenCalledWith("c1");
+    expect(mockModule.reviewVisitorClusters).toHaveBeenCalledWith({
+      cluster_ids: ["c1", "c2", "c3"],
+      verdict: "not_usable",
+    });
+    expect(notify.warning).toHaveBeenCalledWith("2 not updated: is already named.");
   });
 
   it("a 409 during a mutation sets the disabled flag and warns instead of erroring", async () => {
-    mockModule.dismissVisitorCluster.mockRejectedValue(
+    mockModule.reviewVisitorClusters.mockRejectedValue(
       new ApiError(409, "Visitor clustering is disabled"),
     );
     const { state, actions } = useVisitorReview(notify);
 
-    await expect(actions.dismissCluster("c1")).rejects.toThrow();
+    await expect(actions.review(["c1"], "not_usable")).rejects.toThrow();
 
     expect(state.disabled).toBe(true);
     expect(notify.warning).toHaveBeenCalled();
     expect(notify.error).not.toHaveBeenCalled();
   });
 
-  describe("merge selection", () => {
-    it("tracks up to two selected clusters, dropping the oldest on a third", () => {
+  describe("selection", () => {
+    it("keeps every selected cluster for a batch decision", () => {
       const { state, actions } = useVisitorReview(notify);
 
-      actions.toggleMergeSelection("c1");
-      actions.toggleMergeSelection("c2");
-      actions.toggleMergeSelection("c3");
+      actions.toggleSelection("c1");
+      actions.toggleSelection("c2");
+      actions.toggleSelection("c3");
 
-      expect(state.mergeSelection).toEqual(["c2", "c3"]);
+      expect(state.selection).toEqual(["c1", "c2", "c3"]);
     });
 
     it("toggling an already-selected cluster removes it", () => {
       const { state, actions } = useVisitorReview(notify);
 
-      actions.toggleMergeSelection("c1");
-      actions.toggleMergeSelection("c1");
+      actions.toggleSelection("c1");
+      actions.toggleSelection("c1");
 
-      expect(state.mergeSelection).toEqual([]);
+      expect(state.selection).toEqual([]);
     });
 
     it("mergeSelected merges the two selected clusters and clears the selection", async () => {
       mockModule.mergeVisitorClusters.mockResolvedValue({ cluster_id: "c1", status: "candidate" });
       mockModule.listVisitorClusters.mockResolvedValue({ clusters: [], total: 0 });
       const { state, actions } = useVisitorReview(notify);
-      actions.toggleMergeSelection("c1");
-      actions.toggleMergeSelection("c2");
+      actions.toggleSelection("c1");
+      actions.toggleSelection("c2");
 
       await actions.mergeSelected();
 
       expect(mockModule.mergeVisitorClusters).toHaveBeenCalledWith("c1", "c2");
-      expect(state.mergeSelection).toEqual([]);
+      expect(state.selection).toEqual([]);
     });
   });
 });

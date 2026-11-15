@@ -13,7 +13,8 @@ from backend.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-VisitorClusterStatus = Literal["candidate", "surfaced", "named", "dismissed"]
+VisitorClusterStatus = Literal["candidate", "surfaced", "named", "dismissed", "attributed"]
+VisitorReviewVerdict = Literal["attribute", "dismiss"]
 
 
 class PersonIDUpstreamError(Exception):
@@ -210,11 +211,22 @@ class VisitorClusterSummary:
     first_seen_at: datetime
     last_seen_at: datetime
     recent_crop_keys: list[str] = field(default_factory=list)
+    # Set for an attributed cluster: the enrolled member these faces belong to (never enrolled).
+    attributed_person_id: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
 
 
 @dataclass
 class VisitorClusterDetail(VisitorClusterSummary):
     recent_sightings: list[VisitorSightingInfo] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class VisitorReviewItem:
+    cluster_id: str
+    ok: bool
+    error_code: str | None
 
 
 @dataclass
@@ -589,8 +601,28 @@ class PersonIDClient:
         except (KeyError, TypeError) as exc:
             raise PersonIDUpstreamError(502, f"malformed name response envelope: {exc}") from exc
 
-    async def dismiss_visitor_cluster(self, cluster_id: str) -> None:
-        await self._request_or_raise("POST", f"/api/v1/visitors/clusters/{cluster_id}/dismiss")
+    async def review_visitor_clusters(
+        self,
+        cluster_ids: list[str],
+        verdict: VisitorReviewVerdict,
+        *,
+        actor: str,
+        person_id: str | None = None,
+    ) -> list[VisitorReviewItem]:
+        """Attribute clusters to an enrolled member, or dismiss them. Never enrolls anything."""
+        body: dict[str, Any] = {"cluster_ids": cluster_ids, "verdict": verdict, "actor": actor}
+        if person_id is not None:
+            body["person_id"] = person_id
+        data = await self._request_or_raise("POST", "/api/v1/visitors/clusters/review", json=body)
+        try:
+            return [
+                VisitorReviewItem(
+                    cluster_id=str(r["cluster_id"]), ok=bool(r["ok"]), error_code=r["error_code"]
+                )
+                for r in data["results"]
+            ]
+        except (KeyError, TypeError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed review response envelope: {exc}") from exc
 
     async def merge_visitor_clusters(self, cluster_a: str, cluster_b: str) -> VisitorClusterSummary:
         data = await self._request_or_raise(
@@ -613,6 +645,11 @@ class PersonIDClient:
             "first_seen_at": datetime.fromisoformat(data["first_seen_at"]),
             "last_seen_at": datetime.fromisoformat(data["last_seen_at"]),
             "recent_crop_keys": data.get("recent_crop_keys", []),
+            "attributed_person_id": data.get("attributed_person_id"),
+            "reviewed_by": data.get("reviewed_by"),
+            "reviewed_at": (
+                datetime.fromisoformat(data["reviewed_at"]) if data.get("reviewed_at") else None
+            ),
         }
 
     @classmethod

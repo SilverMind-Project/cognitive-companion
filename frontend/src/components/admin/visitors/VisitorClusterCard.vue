@@ -6,7 +6,7 @@
       }}</v-chip>
       <v-spacer />
       <v-checkbox
-        v-if="mergeMode"
+        v-if="selectMode"
         :model-value="selected"
         density="compact"
         hide-details
@@ -30,6 +30,9 @@
       <div v-else class="text-body-2 text-medium-emphasis">No crops available.</div>
     </div>
 
+    <div v-if="cluster.status === 'attributed'" class="text-body-2 mb-1" data-test="attributed-to">
+      Faces of <strong>{{ targets.nameOf(cluster.attributed_person_id) }}</strong>
+    </div>
     <div class="text-body-2 mb-1">
       <strong>{{ cluster.sighting_count }}</strong> sighting{{
         cluster.sighting_count === 1 ? "" : "s"
@@ -43,25 +46,37 @@
       {{ formatRelative(cluster.last_seen_at) }}
     </div>
 
-    <div class="d-flex ga-2">
+    <div class="d-flex flex-wrap ga-2">
       <v-btn
         size="small"
         color="primary"
         variant="flat"
-        prepend-icon="mdi-account-plus-outline"
-        :disabled="cluster.status === 'named'"
-        @click="$emit('name', cluster)"
+        prepend-icon="mdi-account-check-outline"
+        :disabled="reviewDisabled"
+        data-test="attribute"
+        @click="$emit('attribute', cluster.cluster_id)"
       >
-        Name
+        {{ VERDICT_LABELS.is_member }}
       </v-btn>
       <v-btn
         size="small"
         variant="outlined"
+        prepend-icon="mdi-account-plus-outline"
+        :disabled="reviewDisabled"
+        data-test="name"
+        @click="$emit('name', cluster)"
+      >
+        {{ VERDICT_LABELS.new_person }}
+      </v-btn>
+      <v-btn
+        size="small"
+        variant="text"
         prepend-icon="mdi-close"
-        :disabled="cluster.status === 'named' || cluster.status === 'dismissed'"
+        :disabled="reviewDisabled || cluster.status === 'dismissed'"
+        data-test="dismiss"
         @click="$emit('dismiss', cluster.cluster_id)"
       >
-        Dismiss
+        {{ VERDICT_LABELS.not_usable }}
       </v-btn>
     </div>
   </v-card>
@@ -71,25 +86,35 @@
 import { computed } from "vue";
 import { formatDateOnly } from "@/services/timezone.js";
 import { formatRelative } from "@/composables/useFormatRelative.js";
+import { VERDICT_LABELS } from "@/constants/identityReview";
+import { useIdentityTargetsStore } from "@/stores/identityTargets";
 
 const props = defineProps({
   cluster: { type: Object, required: true },
-  mergeMode: { type: Boolean, default: false },
+  selectMode: { type: Boolean, default: false },
   selected: { type: Boolean, default: false },
 });
 
-defineEmits(["name", "dismiss", "toggle-select"]);
+defineEmits(["name", "attribute", "dismiss", "toggle-select"]);
+
+const targets = useIdentityTargetsStore();
+// A named cluster became a member and is final; every other state can be reviewed (again).
+const reviewDisabled = computed(() => props.cluster.status === "named");
 
 const _STATUS_COLORS = {
   candidate: "info",
   surfaced: "warning",
   named: "success",
   dismissed: "",
+  attributed: "success",
 };
+const _STATUS_LABELS = { attributed: "Marked as member" };
 
 const statusColor = computed(() => _STATUS_COLORS[props.cluster.status] ?? "");
 const statusLabel = computed(
-  () => props.cluster.status.charAt(0).toUpperCase() + props.cluster.status.slice(1),
+  () =>
+    _STATUS_LABELS[props.cluster.status] ??
+    props.cluster.status.charAt(0).toUpperCase() + props.cluster.status.slice(1),
 );
 </script>
 

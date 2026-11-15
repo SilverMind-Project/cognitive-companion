@@ -1118,6 +1118,41 @@
         "title": "BatchRejectResultItem",
         "type": "object"
       },
+      "BatchReviewResponse": {
+        "properties": {
+          "effect": {
+            "description": "What the decision changed, in one plain sentence",
+            "title": "Effect",
+            "type": "string"
+          },
+          "failed": {
+            "minimum": 0.0,
+            "title": "Failed",
+            "type": "integer"
+          },
+          "results": {
+            "description": "One result per subject, in order",
+            "items": {
+              "$ref": "#/components/schemas/ReviewItemResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "reviewed": {
+            "minimum": 0.0,
+            "title": "Reviewed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "results",
+          "reviewed",
+          "failed",
+          "effect"
+        ],
+        "title": "BatchReviewResponse",
+        "type": "object"
+      },
       "BboxAnnotationResponse": {
         "properties": {
           "camera_id": {
@@ -4684,30 +4719,6 @@
         "title": "DependencyCreate",
         "type": "object"
       },
-      "DismissVisitorResponse": {
-        "properties": {
-          "cluster_id": {
-            "title": "Cluster Id",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "candidate",
-              "surfaced",
-              "named",
-              "dismissed"
-            ],
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "cluster_id",
-          "status"
-        ],
-        "title": "DismissVisitorResponse",
-        "type": "object"
-      },
       "DwellsResponse": {
         "properties": {
           "dwells": {
@@ -7313,6 +7324,99 @@
         "title": "IdentityReadinessEnvelope",
         "type": "object"
       },
+      "IdentityTargetOut": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "face_enrolled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Has enrolled face photos in person identification; null when that service could not be read. Decisions that need an enrolled face disable the others.",
+            "title": "Face Enrolled"
+          },
+          "gallery_entry_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ReID gallery rows; decoration only, null when unavailable",
+            "title": "Gallery Entry Count"
+          },
+          "gallery_verified_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gallery Verified Count"
+          },
+          "identity_id": {
+            "title": "Identity Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_guest": {
+            "title": "Is Guest",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "identity_id",
+          "display_name",
+          "is_active",
+          "is_guest",
+          "face_enrolled"
+        ],
+        "title": "IdentityTargetOut",
+        "type": "object"
+      },
+      "IdentityTargetsEnvelope": {
+        "properties": {
+          "enrollment_available": {
+            "description": "False when person identification could not be read",
+            "title": "Enrollment Available",
+            "type": "boolean"
+          },
+          "gallery_available": {
+            "description": "False when the tracking orchestrator failed",
+            "title": "Gallery Available",
+            "type": "boolean"
+          },
+          "targets": {
+            "description": "Active household members, by name",
+            "items": {
+              "$ref": "#/components/schemas/IdentityTargetOut"
+            },
+            "title": "Targets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "targets",
+          "enrollment_available",
+          "gallery_available"
+        ],
+        "title": "IdentityTargetsEnvelope",
+        "type": "object"
+      },
       "ImageRenderOut": {
         "description": "Ack for a render/reset against one or more e-ink devices.",
         "properties": {
@@ -9426,7 +9530,8 @@
               "candidate",
               "surfaced",
               "named",
-              "dismissed"
+              "dismissed",
+              "attributed"
             ],
             "title": "Status",
             "type": "string"
@@ -13282,6 +13387,42 @@
           "events"
         ],
         "title": "ReviewEventsResponse",
+        "type": "object"
+      },
+      "ReviewItemResult": {
+        "properties": {
+          "error_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "not_found",
+                  "already_named",
+                  "unknown_member",
+                  "not_enrolled_member",
+                  "upstream_error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "ok"
+        ],
+        "title": "ReviewItemResult",
         "type": "object"
       },
       "RevisionResponse": {
@@ -17590,6 +17731,18 @@
       },
       "VisitorClusterView": {
         "properties": {
+          "attributed_person_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The existing member these faces belong to; nothing was enrolled from them",
+            "title": "Attributed Person Id"
+          },
           "cluster_id": {
             "title": "Cluster Id",
             "type": "string"
@@ -17637,6 +17790,29 @@
             "title": "Recent Crop Urls",
             "type": "array"
           },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
           "sighting_count": {
             "title": "Sighting Count",
             "type": "integer"
@@ -17646,7 +17822,8 @@
               "candidate",
               "surfaced",
               "named",
-              "dismissed"
+              "dismissed",
+              "attributed"
             ],
             "title": "Status",
             "type": "string"
@@ -17661,6 +17838,50 @@
           "last_seen_at"
         ],
         "title": "VisitorClusterView",
+        "type": "object"
+      },
+      "VisitorReviewRequest": {
+        "additionalProperties": false,
+        "description": "Decide about several visitor clusters at once.",
+        "properties": {
+          "cluster_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Cluster Ids",
+            "type": "array"
+          },
+          "target_identity_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for is_member: an active household member with enrolled faces",
+            "title": "Target Identity Id"
+          },
+          "verdict": {
+            "enum": [
+              "is_member",
+              "not_enrolled",
+              "not_usable"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cluster_ids",
+          "verdict"
+        ],
+        "title": "VisitorReviewRequest",
         "type": "object"
       },
       "VisitorSightingView": {
@@ -27560,6 +27781,32 @@
         ]
       }
     },
+    "/api/v1/identity/targets": {
+      "get": {
+        "operationId": "get_identity_targets",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityTargetsEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Identity Targets",
+        "tags": [
+          "identity-targets"
+        ]
+      }
+    },
     "/api/v1/image/active": {
       "get": {
         "description": "Serve the active image for the authenticated device.\n\nDevice surface: ``image:read`` is held only by reTerminal e-ink device\nkeys, whose firmware is out of tree and may send the key by query string.\nUses the permissive resolver for that reason -- no browser client calls\nthis endpoint.",
@@ -35656,6 +35903,53 @@
         ]
       }
     },
+    "/api/v1/visitors/clusters/review": {
+      "post": {
+        "description": "Say who several clusters are: an existing member (attribute) or nobody (dismiss).\n\nNever enrolls anything. One result per cluster; a missing or named cluster fails alone.",
+        "operationId": "review_clusters",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchReviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Review Clusters",
+        "tags": [
+          "visitors"
+        ]
+      }
+    },
     "/api/v1/visitors/clusters/{cluster_a}/merge/{cluster_b}": {
       "post": {
         "operationId": "merge_clusters",
@@ -35754,53 +36048,6 @@
           }
         ],
         "summary": "Get Cluster",
-        "tags": [
-          "visitors"
-        ]
-      }
-    },
-    "/api/v1/visitors/clusters/{cluster_id}/dismiss": {
-      "post": {
-        "operationId": "dismiss_cluster",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "cluster_id",
-            "required": true,
-            "schema": {
-              "title": "Cluster Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DismissVisitorResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ],
-        "summary": "Dismiss Cluster",
         "tags": [
           "visitors"
         ]

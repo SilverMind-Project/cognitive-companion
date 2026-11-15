@@ -137,6 +137,7 @@ permission_map:
     - "gate_graphs:read"
     - "gate_graphs:write"
     - "identity_readiness:read"
+    - "identity_targets:read"
 
   caregiver_admin:
     - "GET /api/v1/*"
@@ -213,6 +214,7 @@ permission_map:
     - "guided_sessions:takeover"
     - "guided_metrics:read"
     - "identity_readiness:read"
+    - "identity_targets:read"
 
   operator:
     - "*"
@@ -375,3 +377,7 @@ permission_map:
   # Identity setup readiness: read-only status of the identity chain (counts, no identity ids).
   "identity_readiness:read":
     - "GET /api/v1/identity/readiness"
+
+  # The household members an identity decision may name (every correction and review surface).
+  "identity_targets:read":
+    - "GET /api/v1/identity/targets"

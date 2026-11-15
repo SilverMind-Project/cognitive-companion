@@ -134,10 +134,40 @@ class TestMutations:
         assert exc_info.value.status == 409
         assert "disabled" in exc_info.value.message
 
-    async def test_dismiss_visitor_cluster_success(self):
+    async def test_review_visitor_clusters_parses_per_cluster_results(self):
         client = _make_client()
-        with patch(_HTTPX_TARGET, return_value=_mock_http({"cluster_id": "c1"})):
-            await client.dismiss_visitor_cluster("c1")
+        payload = {
+            "results": [
+                {"cluster_id": "c1", "ok": True, "error_code": None},
+                {"cluster_id": "c2", "ok": False, "error_code": "not_found"},
+            ],
+            "reviewed": 1,
+            "failed": 1,
+        }
+        with patch(_HTTPX_TARGET, return_value=_mock_http(payload)) as factory:
+            items = await client.review_visitor_clusters(
+                ["c1", "c2"], "attribute", actor="Admin", person_id="resident"
+            )
+        assert [(i.cluster_id, i.ok, i.error_code) for i in items] == [
+            ("c1", True, None),
+            ("c2", False, "not_found"),
+        ]
+        request = factory.return_value.__aenter__.return_value.request
+        assert request.call_args.kwargs["json"] == {
+            "cluster_ids": ["c1", "c2"],
+            "verdict": "attribute",
+            "actor": "Admin",
+            "person_id": "resident",
+        }
+
+    async def test_review_visitor_clusters_malformed_envelope_is_502(self):
+        client = _make_client()
+        with (
+            patch(_HTTPX_TARGET, return_value=_mock_http({"unexpected": []})),
+            pytest.raises(PersonIDUpstreamError) as exc_info,
+        ):
+            await client.review_visitor_clusters(["c1"], "dismiss", actor="Admin")
+        assert exc_info.value.status == 502
 
     async def test_merge_visitor_clusters_success(self):
         client = _make_client()

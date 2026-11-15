@@ -7,8 +7,10 @@ orchestrates the two-system naming transaction (face-service member, then the
 CC household member); it never re-derives clustering or surfacing decisions.
 
 Only the ``name`` action is a mutation of substance: it moves biometric data
-from the visitor dataset into the governed enrollment dataset. Dismiss and
-merge only affect the review queue.
+from the visitor dataset into the governed enrollment dataset. Attribution
+(these are faces of an existing member), dismissal, and merge only affect the
+review queue; review decisions use the shared contracts in
+``backend/schemas/identity_review.py``.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-VisitorClusterStatus = Literal["candidate", "surfaced", "named", "dismissed"]
+VisitorClusterStatus = Literal["candidate", "surfaced", "named", "dismissed", "attributed"]
 
 
 class VisitorSightingView(BaseModel):
@@ -33,6 +35,12 @@ class VisitorClusterView(BaseModel):
     status: VisitorClusterStatus
     display_hint: str | None = None
     named_person_id: str | None = None
+    attributed_person_id: str | None = Field(
+        default=None,
+        description="The existing member these faces belong to; nothing was enrolled from them",
+    )
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
     sighting_count: int
     distinct_days: int
     first_seen_at: datetime
@@ -64,8 +72,3 @@ class NameVisitorResponse(BaseModel):
     member_name: str
     embedding_count: int
     household_member_created: bool
-
-
-class DismissVisitorResponse(BaseModel):
-    cluster_id: str
-    status: VisitorClusterStatus

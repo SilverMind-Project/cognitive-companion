@@ -3018,6 +3018,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/identity/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Identity Targets */
+        get: operations["get_identity_targets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/image/active": {
         parameters: {
             query?: never;
@@ -5141,6 +5158,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/visitors/clusters/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review Clusters
+         * @description Say who several clusters are: an existing member (attribute) or nobody (dismiss).
+         *
+         *     Never enrolls anything. One result per cluster; a missing or named cluster fails alone.
+         */
+        post: operations["review_clusters"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/visitors/clusters/{cluster_a}/merge/{cluster_b}": {
         parameters: {
             query?: never;
@@ -5169,23 +5208,6 @@ export interface paths {
         get: operations["get_cluster"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/visitors/clusters/{cluster_id}/dismiss": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Dismiss Cluster */
-        post: operations["dismiss_cluster"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5802,6 +5824,23 @@ export interface components {
             error_message?: string | null;
             /** Ok */
             ok: boolean;
+        };
+        /** BatchReviewResponse */
+        BatchReviewResponse: {
+            /**
+             * Effect
+             * @description What the decision changed, in one plain sentence
+             */
+            effect: string;
+            /** Failed */
+            failed: number;
+            /**
+             * Results
+             * @description One result per subject, in order
+             */
+            results: components["schemas"]["ReviewItemResult"][];
+            /** Reviewed */
+            reviewed: number;
         };
         /** BboxAnnotationResponse */
         BboxAnnotationResponse: {
@@ -7081,16 +7120,6 @@ export interface components {
              */
             require_success: boolean;
         };
-        /** DismissVisitorResponse */
-        DismissVisitorResponse: {
-            /** Cluster Id */
-            cluster_id: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "candidate" | "surfaced" | "named" | "dismissed";
-        };
         /** DwellsResponse */
         DwellsResponse: {
             /** Dwells */
@@ -8037,6 +8066,47 @@ export interface components {
              */
             steps: components["schemas"]["ReadinessStep"][];
         };
+        /** IdentityTargetOut */
+        IdentityTargetOut: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Face Enrolled
+             * @description Has enrolled face photos in person identification; null when that service could not be read. Decisions that need an enrolled face disable the others.
+             */
+            face_enrolled: boolean | null;
+            /**
+             * Gallery Entry Count
+             * @description ReID gallery rows; decoration only, null when unavailable
+             */
+            gallery_entry_count?: number | null;
+            /** Gallery Verified Count */
+            gallery_verified_count?: number | null;
+            /** Identity Id */
+            identity_id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Guest */
+            is_guest: boolean;
+        };
+        /** IdentityTargetsEnvelope */
+        IdentityTargetsEnvelope: {
+            /**
+             * Enrollment Available
+             * @description False when person identification could not be read
+             */
+            enrollment_available: boolean;
+            /**
+             * Gallery Available
+             * @description False when the tracking orchestrator failed
+             */
+            gallery_available: boolean;
+            /**
+             * Targets
+             * @description Active household members, by name
+             */
+            targets: components["schemas"]["IdentityTargetOut"][];
+        };
         /**
          * ImageRenderOut
          * @description Ack for a render/reset against one or more e-ink devices.
@@ -8799,7 +8869,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "candidate" | "surfaced" | "named" | "dismissed";
+            status: "candidate" | "surfaced" | "named" | "dismissed" | "attributed";
         };
         /** ObservationResponse */
         ObservationResponse: {
@@ -10188,6 +10258,15 @@ export interface components {
         ReviewEventsResponse: {
             /** Events */
             events: components["schemas"]["ReviewEventView"][];
+        };
+        /** ReviewItemResult */
+        ReviewItemResult: {
+            /** Error Code */
+            error_code?: ("not_found" | "already_named" | "unknown_member" | "not_enrolled_member" | "upstream_error") | null;
+            /** Id */
+            id: string;
+            /** Ok */
+            ok: boolean;
         };
         /** RevisionResponse */
         RevisionResponse: {
@@ -11821,6 +11900,11 @@ export interface components {
         };
         /** VisitorClusterView */
         VisitorClusterView: {
+            /**
+             * Attributed Person Id
+             * @description The existing member these faces belong to; nothing was enrolled from them
+             */
+            attributed_person_id?: string | null;
             /** Cluster Id */
             cluster_id: string;
             /** Display Hint */
@@ -11841,13 +11925,35 @@ export interface components {
             named_person_id?: string | null;
             /** Recent Crop Urls */
             recent_crop_urls?: string[];
+            /** Reviewed At */
+            reviewed_at?: string | null;
+            /** Reviewed By */
+            reviewed_by?: string | null;
             /** Sighting Count */
             sighting_count: number;
             /**
              * Status
              * @enum {string}
              */
-            status: "candidate" | "surfaced" | "named" | "dismissed";
+            status: "candidate" | "surfaced" | "named" | "dismissed" | "attributed";
+        };
+        /**
+         * VisitorReviewRequest
+         * @description Decide about several visitor clusters at once.
+         */
+        VisitorReviewRequest: {
+            /** Cluster Ids */
+            cluster_ids: string[];
+            /**
+             * Target Identity Id
+             * @description Required for is_member: an active household member with enrolled faces
+             */
+            target_identity_id?: string | null;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "is_member" | "not_enrolled" | "not_usable";
         };
         /** VisitorSightingView */
         VisitorSightingView: {
@@ -17125,6 +17231,26 @@ export interface operations {
             };
         };
     };
+    get_identity_targets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityTargetsEnvelope"];
+                };
+            };
+        };
+    };
     serve_active_image: {
         parameters: {
             query?: {
@@ -21848,6 +21974,39 @@ export interface operations {
             };
         };
     };
+    review_clusters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitorReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchReviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     merge_clusters: {
         parameters: {
             query?: never;
@@ -21898,37 +22057,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VisitorClusterDetailView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    dismiss_cluster: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                cluster_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DismissVisitorResponse"];
                 };
             };
             /** @description Validation Error */

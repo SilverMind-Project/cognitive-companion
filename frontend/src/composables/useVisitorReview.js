@@ -1,8 +1,9 @@
 /**
  * The visitor cluster review composable.
  *
- * Owns the review-queue lifecycle for `VisitorsView`: list load, the naming/dismiss/merge
- * mutations, and the 409-triggered disabled-state explanation's contract: `GET
+ * Owns the review-queue lifecycle for `VisitorsView`: list load, the selection, and the
+ * mutations (name a new person; attribute to an existing member or dismiss, for one cluster or
+ * many through one batch call; merge exactly two), and the 409-triggered disabled-state explanation's contract: `GET
  * /clusters` returns an empty list when clustering is disabled, `POST` mutations 409; there
  * is no dedicated "disabled" flag on the list envelope, so the disabled banner only appears
  * once a mutation attempt actually 409s).
@@ -12,12 +13,13 @@
 
 import { reactive } from "vue";
 import { ApiError } from "@/services/http";
+import { REVIEW_ERROR_LABELS } from "@/constants/identityReview";
 import {
-  dismissVisitorCluster,
   getVisitorCluster,
   listVisitorClusters,
   mergeVisitorClusters,
   nameVisitorCluster,
+  reviewVisitorClusters,
 } from "@/services/modules/visitors";
 
 export function useVisitorReview(notify) {
@@ -32,7 +34,7 @@ export function useVisitorReview(notify) {
     detailLoading: false,
     detailError: "",
     acting: false,
-    mergeSelection: [],
+    selection: [],
   });
 
   async function loadList() {
@@ -112,25 +114,65 @@ export function useVisitorReview(notify) {
     );
   }
 
-  function dismissCluster(clusterId) {
-    return _runAction("Cluster dismissed", () => dismissVisitorCluster(clusterId));
+  /**
+   * Decide about one or more clusters: `is_member` (with `targetIdentityId`), `not_enrolled`,
+   * or `not_usable`. One batch call; the server's effect sentence is the success message, and a
+   * cluster that could not be updated is reported by count and reason, not as a failed batch.
+   */
+  async function review(clusterIds, verdict, targetIdentityId = null) {
+    state.acting = true;
+    try {
+      const result = await reviewVisitorClusters({
+        cluster_ids: clusterIds,
+        verdict,
+        ...(targetIdentityId ? { target_identity_id: targetIdentityId } : {}),
+      });
+      state.disabled = false;
+      if (result.reviewed && notify) notify.success(result.effect);
+      if (result.failed && notify) {
+        const reasons = [
+          ...new Set(
+            result.results
+              .filter((r) => !r.ok)
+              .map((r) => REVIEW_ERROR_LABELS[r.error_code] ?? "could not be updated"),
+          ),
+        ];
+        notify.warning(`${result.failed} not updated: ${reasons.join("; ")}.`);
+      }
+      state.selection = state.selection.filter(
+        (id) => !result.results.some((r) => r.ok && r.id === id),
+      );
+      await invalidate();
+      return result;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        state.disabled = true;
+        if (notify) notify.warning("Visitor clustering is currently disabled.");
+      } else if (notify) {
+        notify.error(err.message || String(err));
+      }
+      throw err;
+    } finally {
+      state.acting = false;
+    }
   }
 
-  function toggleMergeSelection(clusterId) {
-    const next = new Set(state.mergeSelection);
+  function toggleSelection(clusterId) {
+    const next = new Set(state.selection);
     if (next.has(clusterId)) next.delete(clusterId);
     else next.add(clusterId);
-    state.mergeSelection = Array.from(next).slice(-2); // merge is exactly two clusters
+    state.selection = Array.from(next);
   }
 
-  function clearMergeSelection() {
-    state.mergeSelection = [];
+  function clearSelection() {
+    state.selection = [];
   }
 
+  /** Merge needs exactly two selected clusters (the view only enables it then). */
   function mergeSelected() {
-    const [a, b] = state.mergeSelection;
+    const [a, b] = state.selection;
     return _runAction("Clusters merged", () => mergeVisitorClusters(a, b)).then((result) => {
-      clearMergeSelection();
+      clearSelection();
       return result;
     });
   }
@@ -144,9 +186,9 @@ export function useVisitorReview(notify) {
       closeDetail,
       invalidate,
       nameCluster,
-      dismissCluster,
-      toggleMergeSelection,
-      clearMergeSelection,
+      review,
+      toggleSelection,
+      clearSelection,
       mergeSelected,
     },
   };

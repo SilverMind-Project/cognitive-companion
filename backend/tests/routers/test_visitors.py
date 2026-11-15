@@ -21,8 +21,8 @@ from backend.core.exceptions import register_exception_handlers
 from backend.integrations.minio_client import MinioClient
 from backend.routers.dependencies import get_config_minio_client, get_visitor_admin_service
 from backend.routers.visitors import router
+from backend.schemas.identity_review import BatchReviewResponse, ReviewItemResult
 from backend.schemas.visitors import (
-    DismissVisitorResponse,
     NameVisitorResponse,
     VisitorClusterDetailView,
     VisitorClusterListResponse,
@@ -65,8 +65,10 @@ def _mock_service():
             household_member_created=True,
         )
     )
-    svc.dismiss_cluster = AsyncMock(
-        return_value=DismissVisitorResponse(cluster_id="c1", status="dismissed")
+    svc.review_clusters = AsyncMock(
+        return_value=BatchReviewResponse(
+            results=[ReviewItemResult(id="c1", ok=True)], reviewed=1, failed=0, effect="Dismissed."
+        )
     )
     svc.merge_clusters = AsyncMock(return_value=_cluster_view())
     return svc
@@ -101,7 +103,7 @@ _ROUTES = [
     ("get", "/api/v1/visitors/clusters", None),
     ("get", "/api/v1/visitors/clusters/c1", None),
     ("post", "/api/v1/visitors/clusters/c1/name", {"person_id": "nurse-priya", "name": "Nurse"}),
-    ("post", "/api/v1/visitors/clusters/c1/dismiss", {}),
+    ("post", "/api/v1/visitors/clusters/review", {"cluster_ids": ["c1"], "verdict": "not_usable"}),
     ("post", "/api/v1/visitors/clusters/c1/merge/c2", {}),
 ]
 
@@ -199,13 +201,30 @@ class TestNaming:
         assert detail["person_id"] == "nurse-priya"
 
 
-class TestDismissAndMerge:
-    def test_dismiss_cluster(self):
+class TestReviewAndMerge:
+    def test_review_passes_the_decision_and_the_key_name(self):
         client, svc = _build_app(["*"])
-        resp = client.post("/api/v1/visitors/clusters/c1/dismiss")
+        body = {"cluster_ids": ["c1"], "verdict": "is_member", "target_identity_id": "resident"}
+        resp = client.post("/api/v1/visitors/clusters/review", json=body)
         assert resp.status_code == 200
-        assert resp.json()["status"] == "dismissed"
-        svc.dismiss_cluster.assert_awaited_once_with("c1")
+        assert resp.json()["reviewed"] == 1
+        request = svc.review_clusters.await_args.args[0]
+        assert (request.cluster_ids, request.verdict, request.target_identity_id) == (
+            ["c1"],
+            "is_member",
+            "resident",
+        )
+        assert svc.review_clusters.await_args.kwargs["actor"] == "user"
+
+    def test_review_rejects_a_client_supplied_actor(self):
+        client, _ = _build_app(["*"])
+        body = {"cluster_ids": ["c1"], "verdict": "not_usable", "actor": "someone else"}
+        assert client.post("/api/v1/visitors/clusters/review", json=body).status_code == 422
+
+    def test_review_rejects_new_person_which_only_naming_does(self):
+        client, _ = _build_app(["*"])
+        body = {"cluster_ids": ["c1"], "verdict": "new_person"}
+        assert client.post("/api/v1/visitors/clusters/review", json=body).status_code == 422
 
     def test_merge_clusters(self):
         client, svc = _build_app(["*"])

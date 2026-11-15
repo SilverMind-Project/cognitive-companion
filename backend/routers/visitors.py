@@ -27,8 +27,8 @@ from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
 from backend.routers.dependencies import get_config_minio_client, get_visitor_admin_service
+from backend.schemas.identity_review import BatchReviewResponse, VisitorReviewRequest
 from backend.schemas.visitors import (
-    DismissVisitorResponse,
     NameVisitorRequest,
     NameVisitorResponse,
     VisitorClusterDetailView,
@@ -126,18 +126,29 @@ async def name_cluster(
     return result
 
 
-@router.post("/clusters/{cluster_id}/dismiss", response_model=DismissVisitorResponse)
-async def dismiss_cluster(
-    cluster_id: str,
+@router.post("/clusters/review", response_model=BatchReviewResponse)
+async def review_clusters(
+    body: VisitorReviewRequest,
     svc: VisitorAdminService = Depends(get_visitor_admin_service),
     auth: AuthContext = Depends(require_token(_VISITORS_REVIEW)),
-) -> DismissVisitorResponse:
+) -> BatchReviewResponse:
+    """Say who several clusters are: an existing member (attribute) or nobody (dismiss).
+
+    Never enrolls anything. One result per cluster; a missing or named cluster fails alone.
+    """
+    actor = actor_from_auth(auth)
     try:
-        result = await svc.dismiss_cluster(cluster_id)
+        result = await svc.review_clusters(body, actor=actor)
     except PersonIDUpstreamError as exc:
         raise _raise_for_upstream(exc) from exc
 
-    logger.info("visitor_cluster_dismissed", cluster_id=cluster_id, actor=actor_from_auth(auth))
+    logger.info(
+        "visitor_clusters_reviewed",
+        verdict=body.verdict,
+        reviewed=result.reviewed,
+        failed=result.failed,
+        actor=actor,
+    )
     return result
 
 

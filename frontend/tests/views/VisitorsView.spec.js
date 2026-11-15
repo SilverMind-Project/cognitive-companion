@@ -11,10 +11,11 @@ vi.mock("@/composables/useNotify.js", () => ({
 vi.mock("@/components/admin/visitors/VisitorClusterCard.vue", () => ({
   default: {
     name: "VisitorClusterCard",
-    props: ["cluster", "mergeMode", "selected"],
+    props: ["cluster", "selectMode", "selected"],
     template:
       "<div class='cluster-card'>{{ cluster.cluster_id }}" +
       "<button class='name-btn' @click=\"$emit('name', cluster)\">Name</button>" +
+      "<button class='attribute-btn' @click=\"$emit('attribute', cluster.cluster_id)\">Enrolled</button>" +
       "<button class='dismiss-btn' @click=\"$emit('dismiss', cluster.cluster_id)\">Dismiss</button>" +
       "<button class='select-btn' @click=\"$emit('toggle-select', cluster.cluster_id)\">Select</button>" +
       "</div>",
@@ -28,6 +29,18 @@ vi.mock("@/components/admin/visitors/VisitorNameDialog.vue", () => ({
     template:
       "<div v-if='modelValue' class='name-dialog'>" +
       "<button class='submit' @click=\"$emit('submit', { name: 'Nurse Priya', personId: 'nurse-priya' })\">Submit</button>" +
+      "<button class='use-existing' @click=\"$emit('attribute', 'resident')\">Mark as theirs</button>" +
+      "</div>",
+  },
+}));
+
+vi.mock("@/components/admin/visitors/VisitorAttributeDialog.vue", () => ({
+  default: {
+    name: "VisitorAttributeDialog",
+    props: ["modelValue", "count", "saving"],
+    template:
+      "<div v-if='modelValue' class='attribute-dialog'>{{ count }}" +
+      "<button class='attribute-submit' @click=\"$emit('submit', 'resident')\">Mark</button>" +
       "</div>",
   },
 }));
@@ -49,7 +62,7 @@ function makeStore(overrides = {}) {
     statusFilter: "surfaced",
     disabled: false,
     acting: false,
-    mergeSelection: [],
+    selection: [],
     ...overrides,
   });
   return {
@@ -60,12 +73,14 @@ function makeStore(overrides = {}) {
         state.statusFilter = status;
       }),
       nameCluster: vi.fn().mockResolvedValue(),
-      dismissCluster: vi.fn().mockResolvedValue(),
-      toggleMergeSelection: vi.fn((id) => {
-        state.mergeSelection = [...state.mergeSelection, id].slice(-2);
+      review: vi.fn().mockResolvedValue(),
+      toggleSelection: vi.fn((id) => {
+        state.selection = state.selection.includes(id)
+          ? state.selection.filter((x) => x !== id)
+          : [...state.selection, id];
       }),
-      clearMergeSelection: vi.fn(() => {
-        state.mergeSelection = [];
+      clearSelection: vi.fn(() => {
+        state.selection = [];
       }),
       mergeSelected: vi.fn().mockResolvedValue(),
     },
@@ -178,7 +193,7 @@ describe("VisitorsView", () => {
     });
   });
 
-  it("dismiss asks for confirmation before calling the action", async () => {
+  it("dismiss states its effect and asks for confirmation before calling the action", async () => {
     store.value = makeStore({ clusters: [{ cluster_id: "c1" }] });
     const wrapper = mountView();
     await flushPromises();
@@ -187,38 +202,92 @@ describe("VisitorsView", () => {
     await flushPromises();
 
     // The confirm dialog is open; the action has not fired yet.
-    expect(store.value.actions.dismissCluster).not.toHaveBeenCalled();
-    expect(wrapper.text()).toContain("Dismiss this cluster?");
+    expect(store.value.actions.review).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain("Dismiss this group?");
+    expect(wrapper.text()).toContain("Nothing is enrolled anywhere.");
 
     const confirmBtn = wrapper.findAll("button").find((b) => b.text() === "Confirm");
     await confirmBtn.trigger("click");
     await flushPromises();
 
-    expect(store.value.actions.dismissCluster).toHaveBeenCalledWith("c1");
+    expect(store.value.actions.review).toHaveBeenCalledWith(["c1"], "not_usable");
   });
 
-  it("merge mode: selecting two clusters enables Merge selected, and confirming calls mergeSelected", async () => {
+  it("someone enrolled on a card opens the attribute dialog and marks the cluster", async () => {
+    store.value = makeStore({ clusters: [{ cluster_id: "c1" }] });
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find(".attribute-btn").trigger("click");
+    await flushPromises();
+    expect(wrapper.find(".attribute-dialog").text()).toContain("1");
+
+    await wrapper.find(".attribute-submit").trigger("click");
+    await flushPromises();
+
+    expect(store.value.actions.review).toHaveBeenCalledWith(["c1"], "is_member", "resident");
+    expect(wrapper.find(".attribute-dialog").exists()).toBe(false);
+  });
+
+  it("naming someone already enrolled turns into marking the cluster as theirs", async () => {
+    store.value = makeStore({ clusters: [{ cluster_id: "c1" }] });
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find(".name-btn").trigger("click");
+    await wrapper.find(".use-existing").trigger("click");
+    await flushPromises();
+
+    expect(store.value.actions.nameCluster).not.toHaveBeenCalled();
+    expect(store.value.actions.review).toHaveBeenCalledWith(["c1"], "is_member", "resident");
+  });
+
+  function clickButton(wrapper, testId) {
+    return wrapper.find(`[data-test='${testId}']`).trigger("click");
+  }
+
+  it("select several: one batch decision for every selected cluster", async () => {
+    store.value = makeStore({
+      clusters: [{ cluster_id: "c1" }, { cluster_id: "c2" }, { cluster_id: "c3" }],
+    });
+    const wrapper = mountView();
+    await flushPromises();
+
+    await clickButton(wrapper, "select-mode");
+    await clickButton(wrapper, "select-all");
+    await flushPromises();
+    expect(store.value.state.selection).toEqual(["c1", "c2", "c3"]);
+    expect(wrapper.find("[data-test='merge-selected']").attributes("disabled")).toBeDefined();
+
+    await clickButton(wrapper, "attribute-selected");
+    await flushPromises();
+    expect(wrapper.find(".attribute-dialog").text()).toContain("3");
+    await wrapper.find(".attribute-submit").trigger("click");
+    await flushPromises();
+
+    expect(store.value.actions.review).toHaveBeenCalledWith(
+      ["c1", "c2", "c3"],
+      "is_member",
+      "resident",
+    );
+  });
+
+  it("merge is offered only for exactly two selected clusters", async () => {
     store.value = makeStore({
       clusters: [{ cluster_id: "c1" }, { cluster_id: "c2" }],
     });
     const wrapper = mountView();
     await flushPromises();
 
-    const mergeToggle = wrapper
-      .findAll("button")
-      .find((b) => b.text().includes("Merge duplicates"));
-    await mergeToggle.trigger("click");
-    await flushPromises();
-
+    await clickButton(wrapper, "select-mode");
     const selectBtns = wrapper.findAll(".select-btn");
     await selectBtns[0].trigger("click");
     await selectBtns[1].trigger("click");
     await flushPromises();
 
-    expect(store.value.state.mergeSelection).toEqual(["c1", "c2"]);
+    expect(store.value.state.selection).toEqual(["c1", "c2"]);
 
-    const mergeSelectedBtn = wrapper.findAll("button").find((b) => b.text() === "Merge selected");
-    await mergeSelectedBtn.trigger("click");
+    await clickButton(wrapper, "merge-selected");
     await flushPromises();
     const confirmBtn = wrapper.findAll("button").find((b) => b.text() === "Confirm");
     await confirmBtn.trigger("click");

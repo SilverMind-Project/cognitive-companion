@@ -21,6 +21,7 @@ from collections.abc import Callable
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from backend.core.exceptions import ValidationError
 from backend.integrations.person_id_client import (
     PersonIDClient,
     PersonIDUpstreamError,
@@ -28,17 +29,30 @@ from backend.integrations.person_id_client import (
     VisitorClusterSummary,
 )
 from backend.models.person import HouseholdMember
+from backend.schemas.identity_review import (
+    BatchReviewResponse,
+    ReviewErrorCode,
+    ReviewItemResult,
+    VisitorReviewRequest,
+)
 from backend.schemas.visitors import (
-    DismissVisitorResponse,
     NameVisitorResponse,
     VisitorClusterDetailView,
     VisitorClusterListResponse,
     VisitorClusterView,
     VisitorSightingView,
 )
+from backend.services.identity_targets import IdentityTargetsService
 from backend.services.persons import insert_household_member
 
 logger = logging.getLogger(__name__)
+
+# person-id's per-cluster error codes; an unrecognized one is reported as an upstream error.
+_ERROR_CODES: dict[str, ReviewErrorCode] = {
+    "not_found": "not_found",
+    "already_named": "already_named",
+    "unknown_member": "unknown_member",
+}
 
 # Presign callable: maps a MinIO key (or None) to a URL (or None).
 Presigner = Callable[[str | None], str | None]
@@ -66,8 +80,9 @@ class VisitorPartialFailureError(Exception):
 class VisitorAdminService:
     """Compose browser-facing visitor review responses from the face service."""
 
-    def __init__(self, client: PersonIDClient) -> None:
+    def __init__(self, client: PersonIDClient, targets: IdentityTargetsService) -> None:
         self._client = client
+        self._targets = targets
 
     # -- reads ------------------------------------------------------------
 
@@ -131,9 +146,48 @@ class VisitorAdminService:
             household_member_created=created,
         )
 
-    async def dismiss_cluster(self, cluster_id: str) -> DismissVisitorResponse:
-        await self._client.dismiss_visitor_cluster(cluster_id)
-        return DismissVisitorResponse(cluster_id=cluster_id, status="dismissed")
+    async def review_clusters(
+        self, request: VisitorReviewRequest, *, actor: str
+    ) -> BatchReviewResponse:
+        """Say who several clusters are: an existing member, or nobody to track.
+
+        ``is_member`` attributes the clusters to an active member with enrolled faces;
+        ``not_enrolled`` and ``not_usable`` dismiss them. Neither changes anyone's enrollment;
+        only naming a new person does. Raises ValidationError for a missing or ineligible target.
+        """
+        if request.verdict == "is_member":
+            if request.target_identity_id is None:
+                raise ValidationError("is_member needs target_identity_id")
+            target = await self._targets.require_enrolled_member(request.target_identity_id)
+            items = await self._client.review_visitor_clusters(
+                request.cluster_ids, "attribute", actor=actor, person_id=target.identity_id
+            )
+            effect = (
+                f"Marked as faces of {target.display_name}. Nothing was added to their "
+                "enrollment; look-alike faces now join these groups without being shown again."
+            )
+        else:
+            items = await self._client.review_visitor_clusters(
+                request.cluster_ids, "dismiss", actor=actor
+            )
+            effect = (
+                "Dismissed. Nothing was enrolled; look-alike faces now join these groups without "
+                "being shown again."
+            )
+        results = [
+            ReviewItemResult(
+                id=item.cluster_id,
+                ok=item.ok,
+                error_code=None
+                if item.ok
+                else _ERROR_CODES.get(item.error_code or "", "upstream_error"),
+            )
+            for item in items
+        ]
+        reviewed = sum(1 for r in results if r.ok)
+        return BatchReviewResponse(
+            results=results, reviewed=reviewed, failed=len(results) - reviewed, effect=effect
+        )
 
     async def merge_clusters(
         self, cluster_a: str, cluster_b: str, *, presign: Presigner = _no_presign
@@ -152,6 +206,9 @@ class VisitorAdminService:
             status=cluster.status,
             display_hint=cluster.display_hint,
             named_person_id=cluster.named_person_id,
+            attributed_person_id=cluster.attributed_person_id,
+            reviewed_by=cluster.reviewed_by,
+            reviewed_at=cluster.reviewed_at,
             sighting_count=cluster.sighting_count,
             distinct_days=cluster.distinct_days,
             first_seen_at=cluster.first_seen_at,

@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from backend.services.guided_task.service import GuidedTaskService
     from backend.services.identity_readiness import IdentityReadinessService
     from backend.services.identity_roster import RosterHealthService
+    from backend.services.identity_targets import IdentityTargetsService
     from backend.services.inference_telemetry import InferenceTelemetryService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
     from backend.services.media_observability import MediaObservabilityService
@@ -80,6 +81,7 @@ __all__ = [
     "get_ha_client",
     "get_identity_correction_service",
     "get_identity_readiness_service",
+    "get_identity_targets_service",
     "get_inference_telemetry",
     "get_ingress_admin_client",
     "get_keyframe_read_service",
@@ -169,6 +171,14 @@ def get_identity_readiness_service(request: Request) -> IdentityReadinessService
     service: IdentityReadinessService | None = request.app.state.identity_readiness_service
     if service is None:
         raise _raise_503("identity_readiness_service", "Identity readiness service")
+    return service
+
+
+def get_identity_targets_service(request: Request) -> IdentityTargetsService:
+    """Return the lifespan-managed identity targets service (503 if unavailable)."""
+    service: IdentityTargetsService | None = request.app.state.identity_targets_service
+    if service is None:
+        raise _raise_503("identity_targets_service", "Identity targets service")
     return service
 
 

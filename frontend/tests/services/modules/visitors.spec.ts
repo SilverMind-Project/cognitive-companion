@@ -5,7 +5,7 @@ import {
   listVisitorClusters,
   getVisitorCluster,
   nameVisitorCluster,
-  dismissVisitorCluster,
+  reviewVisitorClusters,
   mergeVisitorClusters,
 } from "@/services/modules/visitors";
 
@@ -103,14 +103,15 @@ describe("visitors module", () => {
     expect(error.message).toBe("Visitor clustering is disabled");
   });
 
-  it("dismisses a cluster", async () => {
-    const fetchMock = stubFetch(200, { cluster_id: "c1", status: "dismissed" });
+  it("reviews several clusters in one call", async () => {
+    const fetchMock = stubFetch(200, { results: [], reviewed: 0, failed: 0, effect: "" });
 
-    await dismissVisitorCluster("c1");
+    await reviewVisitorClusters({ cluster_ids: ["c1", "c2"], verdict: "not_usable" });
 
     const request = fetchMock.mock.calls[0][0] as Request;
     expect(request.method).toBe("POST");
-    expect(request.url).toContain("/api/v1/visitors/clusters/c1/dismiss");
+    expect(request.url).toContain("/api/v1/visitors/clusters/review");
+    expect(await request.json()).toEqual({ cluster_ids: ["c1", "c2"], verdict: "not_usable" });
   });
 
   it("merges two clusters by path params", async () => {

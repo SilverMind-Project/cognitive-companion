@@ -4,10 +4,11 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 
 ## Start here
 
-1. Read [docs/systems-architecture.md](docs/systems-architecture.md) for the current system shape.
-2. Read [docs/api/reference.md](docs/api/reference.md) before changing BFF contracts.
-3. Use `backend/bootstrap/` as the source of truth for service wiring (see `backend/bootstrap/README.md` for the phase-by-phase attribute inventory); `backend/main.py` only builds the FastAPI app and includes routers.
-4. Use `backend/steps/base.py`, `backend/models/pipeline.py`, and `backend/schemas/workflow.py` for pipeline and execution contracts.
+1. Read [docs/README.md](docs/README.md) for the three-tier documentation delineation standard (`CLAUDE.md` + `.claude/skills/` vs. `docs/` vs. `../silvermind-project.github.io/docs/`).
+2. Read [docs/systems-architecture.md](docs/systems-architecture.md) for the current system shape.
+3. Read [docs/api/reference.md](docs/api/reference.md) before changing BFF contracts.
+4. Use `backend/bootstrap/` as the source of truth for service wiring (see `backend/bootstrap/README.md` for the phase-by-phase attribute inventory); `backend/main.py` only builds the FastAPI app and includes routers.
+5. Use `backend/steps/base.py`, `backend/models/pipeline.py`, and `backend/schemas/workflow.py` for pipeline and execution contracts.
 
 ## Skills to load
 

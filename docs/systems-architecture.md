@@ -115,10 +115,11 @@ steps/, channels/, filters/   Auto-discovered plugin systems
 routers/                 Thin FastAPI BFF endpoints
 mcp/                     MCP tools backed by the same service functions as routers
 websocket/               Companion and pipeline WebSocket managers
-main.py                  Lifespan wiring and service construction
+bootstrap/               Lifespan phase modules and service construction (orchestrated by bootstrap/lifespan.py)
+main.py                  FastAPI app construction and router mounting
 ```
 
-Services are created once in `backend/main.py` during FastAPI lifespan and placed on `app.state`. Routers validate input, require permissions, call services, and return Pydantic schemas. New browser-visible BFF data should also be available through MCP by calling the same service function.
+Services are created once in `backend/bootstrap/` phase modules (orchestrated by `backend/bootstrap/lifespan.py`) during FastAPI lifespan and placed on `app.state`. Routers validate input, require permissions, call services, and return Pydantic schemas. New browser-visible BFF data should also be available through MCP by calling the same service function.
 
 ## Unified camera aggregation
 
@@ -265,15 +266,15 @@ Pipeline steps, notification channels, and context filters are auto-discovered f
 
 ### Step types
 
-There are 24 registered built-in step types:
+There are 28 registered built-in step types:
 
 | Category | Step types |
 | --- | --- |
-| Perception and media | `person_identification`, `scene_analysis`, `media_window_poll`, `image_crop`, `object_trend_analysis` |
+| Perception and media | `person_identification`, `scene_analysis`, `media_window_poll`, `media_presign`, `image_crop`, `object_trend_analysis`, `region_presence`, `novelty_gate` |
 | Presence and state | `presence_query`, `home_state`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report` |
 | Knowledge | `semantic_memory_query`, `semantic_memory_write`, `info_card`, `quiz_start` |
 | Reasoning and flow | `llm_call`, `condition`, `verification`, `wait`, `interactive_prompt`, `gate_verdict`, `guided_task_start` |
-| Actions | `notification`, `ha_action` |
+| Actions | `notification`, `ha_action`, `signal_emit` |
 
 Every data-emitting step declares `StepMetadata.output_schema`. The step metadata endpoint exposes `config_schema`, `ui_hints`, `output_schema`, tags, and `output_ports` to the frontend.
 
@@ -307,11 +308,15 @@ The primary CTS data paths are:
 
 | Path | Purpose |
 | --- | --- |
-| `tracking.events` | Current location and PH observation updates |
-| `tracking.revisions` | Identity correction propagation |
-| `tracking.signals` | Dementia and routine-change signals |
-| `scene.samples` | Scene samples for timeline and analysis surfaces |
-| CTS routers | Camera admin, calibration, PH correction, presence, signals, trajectory, and dashboard endpoints |
+| `tracking.events` | Current location and PH observation updates (`TrackingEvent` with `identity_snapshots`) |
+| `tracking.revisions` | Identity correction propagation (`IdentityRevision` with typed range and projection fields) |
+| `tracking.signals` | Dementia and routine-change signals (`DementiaSignal`) |
+| `tracking.continuations` and `tracking.room_transitions` | Cross-camera PH continuation candidates and room transition events |
+| `scene.samples` | Scene samples for timeline and analysis surfaces (`SceneSample`) |
+| `cc.identity_assertions` | Outbound protobuf stream (`CCIdentityAssertion`) forwarding external reCamera face assertions to CTS `WorldTrackingStage` |
+| Identity roster sync and purge | Automated `POST /internal/gallery/identities/sync` and `DELETE /internal/gallery/identities/{person_id}` calls keeping CTS `reid_gallery` and `IdentityResolver` aligned with the CC household roster |
+| Camera optics and calibration sync | `GET /api/v1/cts/cameras/{camera_id}/optics`, `POST /api/v1/cts/cameras/optics-preview`, and observed stream resolution sync from CTS `GET /internal/calibration/status` |
+| CTS routers | Camera admin, calibration, PH correction, ReID review queue, visitor clusters, identity readiness, presence, signals, trajectory, and dashboard endpoints |
 
 ### Person-Location Architecture
 

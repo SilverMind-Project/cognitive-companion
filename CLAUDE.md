@@ -104,6 +104,14 @@ buffer and rate-limit telemetry across both aggregation paths.
   both together.
 - **Signal kinds:** wire kinds come from `cts-contracts`; CC-local kinds live in
   `backend/services/cts/signal_config.py`.
+- **Wearables and RF nodes:** CC owns `wearable_devices`, `wearable_bindings`, and `rf_nodes`
+  in PostgreSQL and serves `GET /api/v1/wearables/site-config` (permission token
+  `wearables:site_config`, coordinates in metres on the active floor plan) for CTS
+  `CCConfigSyncService` and RF ingress adapters. Closed wearable vocabularies (`FixKind`,
+  `AdapterKind`, `WearState`, `MotionState`, `RfNodeRole`, `RangingTechnology`, `DeviceKind`)
+  live in `cts-contracts`; wire messages (`TagFix`, `AdapterCapability`, reserved
+  `AnonymousPositionTrack`) live in `continuous-tracking/proto/` and ride Redis Streams
+  `wearable.fixes`, `wearable.capabilities`, and reserved `position.tracks`.
 
 ## Claude Code guardrails
 

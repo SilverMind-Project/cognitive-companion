@@ -257,7 +257,7 @@ health service itself is unwired.
 | `GET` | `/persons/roster-health` | Roster health: active, non-guest members with fewer than `roster.min_face_embeddings` enrolled face embeddings, plus the count of recurring visitor clusters awaiting review. Upstream failures return 502 rather than an empty roster |
 | `GET` | `/identity/targets` | The household members every identity decision picks from (`identity_targets:read`, caregiver roles): active members by name with `is_guest`, `face_enrolled` (null when person identification is down), and optional ReID gallery counts. Not gated on CTS. Every admin selector reads it through the `identityTargets` store |
 | `GET` | `/identity/review-vocabulary` | What each identity review decision changes (`identity_review:read`, caregiver roles): per surface (`visitors`, `face_calibration`, `reid_review`) its `guarantee` and its verdicts, each with the `effect` sentence (may contain `member_placeholder`), `needs_target`, `needs_enrolled_face`, and `batch`. Static text from `backend/services/identity_review/vocabulary.py`; the browser previews these sentences and batch responses report the same ones. No identity data |
-| `GET` | `/identity/readiness` | Identity setup readiness (`identity_readiness:read`): nine ordered steps (`roster`, `ingest`, `floor_frame`, `capture`, `labeling`, `artifact`, `face_policy`, `templates`, `body_gallery`), each with a `state` (`ready`, `attention`, `blocked`, `unknown`), a one-sentence `detail`, a closed `next_action`, and `optional`; plus `blocking_step`, the first required step that is blocked, and `review_queues`: `{surface, waiting}` for Visitors (surfaced clusters), Face calibration (unlabeled captures), and the ReID Review Queue (pending samples), `waiting` null when that owner could not be read. Read-only. A source that cannot be read (person-id, the tracking orchestrator's `GET /internal/identity/readiness`, rtsp-ingress) marks only its steps `unknown`; the route still answers 200. Counts only, never an identity id |
+| `GET` | `/identity/readiness` | Identity setup readiness (`identity_readiness:read`): ten ordered steps (`roster`, `ingest`, `floor_frame`, `capture`, `labeling`, `artifact`, `face_policy`, `templates`, `body_gallery`, and optional `wearables`), each with a `state` (`ready`, `attention`, `blocked`, `unknown`), a one-sentence `detail`, a closed `next_action`, and `optional`; plus `blocking_step`, the first required step that is blocked, and `review_queues`: `{surface, waiting}` for Visitors (surfaced clusters), Face calibration (unlabeled captures), and the ReID Review Queue (pending samples), `waiting` null when that owner could not be read. Read-only. A source that cannot be read (person-id, the tracking orchestrator's `GET /internal/identity/readiness`, rtsp-ingress) marks only its steps `unknown`; the route still answers 200. Counts only, never an identity id |
 | `GET` | `/persons/{person_id}/location` | Current fused location envelope |
 | `GET` | `/persons/locations` | Current fused locations for all tracked members |
 | `GET` | `/persons/{person_id}/presence-history` | Presence history |
@@ -359,6 +359,28 @@ Hardware-neutral camera profiles live on `/cts/cameras` (`role`, `face_id_enable
 | `GET` | `/cts/cameras/{camera_id}/optics` | `cts.cameras.read` | Derived pinhole focal length, 24 px range, and expected interocular pixels at 1 to 5 m for a stored camera; syncs observed stream dimensions from CTS `/internal/calibration/status` when reachable |
 | `POST` | `/cts/cameras/optics-preview` | `cts.cameras.read` | Stateless placement calculator preview for unsaved `horizontal_fov_deg` and `frame_natural_width` values |
 
+
+## Wearables and RF nodes
+
+Hardware-neutral registry of wearable tags, time-bounded consented member bindings, and fixed RF nodes on the household floor plan. Endpoints use strict token checks (`wearables:read`, `wearables:manage`, `wearables:site_config`). Two read-only MCP tools (`get_wearable_assignments`, `get_wearable_device_status`) call the same service methods as the router; mutations are BFF-only.
+
+| Method | Path | Permission | Description |
+| --- | --- | --- | --- |
+| `GET` | `/wearables/devices` | `wearables:read` | List registered wearable devices with optional `active_only` filter and current active binding |
+| `POST` | `/wearables/devices` | `wearables:manage` | Register a wearable device (`tag_id`, `device_kind`, `label`, `adapter_id`, `hardware_key`) |
+| `PATCH` | `/wearables/devices/{device_id}` | `wearables:manage` | Update device label, active flag, adapter ID, or hardware key |
+| `GET` | `/wearables/devices/{device_id}/bindings` | `wearables:read` | List chronological binding history (`valid_from`, `valid_to`, consent attribution) for one device |
+| `POST` | `/wearables/devices/{device_id}/bind` | `wearables:manage` | Bind a device to an active household member; requires `consent_confirmed=true` and non-empty `consent_recorded_by`; closes any prior open binding on the device |
+| `POST` | `/wearables/devices/{device_id}/unbind` | `wearables:manage` | Close the device's open binding (`valid_to = now()`) |
+| `GET` | `/wearables/assignments` | `wearables:read` | Members grouped with all their currently bound devices (supporting multiple devices per member), plus unbound devices; shares one service call with MCP `get_wearable_assignments` |
+| `GET` | `/wearables/nodes` | `wearables:read` | List fixed RF nodes (BLE receivers, UWB anchors, dual-radio nodes) |
+| `POST` | `/wearables/nodes` | `wearables:manage` | Place a fixed RF node on the active calibrated floor plan (`x_m`, `y_m`, `z_m`, `role`, `technology`, optional UWB FiRa fields) |
+| `PATCH` | `/wearables/nodes/{node_id}` | `wearables:manage` | Move or update a fixed RF node; validates coordinates against active floor-plan bounds |
+| `DELETE` | `/wearables/nodes/{node_id}` | `wearables:manage` | Delete a fixed RF node (204) |
+| `POST` | `/wearables/nodes/survey-check` | `wearables:read` | Compare a tape-measured distance between two nodes against their Euclidean distance on the floor plan; warns when discrepancy exceeds 0.15 m |
+| `GET` | `/wearables/site-config` | `wearables:site_config` | Live site configuration (active nodes, devices, and open bindings in metres on the active floor plan) polled by CTS `CCConfigSyncService` and RF ingress adapters; granted to `cts_ingress` and `admin`, denied to `caregiver` |
+
+Deleting a household member (`DELETE /persons/{person_id}`) closes any open wearable bindings for that member before removing the person row and preserves historical binding intervals with `member_id = null`.
 
 ## MCP endpoint
 

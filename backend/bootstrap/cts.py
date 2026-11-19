@@ -206,6 +206,21 @@ def wire_identity_services(app: FastAPI) -> None:
     from backend.services.identity_review.registry import IdentityReviewRegistry
     from backend.services.identity_targets import IdentityTargetsService
     from backend.services.visitors import VisitorAdminService, VisitorReviewAdapter
+    from backend.services.wearables import (
+        RfNodeService,
+        SqlAlchemyWearableRepository,
+        WearableBindingService,
+        WearableDeviceService,
+        WearableSiteConfigService,
+    )
+
+    wearable_repo = SqlAlchemyWearableRepository(get_session)
+    app.state.wearable_device_service = WearableDeviceService(wearable_repo)
+    app.state.wearable_binding_service = WearableBindingService(wearable_repo)
+    app.state.rf_node_service = RfNodeService(wearable_repo)
+    app.state.wearable_site_config_service = WearableSiteConfigService(wearable_repo)
+    _mcp_svc.wearable_device_service = app.state.wearable_device_service
+    _mcp_svc.wearable_binding_service = app.state.wearable_binding_service
 
     targets = IdentityTargetsService(
         session_factory=get_session,
@@ -229,6 +244,7 @@ def wire_identity_services(app: FastAPI) -> None:
         session_factory=get_session,
         orchestrator=app.state.orchestrator_client,
         ingress=app.state.ingress_admin_client,
+        wearables=app.state.wearable_site_config_service,
     )
     app.state.identity_readiness_service = service
     _mcp_svc.identity_readiness_service = service

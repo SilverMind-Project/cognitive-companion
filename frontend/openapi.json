@@ -4691,6 +4691,16 @@
         "title": "DependencyCreate",
         "type": "object"
       },
+      "DeviceKind": {
+        "description": "Form-factor class of a registered wearable device in Cognitive Companion.",
+        "enum": [
+          "ble_beacon",
+          "watch",
+          "uwb_tag"
+        ],
+        "title": "DeviceKind",
+        "type": "string"
+      },
       "DwellsResponse": {
         "properties": {
           "dwells": {
@@ -7302,7 +7312,8 @@
                   "artifact",
                   "face_policy",
                   "templates",
-                  "body_gallery"
+                  "body_gallery",
+                  "wearables"
                 ],
                 "type": "string"
               },
@@ -9448,6 +9459,106 @@
           "total"
         ],
         "title": "MedicationScheduleOut",
+        "type": "object"
+      },
+      "MemberWearableDeviceSummary": {
+        "properties": {
+          "adapter_id": {
+            "title": "Adapter Id",
+            "type": "string"
+          },
+          "consent_recorded_by": {
+            "title": "Consent Recorded By",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "device_kind": {
+            "$ref": "#/components/schemas/DeviceKind"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_battery_fraction": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Battery Fraction"
+          },
+          "last_heard_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heard At"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date-time",
+            "title": "Valid From",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "tag_id",
+          "label",
+          "device_kind",
+          "adapter_id",
+          "is_active",
+          "valid_from",
+          "consent_recorded_by",
+          "last_heard_at",
+          "last_battery_fraction"
+        ],
+        "title": "MemberWearableDeviceSummary",
+        "type": "object"
+      },
+      "MemberWearablesOut": {
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/MemberWearableDeviceSummary"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "member_id": {
+            "title": "Member Id",
+            "type": "string"
+          },
+          "member_name": {
+            "title": "Member Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "member_id",
+          "member_name",
+          "devices"
+        ],
+        "title": "MemberWearablesOut",
         "type": "object"
       },
       "MergeRequest": {
@@ -12708,6 +12819,16 @@
         "title": "QuizUpdate",
         "type": "object"
       },
+      "RangingTechnology": {
+        "description": "Hardware-neutral RF localization technology declared by an adapter or RF node.\n\nMirrors ``continuoustracking.v1.RangingTechnology`` (values 1..3;\n``UNSPECIFIED`` = 0 is intentionally omitted).",
+        "enum": [
+          "ble_rssi",
+          "ble_channel_sounding",
+          "uwb"
+        ],
+        "title": "RangingTechnology",
+        "type": "string"
+      },
       "ReCameraData": {
         "properties": {
           "boxes": {
@@ -12902,7 +13023,8 @@
               "artifact",
               "face_policy",
               "templates",
-              "body_gallery"
+              "body_gallery",
+              "wearables"
             ],
             "title": "Key",
             "type": "string"
@@ -12924,6 +13046,7 @@
               "set_policy_calibrated",
               "enable_templates",
               "review_body_samples",
+              "configure_wearables",
               "check_service"
             ],
             "title": "Next Action",
@@ -14065,6 +14188,649 @@
           "has_more"
         ],
         "title": "RevisionsFeedResponse",
+        "type": "object"
+      },
+      "RfNodeCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Adapter Id",
+            "type": "string"
+          },
+          "anchor_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Anchor Id",
+            "type": "string"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "node_role": {
+            "$ref": "#/components/schemas/RfNodeRole"
+          },
+          "placement_residual_m": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement Residual M"
+          },
+          "room_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Id"
+          },
+          "technology": {
+            "$ref": "#/components/schemas/RangingTechnology"
+          },
+          "uwb_address_hex": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Address Hex"
+          },
+          "uwb_channel": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Channel"
+          },
+          "uwb_preamble_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Preamble Index"
+          },
+          "x_norm": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X Norm",
+            "type": "number"
+          },
+          "y_norm": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y Norm",
+            "type": "number"
+          },
+          "z_m": {
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Z M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "anchor_id",
+          "label",
+          "adapter_id",
+          "node_role",
+          "technology",
+          "x_norm",
+          "y_norm",
+          "z_m"
+        ],
+        "title": "RfNodeCreate",
+        "type": "object"
+      },
+      "RfNodeListOut": {
+        "properties": {
+          "floor_height_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Height M"
+          },
+          "floor_plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Plan Id"
+          },
+          "floor_plan_ready": {
+            "title": "Floor Plan Ready",
+            "type": "boolean"
+          },
+          "floor_width_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Width M"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RfNodeOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "floor_plan_ready",
+          "floor_plan_id",
+          "floor_width_m",
+          "floor_height_m"
+        ],
+        "title": "RfNodeListOut",
+        "type": "object"
+      },
+      "RfNodeOut": {
+        "properties": {
+          "adapter_id": {
+            "title": "Adapter Id",
+            "type": "string"
+          },
+          "anchor_id": {
+            "title": "Anchor Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "node_role": {
+            "$ref": "#/components/schemas/RfNodeRole"
+          },
+          "placement_residual_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement Residual M"
+          },
+          "room_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Id"
+          },
+          "room_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Name"
+          },
+          "technology": {
+            "$ref": "#/components/schemas/RangingTechnology"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "uwb_address_hex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Address Hex"
+          },
+          "uwb_channel": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Channel"
+          },
+          "uwb_preamble_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Preamble Index"
+          },
+          "x_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X M"
+          },
+          "x_norm": {
+            "title": "X Norm",
+            "type": "number"
+          },
+          "y_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y M"
+          },
+          "y_norm": {
+            "title": "Y Norm",
+            "type": "number"
+          },
+          "z_m": {
+            "title": "Z M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "anchor_id",
+          "label",
+          "adapter_id",
+          "node_role",
+          "technology",
+          "room_id",
+          "x_norm",
+          "y_norm",
+          "z_m",
+          "is_active",
+          "placement_residual_m",
+          "uwb_address_hex",
+          "uwb_channel",
+          "uwb_preamble_index",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RfNodeOut",
+        "type": "object"
+      },
+      "RfNodeRole": {
+        "description": "Role of a fixed RF node registered in Cognitive Companion.\n\nMirrors ``continuoustracking.v1.RfNodeRole`` (values 1..2; ``UNSPECIFIED`` = 0\nis intentionally omitted).",
+        "enum": [
+          "receiver",
+          "ranging_anchor"
+        ],
+        "title": "RfNodeRole",
+        "type": "string"
+      },
+      "RfNodeSurveyCheckItemOut": {
+        "properties": {
+          "discrepancy_m": {
+            "title": "Discrepancy M",
+            "type": "number"
+          },
+          "exceeds_tolerance": {
+            "title": "Exceeds Tolerance",
+            "type": "boolean"
+          },
+          "expected_m": {
+            "title": "Expected M",
+            "type": "number"
+          },
+          "measured_m": {
+            "title": "Measured M",
+            "type": "number"
+          },
+          "reference_id": {
+            "title": "Reference Id",
+            "type": "string"
+          },
+          "reference_kind": {
+            "enum": [
+              "wall",
+              "node"
+            ],
+            "title": "Reference Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference_kind",
+          "reference_id",
+          "measured_m",
+          "expected_m",
+          "discrepancy_m",
+          "exceeds_tolerance"
+        ],
+        "title": "RfNodeSurveyCheckItemOut",
+        "type": "object"
+      },
+      "RfNodeSurveyCheckOut": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/RfNodeSurveyCheckItemOut"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "max_discrepancy_m": {
+            "title": "Max Discrepancy M",
+            "type": "number"
+          },
+          "tolerance_m": {
+            "title": "Tolerance M",
+            "type": "number"
+          },
+          "warning": {
+            "title": "Warning",
+            "type": "boolean"
+          },
+          "x_m": {
+            "title": "X M",
+            "type": "number"
+          },
+          "y_m": {
+            "title": "Y M",
+            "type": "number"
+          },
+          "z_m": {
+            "title": "Z M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x_m",
+          "y_m",
+          "z_m",
+          "tolerance_m",
+          "max_discrepancy_m",
+          "warning",
+          "checks"
+        ],
+        "title": "RfNodeSurveyCheckOut",
+        "type": "object"
+      },
+      "RfNodeSurveyCheckRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "measurements": {
+            "items": {
+              "$ref": "#/components/schemas/SurveyDistanceMeasurement"
+            },
+            "maxItems": 8,
+            "minItems": 2,
+            "title": "Measurements",
+            "type": "array"
+          },
+          "x_norm": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X Norm",
+            "type": "number"
+          },
+          "y_norm": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y Norm",
+            "type": "number"
+          },
+          "z_m": {
+            "default": 1.5,
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Z M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x_norm",
+          "y_norm",
+          "measurements"
+        ],
+        "title": "RfNodeSurveyCheckRequest",
+        "type": "object"
+      },
+      "RfNodeUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter Id"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "node_role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RfNodeRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "placement_residual_m": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement Residual M"
+          },
+          "room_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Id"
+          },
+          "technology": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RangingTechnology"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uwb_address_hex": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Address Hex"
+          },
+          "uwb_channel": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Channel"
+          },
+          "uwb_preamble_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Preamble Index"
+          },
+          "x_norm": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X Norm"
+          },
+          "y_norm": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Norm"
+          },
+          "z_m": {
+            "anyOf": [
+              {
+                "maximum": 4.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z M"
+          }
+        },
+        "title": "RfNodeUpdate",
         "type": "object"
       },
       "RoomCreate": {
@@ -17221,6 +17987,160 @@
         "title": "SignalMarkerOut",
         "type": "object"
       },
+      "SiteConfigBindingOut": {
+        "properties": {
+          "member_id": {
+            "title": "Member Id",
+            "type": "string"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date-time",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          }
+        },
+        "required": [
+          "tag_id",
+          "member_id",
+          "valid_from",
+          "valid_to"
+        ],
+        "title": "SiteConfigBindingOut",
+        "type": "object"
+      },
+      "SiteConfigDeviceOut": {
+        "properties": {
+          "adapter_id": {
+            "title": "Adapter Id",
+            "type": "string"
+          },
+          "device_kind": {
+            "$ref": "#/components/schemas/DeviceKind"
+          },
+          "hardware_key": {
+            "title": "Hardware Key",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag_id",
+          "adapter_id",
+          "hardware_key",
+          "device_kind",
+          "is_active"
+        ],
+        "title": "SiteConfigDeviceOut",
+        "type": "object"
+      },
+      "SiteConfigNodeOut": {
+        "properties": {
+          "adapter_id": {
+            "title": "Adapter Id",
+            "type": "string"
+          },
+          "anchor_id": {
+            "title": "Anchor Id",
+            "type": "string"
+          },
+          "node_role": {
+            "$ref": "#/components/schemas/RfNodeRole"
+          },
+          "room_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Id"
+          },
+          "technology": {
+            "$ref": "#/components/schemas/RangingTechnology"
+          },
+          "uwb_address_hex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Address Hex"
+          },
+          "uwb_channel": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Channel"
+          },
+          "uwb_preamble_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uwb Preamble Index"
+          },
+          "x_m": {
+            "title": "X M",
+            "type": "number"
+          },
+          "y_m": {
+            "title": "Y M",
+            "type": "number"
+          },
+          "z_m": {
+            "title": "Z M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "anchor_id",
+          "adapter_id",
+          "node_role",
+          "technology",
+          "x_m",
+          "y_m",
+          "z_m"
+        ],
+        "title": "SiteConfigNodeOut",
+        "type": "object"
+      },
       "SourceInfo": {
         "properties": {
           "app": {
@@ -17664,6 +18584,38 @@
           "person_id"
         ],
         "title": "SuppressionIn",
+        "type": "object"
+      },
+      "SurveyDistanceMeasurement": {
+        "additionalProperties": false,
+        "properties": {
+          "measured_m": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Measured M",
+            "type": "number"
+          },
+          "reference_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Reference Id",
+            "type": "string"
+          },
+          "reference_kind": {
+            "enum": [
+              "wall",
+              "node"
+            ],
+            "title": "Reference Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference_kind",
+          "reference_id",
+          "measured_m"
+        ],
+        "title": "SurveyDistanceMeasurement",
         "type": "object"
       },
       "TagAnalyticsItem": {
@@ -18509,6 +19461,558 @@
           "voice_instruction"
         ],
         "title": "VoiceInstructionSuggestionOut",
+        "type": "object"
+      },
+      "WearableAssignmentsOut": {
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/MemberWearablesOut"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "unbound_devices": {
+            "items": {
+              "$ref": "#/components/schemas/WearableDeviceOut"
+            },
+            "title": "Unbound Devices",
+            "type": "array"
+          }
+        },
+        "required": [
+          "members",
+          "unbound_devices",
+          "checked_at"
+        ],
+        "title": "WearableAssignmentsOut",
+        "type": "object"
+      },
+      "WearableBindingCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "consent_confirmed": {
+            "description": "Explicit caregiver confirmation that consent was obtained for wearing this tag",
+            "title": "Consent Confirmed",
+            "type": "boolean"
+          },
+          "consent_recorded_by": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Consent Recorded By",
+            "type": "string"
+          },
+          "member_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Member Id",
+            "type": "string"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
+          }
+        },
+        "required": [
+          "member_id",
+          "consent_confirmed",
+          "consent_recorded_by"
+        ],
+        "title": "WearableBindingCreate",
+        "type": "object"
+      },
+      "WearableBindingOut": {
+        "properties": {
+          "consent_recorded_at": {
+            "format": "date-time",
+            "title": "Consent Recorded At",
+            "type": "string"
+          },
+          "consent_recorded_by": {
+            "title": "Consent Recorded By",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "member_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Id"
+          },
+          "member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Name"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date-time",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          }
+        },
+        "required": [
+          "id",
+          "device_id",
+          "tag_id",
+          "member_id",
+          "valid_from",
+          "valid_to",
+          "consent_recorded_by",
+          "consent_recorded_at",
+          "created_by"
+        ],
+        "title": "WearableBindingOut",
+        "type": "object"
+      },
+      "WearableDeviceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Adapter Id",
+            "type": "string"
+          },
+          "device_kind": {
+            "$ref": "#/components/schemas/DeviceKind"
+          },
+          "hardware_key": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Hardware Key",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "tag_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Tag Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag_id",
+          "device_kind",
+          "label",
+          "adapter_id",
+          "hardware_key"
+        ],
+        "title": "WearableDeviceCreate",
+        "type": "object"
+      },
+      "WearableDeviceListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WearableDeviceOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "WearableDeviceListOut",
+        "type": "object"
+      },
+      "WearableDeviceOut": {
+        "properties": {
+          "active_binding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WearableBindingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "adapter_id": {
+            "title": "Adapter Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_kind": {
+            "$ref": "#/components/schemas/DeviceKind"
+          },
+          "hardware_key": {
+            "title": "Hardware Key",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_battery_fraction": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Battery Fraction"
+          },
+          "last_heard_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heard At"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tag_id",
+          "device_kind",
+          "label",
+          "adapter_id",
+          "hardware_key",
+          "is_active",
+          "last_heard_at",
+          "last_battery_fraction",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WearableDeviceOut",
+        "type": "object"
+      },
+      "WearableDeviceStatusOut": {
+        "properties": {
+          "adapter_id": {
+            "title": "Adapter Id",
+            "type": "string"
+          },
+          "bound_member_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bound Member Id"
+          },
+          "bound_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bound Member Name"
+          },
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "device_kind": {
+            "$ref": "#/components/schemas/DeviceKind"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_battery_fraction": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Battery Fraction"
+          },
+          "last_heard_age_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heard Age S"
+          },
+          "last_heard_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heard At"
+          },
+          "reporting": {
+            "title": "Reporting",
+            "type": "boolean"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "tag_id",
+          "label",
+          "device_kind",
+          "adapter_id",
+          "is_active",
+          "bound_member_id",
+          "bound_member_name",
+          "reporting",
+          "last_heard_at",
+          "last_heard_age_s",
+          "last_battery_fraction",
+          "checked_at"
+        ],
+        "title": "WearableDeviceStatusOut",
+        "type": "object"
+      },
+      "WearableDeviceUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter Id"
+          },
+          "device_kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hardware_key": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hardware Key"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "title": "WearableDeviceUpdate",
+        "type": "object"
+      },
+      "WearableSiteConfigOut": {
+        "properties": {
+          "bindings": {
+            "items": {
+              "$ref": "#/components/schemas/SiteConfigBindingOut"
+            },
+            "title": "Bindings",
+            "type": "array"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/SiteConfigDeviceOut"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "floor_plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Plan Id"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/SiteConfigNodeOut"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "floor_plan_id",
+          "nodes",
+          "bindings",
+          "devices",
+          "version"
+        ],
+        "title": "WearableSiteConfigOut",
+        "type": "object"
+      },
+      "WearableUnbindRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          }
+        },
+        "title": "WearableUnbindRequest",
         "type": "object"
       },
       "WebhookSecretOut": {
@@ -36992,6 +38496,774 @@
         "summary": "Name Cluster",
         "tags": [
           "visitors"
+        ]
+      }
+    },
+    "/api/v1/wearables/assignments": {
+      "get": {
+        "description": "Return active wearable devices grouped per household member, plus unbound devices.",
+        "operationId": "list_wearable_assignments",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableAssignmentsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Wearable Assignments",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/devices": {
+      "get": {
+        "description": "List registered wearable devices.",
+        "operationId": "list_wearable_devices",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "active_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Active Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableDeviceListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Wearable Devices",
+        "tags": [
+          "wearables"
+        ]
+      },
+      "post": {
+        "description": "Register a new wearable device.",
+        "operationId": "create_wearable_device",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WearableDeviceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableDeviceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Create Wearable Device",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/devices/{device_id}": {
+      "get": {
+        "description": "Fetch a single registered wearable device.",
+        "operationId": "get_wearable_device",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableDeviceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Wearable Device",
+        "tags": [
+          "wearables"
+        ]
+      },
+      "patch": {
+        "description": "Update a wearable device label, hardware key, or active status.",
+        "operationId": "update_wearable_device",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WearableDeviceUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableDeviceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Update Wearable Device",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/devices/{device_id}/bind": {
+      "post": {
+        "description": "Bind a wearable device to a household member after recording consent.",
+        "operationId": "bind_wearable_device",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WearableBindingCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableBindingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Bind Wearable Device",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/devices/{device_id}/bindings": {
+      "get": {
+        "description": "List full binding history for one wearable device, newest first.",
+        "operationId": "list_wearable_device_bindings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WearableBindingOut"
+                  },
+                  "title": "Response List Wearable Device Bindings",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Wearable Device Bindings",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/devices/{device_id}/status": {
+      "get": {
+        "description": "Report active wearer, last-heard freshness, and battery status for one device.",
+        "operationId": "get_wearable_device_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableDeviceStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Wearable Device Status",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/devices/{device_id}/unbind": {
+      "post": {
+        "description": "Close the active binding on a wearable device.",
+        "operationId": "unbind_wearable_device",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/WearableUnbindRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableBindingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Unbind Wearable Device",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/nodes": {
+      "get": {
+        "description": "List registered fixed RF nodes with floor-plan readiness and metre projections.",
+        "operationId": "list_rf_nodes",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "active_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Active Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RfNodeListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Rf Nodes",
+        "tags": [
+          "wearables"
+        ]
+      },
+      "post": {
+        "description": "Place a new fixed RF node on the household floor plan.",
+        "operationId": "create_rf_node",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RfNodeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RfNodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Create Rf Node",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/nodes/survey-check": {
+      "post": {
+        "description": "Compare clicked floor-plan coordinates against tape-measured distances.",
+        "operationId": "check_rf_node_survey",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RfNodeSurveyCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RfNodeSurveyCheckOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Check Rf Node Survey",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/nodes/{node_id}": {
+      "delete": {
+        "description": "Delete a fixed RF node.",
+        "operationId": "delete_rf_node",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Delete Rf Node",
+        "tags": [
+          "wearables"
+        ]
+      },
+      "get": {
+        "description": "Fetch a single fixed RF node.",
+        "operationId": "get_rf_node",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RfNodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Rf Node",
+        "tags": [
+          "wearables"
+        ]
+      },
+      "patch": {
+        "description": "Update a fixed RF node's position, mount height, role, or UWB parameters.",
+        "operationId": "update_rf_node",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RfNodeUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RfNodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Update Rf Node",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/site-config": {
+      "get": {
+        "description": "Serve RF nodes in metres, time-bounded bindings, and devices for CTS and rf-ingress.",
+        "operationId": "get_wearable_site_config",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableSiteConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Wearable Site Config",
+        "tags": [
+          "wearables"
         ]
       }
     },

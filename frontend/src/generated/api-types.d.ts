@@ -5367,6 +5367,246 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/wearables/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Wearable Assignments
+         * @description Return active wearable devices grouped per household member, plus unbound devices.
+         */
+        get: operations["list_wearable_assignments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wearables/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Wearable Devices
+         * @description List registered wearable devices.
+         */
+        get: operations["list_wearable_devices"];
+        put?: never;
+        /**
+         * Create Wearable Device
+         * @description Register a new wearable device.
+         */
+        post: operations["create_wearable_device"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wearables/devices/{device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Wearable Device
+         * @description Fetch a single registered wearable device.
+         */
+        get: operations["get_wearable_device"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Wearable Device
+         * @description Update a wearable device label, hardware key, or active status.
+         */
+        patch: operations["update_wearable_device"];
+        trace?: never;
+    };
+    "/api/v1/wearables/devices/{device_id}/bind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bind Wearable Device
+         * @description Bind a wearable device to a household member after recording consent.
+         */
+        post: operations["bind_wearable_device"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wearables/devices/{device_id}/bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Wearable Device Bindings
+         * @description List full binding history for one wearable device, newest first.
+         */
+        get: operations["list_wearable_device_bindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wearables/devices/{device_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Wearable Device Status
+         * @description Report active wearer, last-heard freshness, and battery status for one device.
+         */
+        get: operations["get_wearable_device_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wearables/devices/{device_id}/unbind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unbind Wearable Device
+         * @description Close the active binding on a wearable device.
+         */
+        post: operations["unbind_wearable_device"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wearables/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rf Nodes
+         * @description List registered fixed RF nodes with floor-plan readiness and metre projections.
+         */
+        get: operations["list_rf_nodes"];
+        put?: never;
+        /**
+         * Create Rf Node
+         * @description Place a new fixed RF node on the household floor plan.
+         */
+        post: operations["create_rf_node"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wearables/nodes/survey-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Rf Node Survey
+         * @description Compare clicked floor-plan coordinates against tape-measured distances.
+         */
+        post: operations["check_rf_node_survey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wearables/nodes/{node_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Rf Node
+         * @description Fetch a single fixed RF node.
+         */
+        get: operations["get_rf_node"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Rf Node
+         * @description Delete a fixed RF node.
+         */
+        delete: operations["delete_rf_node"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Rf Node
+         * @description Update a fixed RF node's position, mount height, role, or UWB parameters.
+         */
+        patch: operations["update_rf_node"];
+        trace?: never;
+    };
+    "/api/v1/wearables/site-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Wearable Site Config
+         * @description Serve RF nodes in metres, time-bounded bindings, and devices for CTS and rf-ingress.
+         */
+        get: operations["get_wearable_site_config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/{rule_id}": {
         parameters: {
             query?: never;
@@ -7249,6 +7489,12 @@ export interface components {
              */
             require_success: boolean;
         };
+        /**
+         * DeviceKind
+         * @description Form-factor class of a registered wearable device in Cognitive Companion.
+         * @enum {string}
+         */
+        DeviceKind: "ble_beacon" | "watch" | "uwb_tag";
         /** DwellsResponse */
         DwellsResponse: {
             /** Dwells */
@@ -8204,7 +8450,7 @@ export interface components {
              * Blocking Step
              * @description The first required step that is blocked; null when none is
              */
-            blocking_step: ("roster" | "ingest" | "floor_frame" | "capture" | "labeling" | "artifact" | "face_policy" | "templates" | "body_gallery") | null;
+            blocking_step: ("roster" | "ingest" | "floor_frame" | "capture" | "labeling" | "artifact" | "face_policy" | "templates" | "body_gallery" | "wearables") | null;
             /**
              * Checked At
              * Format: date-time
@@ -8980,6 +9226,43 @@ export interface components {
             items: components["schemas"]["MedicationEntryOut"][];
             /** Total */
             total: number;
+        };
+        /** MemberWearableDeviceSummary */
+        MemberWearableDeviceSummary: {
+            /** Adapter Id */
+            adapter_id: string;
+            /** Consent Recorded By */
+            consent_recorded_by: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            device_kind: components["schemas"]["DeviceKind"];
+            /** Is Active */
+            is_active: boolean;
+            /** Label */
+            label: string;
+            /** Last Battery Fraction */
+            last_battery_fraction: number | null;
+            /** Last Heard At */
+            last_heard_at: string | null;
+            /** Tag Id */
+            tag_id: string;
+            /**
+             * Valid From
+             * Format: date-time
+             */
+            valid_from: string;
+        };
+        /** MemberWearablesOut */
+        MemberWearablesOut: {
+            /** Devices */
+            devices: components["schemas"]["MemberWearableDeviceSummary"][];
+            /** Member Id */
+            member_id: string;
+            /** Member Name */
+            member_name: string;
         };
         /** MergeRequest */
         MergeRequest: {
@@ -10200,6 +10483,15 @@ export interface components {
             /** Voice Instruction */
             voice_instruction?: string | null;
         };
+        /**
+         * RangingTechnology
+         * @description Hardware-neutral RF localization technology declared by an adapter or RF node.
+         *
+         *     Mirrors ``continuoustracking.v1.RangingTechnology`` (values 1..3;
+         *     ``UNSPECIFIED`` = 0 is intentionally omitted).
+         * @enum {string}
+         */
+        RangingTechnology: "ble_rssi" | "ble_channel_sounding" | "uwb";
         /** ReCameraData */
         ReCameraData: {
             /**
@@ -10286,12 +10578,12 @@ export interface components {
              * Key
              * @enum {string}
              */
-            key: "roster" | "ingest" | "floor_frame" | "capture" | "labeling" | "artifact" | "face_policy" | "templates" | "body_gallery";
+            key: "roster" | "ingest" | "floor_frame" | "capture" | "labeling" | "artifact" | "face_policy" | "templates" | "body_gallery" | "wearables";
             /**
              * Next Action
              * @enum {string}
              */
-            next_action: "none" | "enroll_members" | "review_visitors" | "fix_camera_ingest" | "upload_floor_plan" | "draw_room_polygons" | "calibrate_cameras" | "enable_capture" | "label_captures" | "fit_and_deploy_artifact" | "refit_artifact" | "review_shadow" | "set_policy_calibrated" | "enable_templates" | "review_body_samples" | "check_service";
+            next_action: "none" | "enroll_members" | "review_visitors" | "fix_camera_ingest" | "upload_floor_plan" | "draw_room_polygons" | "calibrate_cameras" | "enable_capture" | "label_captures" | "fit_and_deploy_artifact" | "refit_artifact" | "review_shadow" | "set_policy_calibrated" | "enable_templates" | "review_body_samples" | "configure_wearables" | "check_service";
             /**
              * Optional
              * @description An optional improvement: its state never blocks the steps after it
@@ -10688,6 +10980,188 @@ export interface components {
             has_more: boolean;
             /** Items */
             items: components["schemas"]["RevisionResponse"][];
+        };
+        /** RfNodeCreate */
+        RfNodeCreate: {
+            /** Adapter Id */
+            adapter_id: string;
+            /** Anchor Id */
+            anchor_id: string;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Label */
+            label: string;
+            node_role: components["schemas"]["RfNodeRole"];
+            /** Placement Residual M */
+            placement_residual_m?: number | null;
+            /** Room Id */
+            room_id?: number | null;
+            technology: components["schemas"]["RangingTechnology"];
+            /** Uwb Address Hex */
+            uwb_address_hex?: string | null;
+            /** Uwb Channel */
+            uwb_channel?: number | null;
+            /** Uwb Preamble Index */
+            uwb_preamble_index?: number | null;
+            /** X Norm */
+            x_norm: number;
+            /** Y Norm */
+            y_norm: number;
+            /** Z M */
+            z_m: number;
+        };
+        /** RfNodeListOut */
+        RfNodeListOut: {
+            /** Floor Height M */
+            floor_height_m: number | null;
+            /** Floor Plan Id */
+            floor_plan_id: string | null;
+            /** Floor Plan Ready */
+            floor_plan_ready: boolean;
+            /** Floor Width M */
+            floor_width_m: number | null;
+            /** Items */
+            items: components["schemas"]["RfNodeOut"][];
+            /** Total */
+            total: number;
+        };
+        /** RfNodeOut */
+        RfNodeOut: {
+            /** Adapter Id */
+            adapter_id: string;
+            /** Anchor Id */
+            anchor_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Label */
+            label: string;
+            node_role: components["schemas"]["RfNodeRole"];
+            /** Placement Residual M */
+            placement_residual_m: number | null;
+            /** Room Id */
+            room_id: number | null;
+            /** Room Name */
+            room_name?: string | null;
+            technology: components["schemas"]["RangingTechnology"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Uwb Address Hex */
+            uwb_address_hex: string | null;
+            /** Uwb Channel */
+            uwb_channel: number | null;
+            /** Uwb Preamble Index */
+            uwb_preamble_index: number | null;
+            /** X M */
+            x_m?: number | null;
+            /** X Norm */
+            x_norm: number;
+            /** Y M */
+            y_m?: number | null;
+            /** Y Norm */
+            y_norm: number;
+            /** Z M */
+            z_m: number;
+        };
+        /**
+         * RfNodeRole
+         * @description Role of a fixed RF node registered in Cognitive Companion.
+         *
+         *     Mirrors ``continuoustracking.v1.RfNodeRole`` (values 1..2; ``UNSPECIFIED`` = 0
+         *     is intentionally omitted).
+         * @enum {string}
+         */
+        RfNodeRole: "receiver" | "ranging_anchor";
+        /** RfNodeSurveyCheckItemOut */
+        RfNodeSurveyCheckItemOut: {
+            /** Discrepancy M */
+            discrepancy_m: number;
+            /** Exceeds Tolerance */
+            exceeds_tolerance: boolean;
+            /** Expected M */
+            expected_m: number;
+            /** Measured M */
+            measured_m: number;
+            /** Reference Id */
+            reference_id: string;
+            /**
+             * Reference Kind
+             * @enum {string}
+             */
+            reference_kind: "wall" | "node";
+        };
+        /** RfNodeSurveyCheckOut */
+        RfNodeSurveyCheckOut: {
+            /** Checks */
+            checks: components["schemas"]["RfNodeSurveyCheckItemOut"][];
+            /** Max Discrepancy M */
+            max_discrepancy_m: number;
+            /** Tolerance M */
+            tolerance_m: number;
+            /** Warning */
+            warning: boolean;
+            /** X M */
+            x_m: number;
+            /** Y M */
+            y_m: number;
+            /** Z M */
+            z_m: number;
+        };
+        /** RfNodeSurveyCheckRequest */
+        RfNodeSurveyCheckRequest: {
+            /** Measurements */
+            measurements: components["schemas"]["SurveyDistanceMeasurement"][];
+            /** X Norm */
+            x_norm: number;
+            /** Y Norm */
+            y_norm: number;
+            /**
+             * Z M
+             * @default 1.5
+             */
+            z_m: number;
+        };
+        /** RfNodeUpdate */
+        RfNodeUpdate: {
+            /** Adapter Id */
+            adapter_id?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Label */
+            label?: string | null;
+            node_role?: components["schemas"]["RfNodeRole"] | null;
+            /** Placement Residual M */
+            placement_residual_m?: number | null;
+            /** Room Id */
+            room_id?: number | null;
+            technology?: components["schemas"]["RangingTechnology"] | null;
+            /** Uwb Address Hex */
+            uwb_address_hex?: string | null;
+            /** Uwb Channel */
+            uwb_channel?: number | null;
+            /** Uwb Preamble Index */
+            uwb_preamble_index?: number | null;
+            /** X Norm */
+            x_norm?: number | null;
+            /** Y Norm */
+            y_norm?: number | null;
+            /** Z M */
+            z_m?: number | null;
         };
         /** RoomCreate */
         RoomCreate: {
@@ -11817,6 +12291,55 @@ export interface components {
             /** Signal Kind */
             signal_kind: string;
         };
+        /** SiteConfigBindingOut */
+        SiteConfigBindingOut: {
+            /** Member Id */
+            member_id: string;
+            /** Tag Id */
+            tag_id: string;
+            /**
+             * Valid From
+             * Format: date-time
+             */
+            valid_from: string;
+            /** Valid To */
+            valid_to: string | null;
+        };
+        /** SiteConfigDeviceOut */
+        SiteConfigDeviceOut: {
+            /** Adapter Id */
+            adapter_id: string;
+            device_kind: components["schemas"]["DeviceKind"];
+            /** Hardware Key */
+            hardware_key: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Tag Id */
+            tag_id: string;
+        };
+        /** SiteConfigNodeOut */
+        SiteConfigNodeOut: {
+            /** Adapter Id */
+            adapter_id: string;
+            /** Anchor Id */
+            anchor_id: string;
+            node_role: components["schemas"]["RfNodeRole"];
+            /** Room Id */
+            room_id?: string | null;
+            technology: components["schemas"]["RangingTechnology"];
+            /** Uwb Address Hex */
+            uwb_address_hex?: string | null;
+            /** Uwb Channel */
+            uwb_channel?: number | null;
+            /** Uwb Preamble Index */
+            uwb_preamble_index?: number | null;
+            /** X M */
+            x_m: number;
+            /** Y M */
+            y_m: number;
+            /** Z M */
+            z_m: number;
+        };
         /** SourceInfo */
         SourceInfo: {
             /**
@@ -12032,6 +12555,18 @@ export interface components {
             reason: string;
             /** Signal Kind */
             signal_kind?: string | null;
+        };
+        /** SurveyDistanceMeasurement */
+        SurveyDistanceMeasurement: {
+            /** Measured M */
+            measured_m: number;
+            /** Reference Id */
+            reference_id: string;
+            /**
+             * Reference Kind
+             * @enum {string}
+             */
+            reference_kind: "wall" | "node";
         };
         /**
          * TagAnalyticsItem
@@ -12366,6 +12901,184 @@ export interface components {
         VoiceInstructionSuggestionOut: {
             /** Voice Instruction */
             voice_instruction: string;
+        };
+        /** WearableAssignmentsOut */
+        WearableAssignmentsOut: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Members */
+            members: components["schemas"]["MemberWearablesOut"][];
+            /** Unbound Devices */
+            unbound_devices: components["schemas"]["WearableDeviceOut"][];
+        };
+        /** WearableBindingCreate */
+        WearableBindingCreate: {
+            /**
+             * Consent Confirmed
+             * @description Explicit caregiver confirmation that consent was obtained for wearing this tag
+             */
+            consent_confirmed: boolean;
+            /** Consent Recorded By */
+            consent_recorded_by: string;
+            /** Member Id */
+            member_id: string;
+            /** Valid From */
+            valid_from?: string | null;
+        };
+        /** WearableBindingOut */
+        WearableBindingOut: {
+            /**
+             * Consent Recorded At
+             * Format: date-time
+             */
+            consent_recorded_at: string;
+            /** Consent Recorded By */
+            consent_recorded_by: string;
+            /** Created By */
+            created_by: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Member Id */
+            member_id: string | null;
+            /** Member Name */
+            member_name?: string | null;
+            /** Tag Id */
+            tag_id: string;
+            /**
+             * Valid From
+             * Format: date-time
+             */
+            valid_from: string;
+            /** Valid To */
+            valid_to: string | null;
+        };
+        /** WearableDeviceCreate */
+        WearableDeviceCreate: {
+            /** Adapter Id */
+            adapter_id: string;
+            device_kind: components["schemas"]["DeviceKind"];
+            /** Hardware Key */
+            hardware_key: string;
+            /** Label */
+            label: string;
+            /** Tag Id */
+            tag_id: string;
+        };
+        /** WearableDeviceListOut */
+        WearableDeviceListOut: {
+            /** Items */
+            items: components["schemas"]["WearableDeviceOut"][];
+            /** Total */
+            total: number;
+        };
+        /** WearableDeviceOut */
+        WearableDeviceOut: {
+            active_binding?: components["schemas"]["WearableBindingOut"] | null;
+            /** Adapter Id */
+            adapter_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            device_kind: components["schemas"]["DeviceKind"];
+            /** Hardware Key */
+            hardware_key: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Label */
+            label: string;
+            /** Last Battery Fraction */
+            last_battery_fraction: number | null;
+            /** Last Heard At */
+            last_heard_at: string | null;
+            /** Tag Id */
+            tag_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** WearableDeviceStatusOut */
+        WearableDeviceStatusOut: {
+            /** Adapter Id */
+            adapter_id: string;
+            /** Bound Member Id */
+            bound_member_id: string | null;
+            /** Bound Member Name */
+            bound_member_name: string | null;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            device_kind: components["schemas"]["DeviceKind"];
+            /** Is Active */
+            is_active: boolean;
+            /** Label */
+            label: string;
+            /** Last Battery Fraction */
+            last_battery_fraction: number | null;
+            /** Last Heard Age S */
+            last_heard_age_s: number | null;
+            /** Last Heard At */
+            last_heard_at: string | null;
+            /** Reporting */
+            reporting: boolean;
+            /** Tag Id */
+            tag_id: string;
+        };
+        /** WearableDeviceUpdate */
+        WearableDeviceUpdate: {
+            /** Adapter Id */
+            adapter_id?: string | null;
+            device_kind?: components["schemas"]["DeviceKind"] | null;
+            /** Hardware Key */
+            hardware_key?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Label */
+            label?: string | null;
+        };
+        /** WearableSiteConfigOut */
+        WearableSiteConfigOut: {
+            /** Bindings */
+            bindings: components["schemas"]["SiteConfigBindingOut"][];
+            /** Devices */
+            devices: components["schemas"]["SiteConfigDeviceOut"][];
+            /** Floor Plan Id */
+            floor_plan_id: string | null;
+            /** Nodes */
+            nodes: components["schemas"]["SiteConfigNodeOut"][];
+            /** Version */
+            version: string;
+        };
+        /** WearableUnbindRequest */
+        WearableUnbindRequest: {
+            /** At */
+            at?: string | null;
         };
         /**
          * WebhookSecretOut
@@ -22702,6 +23415,500 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_wearable_assignments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableAssignmentsOut"];
+                };
+            };
+        };
+    };
+    list_wearable_devices: {
+        parameters: {
+            query?: {
+                active_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableDeviceListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_wearable_device: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WearableDeviceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableDeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_wearable_device: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableDeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_wearable_device: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WearableDeviceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableDeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bind_wearable_device: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WearableBindingCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableBindingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_wearable_device_bindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableBindingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_wearable_device_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableDeviceStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unbind_wearable_device: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["WearableUnbindRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableBindingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rf_nodes: {
+        parameters: {
+            query?: {
+                active_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RfNodeListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_rf_node: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RfNodeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RfNodeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_rf_node_survey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RfNodeSurveyCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RfNodeSurveyCheckOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_rf_node: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RfNodeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_rf_node: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_rf_node: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RfNodeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RfNodeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_wearable_site_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableSiteConfigOut"];
                 };
             };
         };

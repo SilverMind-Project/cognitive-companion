@@ -106,6 +106,7 @@ def create_app() -> FastAPI:
         sensors,
         signals_feed,
         visitors,
+        wearables,
         webhooks,
         workflows,
         ws,
@@ -143,6 +144,7 @@ def create_app() -> FastAPI:
     app.include_router(face_calibration.router, prefix=api)
     app.include_router(identity_readiness.router, prefix=api)
     app.include_router(identity_targets.router, prefix=api)
+    app.include_router(wearables.router, prefix=api)
     app.include_router(workflows.router, prefix=api)
     app.include_router(activities.router, prefix=api)
     app.include_router(webhooks.router, prefix=api)

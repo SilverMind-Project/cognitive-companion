@@ -78,9 +78,11 @@ EXPECTED_TOOLS = {
     "get_roster_health",
     "get_face_calibration_summary",
     "get_identity_readiness",
+    "get_wearable_assignments",
+    "get_wearable_device_status",
 }
 
-EXPECTED_COUNT = 63
+EXPECTED_COUNT = 65
 
 
 # ---------------------------------------------------------------------------

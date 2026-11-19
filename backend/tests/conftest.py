@@ -164,6 +164,7 @@ def db_engine(postgres_url):
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vectorscale CASCADE"))
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
         conn.commit()
 
     Base.metadata.create_all(bind=engine)

@@ -77,6 +77,8 @@ class MCPServices:
     roster_health_service: Any = None  # who still needs face enrollment
     face_calibration_service: Any = None  # face calibration labeling progress
     identity_readiness_service: Any = None  # which identity setup step is broken
+    wearable_device_service: Any = None  # wearable device registry and reporting status
+    wearable_binding_service: Any = None  # wearable-to-member consented bindings
 
 
 _svc = MCPServices()
@@ -1944,4 +1946,45 @@ async def get_gait_trend(
         return envelope.model_dump(mode="json")
     except Exception as exc:
         logger.error("mcp_get_gait_trend_error", person_id=person_id, error=str(exc))
+        return {"error": str(exc)}
+
+
+@_register(token=TOOLS_READ)
+async def get_wearable_assignments() -> dict:
+    """List which household members wear which active wearable devices, with battery and freshness.
+
+    Returns:
+        WearableAssignmentsOut: per-member list of active bound devices (multiple devices per
+        person supported) plus unbound devices, each with last_heard_at and last_battery_fraction.
+    """
+    svc = _svc.wearable_binding_service
+    if svc is None:
+        return {"error": "wearable_binding_service unavailable"}
+    try:
+        envelope = svc.list_member_assignments()
+        return envelope.model_dump(mode="json")
+    except Exception as exc:
+        logger.error("mcp_get_wearable_assignments_error", error=str(exc))
+        return {"error": str(exc)}
+
+
+@_register(token=TOOLS_READ)
+async def get_wearable_device_status(tag_id: str) -> dict:
+    """Check whether a registered wearable device is reporting, who wears it, and its battery.
+
+    Args:
+        tag_id: Hardware-neutral wearable tag identifier (for example ``grandma-band-1``).
+
+    Returns:
+        WearableDeviceStatusOut: active wearer, reporting flag, last_heard_at, last_heard_age_s,
+        and last_battery_fraction.
+    """
+    svc = _svc.wearable_device_service
+    if svc is None:
+        return {"error": "wearable_device_service unavailable"}
+    try:
+        status = svc.get_device_status_by_tag(tag_id)
+        return status.model_dump(mode="json")
+    except Exception as exc:
+        logger.error("mcp_get_wearable_device_status_error", tag_id=tag_id, error=str(exc))
         return {"error": str(exc)}

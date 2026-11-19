@@ -72,6 +72,17 @@ class IngestHealth:
     frame_age_s: dict[str, float | None]
 
 
+@dataclass(frozen=True)
+class WearablesHealth:
+    """Wearable registry counts and last-heard age for the optional wearables step."""
+
+    active_node_count: int
+    active_device_count: int
+    active_binding_count: int
+    low_battery_count: int
+    last_heard_age_s: float | None
+
+
 def _unknown(
     key: ReadinessStepKey, failure: SourceFailure, *, optional: bool = False
 ) -> ReadinessStep:
@@ -476,6 +487,77 @@ def body_gallery_step(cts: CTSIdentityReadiness | SourceFailure) -> ReadinessSte
             next_action="none" if live else "set_policy_calibrated",
         )
     return ReadinessStep(key="body_gallery", state="ready", detail=summary, next_action="none")
+
+
+def wearables_step(
+    wearables: WearablesHealth | SourceFailure,
+    *,
+    has_floor_plan_and_scale: bool,
+) -> ReadinessStep:
+    """Optional wearable identity readiness step: RF nodes, consented bindings, and battery."""
+    if isinstance(wearables, SourceFailure):
+        return _unknown("wearables", wearables, optional=True)
+
+    counts = (
+        f"{_count(wearables.active_node_count, 'RF node')} placed, "
+        f"{_count(wearables.active_device_count, 'active device')}, "
+        f"{_count(wearables.active_binding_count, 'active binding')}."
+    )
+    if (
+        wearables.active_node_count == 0
+        and wearables.active_device_count == 0
+        and wearables.active_binding_count == 0
+    ):
+        return ReadinessStep(
+            key="wearables",
+            state="ready",
+            detail=(
+                "No wearables configured yet. Wearables are optional corroborating sensors "
+                "for rooms and shared spaces."
+            ),
+            next_action="none",
+            optional=True,
+        )
+    if not has_floor_plan_and_scale:
+        return ReadinessStep(
+            key="wearables",
+            state="attention",
+            detail=f"{counts} Upload a floor plan and set its scale so RF nodes have floor coordinates.",
+            next_action="upload_floor_plan",
+            optional=True,
+        )
+    if wearables.low_battery_count > 0:
+        return ReadinessStep(
+            key="wearables",
+            state="attention",
+            detail=(
+                f"{counts} {_count(wearables.low_battery_count, 'wearable')} reported low battery."
+            ),
+            next_action="configure_wearables",
+            optional=True,
+        )
+    if wearables.active_node_count == 0 or wearables.active_binding_count == 0:
+        return ReadinessStep(
+            key="wearables",
+            state="attention",
+            detail=(
+                f"{counts} Place at least one RF node and bind a consented device to use wearables."
+            ),
+            next_action="configure_wearables",
+            optional=True,
+        )
+    heard = (
+        f" Last fix heard {wearables.last_heard_age_s:.0f} s ago."
+        if wearables.last_heard_age_s is not None
+        else " No RF fixes heard yet."
+    )
+    return ReadinessStep(
+        key="wearables",
+        state="ready",
+        detail=counts + heard,
+        next_action="none",
+        optional=True,
+    )
 
 
 def review_queues(

@@ -140,6 +140,7 @@ permission_map:
     - "identity_targets:read"
     - "identity_review:read"
     - "face_prototypes:read"
+    - "wearables:read"
 
   caregiver_admin:
     - "GET /api/v1/*"
@@ -219,6 +220,7 @@ permission_map:
     - "identity_targets:read"
     - "identity_review:read"
     - "face_prototypes:read"
+    - "wearables:read"
     - "face_prototypes:write"
 
   operator:
@@ -279,6 +281,7 @@ permission_map:
     - "GET /api/v1/cts/transit-zones"
     - "GET /api/v1/rooms*"
     - "GET /api/v1/household/floor-plan"
+    - "wearables:site_config"
 
   "device:recamera":
     - "POST /api/v1/device/recamera"
@@ -397,3 +400,22 @@ permission_map:
   "face_prototypes:write":
     - "POST /api/v1/persons/*/prototypes/rebuild"
     - "DELETE /api/v1/persons/*/prototypes/*"
+
+  # Wearable device registry, consented bindings, RF nodes, and site config.
+  "wearables:read":
+    - "GET /api/v1/wearables/assignments"
+    - "GET /api/v1/wearables/devices"
+    - "GET /api/v1/wearables/devices/*"
+    - "GET /api/v1/wearables/nodes"
+    - "GET /api/v1/wearables/nodes/*"
+    - "POST /api/v1/wearables/nodes/survey-check"
+  "wearables:manage":
+    - "POST /api/v1/wearables/devices"
+    - "PATCH /api/v1/wearables/devices/*"
+    - "POST /api/v1/wearables/devices/*/bind"
+    - "POST /api/v1/wearables/devices/*/unbind"
+    - "POST /api/v1/wearables/nodes"
+    - "PATCH /api/v1/wearables/nodes/*"
+    - "DELETE /api/v1/wearables/nodes/*"
+  "wearables:site_config":
+    - "GET /api/v1/wearables/site-config"

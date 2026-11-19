@@ -58,7 +58,7 @@ def suggest_overlap_groups(cameras: list[dict]) -> OverlapSuggestions:
             poly = Polygon([(pt[0], pt[1]) for pt in raw])
             if not poly.is_valid:
                 poly = poly.buffer(0)
-        except Exception:  # noqa: BLE001 - a malformed stored polygon skips that camera only
+        except Exception:
             logger.warning("cts_overlap_polygon_build_failed", camera_id=cid, exc_info=True)
             result.skipped_camera_ids.append(cid)
             continue

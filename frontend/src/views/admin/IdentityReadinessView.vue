@@ -51,8 +51,8 @@
         class="mb-4"
         data-test="blocking-summary"
       >
-        Start with <strong>{{ STEP_PRESENTATION[blocking].title }}</strong
-        >: it is blocked, and the steps after it cannot make progress until it is done.
+        Start with <strong>{{ STEP_PRESENTATION[blocking].title }}</strong>: it is blocked, and the
+        steps after it cannot make progress until it is done.
       </v-alert>
 
       <section v-for="group in groups" :key="group.title" class="mb-6">

@@ -196,11 +196,23 @@ hooks-test:
 	bash .claude/hooks/tests/run.sh
 	bash scripts/release.sh --self-test
 
+.PHONY: check-toolchain
+check-toolchain:
+	@bash scripts/check-toolchain-sync.sh
+
+.PHONY: deps-outdated
+deps-outdated:
+	@bash scripts/deps-upgrade.sh --check
+
+.PHONY: deps-upgrade
+deps-upgrade:
+	@bash scripts/deps-upgrade.sh --apply
+
 .PHONY: check
-check: lint typecheck-core typecheck-ratchet test-core hooks-test check-md docs-check
+check: lint typecheck-core typecheck-ratchet test-core hooks-test check-md docs-check check-toolchain
 
 .PHONY: check-all
-check-all: lint import-lint typecheck-core typecheck-ratchet test hooks-test check-md docs-check frontend-lint frontend-typecheck frontend-test
+check-all: lint import-lint typecheck-core typecheck-ratchet test hooks-test check-md docs-check check-toolchain frontend-lint frontend-typecheck frontend-test
 
 .PHONY: migrate
 migrate:

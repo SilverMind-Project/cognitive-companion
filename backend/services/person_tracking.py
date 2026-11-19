@@ -27,7 +27,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import httpx
-from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
@@ -510,7 +509,7 @@ class PersonTrackingService:
             if activity_type:
                 query = query.filter(PersonActivity.activity_type == activity_type)
 
-            activities = query.order_by(desc(PersonActivity.detected_at)).limit(50).all()
+            activities = query.order_by(PersonActivity.detected_at.desc()).limit(50).all()
             return [
                 {
                     "id": a.id,
@@ -572,7 +571,7 @@ class PersonTrackingService:
             if effective_end:
                 query = query.filter(PersonActivity.detected_at <= effective_end)
 
-            activities = query.order_by(desc(PersonActivity.detected_at)).limit(50).all()
+            activities = query.order_by(PersonActivity.detected_at.desc()).limit(50).all()
             return [
                 {
                     "id": a.id,

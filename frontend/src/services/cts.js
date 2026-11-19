@@ -41,6 +41,9 @@ export const cts = {
   getSnapshot: (id) => requestBlobUrl(`${BASE}/cameras/${encodeURIComponent(id)}/snapshot`),
   getCameraHealth: (id) => req(`/cameras/${id}/health`),
   reloadCamera: (id) => req(`/cameras/${id}/reload`, { method: "POST" }),
+  getCameraOptics: (id) => req(`/cameras/${encodeURIComponent(id)}/optics`),
+  previewCameraOptics: (data) =>
+    req("/cameras/optics-preview", { method: "POST", body: JSON.stringify(data) }),
 
   // ── Calibration: health status ──────────────────────────────────────────────
   getCalibrationHealth: () => req("/calibration/health"),

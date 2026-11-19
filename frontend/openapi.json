@@ -2218,6 +2218,127 @@
         "title": "CameraMarkerIn",
         "type": "object"
       },
+      "CameraOpticsOut": {
+        "description": "Derived pinhole optics estimates for a camera or unsaved form preview.",
+        "properties": {
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/OpticsBandThreshold"
+            },
+            "title": "Bands",
+            "type": "array"
+          },
+          "camera_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Camera Id"
+          },
+          "distance_for_24px_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance For 24Px M"
+          },
+          "distances": {
+            "items": {
+              "$ref": "#/components/schemas/OpticsDistanceRow"
+            },
+            "title": "Distances",
+            "type": "array"
+          },
+          "focal_length_px": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focal Length Px"
+          },
+          "frame_natural_height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frame Natural Height"
+          },
+          "frame_natural_width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frame Natural Width"
+          },
+          "horizontal_fov_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizontal Fov Deg"
+          },
+          "missing_inputs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Inputs",
+            "type": "array"
+          },
+          "observed_stream_height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Stream Height"
+          },
+          "observed_stream_width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Stream Width"
+          },
+          "stream_size_mismatch": {
+            "default": false,
+            "title": "Stream Size Mismatch",
+            "type": "boolean"
+          }
+        },
+        "title": "CameraOpticsOut",
+        "type": "object"
+      },
       "CameraVisibilityPolygon": {
         "properties": {
           "camera_id": {
@@ -3171,6 +3292,18 @@
             "title": "Id",
             "type": "string"
           },
+          "ir_capable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether the camera has IR illumination. Night IR mode switches to grayscale and degrades face and color matching.",
+            "title": "Ir Capable"
+          },
           "mounting_height_m": {
             "anyOf": [
               {
@@ -3452,6 +3585,18 @@
             "title": "Id",
             "type": "string"
           },
+          "ir_capable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether the camera has IR illumination. Night IR mode switches to grayscale and degrades face and color matching.",
+            "title": "Ir Capable"
+          },
           "mounting_height_m": {
             "anyOf": [
               {
@@ -3674,6 +3819,17 @@
               }
             ],
             "title": "Horizontal Fov Deg"
+          },
+          "ir_capable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ir Capable"
           },
           "mounting_height_m": {
             "anyOf": [
@@ -9545,6 +9701,118 @@
           }
         },
         "title": "OccupancyResponse",
+        "type": "object"
+      },
+      "OpticsBandThreshold": {
+        "description": "Canonical interocular pixel band bounds from ``cts_contracts.optics``.",
+        "properties": {
+          "band": {
+            "enum": [
+              "poor",
+              "marginal",
+              "good",
+              "excellent"
+            ],
+            "title": "Band",
+            "type": "string"
+          },
+          "max_px": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Px"
+          },
+          "min_px": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Px"
+          }
+        },
+        "required": [
+          "band"
+        ],
+        "title": "OpticsBandThreshold",
+        "type": "object"
+      },
+      "OpticsDistanceRow": {
+        "description": "Expected frontal interocular span in pixels at one subject distance.",
+        "properties": {
+          "band": {
+            "enum": [
+              "poor",
+              "marginal",
+              "good",
+              "excellent"
+            ],
+            "title": "Band",
+            "type": "string"
+          },
+          "distance_m": {
+            "exclusiveMinimum": 0.0,
+            "title": "Distance M",
+            "type": "number"
+          },
+          "interocular_px": {
+            "exclusiveMinimum": 0.0,
+            "title": "Interocular Px",
+            "type": "number"
+          }
+        },
+        "required": [
+          "distance_m",
+          "interocular_px",
+          "band"
+        ],
+        "title": "OpticsDistanceRow",
+        "type": "object"
+      },
+      "OpticsPreviewRequest": {
+        "additionalProperties": false,
+        "description": "Unsaved camera optics parameters for the stateless placement calculator.",
+        "properties": {
+          "frame_natural_height": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional stream image height in pixels.",
+            "title": "Frame Natural Height"
+          },
+          "frame_natural_width": {
+            "description": "Stream image width in pixels.",
+            "exclusiveMinimum": 0.0,
+            "title": "Frame Natural Width",
+            "type": "integer"
+          },
+          "horizontal_fov_deg": {
+            "description": "Lens horizontal field of view in degrees (pinhole approximation).",
+            "maximum": 180.0,
+            "minimum": 20.0,
+            "title": "Horizontal Fov Deg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "horizontal_fov_deg",
+          "frame_natural_width"
+        ],
+        "title": "OpticsPreviewRequest",
         "type": "object"
       },
       "OverlapGroupIn": {
@@ -20795,6 +21063,53 @@
         ]
       }
     },
+    "/api/v1/cts/cameras/optics-preview": {
+      "post": {
+        "description": "Stateless placement calculator preview for unsaved camera profile values.",
+        "operationId": "preview_camera_optics",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpticsPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CameraOpticsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Preview Camera Optics",
+        "tags": [
+          "cts-cameras"
+        ]
+      }
+    },
     "/api/v1/cts/cameras/test-connect": {
       "post": {
         "operationId": "rtsp_test_connect",
@@ -21117,6 +21432,54 @@
           }
         ],
         "summary": "Put Camera Marker",
+        "tags": [
+          "cts-cameras"
+        ]
+      }
+    },
+    "/api/v1/cts/cameras/{camera_id}/optics": {
+      "get": {
+        "description": "Return derived pinhole optics for a stored camera, syncing CTS stream size if available.",
+        "operationId": "get_camera_optics",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CameraOpticsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Camera Optics",
         "tags": [
           "cts-cameras"
         ]

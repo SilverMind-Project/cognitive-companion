@@ -350,6 +350,16 @@ There is no operator-edited adjacency graph: cameras that overlap are declared a
 | Interactions | `GET /knowledge-interactions/queries`, `/quiz-sessions`, and `/info-card-deliveries` |
 
 
+## CTS camera profiles and optics
+
+Hardware-neutral camera profiles live on `/cts/cameras` (`role`, `face_id_enabled`, `face_id_min_raw_similarity`, `horizontal_fov_deg`, `mounting_height_m`, `tilt_deg`, `ir_capable`, read-only `frame_natural_width` and `frame_natural_height`). The placement calculator routes delegate all pinhole math and interocular pixel band bounds to `cts_contracts.optics`.
+
+| Method | Path | Permission | Description |
+| --- | --- | --- | --- |
+| `GET` | `/cts/cameras/{camera_id}/optics` | `cts.cameras.read` | Derived pinhole focal length, 24 px range, and expected interocular pixels at 1 to 5 m for a stored camera; syncs observed stream dimensions from CTS `/internal/calibration/status` when reachable |
+| `POST` | `/cts/cameras/optics-preview` | `cts.cameras.read` | Stateless placement calculator preview for unsaved `horizontal_fov_deg` and `frame_natural_width` values |
+
+
 ## MCP endpoint
 
 `/mcp` serves the Model Context Protocol (streamable HTTP) for external agents. Every

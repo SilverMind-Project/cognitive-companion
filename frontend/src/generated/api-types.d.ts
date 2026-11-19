@@ -876,6 +876,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cts/cameras/optics-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Camera Optics
+         * @description Stateless placement calculator preview for unsaved camera profile values.
+         */
+        post: operations["preview_camera_optics"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cts/cameras/test-connect": {
         parameters: {
             query?: never;
@@ -942,6 +962,26 @@ export interface paths {
         post?: never;
         /** Delete Camera Marker */
         delete: operations["delete_camera_marker"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cts/cameras/{camera_id}/optics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Camera Optics
+         * @description Return derived pinhole optics for a stored camera, syncing CTS stream size if available.
+         */
+        get: operations["get_camera_optics"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6316,6 +6356,39 @@ export interface components {
             /** Y Norm */
             y_norm: number;
         };
+        /**
+         * CameraOpticsOut
+         * @description Derived pinhole optics estimates for a camera or unsaved form preview.
+         */
+        CameraOpticsOut: {
+            /** Bands */
+            bands?: components["schemas"]["OpticsBandThreshold"][];
+            /** Camera Id */
+            camera_id?: string | null;
+            /** Distance For 24Px M */
+            distance_for_24px_m?: number | null;
+            /** Distances */
+            distances?: components["schemas"]["OpticsDistanceRow"][];
+            /** Focal Length Px */
+            focal_length_px?: number | null;
+            /** Frame Natural Height */
+            frame_natural_height?: number | null;
+            /** Frame Natural Width */
+            frame_natural_width?: number | null;
+            /** Horizontal Fov Deg */
+            horizontal_fov_deg?: number | null;
+            /** Missing Inputs */
+            missing_inputs?: string[];
+            /** Observed Stream Height */
+            observed_stream_height?: number | null;
+            /** Observed Stream Width */
+            observed_stream_width?: number | null;
+            /**
+             * Stream Size Mismatch
+             * @default false
+             */
+            stream_size_mismatch: boolean;
+        };
         /** CameraVisibilityPolygon */
         CameraVisibilityPolygon: {
             /** Camera Id */
@@ -6678,6 +6751,11 @@ export interface components {
             /** Id */
             id: string;
             /**
+             * Ir Capable
+             * @description Whether the camera has IR illumination. Night IR mode switches to grayscale and degrades face and color matching.
+             */
+            ir_capable?: boolean | null;
+            /**
              * Mounting Height M
              * @description Camera mounting height above the floor in metres.
              */
@@ -6767,6 +6845,11 @@ export interface components {
             /** Id */
             id: string;
             /**
+             * Ir Capable
+             * @description Whether the camera has IR illumination. Night IR mode switches to grayscale and degrades face and color matching.
+             */
+            ir_capable?: boolean | null;
+            /**
              * Mounting Height M
              * @description Camera mounting height above the floor in metres.
              */
@@ -6834,6 +6917,8 @@ export interface components {
             floor_plan_key?: string | null;
             /** Horizontal Fov Deg */
             horizontal_fov_deg?: number | null;
+            /** Ir Capable */
+            ir_capable?: boolean | null;
             /** Mounting Height M */
             mounting_height_m?: number | null;
             /** Name */
@@ -9017,6 +9102,57 @@ export interface components {
             occupancy?: {
                 [key: string]: components["schemas"]["RoomOccupancyStateEnvelope"];
             };
+        };
+        /**
+         * OpticsBandThreshold
+         * @description Canonical interocular pixel band bounds from ``cts_contracts.optics``.
+         */
+        OpticsBandThreshold: {
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "poor" | "marginal" | "good" | "excellent";
+            /** Max Px */
+            max_px?: number | null;
+            /** Min Px */
+            min_px?: number | null;
+        };
+        /**
+         * OpticsDistanceRow
+         * @description Expected frontal interocular span in pixels at one subject distance.
+         */
+        OpticsDistanceRow: {
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "poor" | "marginal" | "good" | "excellent";
+            /** Distance M */
+            distance_m: number;
+            /** Interocular Px */
+            interocular_px: number;
+        };
+        /**
+         * OpticsPreviewRequest
+         * @description Unsaved camera optics parameters for the stateless placement calculator.
+         */
+        OpticsPreviewRequest: {
+            /**
+             * Frame Natural Height
+             * @description Optional stream image height in pixels.
+             */
+            frame_natural_height?: number | null;
+            /**
+             * Frame Natural Width
+             * @description Stream image width in pixels.
+             */
+            frame_natural_width: number;
+            /**
+             * Horizontal Fov Deg
+             * @description Lens horizontal field of view in degrees (pinhole approximation).
+             */
+            horizontal_fov_deg: number;
         };
         /** OverlapGroupIn */
         OverlapGroupIn: {
@@ -13609,6 +13745,39 @@ export interface operations {
             };
         };
     };
+    preview_camera_optics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpticsPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CameraOpticsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     rtsp_test_connect: {
         parameters: {
             query?: never;
@@ -13824,6 +13993,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_camera_optics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CameraOpticsOut"];
+                };
             };
             /** @description Validation Error */
             422: {

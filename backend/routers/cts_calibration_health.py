@@ -17,6 +17,7 @@ from backend.core.auth import require_permission
 from backend.core.database import get_db
 from backend.models.cts_camera import CtsCamera
 from backend.routers.cts_deps import cts_enabled
+from backend.services.cts.camera_optics import apply_observed_stream_sizes
 
 router = APIRouter(prefix="/cts", tags=["cts-calibration-health"])
 
@@ -41,6 +42,8 @@ async def calibration_health(
 
     results: list[dict] = []
     cameras = db.query(CtsCamera).filter(CtsCamera.enabled.is_(True)).order_by(CtsCamera.id).all()
+    if isinstance(status, dict):
+        apply_observed_stream_sizes(cameras, status, db)
     for cam in cameras:
         camera_id = cam.id
         matrix = cam.homography_matrix

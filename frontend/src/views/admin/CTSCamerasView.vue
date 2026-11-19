@@ -43,6 +43,16 @@
               size="small"
             />
             <v-chip
+              v-if="item.role === 'face_capable' && !item.has_homography"
+              color="warning"
+              size="x-small"
+              variant="tonal"
+              prepend-icon="mdi-alert-outline"
+              title="Identification-point camera has no floor homography; faces will stay on camera-local tracks until calibrated"
+            >
+              Needs calibration
+            </v-chip>
+            <v-chip
               v-if="item.needs_recalibration"
               color="warning"
               size="x-small"
@@ -200,23 +210,24 @@
           />
         </v-radio-group>
         <div class="text-caption text-medium-emphasis mb-5">{{ roleDescription }}</div>
-        <v-switch
-          v-model="form.face_id_enabled"
-          label="Enable face identification"
-          hint="Disable for top-down or surveillance cameras where faces are never visible"
-          persistent-hint
-          class="mb-4"
-        />
         <v-alert
-          v-if="form.face_id_enabled && form.role === 'surveillance'"
-          type="info"
+          v-if="form.role === 'face_capable' && !editingHasHomography"
+          type="warning"
           variant="tonal"
           density="compact"
           class="mb-4"
         >
-          Surveillance cameras rarely see faces. Consider turning face identification off for this
-          camera.
+          This identification-point camera has no floor calibration yet. Calibrate its floor
+          homography and add it to a shared view (overlap group) so its faces attach to shared
+          person tracks instead of isolated camera-local tracks.
         </v-alert>
+        <v-switch
+          v-model="form.face_id_enabled"
+          label="Enable face identification"
+          hint="The sole per-camera switch for face ID; role adjusts the cooldown and never disables face ID."
+          persistent-hint
+          class="mb-4"
+        />
         <v-row v-if="form.face_id_enabled" dense>
           <v-col cols="12" sm="8">
             <v-text-field
@@ -276,6 +287,22 @@
             />
           </v-col>
         </v-row>
+        <v-switch
+          v-model="form.ir_capable"
+          label="IR illumination capable"
+          hint="Enable if the camera switches to infrared grayscale at night (night faces and clothing color degrade)."
+          persistent-hint
+          class="mt-2"
+        />
+        <CameraOpticsPanel
+          :optics="opticsResult"
+          :loading="opticsLoading"
+          :error="opticsError"
+          :observed-width-px="editingObservedWidth"
+          :observed-height-px="editingObservedHeight"
+          :preview-width-px="previewWidthPx"
+          @update:preview-width-px="previewWidthPx = $event"
+        />
         <v-card variant="tonal" class="pa-4 mt-4">
           <div class="text-subtitle-2 mb-1">Finding the horizontal FOV</div>
           <div class="text-body-2 text-medium-emphasis">
@@ -419,6 +446,7 @@ import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
 import { useFloorPlanCanvas } from "../../composables/useFloorPlanCanvas.js";
 import AppDialog from "../../components/common/AppDialog.vue";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
+import CameraOpticsPanel from "../../components/cts/cameras/CameraOpticsPanel.vue";
 import CTSCameraPlacementMap from "../../components/cts/cameras/CTSCameraPlacementMap.vue";
 
 const { notify } = useNotify();
@@ -434,6 +462,22 @@ const dialog = ref(false);
 const editing = ref(false);
 const saving = ref(false);
 const editId = ref(null);
+const editingCamera = ref(null);
+
+const opticsResult = ref(null);
+const opticsLoading = ref(false);
+const opticsError = ref(null);
+const previewWidthPx = ref(null);
+let opticsRequestId = 0;
+
+const editingHasHomography = computed(() => Boolean(editingCamera.value?.has_homography));
+const editingObservedWidth = computed(
+  () => opticsResult.value?.frame_natural_width ?? editingCamera.value?.frame_natural_width ?? null,
+);
+const editingObservedHeight = computed(
+  () =>
+    opticsResult.value?.frame_natural_height ?? editingCamera.value?.frame_natural_height ?? null,
+);
 
 const activeSection = ref("general");
 const fieldErrors = ref({});
@@ -467,17 +511,19 @@ const ROLE_OPTIONS = [
   {
     value: "surveillance",
     title: "Surveillance",
-    description: "Top-down or overview angle. Faces are rarely visible.",
+    description:
+      "Tracking-first angle using the standard face-ID cooldown. Role never disables face ID.",
   },
   {
     value: "face_capable",
-    title: "Face-capable",
-    description: "Eye-level angle with usable faces, such as a doorway or hallway.",
+    title: "Face-capable (identification point)",
+    description:
+      "Face-first angle (chokepoint or doorway) with a shorter face-ID cooldown. Requires floor calibration.",
   },
   {
     value: "mixed",
     title: "Mixed",
-    description: "Faces are visible some of the time.",
+    description: "Tracking and identification using the standard face-ID cooldown.",
   },
 ];
 
@@ -551,6 +597,7 @@ const emptyForm = () => ({
   horizontal_fov_deg: null,
   mounting_height_m: null,
   tilt_deg: null,
+  ir_capable: null,
 });
 
 const form = ref(emptyForm());
@@ -587,12 +634,59 @@ function resetDialogState() {
   activeSection.value = "general";
   fieldErrors.value = {};
   formProbe.value = null;
+  opticsResult.value = null;
+  opticsError.value = null;
+  opticsLoading.value = false;
+  previewWidthPx.value = null;
+}
+
+async function fetchStoredOptics(cameraId) {
+  const reqId = ++opticsRequestId;
+  opticsLoading.value = true;
+  opticsError.value = null;
+  try {
+    const data = await cts.getCameraOptics(cameraId);
+    if (reqId === opticsRequestId) {
+      opticsResult.value = data;
+    }
+  } catch (e) {
+    if (reqId === opticsRequestId) {
+      opticsError.value = e.message;
+    }
+  } finally {
+    if (reqId === opticsRequestId) {
+      opticsLoading.value = false;
+    }
+  }
+}
+
+async function fetchPreviewOptics(hfovDeg, widthPx, heightPx) {
+  const reqId = ++opticsRequestId;
+  opticsLoading.value = true;
+  opticsError.value = null;
+  try {
+    const body = { horizontal_fov_deg: hfovDeg, frame_natural_width: widthPx };
+    if (heightPx) body.frame_natural_height = heightPx;
+    const data = await cts.previewCameraOptics(body);
+    if (reqId === opticsRequestId) {
+      opticsResult.value = data;
+    }
+  } catch (e) {
+    if (reqId === opticsRequestId) {
+      opticsError.value = e.message;
+    }
+  } finally {
+    if (reqId === opticsRequestId) {
+      opticsLoading.value = false;
+    }
+  }
 }
 
 function openCreate() {
   resetDialogState();
   editing.value = false;
   editId.value = null;
+  editingCamera.value = null;
   form.value = emptyForm();
   useCustomName.value = false;
   dialog.value = true;
@@ -602,6 +696,7 @@ function openEdit(cam) {
   resetDialogState();
   editing.value = true;
   editId.value = cam.id;
+  editingCamera.value = cam;
   const hasRoom = cam.room_id != null;
   useCustomName.value = !hasRoom && !!cam.room_name && !(cam.room || {}).id;
   form.value = {
@@ -617,9 +712,42 @@ function openEdit(cam) {
     horizontal_fov_deg: cam.horizontal_fov_deg ?? null,
     mounting_height_m: cam.mounting_height_m ?? null,
     tilt_deg: cam.tilt_deg ?? null,
+    ir_capable: cam.ir_capable ?? null,
   };
   dialog.value = true;
+  fetchStoredOptics(cam.id);
 }
+
+watch(
+  () => [dialog.value, form.value.horizontal_fov_deg, previewWidthPx.value],
+  ([open, rawFov, rawPreviewWidth], [prevOpen]) => {
+    if (!open) return;
+    if (!prevOpen && editing.value) return;
+    const fov = Number(rawFov);
+    const width = Number(editingObservedWidth.value ?? rawPreviewWidth);
+    if (
+      rawFov === "" ||
+      rawFov == null ||
+      !Number.isFinite(fov) ||
+      fov < 20 ||
+      fov > 180 ||
+      !Number.isFinite(width) ||
+      width <= 0
+    ) {
+      return;
+    }
+    if (
+      editing.value &&
+      editingCamera.value &&
+      fov === Number(editingCamera.value.horizontal_fov_deg) &&
+      width === Number(editingCamera.value.frame_natural_width)
+    ) {
+      fetchStoredOptics(editingCamera.value.id);
+      return;
+    }
+    fetchPreviewOptics(fov, Math.round(width), editingObservedHeight.value);
+  },
+);
 
 /** Field errors for the General section; an empty object means the form may be sent. */
 function validateForm() {

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
@@ -38,10 +38,16 @@ from backend.routers.cts_deps import cts_enabled
 from backend.routers.dependencies import get_ingress_admin_client
 from backend.schemas.cts_camera import (
     CameraMarkerIn,
+    CameraOpticsOut,
     CtsCameraCreate,
     CtsCameraOut,
     CtsCameraUpdate,
+    OpticsPreviewRequest,
     RoomRef,
+)
+from backend.services.cts.camera_optics import (
+    compute_camera_optics,
+    sync_camera_observed_stream_size,
 )
 
 logger = get_logger(__name__)
@@ -127,6 +133,7 @@ def _to_out(cam: CtsCamera, db: Session | None = None) -> CtsCameraOut:
         horizontal_fov_deg=cam.horizontal_fov_deg,
         mounting_height_m=cam.mounting_height_m,
         tilt_deg=cam.tilt_deg,
+        ir_capable=cam.ir_capable,
         room=room,
         has_homography=_has_committed_homography(cam),
         homography_residuals=residuals if residuals else None,
@@ -186,6 +193,45 @@ def create_camera(
     db.refresh(cam)
     logger.info("cts_camera_created", camera_id=cam.id)
     return _to_out(cam, db)
+
+
+@router.post("/optics-preview", response_model=CameraOpticsOut)
+def preview_camera_optics(
+    payload: OpticsPreviewRequest,
+    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+) -> CameraOpticsOut:
+    """Stateless placement calculator preview for unsaved camera profile values."""
+    cts_enabled()
+    return compute_camera_optics(
+        horizontal_fov_deg=payload.horizontal_fov_deg,
+        frame_natural_width=payload.frame_natural_width,
+        frame_natural_height=payload.frame_natural_height,
+    )
+
+
+@router.get("/{camera_id}/optics", response_model=CameraOpticsOut)
+async def get_camera_optics(
+    camera_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+) -> CameraOpticsOut:
+    """Return derived pinhole optics for a stored camera, syncing CTS stream size if available."""
+    cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+    orchestrator = request.app.state.orchestrator_client
+    obs_w, obs_h, mismatch = await sync_camera_observed_stream_size(cam, db, orchestrator)
+    return compute_camera_optics(
+        camera_id=cam.id,
+        horizontal_fov_deg=cam.horizontal_fov_deg,
+        frame_natural_width=cam.frame_natural_width,
+        frame_natural_height=cam.frame_natural_height,
+        observed_stream_width=obs_w,
+        observed_stream_height=obs_h,
+        stream_size_mismatch=mismatch,
+    )
 
 
 @router.get("/{camera_id}", response_model=CtsCameraOut)

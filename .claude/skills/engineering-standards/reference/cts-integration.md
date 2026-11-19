@@ -79,6 +79,13 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 - Three camera relationships, never conflated: calibration (per camera, Calibration page, `DELETE /cts/calibration/homography/{camera_id}` removes it), shared views (overlap groups: cameras that see the same floor at the same time, Shared Views page), and learned handoffs (how often and how soon after a track closes CTS hands a person between two cameras, shown read-only through `/cts/topology/transitions`; not walk times, and nothing rejects on them). There is no operator-edited adjacency graph and none may be reintroduced: an edge that tracking never reads is configuration that lies to the operator.
 - One floor plan is one storey. Every frame-bound value names its plan (`homography_floor_plan_id`); a second storey adds a second plan, and a shared view never spans storeys.
 
+### Camera profiles, roles, and optics
+
+- `cts_cameras` stores the hardware-neutral camera profile synced by CTS: `role` (`face_capable`, `surveillance`, `mixed`, shared via `cts_contracts.CameraRole`), `face_id_enabled`, `face_id_min_raw_similarity`, `horizontal_fov_deg`, `mounting_height_m`, `tilt_deg`, `ir_capable`, `frame_natural_width`, and `frame_natural_height`.
+- **Role never disables face ID.** `face_id_enabled` is the single per-camera switch; `face_capable` marks an identification-point camera (short face-ID cooldown in CTS and a blocking calibration warning in the admin UI when uncalibrated), while `mixed` and `surveillance` use the standard cooldown.
+- **Single optics owner (`cts_contracts.optics`).** `backend/services/cts/camera_optics.py` powers `GET /api/v1/cts/cameras/{camera_id}/optics` and `POST /api/v1/cts/cameras/optics-preview` by calling `cts_contracts.optics` directly; the frontend placement calculator (`frontend/src/components/cts/cameras/CameraOpticsPanel.vue`) only renders server-returned values and holds no focal-length formula.
+- Observed native stream dimensions reported by CTS on `GET /internal/calibration/status` (`observed_stream_sizes`) fill unset or uncalibrated `frame_natural_width`/`frame_natural_height` columns without overwriting a calibrated camera's homography dimensions (surfacing `stream_size_mismatch` instead).
+
 ### WebSocket security
 
 - The `/ws/cts` WebSocket reads the API key from `sec-websocket-protocol` header, not from a query parameter.

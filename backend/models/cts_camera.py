@@ -67,13 +67,14 @@ class CtsCamera(Base):
 
     # Physical camera parameters — all optional.
     # horizontal_fov_deg: horizontal field of view in degrees (20-180).
-    #   Used by depth-based auto-calibration to estimate focal length.
+    #   Used by optics placement calculations and depth-based auto-calibration.
     # mounting_height_m: camera lens height above the floor in metres.
-    #   Reserved for M7 depth-based footpoint correction.
     # tilt_deg: downward pitch angle. 0 = horizontal, -90 = pointing straight down.
+    # ir_capable: whether the camera uses IR illumination at night (degrades face/color cues).
     horizontal_fov_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
     mounting_height_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     tilt_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ir_capable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     # Native pixel dimensions of the frame used during the last homography calibration.
     snapshot_width: Mapped[int | None] = mapped_column(Integer, nullable=True)

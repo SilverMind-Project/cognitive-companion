@@ -330,3 +330,194 @@ class TestCameraHealth:
             assert r.status_code == 403
         finally:
             c._patcher.stop()  # type: ignore[attr-defined]
+
+
+class TestCameraProfileAndOptics:
+    def test_ir_capable_round_trips_and_defaults_to_none(self, client: TestClient):
+        created = client.post("/api/v1/cts/cameras", json=CAMERA).json()
+        assert created["ir_capable"] is None
+
+        patched = client.patch(
+            "/api/v1/cts/cameras/kitchen-cam-1", json={"ir_capable": True}
+        ).json()
+        assert patched["ir_capable"] is True
+
+        cleared = client.patch(
+            "/api/v1/cts/cameras/kitchen-cam-1", json={"ir_capable": None}
+        ).json()
+        assert cleared["ir_capable"] is None
+
+    def test_camera_optics_returns_shared_cts_contracts_values(
+        self, client: TestClient, db_engine: Engine
+    ):
+        from cts_contracts.optics import (
+            INTEROCULAR_BANDS_PX,
+            INTEROCULAR_GOOD_MIN_PX,
+            distance_for_interocular_m,
+            expected_interocular_px,
+            focal_length_px,
+        )
+
+        from backend.models.cts_camera import CtsCamera
+
+        Session = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
+        with Session() as db:
+            db.add(
+                CtsCamera(
+                    id="hall-id-1",
+                    name="Hallway ID",
+                    rtsp_url="rtsp://x",
+                    room_name="Hallway",
+                    role="face_capable",
+                    horizontal_fov_deg=90.0,
+                    mounting_height_m=1.65,
+                    tilt_deg=-5.0,
+                    frame_natural_width=2560,
+                    frame_natural_height=1440,
+                    ir_capable=True,
+                )
+            )
+            db.commit()
+
+        r = client.get("/api/v1/cts/cameras/hall-id-1/optics")
+        assert r.status_code == 200
+        body = r.json()
+
+        expected_focal = focal_length_px(2560, 90.0)
+        assert body["camera_id"] == "hall-id-1"
+        assert body["focal_length_px"] == pytest.approx(expected_focal)
+        assert body["distance_for_24px_m"] == pytest.approx(
+            distance_for_interocular_m(expected_focal, INTEROCULAR_GOOD_MIN_PX)
+        )
+        assert body["missing_inputs"] == []
+        assert [b["band"] for b in body["bands"]] == [s.band for s in INTEROCULAR_BANDS_PX]
+        assert len(body["distances"]) == 5
+        for row in body["distances"]:
+            assert row["interocular_px"] == pytest.approx(
+                expected_interocular_px(expected_focal, row["distance_m"])
+            )
+
+    def test_camera_optics_syncs_observed_stream_size_from_orchestrator(
+        self, client: TestClient, db_engine: Engine
+    ):
+        from unittest.mock import AsyncMock, MagicMock
+
+        from backend.models.cts_camera import CtsCamera
+
+        Session = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
+        with Session() as db:
+            db.add(
+                CtsCamera(
+                    id="auto-size-cam",
+                    name="Auto Size",
+                    rtsp_url="rtsp://x",
+                    room_name="Kitchen",
+                    horizontal_fov_deg=103.0,
+                )
+            )
+            db.commit()
+
+        orchestrator = MagicMock()
+        orchestrator.calibration_status = AsyncMock(
+            return_value={
+                "homography_camera_ids": [],
+                "observed_stream_sizes": {"auto-size-cam": {"width_px": 2560, "height_px": 1440}},
+            }
+        )
+        client.app.state.orchestrator_client = orchestrator  # type: ignore[union-attr]
+
+        r = client.get("/api/v1/cts/cameras/auto-size-cam/optics")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["frame_natural_width"] == 2560
+        assert body["frame_natural_height"] == 1440
+        assert body["stream_size_mismatch"] is False
+        assert body["focal_length_px"] is not None
+
+        # Persisted back to cts_cameras so future reads have it even without CTS.
+        cam_out = client.get("/api/v1/cts/cameras/auto-size-cam").json()
+        assert cam_out["frame_natural_width"] == 2560
+        assert cam_out["frame_natural_height"] == 1440
+
+    def test_camera_optics_flags_mismatch_without_overwriting_calibrated_dimensions(
+        self, client: TestClient, db_engine: Engine
+    ):
+        from unittest.mock import AsyncMock, MagicMock
+
+        from backend.models.cts_camera import CtsCamera
+
+        matrix = [[1.0, 0.0, 0.1], [0.0, 1.0, 0.2], [0.0, 0.0, 1.0]]
+        Session = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
+        with Session() as db:
+            db.add(
+                CtsCamera(
+                    id="cal-cam",
+                    name="Calibrated",
+                    rtsp_url="rtsp://x",
+                    room_name="Kitchen",
+                    horizontal_fov_deg=90.0,
+                    homography_matrix=matrix,
+                    frame_natural_width=1920,
+                    frame_natural_height=1080,
+                )
+            )
+            db.commit()
+
+        orchestrator = MagicMock()
+        orchestrator.calibration_status = AsyncMock(
+            return_value={
+                "homography_camera_ids": ["cal-cam"],
+                "observed_stream_sizes": {"cal-cam": {"width_px": 2560, "height_px": 1440}},
+            }
+        )
+        client.app.state.orchestrator_client = orchestrator  # type: ignore[union-attr]
+
+        r = client.get("/api/v1/cts/cameras/cal-cam/optics")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["stream_size_mismatch"] is True
+        assert body["frame_natural_width"] == 1920
+        assert body["observed_stream_width"] == 2560
+
+    def test_optics_preview_endpoint_matches_shared_functions_and_validates(
+        self, client: TestClient
+    ):
+        from cts_contracts.optics import expected_interocular_px, focal_length_px
+
+        r = client.post(
+            "/api/v1/cts/cameras/optics-preview",
+            json={"horizontal_fov_deg": 110.0, "frame_natural_width": 2560},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        expected_focal = focal_length_px(2560, 110.0)
+        assert body["focal_length_px"] == pytest.approx(expected_focal)
+        at_2m = next(row for row in body["distances"] if row["distance_m"] == 2.0)
+        assert at_2m["interocular_px"] == pytest.approx(
+            expected_interocular_px(expected_focal, 2.0)
+        )
+        assert at_2m["band"] == "good"
+
+        bad = client.post(
+            "/api/v1/cts/cameras/optics-preview",
+            json={"horizontal_fov_deg": 5.0, "frame_natural_width": 2560},
+        )
+        assert bad.status_code == 422
+
+    def test_optics_endpoints_require_read_permission(self, db_engine: Engine):
+        c = _make_client(db_engine, cts_enabled=True)
+        try:
+            c.post("/api/v1/cts/cameras", json=CAMERA)
+            c.app.dependency_overrides[get_auth_context] = lambda: AuthContext(  # type: ignore[union-attr]
+                key="x", name="no-perms", permissions=[]
+            )
+            assert c.get("/api/v1/cts/cameras/kitchen-cam-1/optics").status_code == 403
+            assert (
+                c.post(
+                    "/api/v1/cts/cameras/optics-preview",
+                    json={"horizontal_fov_deg": 90.0, "frame_natural_width": 2560},
+                ).status_code
+                == 403
+            )
+        finally:
+            c._patcher.stop()  # type: ignore[attr-defined]

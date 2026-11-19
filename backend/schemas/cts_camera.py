@@ -74,6 +74,13 @@ class CtsCameraFields(BaseModel):
         le=0.0,
         description="Downward tilt angle in degrees. 0 = horizontal, -90 = pointing straight down.",
     )
+    ir_capable: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the camera has IR illumination. Night IR mode switches to grayscale and "
+            "degrades face and color matching."
+        ),
+    )
 
 
 class CtsCameraCreate(CtsCameraFields):
@@ -94,6 +101,7 @@ class CtsCameraUpdate(BaseModel):
     horizontal_fov_deg: float | None = Field(default=None, ge=20.0, le=180.0)
     mounting_height_m: float | None = Field(default=None, ge=0.1, le=10.0)
     tilt_deg: float | None = Field(default=None, ge=-90.0, le=0.0)
+    ir_capable: bool | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -248,3 +256,67 @@ class VisibilityPolygonsResponse(BaseModel):
 
 class FloorRegionDefaultResponse(BaseModel):
     polygon: list[list[float]]
+
+
+# ---------------------------------------------------------------------------
+# Camera optics / placement calculator schemas
+# ---------------------------------------------------------------------------
+
+
+OpticsBand = Literal["poor", "marginal", "good", "excellent"]
+
+
+class OpticsPreviewRequest(BaseModel):
+    """Unsaved camera optics parameters for the stateless placement calculator."""
+
+    horizontal_fov_deg: float = Field(
+        ...,
+        ge=20.0,
+        le=180.0,
+        description="Lens horizontal field of view in degrees (pinhole approximation).",
+    )
+    frame_natural_width: int = Field(
+        ...,
+        gt=0,
+        description="Stream image width in pixels.",
+    )
+    frame_natural_height: int | None = Field(
+        default=None,
+        gt=0,
+        description="Optional stream image height in pixels.",
+    )
+
+    model_config = {"extra": "forbid"}
+
+
+class OpticsDistanceRow(BaseModel):
+    """Expected frontal interocular span in pixels at one subject distance."""
+
+    distance_m: float = Field(gt=0.0)
+    interocular_px: float = Field(gt=0.0)
+    band: OpticsBand
+
+
+class OpticsBandThreshold(BaseModel):
+    """Canonical interocular pixel band bounds from ``cts_contracts.optics``."""
+
+    band: OpticsBand
+    min_px: float | None = None
+    max_px: float | None = None
+
+
+class CameraOpticsOut(BaseModel):
+    """Derived pinhole optics estimates for a camera or unsaved form preview."""
+
+    camera_id: str | None = None
+    horizontal_fov_deg: float | None = None
+    frame_natural_width: int | None = None
+    frame_natural_height: int | None = None
+    observed_stream_width: int | None = None
+    observed_stream_height: int | None = None
+    stream_size_mismatch: bool = False
+    focal_length_px: float | None = None
+    distance_for_24px_m: float | None = None
+    distances: list[OpticsDistanceRow] = Field(default_factory=list)
+    bands: list[OpticsBandThreshold] = Field(default_factory=list)
+    missing_inputs: list[str] = Field(default_factory=list)

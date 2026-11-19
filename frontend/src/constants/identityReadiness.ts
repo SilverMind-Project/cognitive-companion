@@ -34,6 +34,7 @@ export const STEP_PRESENTATION: Record<ReadinessStepKey, StepPresentation> = {
     title: "Body-appearance samples: proposed, reviewed, voting",
     chain: [6, 7, 8],
   },
+  wearables: { title: "Wearables and RF nodes (optional)", chain: [] },
 };
 
 export const PREREQUISITE_KEYS: ReadinessStepKey[] = ["ingest", "floor_frame"];
@@ -81,6 +82,10 @@ export const ACTION_PRESENTATION: Record<ReadinessNextAction, ActionPresentation
   },
   enable_templates: { text: "Review the template shadow results, then set face_templates.mode" },
   review_body_samples: { text: "Review body-appearance samples", to: "/admin/cts/reid-review" },
+  configure_wearables: {
+    text: "Manage wearable devices, bindings, and RF nodes",
+    to: "/admin/cts/wearables",
+  },
   check_service: { text: "Check that the service is running" },
 };
 

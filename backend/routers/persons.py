@@ -33,6 +33,7 @@ from backend.schemas.person import (
 from backend.services.face_calibration import FaceCalibrationReviewService
 from backend.services.identity_roster import RosterHealthService
 from backend.services.persons import insert_household_member
+from backend.services.wearables.binding_service import WearableBindingService
 
 logger = get_logger(__name__)
 
@@ -345,6 +346,7 @@ async def delete_member(
     if not member:
         raise HTTPException(status_code=404, detail=f"Member '{person_id}' not found")
     db.query(DementiaSignal).filter(DementiaSignal.person_id == person_id).delete()
+    WearableBindingService.close_active_bindings_for_member(db, person_id)
     db.delete(member)
     db.commit()
 

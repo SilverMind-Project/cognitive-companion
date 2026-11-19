@@ -224,6 +224,11 @@ const routes = [
         name: "cts-reid-review",
         component: () => import("../views/admin/CTSReIDReviewView.vue"),
       },
+      {
+        path: "cts/wearables",
+        name: "cts-wearables",
+        component: () => import("../views/admin/WearablesView.vue"),
+      },
 
       // ── Superseded monitoring routes: redirect into workspace panels ──────────
       {

@@ -27,6 +27,7 @@ ReadinessStepKey = Literal[
     "face_policy",
     "templates",
     "body_gallery",
+    "wearables",
 ]
 
 # unknown: the step's source failed. The page never guesses a state it could not read.
@@ -48,6 +49,7 @@ ReadinessNextAction = Literal[
     "set_policy_calibrated",
     "enable_templates",
     "review_body_samples",
+    "configure_wearables",
     "check_service",
 ]
 

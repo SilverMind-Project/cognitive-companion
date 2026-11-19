@@ -35,6 +35,7 @@ from backend.services.identity_readiness_rules import (
     HouseholdFloorFrame,
     IngestHealth,
     SourceFailure,
+    WearablesHealth,
     artifact_step,
     body_gallery_step,
     capture_step,
@@ -45,8 +46,10 @@ from backend.services.identity_readiness_rules import (
     review_queues,
     roster_step,
     templates_step,
+    wearables_step,
 )
 from backend.services.identity_roster import RosterHealthService
+from backend.services.wearables.site_config_service import WearableSiteConfigService
 
 logger = get_logger(__name__)
 
@@ -68,6 +71,7 @@ class IdentityReadinessService:
         session_factory: Callable[[], Session],
         orchestrator: OrchestratorClient | None,
         ingress: IngressAdminClient | None,
+        wearables: WearableSiteConfigService | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._roster = roster
@@ -75,10 +79,12 @@ class IdentityReadinessService:
         self._session_factory = session_factory
         self._orchestrator = orchestrator
         self._ingress = ingress
+        self._wearables = wearables
         self._clock = clock
 
     async def get_readiness(self) -> IdentityReadinessEnvelope:
         household = self._household_floor_frame()
+        wearables = self._wearables_health()
         roster, summary, health, members, cts, ingest = await asyncio.gather(
             _attempt("person identification", self._roster.get_roster_health()),
             _attempt("person identification", self._person_id.get_calibration_summary()),
@@ -98,6 +104,10 @@ class IdentityReadinessService:
             face_policy_step(cts, artifact_ready),
             templates_step(cts, health),
             body_gallery_step(cts),
+            wearables_step(
+                wearables,
+                has_floor_plan_and_scale=household.has_floor_plan and household.has_scale,
+            ),
         ]
         blocking = next((s.key for s in steps if s.state == "blocked" and not s.optional), None)
         return IdentityReadinessEnvelope(
@@ -105,6 +115,24 @@ class IdentityReadinessService:
             blocking_step=blocking,
             review_queues=review_queues(roster, summary, cts),
             checked_at=self._clock(),
+        )
+
+    def _wearables_health(self) -> WearablesHealth | SourceFailure:
+        if self._wearables is None:
+            return WearablesHealth(
+                active_node_count=0,
+                active_device_count=0,
+                active_binding_count=0,
+                low_battery_count=0,
+                last_heard_age_s=None,
+            )
+        snap = self._wearables.readiness_snapshot()
+        return WearablesHealth(
+            active_node_count=snap.active_node_count,
+            active_device_count=snap.active_device_count,
+            active_binding_count=snap.active_binding_count,
+            low_battery_count=snap.low_battery_count,
+            last_heard_age_s=snap.last_heard_age_s,
         )
 
     async def _cts_readiness(self) -> CTSIdentityReadiness | SourceFailure:

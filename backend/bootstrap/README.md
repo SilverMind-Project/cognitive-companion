@@ -238,6 +238,10 @@ Also assigns `container.presence` and `container.ha_state_cache` (both via
 | `orchestrator_client` | constructed | `None` |
 | `identity_targets_service` | constructed (person-id and orchestrator clients) | constructed without the orchestrator: no gallery counts |
 | `visitor_admin_service` | constructed (person-id client) | same; visitor review never depends on tracking |
+| `wearable_device_service` | constructed (`get_session`, also set on MCP container) | same; wearable registry does not depend on tracking |
+| `wearable_binding_service` | constructed (`get_session`, also set on MCP container) | same |
+| `rf_node_service` | constructed (`get_session`) | same |
+| `wearable_site_config_service` | constructed (`get_session`, also passed to `IdentityReadinessService`) | same |
 | `identity_review_registry` | constructed (`identity_targets_service`) with the review adapters: visitors, face calibration, and ReID review (registered once `reid_review_service` exists) | visitors and face calibration only; ReID review decisions answer 503 |
 | `identity_readiness_service` | constructed (roster, person-id, both CTS clients) | constructed with no CTS clients: its CTS-sourced steps report `unknown`; also set on the MCP service container |
 | `ph_enrichment_service` | constructed | `None` |

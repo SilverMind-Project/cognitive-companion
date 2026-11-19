@@ -290,6 +290,7 @@ const navSections = [
       { to: "/admin/cts/shared-views", icon: "mdi-vector-intersection", title: "Shared Views" },
       { to: "/admin/cts/keyframes", icon: "mdi-image-search-outline", title: "Keyframes" },
       { to: "/admin/cts/reid-review", icon: "mdi-account-check-outline", title: "ReID Review" },
+      { to: "/admin/cts/wearables", icon: "mdi-watch-variant", title: "Wearables" },
     ],
   },
   {

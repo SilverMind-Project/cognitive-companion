@@ -316,7 +316,8 @@ The primary CTS data paths are:
 | `cc.identity_assertions` | Outbound protobuf stream (`CCIdentityAssertion`) forwarding external reCamera face assertions to CTS `WorldTrackingStage` |
 | Identity roster sync and purge | Automated `POST /internal/gallery/identities/sync` and `DELETE /internal/gallery/identities/{person_id}` calls keeping CTS `reid_gallery` and `IdentityResolver` aligned with the CC household roster |
 | Camera optics and calibration sync | `GET /api/v1/cts/cameras/{camera_id}/optics`, `POST /api/v1/cts/cameras/optics-preview`, and observed stream resolution sync from CTS `GET /internal/calibration/status` |
-| CTS routers | Camera admin, calibration, PH correction, ReID review queue, visitor clusters, identity readiness, presence, signals, trajectory, and dashboard endpoints |
+| Wearable registry and RF node site-config | CC owns `wearable_devices`, `wearable_bindings`, and `rf_nodes` in PostgreSQL and serves `GET /api/v1/wearables/site-config` (metres on the active floor plan) to CTS `CCConfigSyncService` and RF ingress adapters |
+| CTS routers | Camera admin, calibration, PH correction, ReID review queue, visitor clusters, identity readiness, wearables, presence, signals, trajectory, and dashboard endpoints |
 
 ### Person-Location Architecture
 
@@ -341,9 +342,9 @@ Key design principles:
 | `/admin/executions` | Unified live and history execution observability |
 | `/admin/camera-media` | Unified reCamera and CTS buffer and rate-limit observability |
 | `/companion` | Resident-facing PWA widgets, voice, popups, TTS announcements |
-| CTS admin views | Camera calibration, identity review, live tracking, signals, presence |
+| CTS admin views | Camera calibration, identity review, live tracking, signals, presence, and wearables (`/admin/cts/wearables`: multi-device member grouping, consent-gated binding/unbinding, and draggable RF node floor-plan placement with tape-distance survey verification) |
 | Knowledge views | Documents, generated images, info cards, quizzes, delivery history |
-| People views | Members and enrollment, visitor cluster review, face calibration labeling (`/admin/face-calibration`, a proxy over person-id's calibration capture queue; labels feed the offline calibration fit and never enrollment), and identity setup (`/admin/identity-setup`: `IdentityReadinessService` in `backend/services/identity_readiness.py` reads roster health, person-id calibration state, CTS `GET /internal/identity/readiness`, rtsp-ingress frame age, and CC's floor plan, rooms, cameras, and overlap groups, read-only, and names the first broken step of the identity chain; the Face calibration and ReID Review Queue pages link to it) |
+| People views | Members and enrollment, visitor cluster review, face calibration labeling (`/admin/face-calibration`, a proxy over person-id's calibration capture queue; labels feed the offline calibration fit and never enrollment), and identity setup (`/admin/identity-setup`: `IdentityReadinessService` in `backend/services/identity_readiness.py` reads roster health, person-id calibration state, CTS `GET /internal/identity/readiness`, rtsp-ingress frame age, CC's floor plan, rooms, cameras, overlap groups, and optional wearable registry status, read-only, and names the first broken required step of the identity chain; the Face calibration and ReID Review Queue pages link to it) |
 
 Frontend code uses Vuetify design tokens from `frontend/src/styles/theme.css`. Read-only charts use ECharts shared components. Vue Flow is reserved for the interactive pipeline authoring canvas.
 

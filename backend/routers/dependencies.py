@@ -65,6 +65,12 @@ if TYPE_CHECKING:
     from backend.services.sensor_polling import SensorPollingService
     from backend.services.signals.feed import SignalsFeedService
     from backend.services.visitors import VisitorAdminService
+    from backend.services.wearables import (
+        RfNodeService,
+        WearableBindingService,
+        WearableDeviceService,
+        WearableSiteConfigService,
+    )
     from backend.services.zones import ZoneService
     from backend.websocket.connection_manager import ConnectionManager
 
@@ -96,11 +102,15 @@ __all__ = [
     "get_person_location_service",
     "get_ph_enrichment_service",
     "get_realtime_provider",
+    "get_rf_node_service",
     "get_roster_health_service",
     "get_scheduler",
     "get_sensor_polling",
     "get_signals_feed",
     "get_visitor_admin_service",
+    "get_wearable_binding_service",
+    "get_wearable_device_service",
+    "get_wearable_site_config_service",
     "get_ws_manager",
     "get_zone_service",
 ]
@@ -204,6 +214,38 @@ def get_visitor_admin_service(request: Request) -> VisitorAdminService:
     service: VisitorAdminService | None = request.app.state.visitor_admin_service
     if service is None:
         raise _raise_503("visitor_admin_service", "Visitor admin service")
+    return service
+
+
+def get_wearable_device_service(request: Request) -> WearableDeviceService:
+    """Return the lifespan-managed wearable device service (503 if unavailable)."""
+    service: WearableDeviceService | None = request.app.state.wearable_device_service
+    if service is None:
+        raise _raise_503("wearable_device_service", "Wearable device service")
+    return service
+
+
+def get_wearable_binding_service(request: Request) -> WearableBindingService:
+    """Return the lifespan-managed wearable binding service (503 if unavailable)."""
+    service: WearableBindingService | None = request.app.state.wearable_binding_service
+    if service is None:
+        raise _raise_503("wearable_binding_service", "Wearable binding service")
+    return service
+
+
+def get_rf_node_service(request: Request) -> RfNodeService:
+    """Return the lifespan-managed RF node service (503 if unavailable)."""
+    service: RfNodeService | None = request.app.state.rf_node_service
+    if service is None:
+        raise _raise_503("rf_node_service", "RF node service")
+    return service
+
+
+def get_wearable_site_config_service(request: Request) -> WearableSiteConfigService:
+    """Return the lifespan-managed wearable site-config service (503 if unavailable)."""
+    service: WearableSiteConfigService | None = request.app.state.wearable_site_config_service
+    if service is None:
+        raise _raise_503("wearable_site_config_service", "Wearable site-config service")
     return service
 
 

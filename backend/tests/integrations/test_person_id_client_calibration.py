@@ -89,6 +89,9 @@ async def test_summary_parses_progress() -> None:
         lambda c: c.list_calibration_candidates(state=None, limit=10, cursor=None),
         lambda c: c.get_calibration_summary(),
         lambda c: c.reject_calibration_candidate("c1"),
+        lambda c: c.promote_calibration_candidate("c1", approved_by="admin"),
+        lambda c: c.list_member_prototypes("amma"),
+        lambda c: c.rebuild_member_prototypes("amma"),
     ],
 )
 async def test_malformed_envelopes_are_502(call) -> None:
@@ -109,3 +112,59 @@ async def test_not_found_keeps_its_status() -> None:
     ):
         await client.delete_calibration_candidate("c1")
     assert exc.value.status == 404
+
+
+async def test_promote_list_rebuild_and_delete_prototypes() -> None:
+    client = _make_client()
+    promote_payload = {
+        "candidate_id": "c1",
+        "person_id": "amma",
+        "pose_bin": "down",
+        "embedding_id": 42,
+        "gallery_revision": 3,
+        "prototype_count": 4,
+        "counts_by_bin": {"frontal": 2, "down": 2},
+    }
+    mock_promote = _mock_http(promote_payload)
+    with patch(_HTTPX_TARGET, return_value=mock_promote):
+        promoted = await client.promote_calibration_candidate("c1", approved_by="admin-tablet")
+    assert (promoted.person_id, promoted.pose_bin, promoted.gallery_revision) == ("amma", "down", 3)
+    assert mock_promote.__aenter__.return_value.request.await_args.kwargs["json"] == {
+        "approved_by": "admin-tablet"
+    }
+
+    proto_payload = {
+        "person_id": "amma",
+        "gallery_revision": 3,
+        "prototypes": [
+            {
+                "prototype_id": "p1",
+                "person_id": "amma",
+                "pose_bin": "down",
+                "member_count": 1,
+                "source": "promoted_capture",
+                "quality_score": 0.72,
+                "quality_version": "heuristic-v1",
+                "crop_object_key": "calibration/2026-11-19/c1.png",
+                "approved_by": "admin-tablet",
+                "approved_at": "2026-11-19T08:00:00+00:00",
+                "created_at": "2026-11-19T08:00:00+00:00",
+            }
+        ],
+        "counts_by_bin": {"down": 1},
+    }
+    with patch(_HTTPX_TARGET, return_value=_mock_http(proto_payload)):
+        listed = await client.list_member_prototypes("amma")
+    assert listed.gallery_revision == 3
+    assert listed.prototypes[0].crop_object_key == "calibration/2026-11-19/c1.png"
+
+    rebuild_payload = {"person_id": "amma", "prototype_count": 2, "counts_by_bin": {"frontal": 2}}
+    with patch(_HTTPX_TARGET, return_value=_mock_http(rebuild_payload)):
+        rebuilt = await client.rebuild_member_prototypes("amma")
+    assert rebuilt.prototype_count == 2
+
+    mock_del = _mock_http(None, 204)
+    with patch(_HTTPX_TARGET, return_value=mock_del):
+        await client.delete_member_prototype("amma", "p1")
+    args, _kwargs = mock_del.__aenter__.return_value.request.await_args
+    assert args == ("DELETE", "http://person-id-test/api/v1/members/amma/prototypes/p1")

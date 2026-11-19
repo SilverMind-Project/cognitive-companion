@@ -80,3 +80,37 @@ class EnrollResultOut(BaseModel):
     name: str
     embedding_count: int
     status: str
+
+
+# -- Face Prototypes ---------------------------------------------------------
+
+
+class PersonPrototypeView(BaseModel):
+    """One face gallery prototype with a presigned thumbnail URL (never a raw storage key)."""
+
+    prototype_id: str
+    person_id: str
+    pose_bin: str
+    member_count: int
+    source: str
+    quality_score: float | None = None
+    quality_version: str | None = None
+    crop_url: str | None = Field(
+        None, description="Presigned aligned-crop URL; null when no crop is stored or unsigned"
+    )
+    approved_by: str | None = None
+    approved_at: OptionalUTCDatetime = None
+    created_at: OptionalUTCDatetime = None
+
+
+class PersonPrototypesResponse(BaseModel):
+    person_id: str
+    gallery_revision: int
+    prototypes: list[PersonPrototypeView]
+    counts_by_bin: dict[str, int] = Field(default_factory=dict)
+
+
+class RebuildPrototypesResponse(BaseModel):
+    person_id: str
+    prototype_count: int
+    counts_by_bin: dict[str, int] = Field(default_factory=dict)

@@ -15,6 +15,8 @@ export type CalibrationCandidateView = Schemas["CalibrationCandidateView"];
 export type FaceCalibrationSummary = Schemas["FaceCalibrationSummaryEnvelope"];
 export type CalibrationLabel = Schemas["LabelCalibrationCandidateRequest"];
 export type CalibrationBatchReview = Schemas["FaceCalibrationReviewRequest"];
+export type PersonPrototypeView = Schemas["PersonPrototypeView"];
+export type PersonPrototypesResponse = Schemas["PersonPrototypesResponse"];
 export type CalibrationState = "unlabeled" | "labeled" | "rejected";
 
 export const listCalibrationCandidates = (
@@ -56,3 +58,32 @@ export const getFaceCalibrationSummary = () =>
 /** Label several captures not in the household or not usable; member labels go one at a time. */
 export const reviewCalibrationCandidates = (body: CalibrationBatchReview) =>
   unwrap(client.POST("/api/v1/face-calibration/candidates/review", { body }));
+
+/** Explicitly promote one labeled member capture into that person's face gallery. */
+export const promoteCalibrationCandidate = (candidateId: string) =>
+  unwrap(
+    client.POST("/api/v1/face-calibration/candidates/{candidate_id}/promote", {
+      params: { path: { candidate_id: candidateId } },
+    }),
+  );
+
+export const listPersonPrototypes = (personId: string) =>
+  unwrap(
+    client.GET("/api/v1/persons/{person_id}/prototypes", {
+      params: { path: { person_id: personId } },
+    }),
+  );
+
+export const rebuildPersonPrototypes = (personId: string) =>
+  unwrap(
+    client.POST("/api/v1/persons/{person_id}/prototypes/rebuild", {
+      params: { path: { person_id: personId } },
+    }),
+  );
+
+export const deletePersonPrototype = (personId: string, prototypeId: string) =>
+  unwrap(
+    client.DELETE("/api/v1/persons/{person_id}/prototypes/{prototype_id}", {
+      params: { path: { person_id: personId, prototype_id: prototypeId } },
+    }),
+  );

@@ -139,6 +139,7 @@ permission_map:
     - "identity_readiness:read"
     - "identity_targets:read"
     - "identity_review:read"
+    - "face_prototypes:read"
 
   caregiver_admin:
     - "GET /api/v1/*"
@@ -217,6 +218,8 @@ permission_map:
     - "identity_readiness:read"
     - "identity_targets:read"
     - "identity_review:read"
+    - "face_prototypes:read"
+    - "face_prototypes:write"
 
   operator:
     - "*"
@@ -387,3 +390,10 @@ permission_map:
   # What each identity review decision changes, per surface (static text, no identity data).
   "identity_review:read":
     - "GET /api/v1/identity/review-vocabulary"
+
+  # Pose-binned face prototypes: read for caregivers, write for caregiver-admins.
+  "face_prototypes:read":
+    - "GET /api/v1/persons/*/prototypes"
+  "face_prototypes:write":
+    - "POST /api/v1/persons/*/prototypes/rebuild"
+    - "DELETE /api/v1/persons/*/prototypes/*"

@@ -14,6 +14,13 @@
         </div>
       </div>
       <v-spacer />
+      <CcSegmentedToggle
+        :model-value="queueState"
+        :options="QUEUE_STATE_OPTIONS"
+        size="default"
+        data-test="queue-state-toggle"
+        @update:model-value="onQueueStateChange"
+      />
       <v-chip
         v-if="state.summary"
         size="small"
@@ -44,7 +51,7 @@
     </v-alert>
 
     <ReviewSelectionToolbar
-      v-if="!state.loading && !state.forbidden && state.queue.length"
+      v-if="queueState === 'unlabeled' && !state.loading && !state.forbidden && state.queue.length"
       class="mb-4"
       :active="state.selecting"
       :selectable-count="state.queue.length"
@@ -115,6 +122,7 @@
               <div><strong>Camera</strong> {{ current.camera_id }}</div>
               <div><strong>Captured</strong> {{ formatDateTime(current.captured_at) }}</div>
               <div><strong>Face quality</strong> {{ current.quality_score.toFixed(2) }}</div>
+              <div v-if="current.pose_bin"><strong>Pose</strong> {{ current.pose_bin }}</div>
               <div>
                 <strong>Eye distance</strong>
                 {{
@@ -129,6 +137,20 @@
                   (similarity {{ current.nearest_similarity.toFixed(2) }})
                 </span>
               </div>
+              <div v-if="queueState === 'labeled'" class="d-flex align-center flex-wrap ga-2 mt-2">
+                <v-chip size="small" variant="tonal" color="primary" data-test="label-chip">
+                  {{ labelSummary(current) }}
+                </v-chip>
+                <v-chip
+                  v-if="current.promoted"
+                  size="small"
+                  variant="tonal"
+                  color="success"
+                  data-test="promoted-chip"
+                >
+                  Promoted
+                </v-chip>
+              </div>
               <div class="text-medium-emphasis mt-2">
                 {{ state.index + 1 }} of {{ state.queue.length }}{{ state.nextCursor ? "+" : "" }}
               </div>
@@ -136,6 +158,7 @@
           </div>
 
           <ReviewVerdictBar
+            v-if="queueState === 'unlabeled'"
             class="mt-4"
             surface="face_calibration"
             :members="keyedResidents"
@@ -143,15 +166,42 @@
             @member="onMember"
             @verdict="onVerdict"
           />
+
+          <div
+            v-else-if="current.label_kind === 'member'"
+            class="d-flex align-center flex-wrap ga-3 mt-4"
+            data-test="promotion-bar"
+          >
+            <v-btn
+              size="small"
+              color="primary"
+              variant="flat"
+              :disabled="state.acting || current.promoted || !current.promotion_eligible"
+              :loading="state.acting"
+              :title="promotionReason(current)"
+              data-test="promote"
+              @click="onPromote"
+            >
+              Use for recognition
+            </v-btn>
+            <span
+              v-if="promotionReason(current)"
+              class="text-caption text-medium-emphasis"
+              data-test="promotion-reason"
+            >
+              {{ promotionReason(current) }}
+            </span>
+          </div>
           <div class="d-flex ga-2 mt-3">
             <v-btn size="small" variant="text" :disabled="state.acting" @click="actions.previous"
               >Previous</v-btn
             >
-            <v-btn size="small" variant="text" :disabled="state.acting" @click="actions.next"
-              >Skip</v-btn
-            >
+            <v-btn size="small" variant="text" :disabled="state.acting" @click="actions.next">{{
+              queueState === "labeled" ? "Next" : "Skip"
+            }}</v-btn>
             <v-spacer />
             <v-btn
+              v-if="queueState === 'unlabeled'"
               size="small"
               variant="text"
               :disabled="state.acting"
@@ -174,7 +224,9 @@
         </v-card>
 
         <v-card v-else flat class="pa-8 text-center glass-card" data-test="empty-queue">
-          <v-card-text class="text-grey text-h6">Nothing waiting to be labeled</v-card-text>
+          <v-card-text class="text-grey text-h6">{{
+            queueState === "labeled" ? "No labeled captures yet" : "Nothing waiting to be labeled"
+          }}</v-card-text>
           <v-card-text v-if="captureOffNextAction" class="text-grey" data-test="capture-next">
             Capture is off, so there is nothing to label. Next:
             {{ captureOffNextAction }}.
@@ -239,20 +291,31 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
+import CcSegmentedToggle from "@/components/common/CcSegmentedToggle.vue";
 import ReviewSelectionToolbar from "@/components/identity/ReviewSelectionToolbar.vue";
 import ReviewVerdictBar from "@/components/identity/ReviewVerdictBar.vue";
 import { VERDICT_LABELS, type ReviewVerdict } from "@/constants/identityReview";
 import { useReviewKeys } from "@/composables/useReviewKeys";
 import { useIdentityReviewStore } from "@/stores/identityReview";
 import { useConfirm } from "@/composables/useConfirm.js";
-import { useFaceCalibrationReview } from "@/composables/useFaceCalibrationReview";
+import {
+  useFaceCalibrationReview,
+  type CalibrationQueueState,
+} from "@/composables/useFaceCalibrationReview";
 import { useIdentityReadiness } from "@/composables/useIdentityReadiness";
 import { ACTION_PRESENTATION, IDENTITY_CHAIN_LENGTH } from "@/constants/identityReadiness";
 import { useNotify } from "@/composables/useNotify.js";
 import { formatDateTime } from "@/services/timezone.js";
+import type { CalibrationCandidateView } from "@/services/modules/face_calibration";
+
+const QUEUE_STATE_OPTIONS = [
+  { value: "unlabeled", label: "Unlabeled" },
+  { value: "labeled", label: "Labeled" },
+];
 
 const { notify } = useNotify();
 const { state, current, keyedResidents, actions } = useFaceCalibrationReview(notify);
+const queueState = computed<CalibrationQueueState>(() => state.queueState ?? "unlabeled");
 const {
   confirmDialog,
   confirmText,
@@ -277,9 +340,46 @@ function residentName(id: string): string {
   return state.residents.find((r) => r.identity_id === id)?.display_name ?? id;
 }
 
+function labelSummary(candidate: CalibrationCandidateView): string {
+  if (candidate.label_kind === "member" && candidate.label_identity_id) {
+    return residentName(candidate.label_identity_id);
+  }
+  if (candidate.label_kind === "not_enrolled") return "Not in household";
+  if (candidate.label_kind === "not_a_face") return "Not usable";
+  return candidate.label_state;
+}
+
+function promotionReason(candidate: CalibrationCandidateView): string {
+  if (candidate.promoted) return "Already added to gallery.";
+  if (!candidate.promotion_eligible) {
+    return candidate.promotion_ineligible_reason ?? "Not eligible for promotion.";
+  }
+  return "";
+}
+
+function onQueueStateChange(nextState: string) {
+  if (nextState === "unlabeled" || nextState === "labeled") {
+    void actions.setQueueState(nextState);
+  }
+}
+
+async function onPromote() {
+  const candidate = current.value;
+  if (!candidate || !candidate.label_identity_id) return;
+  const who = residentName(candidate.label_identity_id);
+  const pose = candidate.pose_bin || "frontal";
+  const ok = await confirmRequire(
+    `Add this ${pose} capture to ${who}'s recognition gallery? Calibrated recognition authority for ${who} will pause until the next calibration fit.`,
+    { confirmText: "Use for recognition", color: "primary" },
+  );
+  if (ok) {
+    await actions.promote(candidate.candidate_id);
+  }
+}
+
 async function onDelete() {
   const ok = await confirmRequire(
-    "Delete this capture? The face crop and its label are deleted permanently.",
+    "Delete this capture? The face crop and its calibration label are deleted permanently. If this capture was already promoted, its promoted embedding stays in the gallery.",
     { confirmText: "Delete" },
   );
   if (ok) {
@@ -318,7 +418,11 @@ async function onBatch(verdict: ReviewVerdict) {
 
 useReviewKeys({
   enabled: () =>
-    !confirmDialog.value && !state.acting && !state.selecting && current.value !== null,
+    queueState.value === "unlabeled" &&
+    !confirmDialog.value &&
+    !state.acting &&
+    !state.selecting &&
+    current.value !== null,
   verdicts: () => review.surface("face_calibration")?.verdicts.map((v) => v.verdict) ?? [],
   onMember: (position) => void actions.labelResident(position),
   onVerdict,

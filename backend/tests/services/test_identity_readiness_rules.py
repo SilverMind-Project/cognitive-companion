@@ -357,3 +357,27 @@ def test_enabled_templates_without_their_artifact_say_so() -> None:
     step = templates_step(_cts(templates="enabled"), _health(template_status="degraded_missing"))
     assert step.state == "blocked"
     assert "enabled but their calibration artifact is not deployed" in step.detail
+
+
+def test_roster_step_reports_prototype_counts_without_identity_ids() -> None:
+    members = [
+        MemberInfo(
+            person_id="secret-member-id-1",
+            name="Amma",
+            embedding_count=6,
+            created_at=_AT,
+            prototype_counts={"frontal": 3, "down": 1},
+        ),
+        MemberInfo(
+            person_id="secret-member-id-2",
+            name="Appa",
+            embedding_count=5,
+            created_at=_AT,
+            prototype_counts={"frontal": 2, "left": 1},
+        ),
+    ]
+    step = roster_step(_roster(members=2), members)
+    assert step.state == "ready"
+    assert "Face prototypes across enrolled members: 5 frontal, 1 left, 0 right, 1 down." in step.detail
+    assert "secret-member-id-1" not in step.detail
+    assert "secret-member-id-2" not in step.detail

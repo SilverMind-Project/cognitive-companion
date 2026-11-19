@@ -69,6 +69,11 @@ class FaceResult:
     calibrated_confidence: float | None = None
     calibration_status: str = "degraded_missing"
     calibration_artifact_version: str | None = None
+    # Top-2 margin and gallery representation metadata.
+    second_best_candidate_id: str | None = None
+    second_best_similarity: float | None = None
+    margin: float | None = None
+    gallery_representation: str = "centroid"
 
 
 @dataclass
@@ -107,6 +112,49 @@ class MemberInfo:
     name: str
     embedding_count: int
     created_at: datetime
+    gallery_revision: int = 1
+    prototype_counts: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PrototypeInfo:
+    prototype_id: str
+    person_id: str
+    pose_bin: str
+    member_count: int
+    source: str
+    quality_score: float | None
+    quality_version: str | None
+    crop_object_key: str | None
+    approved_by: str | None
+    approved_at: datetime | None
+    created_at: datetime | None
+
+
+@dataclass(frozen=True)
+class MemberPrototypesInfo:
+    person_id: str
+    gallery_revision: int
+    prototypes: list[PrototypeInfo]
+    counts_by_bin: dict[str, int]
+
+
+@dataclass(frozen=True)
+class PromoteCandidateResult:
+    candidate_id: str
+    person_id: str
+    pose_bin: str
+    embedding_id: int
+    gallery_revision: int
+    prototype_count: int
+    counts_by_bin: dict[str, int]
+
+
+@dataclass(frozen=True)
+class RebuildPrototypesResult:
+    person_id: str
+    prototype_count: int
+    counts_by_bin: dict[str, int]
 
 
 @dataclass
@@ -163,6 +211,10 @@ class CalibrationCandidateInfo:
     label_identity_id: str | None
     labeled_by: str | None
     labeled_at: datetime | None
+    pose_bin: str = "frontal"
+    promoted: bool = False
+    promotion_eligible: bool = False
+    promotion_ineligible_reason: str | None = None
 
 
 @dataclass
@@ -188,6 +240,7 @@ class CalibrationSummaryInfo:
     identities: list[CalibrationIdentityProgress]
     not_enrolled_episodes: int
     capture_enabled: bool
+    promotable_by_identity_pose: dict[str, dict[str, int]] = field(default_factory=dict)
 
 
 @dataclass
@@ -384,6 +437,14 @@ class PersonIDClient:
                 calibrated_confidence=f.get("calibrated_confidence"),
                 calibration_status=f.get("calibration_status", "degraded_missing"),
                 calibration_artifact_version=f.get("calibration_artifact_version"),
+                second_best_candidate_id=f.get("second_best_candidate_id"),
+                second_best_similarity=(
+                    float(f["second_best_similarity"])
+                    if f.get("second_best_similarity") is not None
+                    else None
+                ),
+                margin=float(f["margin"]) if f.get("margin") is not None else None,
+                gallery_representation=str(f.get("gallery_representation", "centroid")),
             )
             for f in data.get("faces", [])
         ]
@@ -461,6 +522,10 @@ class PersonIDClient:
                     name=m["name"],
                     embedding_count=m["embedding_count"],
                     created_at=datetime.fromisoformat(m["created_at"]),
+                    gallery_revision=int(m.get("gallery_revision", 1)),
+                    prototype_counts={
+                        str(k): int(v) for k, v in (m.get("prototype_counts") or {}).items()
+                    },
                 )
                 for m in data["members"]
             ]
@@ -495,6 +560,10 @@ class PersonIDClient:
             name=data["name"],
             embedding_count=data["embedding_count"],
             created_at=datetime.fromisoformat(data["created_at"]),
+            gallery_revision=int(data.get("gallery_revision", 1)),
+            prototype_counts={
+                str(k): int(v) for k, v in (data.get("prototype_counts") or {}).items()
+            },
         )
 
     async def delete_member(self, person_id: str) -> bool:
@@ -751,6 +820,94 @@ class PersonIDClient:
     async def delete_calibration_candidate(self, candidate_id: str) -> None:
         await self._request_or_raise("DELETE", f"/api/v1/calibration/candidates/{candidate_id}")
 
+    async def promote_calibration_candidate(
+        self,
+        candidate_id: str,
+        *,
+        approved_by: str,
+        person_id: str | None = None,
+    ) -> PromoteCandidateResult:
+        """Promote a labeled calibration capture into that member's prototypes."""
+        body: dict[str, Any] = {"approved_by": approved_by}
+        if person_id is not None:
+            body["person_id"] = person_id
+        data = await self._request_or_raise(
+            "POST",
+            f"/api/v1/calibration/candidates/{candidate_id}/promote",
+            json=body,
+        )
+        try:
+            return PromoteCandidateResult(
+                candidate_id=str(data["candidate_id"]),
+                person_id=str(data["person_id"]),
+                pose_bin=str(data["pose_bin"]),
+                embedding_id=int(data["embedding_id"]),
+                gallery_revision=int(data["gallery_revision"]),
+                prototype_count=int(data["prototype_count"]),
+                counts_by_bin={str(k): int(v) for k, v in data["counts_by_bin"].items()},
+            )
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed promote response: {exc}") from exc
+
+    async def list_member_prototypes(self, person_id: str) -> MemberPrototypesInfo:
+        """Fetch pose-binned prototypes for one enrolled member."""
+        data = await self._request_or_raise("GET", f"/api/v1/members/{person_id}/prototypes")
+        try:
+            prototypes = [
+                PrototypeInfo(
+                    prototype_id=str(p["prototype_id"]),
+                    person_id=str(p["person_id"]),
+                    pose_bin=str(p["pose_bin"]),
+                    member_count=int(p["member_count"]),
+                    source=str(p["source"]),
+                    quality_score=(
+                        None if p.get("quality_score") is None else float(p["quality_score"])
+                    ),
+                    quality_version=p.get("quality_version"),
+                    crop_object_key=p.get("crop_object_key"),
+                    approved_by=p.get("approved_by"),
+                    approved_at=(
+                        None
+                        if p.get("approved_at") is None
+                        else datetime.fromisoformat(p["approved_at"])
+                    ),
+                    created_at=(
+                        None
+                        if p.get("created_at") is None
+                        else datetime.fromisoformat(p["created_at"])
+                    ),
+                )
+                for p in data["prototypes"]
+            ]
+            return MemberPrototypesInfo(
+                person_id=str(data["person_id"]),
+                gallery_revision=int(data["gallery_revision"]),
+                prototypes=prototypes,
+                counts_by_bin={str(k): int(v) for k, v in data["counts_by_bin"].items()},
+            )
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed prototypes envelope: {exc}") from exc
+
+    async def rebuild_member_prototypes(self, person_id: str) -> RebuildPrototypesResult:
+        """Rebuild pose-binned prototypes for one enrolled member."""
+        data = await self._request_or_raise(
+            "POST", f"/api/v1/members/{person_id}/prototypes/rebuild"
+        )
+        try:
+            return RebuildPrototypesResult(
+                person_id=str(data["person_id"]),
+                prototype_count=int(data["prototype_count"]),
+                counts_by_bin={str(k): int(v) for k, v in data["counts_by_bin"].items()},
+            )
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed rebuild response: {exc}") from exc
+
+    async def delete_member_prototype(self, person_id: str, prototype_id: str) -> None:
+        """Remove one prototype (and its underlying embedding(s)) for a member."""
+        await self._request_or_raise(
+            "DELETE", f"/api/v1/members/{person_id}/prototypes/{prototype_id}"
+        )
+
     async def get_calibration_summary(self) -> CalibrationSummaryInfo:
         data = await self._request_or_raise("GET", "/api/v1/calibration/summary")
         try:
@@ -770,6 +927,10 @@ class PersonIDClient:
                 ],
                 not_enrolled_episodes=int(data["not_enrolled_episodes"]),
                 capture_enabled=bool(data["capture_enabled"]),
+                promotable_by_identity_pose={
+                    str(pid): {str(b): int(cnt) for b, cnt in bins.items()}
+                    for pid, bins in (data.get("promotable_by_identity_pose") or {}).items()
+                },
             )
         except (KeyError, TypeError, ValueError, AttributeError) as exc:
             raise PersonIDUpstreamError(502, f"malformed calibration summary: {exc}") from exc
@@ -814,6 +975,10 @@ class PersonIDClient:
             label_identity_id=c["label_identity_id"],
             labeled_by=c["labeled_by"],
             labeled_at=None if labeled_at is None else datetime.fromisoformat(labeled_at),
+            pose_bin=str(c.get("pose_bin", "frontal")),
+            promoted=bool(c.get("promoted", False)),
+            promotion_eligible=bool(c.get("promotion_eligible", False)),
+            promotion_ineligible_reason=c.get("promotion_ineligible_reason"),
         )
 
     async def _request_or_raise(
@@ -872,6 +1037,10 @@ class PersonIDClient:
                     calibrated_confidence=f.get("calibrated_confidence"),
                     calibration_status=f.get("calibration_status", "degraded_missing"),
                     calibration_artifact_version=f.get("calibration_artifact_version"),
+                    second_best_candidate_id=f.get("second_best_candidate_id"),
+                    second_best_similarity=f.get("second_best_similarity"),
+                    margin=f.get("margin"),
+                    gallery_representation=f.get("gallery_representation", "centroid"),
                 )
                 for f in frame.get("faces", [])
             ]

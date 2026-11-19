@@ -11,14 +11,24 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from backend.core.exceptions import ValidationError
-from backend.integrations.person_id_client import CalibrationCandidateInfo, PersonIDClient
+from backend.integrations.person_id_client import (
+    CalibrationCandidateInfo,
+    PersonIDClient,
+    PrototypeInfo,
+)
 from backend.schemas.face_calibration import (
     CalibrationCandidateListResponse,
     CalibrationCandidateView,
     CalibrationIdentityProgressView,
     FaceCalibrationSummaryEnvelope,
+    PromoteCalibrationCandidateResponse,
 )
 from backend.schemas.identity_review import ReviewItemResult, ReviewSurface
+from backend.schemas.person import (
+    PersonPrototypesResponse,
+    PersonPrototypeView,
+    RebuildPrototypesResponse,
+)
 from backend.services.identity_review.registry import ReviewDecision
 
 # Maps a MinIO key (or None) to a browser-reachable URL (or None).
@@ -78,6 +88,42 @@ class FaceCalibrationReviewService:
     async def delete(self, candidate_id: str) -> None:
         await self._client.delete_calibration_candidate(candidate_id)
 
+    async def promote(
+        self, candidate_id: str, *, actor: str
+    ) -> PromoteCalibrationCandidateResponse:
+        res = await self._client.promote_calibration_candidate(candidate_id, approved_by=actor)
+        return PromoteCalibrationCandidateResponse(
+            candidate_id=res.candidate_id,
+            person_id=res.person_id,
+            pose_bin=res.pose_bin,
+            embedding_id=res.embedding_id,
+            gallery_revision=res.gallery_revision,
+            prototype_count=res.prototype_count,
+            counts_by_bin=res.counts_by_bin,
+        )
+
+    async def list_prototypes(
+        self, person_id: str, *, presign: Presigner = _no_presign
+    ) -> PersonPrototypesResponse:
+        info = await self._client.list_member_prototypes(person_id)
+        return PersonPrototypesResponse(
+            person_id=info.person_id,
+            gallery_revision=info.gallery_revision,
+            prototypes=[self._prototype_view(p, presign) for p in info.prototypes],
+            counts_by_bin=info.counts_by_bin,
+        )
+
+    async def rebuild_prototypes(self, person_id: str) -> RebuildPrototypesResponse:
+        res = await self._client.rebuild_member_prototypes(person_id)
+        return RebuildPrototypesResponse(
+            person_id=res.person_id,
+            prototype_count=res.prototype_count,
+            counts_by_bin=res.counts_by_bin,
+        )
+
+    async def delete_prototype(self, person_id: str, prototype_id: str) -> None:
+        await self._client.delete_member_prototype(person_id, prototype_id)
+
     async def get_summary(self) -> FaceCalibrationSummaryEnvelope:
         summary = await self._client.get_calibration_summary()
         return FaceCalibrationSummaryEnvelope(
@@ -96,6 +142,7 @@ class FaceCalibrationReviewService:
             ],
             not_enrolled_episodes=summary.not_enrolled_episodes,
             capture_enabled=summary.capture_enabled,
+            promotable_by_identity_pose=summary.promotable_by_identity_pose,
         )
 
     @staticmethod
@@ -117,6 +164,26 @@ class FaceCalibrationReviewService:
             label_identity_id=c.label_identity_id,
             labeled_by=c.labeled_by,
             labeled_at=c.labeled_at,
+            pose_bin=c.pose_bin,
+            promoted=c.promoted,
+            promotion_eligible=c.promotion_eligible,
+            promotion_ineligible_reason=c.promotion_ineligible_reason,
+        )
+
+    @staticmethod
+    def _prototype_view(p: PrototypeInfo, presign: Presigner) -> PersonPrototypeView:
+        return PersonPrototypeView(
+            prototype_id=p.prototype_id,
+            person_id=p.person_id,
+            pose_bin=p.pose_bin,
+            member_count=p.member_count,
+            source=p.source,
+            quality_score=p.quality_score,
+            quality_version=p.quality_version,
+            crop_url=presign(p.crop_object_key),
+            approved_by=p.approved_by,
+            approved_at=p.approved_at,
+            created_at=p.created_at,
         )
 
 

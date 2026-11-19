@@ -82,6 +82,7 @@ const current = () => store.value as Store;
 
 function makeStore() {
   const state = reactive({
+    queueState: "unlabeled" as "unlabeled" | "labeled",
     queue: [
       {
         candidate_id: "c1",
@@ -92,6 +93,13 @@ function makeStore() {
         interocular_px: 18,
         nearest_person_id: "amma",
         nearest_similarity: 0.36,
+        pose_bin: "frontal",
+        label_state: "unlabeled",
+        label_kind: null as string | null,
+        label_identity_id: null as string | null,
+        promoted: false,
+        promotion_eligible: false,
+        promotion_ineligible_reason: null as string | null,
       },
     ],
     nextCursor: null,
@@ -113,11 +121,13 @@ function makeStore() {
   });
   const actions = {
     load: vi.fn(),
+    setQueueState: vi.fn(),
     labelResident: vi.fn(),
     labelNotEnrolled: vi.fn(),
     labelNotAFace: vi.fn(),
     reject: vi.fn(),
     remove: vi.fn(),
+    promote: vi.fn(),
     next: vi.fn(),
     previous: vi.fn(),
     setSelecting: vi.fn((on: boolean) => {
@@ -303,6 +313,55 @@ describe("FaceCalibrationView", () => {
     expect(wrapper.find("[data-test='forbidden']").exists()).toBe(true);
     expect(wrapper.find("[data-test='empty-queue']").exists()).toBe(false);
     expect(wrapper.find("[data-test='load-error']").exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("shows promotion button with confirmation in labeled mode for eligible member captures", async () => {
+    const s = current();
+    s.state.queueState = "labeled";
+    s.state.queue[0] = {
+      ...s.state.queue[0],
+      label_state: "labeled",
+      label_kind: "member",
+      label_identity_id: "amma",
+      pose_bin: "down",
+      promoted: false,
+      promotion_eligible: true,
+      promotion_ineligible_reason: null,
+    };
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.get("[data-test='label-chip']").text()).toContain("Amma");
+    const promoteBtn = wrapper.get("[data-test='promote']");
+    expect(promoteBtn.attributes("disabled")).toBeUndefined();
+
+    confirmResult.value = true;
+    await promoteBtn.trigger("click");
+    await flushPromises();
+
+    expect(confirmResult.asked[0]).toContain("pause until the next calibration fit");
+    expect(s.actions.promote).toHaveBeenCalledWith("c1");
+    wrapper.unmount();
+  });
+
+  it("disables promotion and shows server reason when ineligible", async () => {
+    const s = current();
+    s.state.queueState = "labeled";
+    s.state.queue[0] = {
+      ...s.state.queue[0],
+      label_state: "labeled",
+      label_kind: "member",
+      label_identity_id: "amma",
+      promoted: false,
+      promotion_eligible: false,
+      promotion_ineligible_reason: "quality below 0.5",
+    };
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.get("[data-test='promote']").attributes("disabled")).toBeDefined();
+    expect(wrapper.get("[data-test='promotion-reason']").text()).toContain("quality below 0.5");
     wrapper.unmount();
   });
 });

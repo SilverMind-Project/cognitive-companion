@@ -27,6 +27,7 @@ from backend.schemas.face_calibration import (
     FaceCalibrationReviewRequest,
     FaceCalibrationSummaryEnvelope,
     LabelCalibrationCandidateRequest,
+    PromoteCalibrationCandidateResponse,
 )
 from backend.schemas.identity_review import BatchReviewResponse
 from backend.services.face_calibration import FaceCalibrationReviewService
@@ -152,6 +153,29 @@ async def delete_calibration_candidate(
         raise _upstream(exc) from exc
     logger.info("face_calibration_deleted", candidate_id=candidate_id, actor=auth.name)
     return Response(status_code=204)
+
+
+@router.post("/candidates/{candidate_id}/promote", response_model=PromoteCalibrationCandidateResponse)
+async def promote_calibration_candidate(
+    candidate_id: str,
+    svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
+    auth: AuthContext = Depends(require_token(_REVIEW)),
+) -> PromoteCalibrationCandidateResponse:
+    """Explicitly promote a labeled member capture into that person's face gallery."""
+    actor = actor_from_auth(auth)
+    try:
+        result = await svc.promote(candidate_id, actor=actor)
+    except PersonIDUpstreamError as exc:
+        raise _upstream(exc) from exc
+    logger.info(
+        "face_calibration_promoted",
+        candidate_id=candidate_id,
+        person_id=result.person_id,
+        pose_bin=result.pose_bin,
+        gallery_revision=result.gallery_revision,
+        actor=actor,
+    )
+    return result
 
 
 @router.get("/summary", response_model=FaceCalibrationSummaryEnvelope)

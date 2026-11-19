@@ -1732,6 +1732,32 @@
             "title": "Pitch Deg",
             "type": "number"
           },
+          "pose_bin": {
+            "default": "frontal",
+            "title": "Pose Bin",
+            "type": "string"
+          },
+          "promoted": {
+            "default": false,
+            "title": "Promoted",
+            "type": "boolean"
+          },
+          "promotion_eligible": {
+            "default": false,
+            "title": "Promotion Eligible",
+            "type": "boolean"
+          },
+          "promotion_ineligible_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promotion Ineligible Reason"
+          },
           "quality_score": {
             "maximum": 1.0,
             "minimum": 0.0,
@@ -5064,6 +5090,16 @@
           "not_enrolled_episodes": {
             "title": "Not Enrolled Episodes",
             "type": "integer"
+          },
+          "promotable_by_identity_pose": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Promotable By Identity Pose",
+            "type": "object"
           }
         },
         "required": [
@@ -10542,6 +10578,140 @@
         "title": "PersonLocationEnvelope",
         "type": "object"
       },
+      "PersonPrototypeView": {
+        "description": "One face gallery prototype with a presigned thumbnail URL (never a raw storage key).",
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "crop_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Presigned aligned-crop URL; null when no crop is stored or unsigned",
+            "title": "Crop Url"
+          },
+          "member_count": {
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "person_id": {
+            "title": "Person Id",
+            "type": "string"
+          },
+          "pose_bin": {
+            "title": "Pose Bin",
+            "type": "string"
+          },
+          "prototype_id": {
+            "title": "Prototype Id",
+            "type": "string"
+          },
+          "quality_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality Score"
+          },
+          "quality_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality Version"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prototype_id",
+          "person_id",
+          "pose_bin",
+          "member_count",
+          "source"
+        ],
+        "title": "PersonPrototypeView",
+        "type": "object"
+      },
+      "PersonPrototypesResponse": {
+        "properties": {
+          "counts_by_bin": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts By Bin",
+            "type": "object"
+          },
+          "gallery_revision": {
+            "title": "Gallery Revision",
+            "type": "integer"
+          },
+          "person_id": {
+            "title": "Person Id",
+            "type": "string"
+          },
+          "prototypes": {
+            "items": {
+              "$ref": "#/components/schemas/PersonPrototypeView"
+            },
+            "title": "Prototypes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "person_id",
+          "gallery_revision",
+          "prototypes"
+        ],
+        "title": "PersonPrototypesResponse",
+        "type": "object"
+      },
       "PipelineEdgeBulkUpdate": {
         "additionalProperties": false,
         "description": "Replace all edges for a rule in one atomic operation.",
@@ -11151,6 +11321,52 @@
           "zones"
         ],
         "title": "PrivacyZonesRequest",
+        "type": "object"
+      },
+      "PromoteCalibrationCandidateResponse": {
+        "description": "Result of explicitly promoting a labeled capture into a member's gallery.",
+        "properties": {
+          "candidate_id": {
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "counts_by_bin": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts By Bin",
+            "type": "object"
+          },
+          "embedding_id": {
+            "title": "Embedding Id",
+            "type": "integer"
+          },
+          "gallery_revision": {
+            "title": "Gallery Revision",
+            "type": "integer"
+          },
+          "person_id": {
+            "title": "Person Id",
+            "type": "string"
+          },
+          "pose_bin": {
+            "title": "Pose Bin",
+            "type": "string"
+          },
+          "prototype_count": {
+            "title": "Prototype Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "candidate_id",
+          "person_id",
+          "pose_bin",
+          "embedding_id",
+          "gallery_revision",
+          "prototype_count"
+        ],
+        "title": "PromoteCalibrationCandidateResponse",
         "type": "object"
       },
       "ProposeSegmentRequest": {
@@ -12469,6 +12685,31 @@
           "next_action"
         ],
         "title": "ReadinessStep",
+        "type": "object"
+      },
+      "RebuildPrototypesResponse": {
+        "properties": {
+          "counts_by_bin": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts By Bin",
+            "type": "object"
+          },
+          "person_id": {
+            "title": "Person Id",
+            "type": "string"
+          },
+          "prototype_count": {
+            "title": "Prototype Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "person_id",
+          "prototype_count"
+        ],
+        "title": "RebuildPrototypesResponse",
         "type": "object"
       },
       "RecameraUploadOut": {
@@ -25858,6 +26099,54 @@
         ]
       }
     },
+    "/api/v1/face-calibration/candidates/{candidate_id}/promote": {
+      "post": {
+        "description": "Explicitly promote a labeled member capture into that person's face gallery.",
+        "operationId": "promote_calibration_candidate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoteCalibrationCandidateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Promote Calibration Candidate",
+        "tags": [
+          "face-calibration"
+        ]
+      }
+    },
     "/api/v1/face-calibration/candidates/{candidate_id}/reject": {
       "post": {
         "operationId": "reject_calibration_candidate",
@@ -31747,6 +32036,152 @@
         "summary": "Get Presence History",
         "tags": [
           "persons-location"
+        ]
+      }
+    },
+    "/api/v1/persons/{person_id}/prototypes": {
+      "get": {
+        "description": "List pose-binned face prototypes for one enrolled member.",
+        "operationId": "list_person_prototypes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonPrototypesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Person Prototypes",
+        "tags": [
+          "persons"
+        ]
+      }
+    },
+    "/api/v1/persons/{person_id}/prototypes/rebuild": {
+      "post": {
+        "description": "Rebuild pose-binned face prototypes for one enrolled member.",
+        "operationId": "rebuild_person_prototypes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RebuildPrototypesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Rebuild Person Prototypes",
+        "tags": [
+          "persons"
+        ]
+      }
+    },
+    "/api/v1/persons/{person_id}/prototypes/{prototype_id}": {
+      "delete": {
+        "description": "Remove a face prototype and its underlying embedding(s), rebuilding the gallery.",
+        "operationId": "delete_person_prototype",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "prototype_id",
+            "required": true,
+            "schema": {
+              "title": "Prototype Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Delete Person Prototype",
+        "tags": [
+          "persons"
         ]
       }
     },

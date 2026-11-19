@@ -2463,6 +2463,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/face-calibration/candidates/{candidate_id}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Promote Calibration Candidate
+         * @description Explicitly promote a labeled member capture into that person's face gallery.
+         */
+        post: operations["promote_calibration_candidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/face-calibration/candidates/{candidate_id}/reject": {
         parameters: {
             query?: never;
@@ -4115,6 +4135,66 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/persons/{person_id}/prototypes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Person Prototypes
+         * @description List pose-binned face prototypes for one enrolled member.
+         */
+        get: operations["list_person_prototypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/persons/{person_id}/prototypes/rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rebuild Person Prototypes
+         * @description Rebuild pose-binned face prototypes for one enrolled member.
+         */
+        post: operations["rebuild_person_prototypes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/persons/{person_id}/prototypes/{prototype_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Person Prototype
+         * @description Remove a face prototype and its underlying embedding(s), rebuilding the gallery.
+         */
+        delete: operations["delete_person_prototype"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6063,6 +6143,23 @@ export interface components {
             nearest_similarity: number;
             /** Pitch Deg */
             pitch_deg: number;
+            /**
+             * Pose Bin
+             * @default frontal
+             */
+            pose_bin: string;
+            /**
+             * Promoted
+             * @default false
+             */
+            promoted: boolean;
+            /**
+             * Promotion Eligible
+             * @default false
+             */
+            promotion_eligible: boolean;
+            /** Promotion Ineligible Reason */
+            promotion_ineligible_reason?: string | null;
             /** Quality Score */
             quality_score: number;
             /** Quality Version */
@@ -7279,6 +7376,12 @@ export interface components {
             identities: components["schemas"]["CalibrationIdentityProgressView"][];
             /** Not Enrolled Episodes */
             not_enrolled_episodes: number;
+            /** Promotable By Identity Pose */
+            promotable_by_identity_pose?: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
         };
         /** FilterTypeOut */
         FilterTypeOut: {
@@ -9236,6 +9339,50 @@ export interface components {
             staleness_seconds: number;
         };
         /**
+         * PersonPrototypeView
+         * @description One face gallery prototype with a presigned thumbnail URL (never a raw storage key).
+         */
+        PersonPrototypeView: {
+            /** Approved At */
+            approved_at?: string | null;
+            /** Approved By */
+            approved_by?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Crop Url
+             * @description Presigned aligned-crop URL; null when no crop is stored or unsigned
+             */
+            crop_url?: string | null;
+            /** Member Count */
+            member_count: number;
+            /** Person Id */
+            person_id: string;
+            /** Pose Bin */
+            pose_bin: string;
+            /** Prototype Id */
+            prototype_id: string;
+            /** Quality Score */
+            quality_score?: number | null;
+            /** Quality Version */
+            quality_version?: string | null;
+            /** Source */
+            source: string;
+        };
+        /** PersonPrototypesResponse */
+        PersonPrototypesResponse: {
+            /** Counts By Bin */
+            counts_by_bin?: {
+                [key: string]: number;
+            };
+            /** Gallery Revision */
+            gallery_revision: number;
+            /** Person Id */
+            person_id: string;
+            /** Prototypes */
+            prototypes: components["schemas"]["PersonPrototypeView"][];
+        };
+        /**
          * PipelineEdgeBulkUpdate
          * @description Replace all edges for a rule in one atomic operation.
          */
@@ -9478,6 +9625,28 @@ export interface components {
             camera_id: string;
             /** Zones */
             zones: components["schemas"]["PrivacyZoneIn"][];
+        };
+        /**
+         * PromoteCalibrationCandidateResponse
+         * @description Result of explicitly promoting a labeled capture into a member's gallery.
+         */
+        PromoteCalibrationCandidateResponse: {
+            /** Candidate Id */
+            candidate_id: string;
+            /** Counts By Bin */
+            counts_by_bin?: {
+                [key: string]: number;
+            };
+            /** Embedding Id */
+            embedding_id: number;
+            /** Gallery Revision */
+            gallery_revision: number;
+            /** Person Id */
+            person_id: string;
+            /** Pose Bin */
+            pose_bin: string;
+            /** Prototype Count */
+            prototype_count: number;
         };
         /** ProposeSegmentRequest */
         ProposeSegmentRequest: {
@@ -9998,6 +10167,17 @@ export interface components {
              * @enum {string}
              */
             state: "ready" | "attention" | "blocked" | "unknown";
+        };
+        /** RebuildPrototypesResponse */
+        RebuildPrototypesResponse: {
+            /** Counts By Bin */
+            counts_by_bin?: {
+                [key: string]: number;
+            };
+            /** Person Id */
+            person_id: string;
+            /** Prototype Count */
+            prototype_count: number;
         };
         /**
          * RecameraUploadOut
@@ -16329,6 +16509,37 @@ export interface operations {
             };
         };
     };
+    promote_calibration_candidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                candidate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromoteCalibrationCandidateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reject_calibration_candidate: {
         parameters: {
             query?: never;
@@ -19515,6 +19726,98 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PresenceHistoryResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_person_prototypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonPrototypesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rebuild_person_prototypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RebuildPrototypesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_person_prototype: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+                prototype_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

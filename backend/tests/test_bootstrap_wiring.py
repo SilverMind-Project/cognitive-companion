@@ -176,8 +176,11 @@ def wiring_minio():
     construction, so unlike the other integration clients it is not lazy --
     lifespan startup genuinely cannot proceed without a reachable endpoint.
     """
+    # MinIO removed its official Docker Hub repository; use a publicly pullable
+    # drop-in image (overridable via CC_TEST_MINIO_IMAGE, mirroring CC_TEST_POSTGRES_IMAGE).
+    image = os.environ.get("CC_TEST_MINIO_IMAGE", "pgsty/minio:latest")
     container = (
-        DockerContainer("minio/minio:latest")
+        DockerContainer(image)
         .with_exposed_ports(9000)
         .with_env("MINIO_ROOT_USER", "cc_wiring_test")
         .with_env("MINIO_ROOT_PASSWORD", "cc_wiring_test_secret")

@@ -26,8 +26,7 @@
           :data-test="`member-${member.identity_id}`"
           @click="$emit('member', member.identity_id)"
         >
-          <kbd class="mr-2">{{ position + 1 }}</kbd
-          >{{ member.display_name }}
+          <kbd class="mr-2">{{ position + 1 }}</kbd>{{ member.display_name }}
         </v-btn>
       </template>
       <v-btn
@@ -42,8 +41,7 @@
       >
         <kbd v-if="VERDICT_KEYS[verdict.verdict]" class="mr-2">{{
           VERDICT_KEYS[verdict.verdict]
-        }}</kbd
-        >{{ VERDICT_LABELS[verdict.verdict] }}
+        }}</kbd>{{ VERDICT_LABELS[verdict.verdict] }}
       </v-btn>
       <slot />
     </div>

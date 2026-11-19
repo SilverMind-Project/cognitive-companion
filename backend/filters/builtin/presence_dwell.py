@@ -75,7 +75,7 @@ class PresenceDwellFilter(ContextFilter):
         if services is not None and services.person_location is not None:
             try:
                 dwell = await services.person_location.current_dwell(person_id)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 # PersonLocationService is a required service when CTS is enabled.
                 # An exception here is a service degradation, not a "person not in dwell"
                 # result.  Log the failure so it is observable; fail-safe by returning
@@ -96,7 +96,7 @@ class PresenceDwellFilter(ContextFilter):
         if services is not None and services.presence is not None:
             try:
                 snapshot = await services.presence.get(person_id)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.warning(
                     "presence_dwell_filter_legacy_service_error",
                     person_id=person_id,

@@ -62,7 +62,7 @@ class RoomTransitionSubscriber(StreamConsumer[RoomTransitionMessage]):
                 "outside_room_id": int(_get_text_field(fields, b"outside_room_id")),
                 "event_time": datetime.fromisoformat(_get_text_field(fields, b"event_time")),
             }
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning(
                 "room_transition_decode_error",
                 message_id=message_id,

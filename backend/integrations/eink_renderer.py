@@ -245,7 +245,7 @@ class EInkRenderer:
     def _render_image(
         self,
         text: str,
-        template: bytes | None | Image.Image,
+        template: bytes | Image.Image | None,
         regions: list[dict],
         font_path: Path,
         region_name: str | None = None,

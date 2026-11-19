@@ -1,12 +1,16 @@
 version: 2
 updates:
-  # Frontend: npm (frontend/package.json + frontend/package-lock.json)
+  # Frontend: npm (frontend/package.json + frontend/package-lock.json), grouped
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
+    groups:
+      frontend-dependencies:
+        patterns:
+          - "*"
     labels:
       - "dependencies"
       - "frontend"
@@ -20,13 +24,17 @@ updates:
       - dependency-name: "vue-router"
         versions: [">=5.0.0"]
 
-  # Backend: Python via uv (backend/pyproject.toml + backend/uv.lock)
+  # Backend: Python via uv (backend/pyproject.toml + backend/uv.lock), grouped
   - package-ecosystem: "pip"
     directory: "/backend"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
+    groups:
+      backend-dependencies:
+        patterns:
+          - "*"
     labels:
       - "dependencies"
       - "backend"
@@ -36,13 +44,17 @@ updates:
       - dependency-name: "protobuf"
         versions: [">=7.0.0"]
 
-  # Dockerfiles (base images in backend/Dockerfile and frontend/Dockerfile)
+  # Dockerfiles: base runtimes (python, node) are pinned in lockstep with
+  # backend/pyproject.toml, frontend/.nvmrc, and CI (verified by `make check-toolchain`).
   - package-ecosystem: "docker"
     directory: "/backend"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     labels:
       - "dependencies"
       - "docker"
@@ -52,18 +64,24 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    ignore:
+      - dependency-name: "node"
     labels:
       - "dependencies"
       - "docker"
 
-  # GitHub Actions (pin action versions to a SHA or tag)
+  # GitHub Actions (grouped)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     labels:
       - "dependencies"
       - "ci"

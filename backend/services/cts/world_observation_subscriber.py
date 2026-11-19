@@ -84,7 +84,7 @@ class WorldObservationSubscriber(StreamConsumer[WorldObservationMessage]):
             )
 
             proto = tracking_pb2.TrackingEvent.FromString(payload)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning(
                 "world_observation_proto_decode_error",
                 message_id=message_id,

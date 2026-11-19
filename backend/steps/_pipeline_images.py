@@ -391,7 +391,7 @@ async def fetch_image_bytes(
                 data = await minio_client.async_get_object(object_name)
                 if data is not None:
                     return data
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.warning("fetch_bytes_minio_error", object_name=object_name, exc_info=True)
 
     if ref.url:
@@ -400,7 +400,7 @@ async def fetch_image_bytes(
                 resp = await client.get(ref.url)
                 resp.raise_for_status()
                 return resp.content
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning("fetch_bytes_http_error", url=ref.url, exc_info=True)
 
     return None

@@ -54,7 +54,7 @@ class PHContinuationSubscriber(StreamConsumer[PHContinuationMessage]):
                 "predecessor_identity_id": _get_text_field(fields, b"predecessor_identity_id")
                 or None,
             }
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning(
                 "ph_continuation_decode_error",
                 message_id=message_id,

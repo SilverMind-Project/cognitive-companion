@@ -12,7 +12,7 @@
 import { reactive } from "vue";
 import { useRoughSketch } from "@/composables/useRoughSketch.js";
 
-export const FOOT_FADE_MS = 6000;
+const FOOT_FADE_MS = 6000;
 const STRIDE_M = 0.35;
 const GAIT_OFFSET_M = 0.15;
 const PER_PERSON_CAP = 12;

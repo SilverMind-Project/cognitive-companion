@@ -524,7 +524,7 @@ async def _add_scene_captions(
             description = getattr(result, "description", "")
             if description:
                 frame["scene_caption"] = description
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning(
                 "media_window_poll_scene_failed",
                 execution_id=str(execution.id),

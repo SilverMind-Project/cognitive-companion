@@ -19,7 +19,7 @@ from backend.services.guided_task.policy import resolve_vision_override
 
 logger = get_logger(__name__)
 
-VisionEventRecorder = Callable[[int, int | None, dict[str, Any]], None | Awaitable[None]]
+VisionEventRecorder = Callable[[int, int | None, dict[str, Any]], Awaitable[None] | None]
 
 
 class VisionEvaluator:

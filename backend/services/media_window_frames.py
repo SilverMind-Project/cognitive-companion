@@ -105,7 +105,7 @@ async def collect_recent_cts_frames(
                         expiration=3600,
                     )
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 partial = True
                 logger.warning(
                     "cts_frame_window_presign_failed",
@@ -239,7 +239,7 @@ async def collect_recent_frames_multi_source(
                     db_rows = (
                         db.query(MediaCache).filter(MediaCache.object_name.in_(object_names)).all()
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.warning("collect_recent_frames_recamera_db_failed", exc_info=True)
                 finally:
                     if db is not None:
@@ -318,7 +318,7 @@ async def collect_recent_frames_multi_source(
                         expiration=3600,
                     )
                     final_images.append(url)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     cts_partial = True
                     logger.warning("cts_frame_window_presign_failed", minio_key=mkey, exc_info=True)
             else:

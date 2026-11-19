@@ -5,6 +5,7 @@ const calibration = vi.hoisted(() => ({
   labelCalibrationCandidate: vi.fn(),
   rejectCalibrationCandidate: vi.fn(),
   deleteCalibrationCandidate: vi.fn(),
+  promoteCalibrationCandidate: vi.fn(),
   getFaceCalibrationSummary: vi.fn(),
   reviewCalibrationCandidates: vi.fn(),
 }));
@@ -201,5 +202,42 @@ describe("useFaceCalibrationReview", () => {
     await actions.load();
     expect(state.forbidden).toBe(true);
     expect(state.error).toBe("");
+  });
+
+  it("switches to labeled mode and promotes an eligible capture", async () => {
+    const labeledCapture = {
+      ...capture("c1"),
+      label_state: "labeled",
+      label_kind: "member",
+      label_identity_id: "amma",
+      pose_bin: "down",
+      promoted: false,
+      promotion_eligible: true,
+      promotion_ineligible_reason: null,
+    };
+    calibration.listCalibrationCandidates.mockResolvedValue({
+      candidates: [labeledCapture],
+      next_cursor: null,
+    });
+    calibration.promoteCalibrationCandidate.mockResolvedValue({
+      candidate_id: "c1",
+      person_id: "amma",
+      pose_bin: "down",
+      embedding_id: 11,
+      gallery_revision: 2,
+      prototype_count: 3,
+      counts_by_bin: { frontal: 2, down: 1 },
+    });
+
+    const { state, current, actions } = useFaceCalibrationReview(notify);
+    await actions.setQueueState("labeled");
+    expect(calibration.listCalibrationCandidates).toHaveBeenCalledWith("labeled");
+
+    await actions.promote("c1");
+    expect(calibration.promoteCalibrationCandidate).toHaveBeenCalledWith("c1");
+    expect(current.value?.promoted).toBe(true);
+    expect(current.value?.promotion_eligible).toBe(false);
+    expect(state.queueState).toBe("labeled");
+    expect(notify.success).toHaveBeenCalledWith(expect.stringContaining("revision 2"));
   });
 });

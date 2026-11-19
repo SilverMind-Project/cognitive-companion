@@ -417,6 +417,9 @@
               </v-card-text>
             </v-card>
           </v-col>
+          <v-col cols="12">
+            <MemberPrototypesCard :person-id="personId" />
+          </v-col>
         </v-row>
       </v-window-item>
 
@@ -433,6 +436,7 @@ import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
 import MedicationScheduleCard from "../../components/person/MedicationScheduleCard.vue";
+import MemberPrototypesCard from "../../components/person/MemberPrototypesCard.vue";
 import PersonTimeline from "../../components/person/PersonTimeline.vue";
 import PresenceWidget from "../../components/cts/PresenceWidget.vue";
 import { severityColor } from "../../composables/useCtsSeverity.js";

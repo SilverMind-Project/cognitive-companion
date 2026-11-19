@@ -64,3 +64,27 @@ async def test_older_service_without_raw_similarity_falls_back_to_similarity() -
 
     assert result is not None
     assert [f.raw_similarity for f in result.frames[0]] == [0.71, -0.04]
+
+
+@pytest.mark.asyncio
+async def test_batch_faces_parse_margin_and_gallery_representation() -> None:
+    payload = json.loads(_FIXTURE.read_text())
+    payload["frames"][0]["faces"][0].update(
+        {
+            "second_best_candidate_id": "appa",
+            "second_best_similarity": 0.42,
+            "margin": 0.29,
+            "gallery_representation": "prototypes-v1",
+        }
+    )
+    with _patched_post(payload):
+        result = await _client().identify_batch(["aW1n"])
+
+    assert result is not None
+    recognized, unrecognized = result.frames[0]
+    assert recognized.second_best_candidate_id == "appa"
+    assert recognized.second_best_similarity == 0.42
+    assert recognized.margin == 0.29
+    assert recognized.gallery_representation == "prototypes-v1"
+    assert unrecognized.margin is None
+    assert unrecognized.gallery_representation == "centroid"

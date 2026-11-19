@@ -36,6 +36,22 @@ class CalibrationCandidateView(BaseModel):
     label_identity_id: str | None = None
     labeled_by: str | None = None
     labeled_at: datetime | None = None
+    pose_bin: str = "frontal"
+    promoted: bool = False
+    promotion_eligible: bool = False
+    promotion_ineligible_reason: str | None = None
+
+
+class PromoteCalibrationCandidateResponse(BaseModel):
+    """Result of explicitly promoting a labeled capture into a member's gallery."""
+
+    candidate_id: str
+    person_id: str
+    pose_bin: str
+    embedding_id: int
+    gallery_revision: int
+    prototype_count: int
+    counts_by_bin: dict[str, int] = Field(default_factory=dict)
 
 
 class CalibrationCandidateListResponse(BaseModel):
@@ -87,3 +103,4 @@ class FaceCalibrationSummaryEnvelope(BaseModel):
     identities: list[CalibrationIdentityProgressView]
     not_enrolled_episodes: int
     capture_enabled: bool
+    promotable_by_identity_pose: dict[str, dict[str, int]] = Field(default_factory=dict)

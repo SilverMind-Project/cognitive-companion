@@ -22,6 +22,7 @@ from backend.schemas.face_calibration import (
     CalibrationCandidateListResponse,
     CalibrationCandidateView,
     FaceCalibrationSummaryEnvelope,
+    PromoteCalibrationCandidateResponse,
 )
 from backend.schemas.identity_review import BatchReviewResponse, ReviewItemResult
 from backend.services.identity_review.registry import ReviewSubject
@@ -65,6 +66,17 @@ def _build(permissions: list[str], *, name: str = "caregiver-ops"):
         )
     )
     svc.delete = AsyncMock(return_value=None)
+    svc.promote = AsyncMock(
+        return_value=PromoteCalibrationCandidateResponse(
+            candidate_id="c1",
+            person_id="amma",
+            pose_bin="down",
+            embedding_id=42,
+            gallery_revision=2,
+            prototype_count=3,
+            counts_by_bin={"frontal": 2, "down": 1},
+        )
+    )
     svc.get_summary = AsyncMock(return_value=_SUMMARY)
     minio = MagicMock(spec=MinioClient)
     minio.generate_presigned_url.return_value = "https://minio/presigned"
@@ -92,6 +104,7 @@ _ROUTES = [
         200,
     ),
     ("delete", "/api/v1/face-calibration/candidates/c1", None, 204),
+    ("post", "/api/v1/face-calibration/candidates/c1/promote", None, 200),
     ("get", "/api/v1/face-calibration/summary", None, 200),
 ]
 
@@ -185,3 +198,15 @@ def test_upstream_errors_map_distinctly(upstream: int, expected: int) -> None:
     svc.reject.side_effect = PersonIDUpstreamError(upstream, "upstream said no")
     resp = client.post("/api/v1/face-calibration/candidates/c1/reject")
     assert resp.status_code == expected
+
+
+def test_promote_passes_authenticated_actor_and_maps_conflict() -> None:
+    client, svc, _ = _build(["face_calibration.review"], name="caregiver-admin")
+    resp = client.post("/api/v1/face-calibration/candidates/c1/promote")
+    assert resp.status_code == 200
+    assert resp.json()["gallery_revision"] == 2
+    assert svc.promote.await_args.kwargs == {"actor": "caregiver-admin"}
+
+    svc.promote.side_effect = PersonIDUpstreamError(409, "already promoted")
+    conflict = client.post("/api/v1/face-calibration/candidates/c1/promote")
+    assert conflict.status_code == 409

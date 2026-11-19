@@ -3,9 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { API_KEY_STORAGE_KEY } from "@/services/http";
 import {
   deleteCalibrationCandidate,
+  deletePersonPrototype,
   getFaceCalibrationSummary,
   labelCalibrationCandidate,
   listCalibrationCandidates,
+  listPersonPrototypes,
+  promoteCalibrationCandidate,
+  rebuildPersonPrototypes,
   rejectCalibrationCandidate,
 } from "@/services/modules/face_calibration";
 
@@ -68,5 +72,30 @@ describe("face calibration module", () => {
     fetchMock = stubFetch(200, { identities: [] });
     await getFaceCalibrationSummary();
     expect(new URL(request(fetchMock).url).pathname).toBe("/api/v1/face-calibration/summary");
+  });
+
+  it("promotes captures and manages per-member prototypes on their own paths", async () => {
+    let fetchMock = stubFetch(200, { candidate_id: "c1" });
+    await promoteCalibrationCandidate("c1");
+    expect(request(fetchMock).method).toBe("POST");
+    expect(new URL(request(fetchMock).url).pathname).toBe(
+      "/api/v1/face-calibration/candidates/c1/promote",
+    );
+
+    fetchMock = stubFetch(200, { person_id: "amma", prototypes: [] });
+    await listPersonPrototypes("amma");
+    expect(new URL(request(fetchMock).url).pathname).toBe("/api/v1/persons/amma/prototypes");
+
+    fetchMock = stubFetch(200, { person_id: "amma", prototype_count: 2 });
+    await rebuildPersonPrototypes("amma");
+    expect(request(fetchMock).method).toBe("POST");
+    expect(new URL(request(fetchMock).url).pathname).toBe(
+      "/api/v1/persons/amma/prototypes/rebuild",
+    );
+
+    fetchMock = stubFetch(204, null);
+    await deletePersonPrototype("amma", "p1");
+    expect(request(fetchMock).method).toBe("DELETE");
+    expect(new URL(request(fetchMock).url).pathname).toBe("/api/v1/persons/amma/prototypes/p1");
   });
 });

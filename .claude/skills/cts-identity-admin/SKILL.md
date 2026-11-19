@@ -210,11 +210,24 @@ household calibration. It is a biometric-admin surface, separate from visitor re
   them per request into `crop_url` with the same `MinioClient` and one-hour TTL the visitor routes
   use; the key itself is never sent to the browser, and neither is an embedding.
 - MCP exposes only the read-only `get_face_calibration_summary` (labeling progress). Labeling,
-  rejecting, and deleting are BFF-only; an agent never labels biometric data.
-- A label never changes the enrollment gallery. Labels for `member` must name an identity that is
-  enrolled in person-id (422 otherwise); `not_enrolled` (visitors, relatives) is the label the
-  open-set gate needs most, so the UI keeps it one key away (`n`).
-- Delete removes the row and its crop in person-id and goes through `useConfirm`.
+  rejecting, deleting, and promoting are BFF-only; an agent never labels or promotes biometric data.
+- A label never changes the gallery; only explicit promotion, an operator action, does. Labels for
+  `member` must name an identity that is enrolled in person-id (422 otherwise); `not_enrolled`
+  (visitors, relatives) is the label the open-set gate needs most, so the UI keeps it one key away
+  (`n`). Explicit promotion (`POST /api/v1/face-calibration/candidates/{candidate_id}/promote`,
+  requiring `face_calibration.review`, actor from `actor_from_auth(auth)`) is only offered on
+  labeled `member` captures that pass server-side eligibility checks, goes through `useConfirm`
+  stating that calibrated recognition authority pauses for that member until the next fit, and
+  advances `gallery_revision`.
+- Per-member pose-binned face prototypes are managed at `GET /api/v1/persons/{person_id}/prototypes`
+  (`face_prototypes:read`, caregiver and caregiver_admin, presigned `crop_url` only) and
+  `POST /api/v1/persons/{person_id}/prototypes/rebuild` /
+  `DELETE /api/v1/persons/{person_id}/prototypes/{prototype_id}` (`face_prototypes:write`,
+  caregiver_admin only). Removing a prototype deletes its underlying embedding(s), bumps
+  `gallery_revision`, and goes through `useConfirm`.
+- Delete removes the row and its crop in person-id and goes through `useConfirm` (if the capture
+  was already promoted, its promoted embedding stays in the gallery while the thumbnail reference
+  is cleared).
 
 Required tests: router permission and presign tests, the person-id client envelope tests (502 on
 a malformed upstream), the MCP/BFF parity test for the summary, and composable and view tests for

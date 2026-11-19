@@ -92,11 +92,35 @@ def _clusters(n: int) -> str:
     )
 
 
-def roster_step(roster: RosterHealthEnvelope | SourceFailure) -> ReadinessStep:
+_POSE_BINS = ("frontal", "left", "right", "down")
+
+
+def _prototype_counts_detail(members: list[MemberInfo] | SourceFailure | None) -> str:
+    if not isinstance(members, list) or not members:
+        return ""
+    totals: dict[str, int] = dict.fromkeys(_POSE_BINS, 0)
+    has_any = False
+    for member in members:
+        for pose_bin, count in (member.prototype_counts or {}).items():
+            if count > 0:
+                has_any = True
+                totals[pose_bin] = totals.get(pose_bin, 0) + int(count)
+    if not has_any:
+        return ""
+    ordered = list(_POSE_BINS) + sorted(b for b in totals if b not in _POSE_BINS)
+    parts = [f"{totals[b]} {b}" for b in ordered]
+    return f"Face prototypes across enrolled members: {', '.join(parts)}. "
+
+
+def roster_step(
+    roster: RosterHealthEnvelope | SourceFailure,
+    members: list[MemberInfo] | SourceFailure | None = None,
+) -> ReadinessStep:
     if isinstance(roster, SourceFailure):
         return _unknown("roster", roster)
     missing = len(roster.members_without_face_enrollment)
     clusters = roster.surfaced_unnamed_visitor_clusters
+    prototypes = _prototype_counts_detail(members)
     if roster.active_member_count == 0:
         return ReadinessStep(
             key="roster",
@@ -116,6 +140,7 @@ def roster_step(roster: RosterHealthEnvelope | SourceFailure) -> ReadinessStep:
                 f"{'has' if missing == 1 else 'have'} fewer than "
                 f"{roster.min_face_embeddings} enrolled face photos. "
                 + (_clusters(clusters) + " " if clusters else "")
+                + prototypes
                 + _ROSTER_SCOPE
             ),
             next_action="enroll_members",
@@ -124,7 +149,7 @@ def roster_step(roster: RosterHealthEnvelope | SourceFailure) -> ReadinessStep:
         return ReadinessStep(
             key="roster",
             state="attention",
-            detail=f"{_clusters(clusters)} {_ROSTER_SCOPE}",
+            detail=f"{_clusters(clusters)} {prototypes}{_ROSTER_SCOPE}",
             next_action="review_visitors",
         )
     everyone = (
@@ -135,7 +160,7 @@ def roster_step(roster: RosterHealthEnvelope | SourceFailure) -> ReadinessStep:
     return ReadinessStep(
         key="roster",
         state="ready",
-        detail=f"{everyone} enrolled. {_ROSTER_SCOPE}",
+        detail=f"{everyone} enrolled. {prototypes}{_ROSTER_SCOPE}",
         next_action="none",
     )
 

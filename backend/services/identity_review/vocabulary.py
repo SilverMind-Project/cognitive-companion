@@ -88,7 +88,10 @@ SURFACES: dict[ReviewSurface, SurfaceSpec] = {
     ),
     "face_calibration": SurfaceSpec(
         surface="face_calibration",
-        guarantee="Labels feed only the calibration fit; face enrollment never changes.",
+        guarantee=(
+            "Labels feed only the calibration fit; enrollment changes only when you "
+            "explicitly promote a labeled face."
+        ),
         verdicts=(
             VerdictSpec(
                 verdict="is_member",

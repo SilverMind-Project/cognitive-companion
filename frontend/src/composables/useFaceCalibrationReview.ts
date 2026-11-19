@@ -17,6 +17,7 @@ import {
   getFaceCalibrationSummary,
   labelCalibrationCandidate,
   listCalibrationCandidates,
+  promoteCalibrationCandidate,
   rejectCalibrationCandidate,
   reviewCalibrationCandidates,
   type CalibrationBatchReview,
@@ -40,9 +41,12 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+export type CalibrationQueueState = "unlabeled" | "labeled";
+
 export function useFaceCalibrationReview(notify: Notify) {
   const targets = useIdentityTargetsStore();
   const state = reactive({
+    queueState: "unlabeled" as CalibrationQueueState,
     queue: [] as CalibrationCandidateView[],
     nextCursor: null as string | null,
     index: 0,
@@ -71,7 +75,7 @@ export function useFaceCalibrationReview(notify: Notify) {
     state.forbidden = false;
     try {
       const [page] = await Promise.all([
-        listCalibrationCandidates("unlabeled"),
+        listCalibrationCandidates(state.queueState),
         targets.load(true),
         refreshSummary(),
       ]);
@@ -89,9 +93,17 @@ export function useFaceCalibrationReview(notify: Notify) {
     }
   }
 
+  async function setQueueState(nextState: CalibrationQueueState) {
+    if (state.queueState === nextState && !state.error) return;
+    state.queueState = nextState;
+    state.selecting = false;
+    state.selection = [];
+    await load();
+  }
+
   async function loadMoreIfNeeded() {
     if (state.queue.length > 0 || !state.nextCursor) return;
-    const page = await listCalibrationCandidates("unlabeled", state.nextCursor);
+    const page = await listCalibrationCandidates(state.queueState, state.nextCursor);
     state.queue = page?.candidates ?? [];
     state.nextCursor = page?.next_cursor ?? null;
     state.index = 0;
@@ -169,6 +181,33 @@ export function useFaceCalibrationReview(notify: Notify) {
     );
   }
 
+  async function promote(candidateId?: string) {
+    const id = candidateId ?? current.value?.candidate_id;
+    if (!id || state.acting) return;
+    state.acting = true;
+    try {
+      const result = await promoteCalibrationCandidate(id);
+      state.queue = state.queue.map((item) =>
+        item.candidate_id === id
+          ? {
+              ...item,
+              promoted: true,
+              promotion_eligible: false,
+              promotion_ineligible_reason: "already promoted",
+            }
+          : item,
+      );
+      notify.success(
+        `Added to gallery (${result.pose_bin} pose, revision ${result.gallery_revision}). Refit calibration to restore recognition authority.`,
+      );
+      await refreshSummary().catch(() => undefined);
+    } catch (err) {
+      notify.error(`Could not promote the capture: ${errorText(err)}`);
+    } finally {
+      state.acting = false;
+    }
+  }
+
   function setSelecting(on: boolean) {
     state.selecting = on;
     state.selection = [];
@@ -233,11 +272,13 @@ export function useFaceCalibrationReview(notify: Notify) {
     keyedResidents,
     actions: {
       load,
+      setQueueState,
       labelResident,
       labelNotEnrolled,
       labelNotAFace,
       reject,
       remove,
+      promote,
       next,
       previous,
       setSelecting,

@@ -251,6 +251,9 @@ health service itself is unwired.
 | `POST` | `/persons/{person_id}/enroll` | Upload face enrollment photos |
 | `GET` | `/persons/{person_id}/enrollment` | Get enrollment status |
 | `DELETE` | `/persons/{person_id}/enrollment` | Delete enrollment |
+| `GET` | `/persons/{person_id}/prototypes` | List pose-binned face prototypes for one member (`face_prototypes:read`; presigns aligned-crop URLs, never returns raw keys) |
+| `POST` | `/persons/{person_id}/prototypes/rebuild` | Rebuild pose-binned face prototypes for one member (`face_prototypes:write`) |
+| `DELETE` | `/persons/{person_id}/prototypes/{prototype_id}` | Remove a face prototype and its underlying embedding(s), bumping `gallery_revision` (`face_prototypes:write`, 204; 409 if it would remove the last embedding) |
 | `GET` | `/persons/roster-health` | Roster health: active, non-guest members with fewer than `roster.min_face_embeddings` enrolled face embeddings, plus the count of recurring visitor clusters awaiting review. Upstream failures return 502 rather than an empty roster |
 | `GET` | `/identity/targets` | The household members every identity decision picks from (`identity_targets:read`, caregiver roles): active members by name with `is_guest`, `face_enrolled` (null when person identification is down), and optional ReID gallery counts. Not gated on CTS. Every admin selector reads it through the `identityTargets` store |
 | `GET` | `/identity/review-vocabulary` | What each identity review decision changes (`identity_review:read`, caregiver roles): per surface (`visitors`, `face_calibration`, `reid_review`) its `guarantee` and its verdicts, each with the `effect` sentence (may contain `member_placeholder`), `needs_target`, `needs_enrolled_face`, and `batch`. Static text from `backend/services/identity_review/vocabulary.py`; the browser previews these sentences and batch responses report the same ones. No identity data |
@@ -291,13 +294,14 @@ created but the CC household member insert failed; the face-service call is idem
 
 ### Face calibration
 
-Proxies person-identification-service's calibration review API (IR-M06): an admin labels the faces
+Proxies person-identification-service's calibration review API: an admin labels the faces
 person-id sampled from tracker identify calls, which the offline `fit-v2` command then fits on.
 Permission: `face_calibration.review`, a strict `require_token` grant held only by
-`caregiver_admin`. The labeler is the authenticated caller (`auth.name`), never a request field.
-person-id returns MinIO crop keys; the router presigns them into `crop_url` (one hour) and sends
-no key or embedding to the browser. A label never changes enrollment. The only MCP tool is the
-read-only `get_face_calibration_summary`; labeling, rejecting, and deleting are BFF-only.
+`caregiver_admin`. The labeler and promoter actor are the authenticated caller (`actor_from_auth`),
+never a request field. person-id returns MinIO crop keys; the router presigns them into `crop_url`
+(one hour) and sends no key or embedding to the browser. A label never changes the gallery; only
+explicit promotion, an operator action, does. The only MCP tool is the read-only
+`get_face_calibration_summary`; labeling, rejecting, deleting, and promoting are BFF-only.
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -305,8 +309,9 @@ read-only `get_face_calibration_summary`; labeling, rejecting, and deleting are 
 | `POST` | `/face-calibration/candidates/{candidate_id}/label` | Label a capture. Body: `label_kind` (`member` \| `not_enrolled` \| `not_a_face`), `label_identity_id` (required for `member` only; must be enrolled, else 422) |
 | `POST` | `/face-calibration/candidates/review` | Label several captures at once (`FaceCalibrationReviewRequest`: `candidate_ids`, `verdict` `not_enrolled` \| `not_usable`, stored as `not_a_face`). Member labels are refused (one face at a time). Returns `BatchReviewResponse` with the effect sentence |
 | `POST` | `/face-calibration/candidates/{candidate_id}/reject` | Mark a capture unusable; it is purged with unlabeled ones after 30 days |
-| `DELETE` | `/face-calibration/candidates/{candidate_id}` | Delete a capture and its crop (204) |
-| `GET` | `/face-calibration/summary` | Counts by state, label kind, quality decile, and camera; labeled faces and walks per resident against the target |
+| `POST` | `/face-calibration/candidates/{candidate_id}/promote` | Explicitly promote an eligible labeled `member` capture into that person's face gallery, rebuilding prototypes and advancing `gallery_revision` (no MCP tool) |
+| `DELETE` | `/face-calibration/candidates/{candidate_id}` | Delete a capture and its crop (204). If already promoted, the promoted embedding stays in the gallery while the thumbnail reference is cleared |
+| `GET` | `/face-calibration/summary` | Counts by state, label kind, quality decile, and camera; labeled faces and walks per resident against the target; promotable counts by identity and pose bin |
 
 person-id's 404 (unknown capture) and 422 (bad label, unenrolled identity, bad cursor) pass
 through; a person-id 5xx, timeout, unreachable service, or malformed envelope is a 502.

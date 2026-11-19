@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import base64
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from sqlalchemy.orm import Session
 
-from backend.core.auth import require_permission
+from backend.core.auth import AuthContext, actor_from_auth, require_permission, require_token
 from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError
+from backend.integrations.minio_client import MinioClient
 from backend.integrations.person_id_client import PersonIDUpstreamError
 from backend.models.cts_signal import DementiaSignal
 from backend.models.person import HouseholdMember
-from backend.routers.dependencies import get_roster_health_service
+from backend.routers.dependencies import (
+    get_config_minio_client,
+    get_face_calibration_service,
+    get_roster_health_service,
+)
 from backend.schemas.identity_roster import RosterHealthEnvelope
 from backend.schemas.person import (
     EnrollResultOut,
@@ -22,13 +27,31 @@ from backend.schemas.person import (
     HouseholdMemberOut,
     HouseholdMemberUpdate,
     PersonEnrollmentOut,
+    PersonPrototypesResponse,
+    RebuildPrototypesResponse,
 )
+from backend.services.face_calibration import FaceCalibrationReviewService
 from backend.services.identity_roster import RosterHealthService
 from backend.services.persons import insert_household_member
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/persons", tags=["persons"])
+
+_PROTOTYPE_PRESIGN_TTL = 3600
+
+
+def _presigner(minio: MinioClient):
+    def presign(key: str | None) -> str | None:
+        if not key:
+            return None
+        return minio.generate_presigned_url(key, expiration=_PROTOTYPE_PRESIGN_TTL)
+
+    return presign
+
+
+def _pid_upstream(exc: PersonIDUpstreamError) -> HTTPException:
+    return HTTPException(status_code=502 if exc.status >= 500 else exc.status, detail=exc.message)
 
 
 @router.get("", response_model=list[HouseholdMemberOut])
@@ -219,6 +242,63 @@ async def delete_enrollment(
         except UpstreamError, OSError:
             logger.warning("cts_identity_purge_on_unenroll_failed", person_id=person_id)
     logger.info("person_enrollment_deleted", person_id=person_id)
+
+
+@router.get("/{person_id}/prototypes", response_model=PersonPrototypesResponse)
+async def list_person_prototypes(
+    person_id: str,
+    svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
+    minio: MinioClient = Depends(get_config_minio_client),
+    _auth: AuthContext = Depends(require_token("face_prototypes:read")),
+) -> PersonPrototypesResponse:
+    """List pose-binned face prototypes for one enrolled member."""
+    try:
+        return await svc.list_prototypes(person_id, presign=_presigner(minio))
+    except PersonIDUpstreamError as exc:
+        raise _pid_upstream(exc) from exc
+
+
+@router.post("/{person_id}/prototypes/rebuild", response_model=RebuildPrototypesResponse)
+async def rebuild_person_prototypes(
+    person_id: str,
+    svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
+    auth: AuthContext = Depends(require_token("face_prototypes:write")),
+) -> RebuildPrototypesResponse:
+    """Rebuild pose-binned face prototypes for one enrolled member."""
+    actor = actor_from_auth(auth)
+    try:
+        result = await svc.rebuild_prototypes(person_id)
+    except PersonIDUpstreamError as exc:
+        raise _pid_upstream(exc) from exc
+    logger.info(
+        "person_prototypes_rebuilt",
+        person_id=person_id,
+        prototype_count=result.prototype_count,
+        actor=actor,
+    )
+    return result
+
+
+@router.delete("/{person_id}/prototypes/{prototype_id}", status_code=204)
+async def delete_person_prototype(
+    person_id: str,
+    prototype_id: str,
+    svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
+    auth: AuthContext = Depends(require_token("face_prototypes:write")),
+) -> Response:
+    """Remove a face prototype and its underlying embedding(s), rebuilding the gallery."""
+    actor = actor_from_auth(auth)
+    try:
+        await svc.delete_prototype(person_id, prototype_id)
+    except PersonIDUpstreamError as exc:
+        raise _pid_upstream(exc) from exc
+    logger.info(
+        "person_prototype_deleted",
+        person_id=person_id,
+        prototype_id=prototype_id,
+        actor=actor,
+    )
+    return Response(status_code=204)
 
 
 @router.get("/{person_id}", response_model=HouseholdMemberOut)

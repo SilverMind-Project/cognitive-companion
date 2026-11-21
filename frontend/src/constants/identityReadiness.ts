@@ -35,6 +35,7 @@ export const STEP_PRESENTATION: Record<ReadinessStepKey, StepPresentation> = {
     chain: [6, 7, 8],
   },
   wearables: { title: "Wearables and RF nodes (optional)", chain: [] },
+  wearable_learners: { title: "Wearable learners (optional)", chain: [] },
 };
 
 export const PREREQUISITE_KEYS: ReadinessStepKey[] = ["ingest", "floor_frame"];
@@ -85,6 +86,13 @@ export const ACTION_PRESENTATION: Record<ReadinessNextAction, ActionPresentation
   configure_wearables: {
     text: "Manage wearable devices, bindings, and RF nodes",
     to: "/admin/cts/wearables",
+  },
+  resume_wearable_teaching: {
+    text: "Review what the wearable taught and resume teaching",
+    to: "/admin/cts/wearables",
+  },
+  enable_wearable_learners: {
+    text: "Turn on evaluation sampling and wearable learners in the tracking orchestrator settings",
   },
   check_service: { text: "Check that the service is running" },
 };

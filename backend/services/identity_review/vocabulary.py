@@ -164,6 +164,14 @@ def effect_text(surface: ReviewSurface, verdict: ReviewVerdict, member: str | No
     return text
 
 
+WEARABLE_REVOCATION_EFFECT = (
+    "Auto-verified body samples from this period return to pending review and stop voting; "
+    "attested face captures are excluded from calibration and future promotion (any face "
+    "prototypes already promoted stay for manual review); wearable-inferred history backfills "
+    "from this period are undone; and this wearable stops teaching until you resume it."
+)
+
+
 def vocabulary_envelope() -> ReviewVocabularyEnvelope:
     """Every surface's verdicts and effects, for the browser to preview before a decision."""
     return ReviewVocabularyEnvelope(
@@ -185,4 +193,5 @@ def vocabulary_envelope() -> ReviewVocabularyEnvelope:
             for spec in SURFACES.values()
         ],
         member_placeholder=MEMBER_PLACEHOLDER,
+        wearable_revocation_effect=WEARABLE_REVOCATION_EFFECT,
     )

@@ -126,13 +126,17 @@ Each item shows:
 - proposed identity and ArcFace evidence;
 - quality, orientation, camera, timestamp, model/preprocessing version;
 - source PH, observation, keyframe, and correction links;
-- a state chip visually distinct for all four lifecycle states (`pending_review`, `auto_verified`,
-  `operator_verified`, `rejected`; identity-continuity M02 added `auto_verified`), and a state
-  filter option covering all four;
+- a state chip visually distinct for all five lifecycle states (`pending_review`, `auto_verified`,
+  `operator_verified`, `rejected`, `expired`), and a state filter option covering all five. Like
+  `rejected`, `expired` rows have their embedding and dedicated crop deleted by retention; the BFF
+  never presigns crops or frames for `expired` rows and the UI renders an explicit expired/deleted-crop
+  state;
 - where the label came from (`seed_source`: `face`, `wearable_attested`,
   `wearable_room_attested`, `operator`, mirrored in `backend/schemas/cts_reid_review.py`), shown
   as a chip with copy that says a wearable on the wrong wrist labels the wrong person, and a
-  filter. Room-attested rows always arrive `pending_review`.
+  filter, plus an optional `seed_association_id` query filter (linked from the Wearables binding
+  dialog) and a `Revoked` badge when `review_reason` starts with `wearable_revoked:`. Room-attested
+  rows always arrive `pending_review`.
 
 Actions are `Approve`, `Reject`, `Relabel`, and `Demote`, offered through the shared verdict bar:
 choosing the proposed member approves, choosing another relabels, "Not in the household" rejects as
@@ -257,11 +261,24 @@ accept an actor from the request body, and never fall back to a placeholder such
 ## Identity setup readiness
 
 `/admin/identity-setup` (`IdentityReadinessView`) is the one status surface for the identity
-chain: enroll, capture, label, fit and deploy, calibrated faces, body samples, review, vote.
+chain: enroll, capture, label, fit and deploy, calibrated faces, body samples, review, vote, plus
+optional `templates`, `wearables`, and `wearable_learners` steps.
 Identity admin pages link to it instead of explaining the chain themselves, and a new step joins
 `IdentityReadinessService` (`backend/services/identity_readiness_rules.py`) instead of becoming a
 new panel. The server decides every state and next action; `constants/identityReadiness.ts` only
 words them. A page that shows a readiness hint must work when readiness fails to load.
+
+## Wearable teaching revocation
+
+The Wearables device binding dialog (`WearableBindingDialog.vue`) shows recent teaching periods
+(`GET /api/v1/wearables/devices/{device_id}/associations`), their taught counts (body samples,
+attested faces, live backfill ranges), and any open teaching hold. Revoking a segment
+(`POST /api/v1/wearables/associations/{segment_id}/revoke`) and resuming teaching for a tag
+(`POST /api/v1/wearables/tags/{tag_id}/resume-teaching`) require the strict token
+`wearables:revoke_teaching` (granted to `caregiver_admin` only; never exposed as MCP mutations),
+record `actor_from_auth(auth)`, and confirm with the server-owned `wearable_revocation_effect`
+sentence from `GET /api/v1/identity/review-vocabulary`. Each period links to `/admin/cts/reid-review`
+filtered by `seed_association_id`.
 
 ## Component and composable boundaries
 

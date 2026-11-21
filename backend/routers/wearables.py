@@ -12,6 +12,7 @@ from backend.routers.dependencies import (
     get_wearable_binding_service,
     get_wearable_device_service,
     get_wearable_site_config_service,
+    get_wearable_teaching_revocation_service,
 )
 from backend.schemas.wearables import (
     RfNodeCreate,
@@ -23,11 +24,14 @@ from backend.schemas.wearables import (
     WearableAssignmentsOut,
     WearableBindingCreate,
     WearableBindingOut,
+    WearableDeviceAssociationsOut,
     WearableDeviceCreate,
     WearableDeviceListOut,
     WearableDeviceOut,
     WearableDeviceStatusOut,
     WearableDeviceUpdate,
+    WearableResumeTeachingResponse,
+    WearableRevokeResponse,
     WearableSiteConfigOut,
     WearableUnbindRequest,
 )
@@ -36,6 +40,7 @@ from backend.services.wearables import (
     WearableBindingService,
     WearableDeviceService,
     WearableSiteConfigService,
+    WearableTeachingRevocationService,
 )
 
 router = APIRouter(prefix="/wearables", tags=["wearables"])
@@ -212,3 +217,34 @@ async def delete_rf_node(
     """Delete a fixed RF node."""
     svc.delete_node(node_id, actor=actor_from_auth(auth))
     return Response(status_code=204)
+
+
+@router.get("/devices/{device_id}/associations", response_model=WearableDeviceAssociationsOut)
+async def list_wearable_device_associations(
+    device_id: uuid.UUID,
+    limit: int = Query(default=25, ge=1, le=100),
+    svc: WearableTeachingRevocationService = Depends(get_wearable_teaching_revocation_service),
+    _auth: AuthContext = Depends(require_token("wearables:read")),
+) -> WearableDeviceAssociationsOut:
+    """List recent wearable association segments for one device with taught counts and hold state."""
+    return await svc.list_device_associations(device_id, limit=limit)
+
+
+@router.post("/associations/{segment_id}/revoke", response_model=WearableRevokeResponse)
+async def revoke_wearable_association(
+    segment_id: str,
+    svc: WearableTeachingRevocationService = Depends(get_wearable_teaching_revocation_service),
+    auth: AuthContext = Depends(require_token("wearables:revoke_teaching")),
+) -> WearableRevokeResponse:
+    """Undo everything one wearable association segment taught and hold further teaching on its tag."""
+    return await svc.revoke_association(segment_id, actor=actor_from_auth(auth))
+
+
+@router.post("/tags/{tag_id}/resume-teaching", response_model=WearableResumeTeachingResponse)
+async def resume_wearable_tag_teaching(
+    tag_id: str,
+    svc: WearableTeachingRevocationService = Depends(get_wearable_teaching_revocation_service),
+    auth: AuthContext = Depends(require_token("wearables:revoke_teaching")),
+) -> WearableResumeTeachingResponse:
+    """Clear an open teaching hold for a wearable tag so it can teach again."""
+    return await svc.resume_tag_teaching(tag_id, actor=actor_from_auth(auth))

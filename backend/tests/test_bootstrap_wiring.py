@@ -141,6 +141,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "wearable_binding_service",
         "wearable_device_service",
         "wearable_site_config_service",
+        "wearable_teaching_revocation_service",
         "workflow",
         "ws_manager",
         "zone_service",

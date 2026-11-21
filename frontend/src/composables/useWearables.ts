@@ -12,8 +12,11 @@ import {
   deleteRfNode,
   getHouseholdFloorPlan,
   getWearableAssignments,
+  listDeviceAssociations,
   listDeviceBindings,
   listRfNodes,
+  resumeWearableTagTeaching,
+  revokeWearableAssociation,
   unbindWearableDevice,
   updateRfNode,
   updateWearableDevice,
@@ -26,6 +29,7 @@ import {
   type WearableAssignmentsOut,
   type WearableBindingCreate,
   type WearableBindingOut,
+  type WearableDeviceAssociationsOut,
   type WearableDeviceCreate,
   type WearableDeviceUpdate,
 } from "@/services/modules/wearables";
@@ -62,6 +66,11 @@ export function useWearables(notify?: NotifyFn) {
     rooms: [] as RoomOut[],
     bindingHistory: [] as WearableBindingOut[],
     loadingHistory: false,
+    deviceAssociations: null as WearableDeviceAssociationsOut | null,
+    loadingAssociations: false,
+    associationsError: null as string | null,
+    revokingSegmentId: null as string | null,
+    resumingTagId: null as string | null,
     surveyResult: null as RfNodeSurveyCheckOut | null,
     checkingSurvey: false,
   });
@@ -135,6 +144,69 @@ export function useWearables(notify?: NotifyFn) {
       state.bindingHistory = [];
     } finally {
       state.loadingHistory = false;
+    }
+  }
+
+  async function loadDeviceAssociations(deviceId: string) {
+    state.loadingAssociations = true;
+    state.associationsError = null;
+    try {
+      state.deviceAssociations = await listDeviceAssociations(deviceId);
+    } catch (err) {
+      state.deviceAssociations = null;
+      state.associationsError = errorMessage(err);
+    } finally {
+      state.loadingAssociations = false;
+    }
+  }
+
+  async function revokeAssociation(segmentId: string, deviceId?: string) {
+    state.revokingSegmentId = segmentId;
+    try {
+      const result = await revokeWearableAssociation(segmentId);
+      const promoted = result.already_promoted_faces ?? [];
+      const promotedNote = promoted.length
+        ? ` ${promoted.length} already-promoted face prototype(s) kept for manual review.`
+        : "";
+      notify?.(
+        `Revoked wearable teaching (${result.gallery_rows_demoted} body sample(s) demoted).${promotedNote}`,
+      );
+      if (deviceId) {
+        await loadDeviceAssociations(deviceId);
+      }
+      return result;
+    } catch (err) {
+      notify?.(
+        isForbidden(err)
+          ? "Revoking wearable teaching requires the caregiver-admin permission."
+          : errorMessage(err),
+        "error",
+      );
+      throw err;
+    } finally {
+      state.revokingSegmentId = null;
+    }
+  }
+
+  async function resumeTeaching(tagId: string, deviceId?: string) {
+    state.resumingTagId = tagId;
+    try {
+      const result = await resumeWearableTagTeaching(tagId);
+      notify?.(result.resumed ? `Resumed teaching for ${tagId}` : `No open hold on ${tagId}`);
+      if (deviceId) {
+        await loadDeviceAssociations(deviceId);
+      }
+      return result;
+    } catch (err) {
+      notify?.(
+        isForbidden(err)
+          ? "Resuming wearable teaching requires the caregiver-admin permission."
+          : errorMessage(err),
+        "error",
+      );
+      throw err;
+    } finally {
+      state.resumingTagId = null;
     }
   }
 
@@ -236,6 +308,9 @@ export function useWearables(notify?: NotifyFn) {
       addDevice,
       patchDevice,
       loadBindingHistory,
+      loadDeviceAssociations,
+      revokeAssociation,
+      resumeTeaching,
       bindDevice,
       unbindDevice,
       addNode,

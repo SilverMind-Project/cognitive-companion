@@ -407,3 +407,68 @@ class WearableSiteConfigOut(BaseModel):
     bindings: list[SiteConfigBindingOut]
     devices: list[SiteConfigDeviceOut]
     version: str
+
+
+class WearableTeachingHoldOut(BaseModel):
+    hold_id: str
+    tag_id: str
+    reason: str
+    held_at: datetime
+    cleared_at: datetime | None = None
+    cleared_by: str | None = None
+
+
+class PromotedAttestationOut(BaseModel):
+    candidate_id: str
+    person_id: str | None = None
+    pose_bin: str = "frontal"
+
+
+class WearableAssociationTaughtOut(BaseModel):
+    segment_id: str
+    ph_id: str
+    tag_id: str
+    identity_id: str
+    started_at: datetime
+    ended_at: datetime | None = None
+    attestation_grade: str
+    swap_suspected: bool = False
+    close_reason: str | None = None
+    revoked_at: datetime | None = None
+    revoked_by: str | None = None
+    revoke_reason: str | None = None
+    gallery_rows_by_state: dict[str, int] = Field(default_factory=dict)
+    gallery_rows_total: int = Field(default=0, ge=0)
+    attested_faces_total: int | None = Field(default=None, ge=0)
+    attested_faces_active: int | None = Field(default=None, ge=0)
+    attested_faces_revoked: int | None = Field(default=None, ge=0)
+    attested_faces_promoted: int | None = Field(default=None, ge=0)
+    inferred_ranges_live: int = Field(default=0, ge=0)
+    inferred_ranges_total: int = Field(default=0, ge=0)
+
+
+class WearableDeviceAssociationsOut(BaseModel):
+    device_id: uuid.UUID
+    tag_id: str
+    teaching_held: bool
+    open_hold: WearableTeachingHoldOut | None = None
+    associations: list[WearableAssociationTaughtOut]
+
+
+class WearableRevokeResponse(BaseModel):
+    segment_id: str
+    tag_id: str
+    reason: Literal["swap_suspected", "operator"]
+    actor: str
+    already_revoked: bool
+    gallery_rows_demoted: int = Field(ge=0)
+    attested_faces_revoked: int | None = Field(default=None, ge=0)
+    already_promoted_faces: list[PromotedAttestationOut] = Field(default_factory=list)
+    inferred_ranges_compensated: int = Field(ge=0)
+    hold: WearableTeachingHoldOut
+
+
+class WearableResumeTeachingResponse(BaseModel):
+    tag_id: str
+    resumed: bool
+    hold: WearableTeachingHoldOut | None = None

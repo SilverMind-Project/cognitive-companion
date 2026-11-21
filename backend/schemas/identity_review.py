@@ -60,6 +60,10 @@ class ReviewSurfaceOut(BaseModel):
 class ReviewVocabularyEnvelope(BaseModel):
     surfaces: list[ReviewSurfaceOut]
     member_placeholder: str = Field(description="Replaced by the chosen member's display name")
+    wearable_revocation_effect: str = Field(
+        default="",
+        description="What revoking a wearable association's teaching changes, in plain words",
+    )
 
 
 class IdentityTargetOut(BaseModel):

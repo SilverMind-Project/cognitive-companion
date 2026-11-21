@@ -734,3 +734,53 @@ class OrchestratorClient(UpstreamClient):
     async def sync_gallery_identities(self) -> dict:
         r = await self._request("POST", "/internal/gallery/identities/sync")
         return r.json()
+
+    # -- Wearable associations, teaching revocation, and holds -------------
+
+    async def list_wearable_associations(
+        self,
+        *,
+        tag_id: str | None = None,
+        ph_id: str | None = None,
+        active_only: bool = False,
+        limit: int = 50,
+    ) -> list[dict]:
+        params: dict[str, str] = {"limit": str(limit)}
+        if tag_id:
+            params["tag_id"] = tag_id
+        if ph_id:
+            params["ph_id"] = ph_id
+        if active_only:
+            params["active_only"] = "true"
+        r = await self._request("GET", "/internal/wearables/associations", params=params)
+        return r.json()
+
+    async def get_wearable_association_taught(self, segment_id: str) -> dict:
+        r = await self._request("GET", f"/internal/wearables/associations/{segment_id}/taught")
+        return r.json()
+
+    async def revoke_wearable_association(
+        self,
+        segment_id: str,
+        *,
+        actor: str,
+        reason: str = "operator",
+    ) -> dict:
+        r = await self._request(
+            "POST",
+            f"/internal/wearables/associations/{segment_id}/revoke",
+            json={"actor": actor, "reason": reason},
+        )
+        return r.json()
+
+    async def resume_wearable_tag_teaching(self, tag_id: str, *, actor: str) -> dict:
+        r = await self._request(
+            "POST",
+            f"/internal/wearables/tags/{tag_id}/resume-teaching",
+            json={"actor": actor},
+        )
+        return r.json()
+
+    async def list_wearable_holds(self) -> list[dict]:
+        r = await self._request("GET", "/internal/wearables/holds")
+        return r.json()

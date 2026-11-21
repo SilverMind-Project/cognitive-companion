@@ -19,6 +19,7 @@ export type RfNodeUpdate = Schemas["RfNodeUpdate"];
 export type RfNodeSurveyCheckRequest = Schemas["RfNodeSurveyCheckRequest"];
 export type RfNodeSurveyCheckOut = Schemas["RfNodeSurveyCheckOut"];
 export type FloorPlanOut = Schemas["FloorPlanOut"];
+export type WearableDeviceAssociationsOut = Schemas["WearableDeviceAssociationsOut"];
 
 export const getWearableAssignments = () => unwrap(client.GET("/api/v1/wearables/assignments", {}));
 
@@ -80,3 +81,24 @@ export const checkRfNodeSurvey = (body: RfNodeSurveyCheckRequest) =>
   unwrap(client.POST("/api/v1/wearables/nodes/survey-check", { body }));
 
 export const getHouseholdFloorPlan = () => unwrap(client.GET("/api/v1/household/floor-plan", {}));
+
+export const listDeviceAssociations = (deviceId: string, limit = 25) =>
+  unwrap(
+    client.GET("/api/v1/wearables/devices/{device_id}/associations", {
+      params: { path: { device_id: deviceId }, query: { limit } },
+    }),
+  );
+
+export const revokeWearableAssociation = (segmentId: string) =>
+  unwrap(
+    client.POST("/api/v1/wearables/associations/{segment_id}/revoke", {
+      params: { path: { segment_id: segmentId } },
+    }),
+  );
+
+export const resumeWearableTagTeaching = (tagId: string) =>
+  unwrap(
+    client.POST("/api/v1/wearables/tags/{tag_id}/resume-teaching", {
+      params: { path: { tag_id: tagId } },
+    }),
+  );

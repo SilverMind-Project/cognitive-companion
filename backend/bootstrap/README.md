@@ -242,6 +242,7 @@ Also assigns `container.presence` and `container.ha_state_cache` (both via
 | `wearable_binding_service` | constructed (`get_session`, also set on MCP container) | same |
 | `rf_node_service` | constructed (`get_session`) | same |
 | `wearable_site_config_service` | constructed (`get_session`, also passed to `IdentityReadinessService`) | same |
+| `wearable_teaching_revocation_service` | constructed (`get_session`, `orchestrator_client`) | constructed with `orchestrator=None` (routes answer 503) |
 | `identity_review_registry` | constructed (`identity_targets_service`) with the review adapters: visitors, face calibration, and ReID review (registered once `reid_review_service` exists) | visitors and face calibration only; ReID review decisions answer 503 |
 | `identity_readiness_service` | constructed (roster, person-id, both CTS clients) | constructed with no CTS clients: its CTS-sourced steps report `unknown`; also set on the MCP service container |
 | `ph_enrichment_service` | constructed | `None` |

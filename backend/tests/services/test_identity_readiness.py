@@ -170,6 +170,7 @@ async def test_todays_household_is_blocked_at_the_floor_frame(db_factory, househ
         "templates",
         "body_gallery",
         "wearables",
+        "wearable_learners",
     ]
     assert envelope.blocking_step == "floor_frame"
     assert _states(envelope) == {
@@ -183,6 +184,7 @@ async def test_todays_household_is_blocked_at_the_floor_frame(db_factory, househ
         "templates": "blocked",
         "body_gallery": "blocked",
         "wearables": "ready",
+        "wearable_learners": "blocked",
     }
     assert [(q.surface, q.waiting) for q in envelope.review_queues] == [
         ("visitors", 1),

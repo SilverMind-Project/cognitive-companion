@@ -28,6 +28,7 @@ ReadinessStepKey = Literal[
     "templates",
     "body_gallery",
     "wearables",
+    "wearable_learners",
 ]
 
 # unknown: the step's source failed. The page never guesses a state it could not read.
@@ -50,6 +51,8 @@ ReadinessNextAction = Literal[
     "enable_templates",
     "review_body_samples",
     "configure_wearables",
+    "resume_wearable_teaching",
+    "enable_wearable_learners",
     "check_service",
 ]
 
@@ -95,6 +98,22 @@ class CTSGalleryCounts(BaseModel):
     auto_verified: int = Field(ge=0)
     operator_verified: int = Field(ge=0)
     rejected: int = Field(ge=0)
+    expired: int = Field(default=0, ge=0)
+
+
+class CTSWearableLearnersReadiness(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    wearable_mode: str = "off"
+    wearable_seeding_enabled: bool = False
+    face_attestation_mode: str = "off"
+    wearable_backfill_enabled: bool = False
+    auto_on_swap: bool = True
+    evaluation_sample_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    evaluation_days_14d: int = Field(default=0, ge=0)
+    attribution_difference_14d: float | None = None
+    open_teaching_holds: int = Field(default=0, ge=0)
+    revoked_segments_14d: int = Field(default=0, ge=0)
 
 
 class CTSCameraCalibration(BaseModel):
@@ -113,11 +132,13 @@ class CTSIdentityReadiness(BaseModel):
     face_templates_mode: str
     face_quality_mode: str
     cc_assertion_mode: str
+    wearable_mode: str = "off"
     expected_arcface_model_version: str | None
     expected_quality_version: str
     reid_gallery_counts: CTSGalleryCounts | None
     # Rows a wearable taught, by state; absent from an orchestrator that predates them.
     wearable_gallery_counts: CTSGalleryCounts | None = None
+    wearable_learners: CTSWearableLearnersReadiness | None = None
     cameras: list[CTSCameraCalibration]
     overlap_group_count: int | None
     identities_known: int | None

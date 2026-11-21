@@ -46,6 +46,7 @@ from backend.services.identity_readiness_rules import (
     review_queues,
     roster_step,
     templates_step,
+    wearable_learners_step,
     wearables_step,
 )
 from backend.services.identity_roster import RosterHealthService
@@ -108,6 +109,7 @@ class IdentityReadinessService:
                 wearables,
                 has_floor_plan_and_scale=household.has_floor_plan and household.has_scale,
             ),
+            wearable_learners_step(cts),
         ]
         blocking = next((s.key for s in steps if s.state == "blocked" and not s.optional), None)
         return IdentityReadinessEnvelope(

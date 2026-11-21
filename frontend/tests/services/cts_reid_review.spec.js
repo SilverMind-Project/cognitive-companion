@@ -74,6 +74,19 @@ describe("ctsReidReview service", () => {
     });
   });
 
+  it("forwards seed_association_id and expired state filter", async () => {
+    global.fetch = mockFetch(200, { candidates: [], total: 0, limit: 25, offset: 0 });
+    await ctsReidReview.list({
+      state: "expired",
+      seed_association_id: "seg-123",
+      limit: 25,
+      offset: 0,
+    });
+    const [url] = global.fetch.mock.calls[0];
+    expect(url).toContain("state=expired");
+    expect(url).toContain("seed_association_id=seg-123");
+  });
+
   it("surfaces a 403 forbidden as CorrectionError", async () => {
     global.fetch = mockFetch(403, { detail: "forbidden" });
     await expect(ctsReidReview.counts()).rejects.toBeInstanceOf(CorrectionError);

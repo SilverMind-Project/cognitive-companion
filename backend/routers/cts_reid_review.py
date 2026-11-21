@@ -79,6 +79,7 @@ async def list_candidates(
     model_version: str | None = None,
     source_type: str | None = None,
     seed_source: SeedSource | None = None,
+    seed_association_id: str | None = None,
     since: datetime | None = None,
     until: datetime | None = None,
     limit: int = 50,
@@ -98,6 +99,8 @@ async def list_candidates(
         params["source_type"] = source_type
     if seed_source:
         params["seed_source"] = seed_source
+    if seed_association_id:
+        params["seed_association_id"] = seed_association_id
     if since:
         params["since"] = since.isoformat()
     if until:

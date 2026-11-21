@@ -26,12 +26,12 @@ RejectReasonCode = Literal[
     "other",
 ]
 
-# The fourth gallery lifecycle state, auto_verified,
-# sits between pending_review and operator_verified. A candidate can also be
-# terminally rejected. Only these four values are ever valid on the wire; an
-# out-of-vocabulary state from a stale or newer upstream is a contract violation
-# (502), not silently accepted.
-ReviewState = Literal["pending_review", "auto_verified", "operator_verified", "rejected"]
+# Gallery lifecycle states: pending_review -> operator_verified / auto_verified / rejected /
+# expired. Only these five values are ever valid on the wire; an out-of-vocabulary state from a
+# stale or newer upstream is a contract violation (502), not silently accepted.
+ReviewState = Literal[
+    "pending_review", "auto_verified", "operator_verified", "rejected", "expired"
+]
 # Mirrors CTS GallerySeedSource (reid_gallery.seed_source); change both together.
 SeedSource = Literal["face", "wearable_attested", "wearable_room_attested", "operator"]
 
@@ -132,6 +132,7 @@ class ReviewCountsResponse(BaseModel):
     auto_verified: int
     operator_verified: int
     rejected: int
+    expired: int = 0
 
 
 # ---------------------------------------------------------------------------

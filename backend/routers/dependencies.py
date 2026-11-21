@@ -70,6 +70,7 @@ if TYPE_CHECKING:
         WearableBindingService,
         WearableDeviceService,
         WearableSiteConfigService,
+        WearableTeachingRevocationService,
     )
     from backend.services.zones import ZoneService
     from backend.websocket.connection_manager import ConnectionManager
@@ -111,6 +112,7 @@ __all__ = [
     "get_wearable_binding_service",
     "get_wearable_device_service",
     "get_wearable_site_config_service",
+    "get_wearable_teaching_revocation_service",
     "get_ws_manager",
     "get_zone_service",
 ]
@@ -246,6 +248,21 @@ def get_wearable_site_config_service(request: Request) -> WearableSiteConfigServ
     service: WearableSiteConfigService | None = request.app.state.wearable_site_config_service
     if service is None:
         raise _raise_503("wearable_site_config_service", "Wearable site-config service")
+    return service
+
+
+def get_wearable_teaching_revocation_service(
+    request: Request,
+) -> WearableTeachingRevocationService:
+    """Return the lifespan-managed wearable teaching revocation service (503 if unavailable)."""
+    service: WearableTeachingRevocationService | None = (
+        request.app.state.wearable_teaching_revocation_service
+    )
+    if service is None:
+        raise _raise_503(
+            "wearable_teaching_revocation_service",
+            "Wearable teaching revocation service",
+        )
     return service
 
 

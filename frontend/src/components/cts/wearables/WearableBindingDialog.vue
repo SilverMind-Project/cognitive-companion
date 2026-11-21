@@ -74,6 +74,137 @@
 
       <v-divider class="mb-4" />
 
+      <div class="d-flex align-center justify-space-between flex-wrap ga-2 mb-2">
+        <div class="text-subtitle-2 font-weight-bold">Recent teaching periods</div>
+        <v-chip
+          v-if="associations?.teaching_held"
+          size="small"
+          color="warning"
+          variant="tonal"
+          prepend-icon="mdi-pause-circle-outline"
+          data-test="teaching-held-chip"
+        >
+          Teaching paused
+        </v-chip>
+      </div>
+      <v-alert
+        v-if="associations?.teaching_held"
+        type="warning"
+        variant="tonal"
+        density="compact"
+        class="mb-3"
+        data-test="teaching-held-banner"
+      >
+        <div class="d-flex align-center justify-space-between flex-wrap ga-2">
+          <div>
+            This wearable is held from teaching ({{ associations.open_hold?.reason || "revoked" }}).
+            Review what it taught before resuming.
+          </div>
+          <v-btn
+            size="small"
+            color="warning"
+            variant="flat"
+            :loading="resumingTagId === device?.tag_id"
+            data-test="resume-teaching-btn"
+            @click="device && $emit('resumeTeaching', device.tag_id)"
+          >
+            Resume teaching
+          </v-btn>
+        </div>
+      </v-alert>
+      <div v-if="loadingAssociations" class="d-flex justify-center py-4">
+        <v-progress-circular indeterminate size="24" color="primary" />
+      </div>
+      <v-alert
+        v-else-if="associationsError"
+        type="info"
+        variant="tonal"
+        density="compact"
+        class="mb-3"
+        data-test="associations-error"
+      >
+        {{ associationsError }}
+      </v-alert>
+      <div
+        v-else-if="!(associations?.associations || []).length"
+        class="text-body-2 text-medium-emphasis py-2 mb-3"
+      >
+        No wearable teaching periods recorded for this tag yet.
+      </div>
+      <v-table v-else density="compact" class="mb-4" data-test="associations-table">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Grade</th>
+            <th>Taught</th>
+            <th>Status</th>
+            <th class="text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="seg in associations?.associations || []" :key="seg.segment_id">
+            <td>
+              <div>{{ formatDateTime(seg.started_at) }}</div>
+              <div class="text-caption text-medium-emphasis">
+                {{ seg.ended_at ? formatDateTime(seg.ended_at) : "Active" }}
+              </div>
+            </td>
+            <td>{{ seg.attestation_grade }}</td>
+            <td>
+              <div>{{ seg.gallery_rows_total }} body</div>
+              <div class="text-caption text-medium-emphasis">
+                {{ seg.attested_faces_total ?? 0 }} faces · {{ seg.inferred_ranges_total }} history
+              </div>
+            </td>
+            <td>
+              <v-chip
+                v-if="seg.revoked_at"
+                size="x-small"
+                color="error"
+                variant="tonal"
+                data-test="segment-revoked-chip"
+              >
+                Revoked
+              </v-chip>
+              <v-chip v-else-if="seg.swap_suspected" size="x-small" color="warning" variant="tonal">
+                Swap suspected
+              </v-chip>
+              <span v-else class="text-caption text-medium-emphasis">Active</span>
+            </td>
+            <td class="text-right">
+              <v-btn
+                v-if="seg.gallery_rows_total > 0"
+                size="x-small"
+                variant="text"
+                :to="{
+                  path: '/admin/cts/reid-review',
+                  query: {
+                    seed_association_id: seg.segment_id,
+                    state: seg.revoked_at ? 'pending_review' : 'auto_verified',
+                  },
+                }"
+                data-test="review-taught-link"
+              >
+                Review
+              </v-btn>
+              <v-btn
+                v-if="!seg.revoked_at"
+                size="x-small"
+                variant="tonal"
+                color="error"
+                :loading="revokingSegmentId === seg.segment_id"
+                :data-test="`revoke-segment-${seg.segment_id}`"
+                @click="$emit('revokeAssociation', seg.segment_id)"
+              >
+                Revoke what this taught
+              </v-btn>
+            </td>
+          </tr>
+        </tbody>
+      </v-table>
+
+      <v-divider class="mb-4" />
+
       <div class="text-subtitle-2 font-weight-bold mb-2">Binding history</div>
       <div v-if="loadingHistory" class="d-flex justify-center py-4">
         <v-progress-circular indeterminate size="24" color="primary" />
@@ -113,6 +244,7 @@ import { formatDateTime } from "@/services/timezone.js";
 import type {
   WearableBindingCreate,
   WearableBindingOut,
+  WearableDeviceAssociationsOut,
   WearableDeviceOut,
 } from "@/services/modules/wearables";
 
@@ -122,12 +254,19 @@ const props = defineProps<{
   history: WearableBindingOut[];
   loadingHistory: boolean;
   saving: boolean;
+  associations?: WearableDeviceAssociationsOut | null;
+  loadingAssociations?: boolean;
+  associationsError?: string | null;
+  revokingSegmentId?: string | null;
+  resumingTagId?: string | null;
 }>();
 
 const emit = defineEmits<{
   "update:modelValue": [value: boolean];
   bind: [deviceId: string, body: WearableBindingCreate];
   unbind: [deviceId: string];
+  revokeAssociation: [segmentId: string];
+  resumeTeaching: [tagId: string];
 }>();
 
 const memberId = ref<string | null>(null);

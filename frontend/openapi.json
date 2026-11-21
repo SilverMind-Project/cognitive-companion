@@ -7474,7 +7474,8 @@
                   "face_policy",
                   "templates",
                   "body_gallery",
-                  "wearables"
+                  "wearables",
+                  "wearable_learners"
                 ],
                 "type": "string"
               },
@@ -11909,6 +11910,35 @@
         "title": "PromoteCalibrationCandidateResponse",
         "type": "object"
       },
+      "PromotedAttestationOut": {
+        "properties": {
+          "candidate_id": {
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "person_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Person Id"
+          },
+          "pose_bin": {
+            "default": "frontal",
+            "title": "Pose Bin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidate_id"
+        ],
+        "title": "PromotedAttestationOut",
+        "type": "object"
+      },
       "ProposeSegmentRequest": {
         "additionalProperties": false,
         "properties": {
@@ -13185,7 +13215,8 @@
               "face_policy",
               "templates",
               "body_gallery",
-              "wearables"
+              "wearables",
+              "wearable_learners"
             ],
             "title": "Key",
             "type": "string"
@@ -13208,6 +13239,8 @@
               "enable_templates",
               "review_body_samples",
               "configure_wearables",
+              "resume_wearable_teaching",
+              "enable_wearable_learners",
               "check_service"
             ],
             "title": "Next Action",
@@ -13986,7 +14019,8 @@
               "pending_review",
               "auto_verified",
               "operator_verified",
-              "rejected"
+              "rejected",
+              "expired"
             ],
             "title": "State",
             "type": "string"
@@ -14008,6 +14042,11 @@
         "properties": {
           "auto_verified": {
             "title": "Auto Verified",
+            "type": "integer"
+          },
+          "expired": {
+            "default": 0,
+            "title": "Expired",
             "type": "integer"
           },
           "operator_verified": {
@@ -14272,6 +14311,12 @@
             },
             "title": "Surfaces",
             "type": "array"
+          },
+          "wearable_revocation_effect": {
+            "default": "",
+            "description": "What revoking a wearable association's teaching changes, in plain words",
+            "title": "Wearable Revocation Effect",
+            "type": "string"
           }
         },
         "required": [
@@ -19677,6 +19722,180 @@
         "title": "WearableAssignmentsOut",
         "type": "object"
       },
+      "WearableAssociationTaughtOut": {
+        "properties": {
+          "attestation_grade": {
+            "title": "Attestation Grade",
+            "type": "string"
+          },
+          "attested_faces_active": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attested Faces Active"
+          },
+          "attested_faces_promoted": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attested Faces Promoted"
+          },
+          "attested_faces_revoked": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attested Faces Revoked"
+          },
+          "attested_faces_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attested Faces Total"
+          },
+          "close_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close Reason"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "gallery_rows_by_state": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Gallery Rows By State",
+            "type": "object"
+          },
+          "gallery_rows_total": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Gallery Rows Total",
+            "type": "integer"
+          },
+          "identity_id": {
+            "title": "Identity Id",
+            "type": "string"
+          },
+          "inferred_ranges_live": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Inferred Ranges Live",
+            "type": "integer"
+          },
+          "inferred_ranges_total": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Inferred Ranges Total",
+            "type": "integer"
+          },
+          "ph_id": {
+            "title": "Ph Id",
+            "type": "string"
+          },
+          "revoke_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoke Reason"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "revoked_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked By"
+          },
+          "segment_id": {
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "swap_suspected": {
+            "default": false,
+            "title": "Swap Suspected",
+            "type": "boolean"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment_id",
+          "ph_id",
+          "tag_id",
+          "identity_id",
+          "started_at",
+          "attestation_grade"
+        ],
+        "title": "WearableAssociationTaughtOut",
+        "type": "object"
+      },
       "WearableBindingCreate": {
         "additionalProperties": false,
         "properties": {
@@ -19799,6 +20018,48 @@
           "created_by"
         ],
         "title": "WearableBindingOut",
+        "type": "object"
+      },
+      "WearableDeviceAssociationsOut": {
+        "properties": {
+          "associations": {
+            "items": {
+              "$ref": "#/components/schemas/WearableAssociationTaughtOut"
+            },
+            "title": "Associations",
+            "type": "array"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "open_hold": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WearableTeachingHoldOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          },
+          "teaching_held": {
+            "title": "Teaching Held",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "device_id",
+          "tag_id",
+          "teaching_held",
+          "associations"
+        ],
+        "title": "WearableDeviceAssociationsOut",
         "type": "object"
       },
       "WearableDeviceCreate": {
@@ -20131,6 +20392,106 @@
         "title": "WearableDeviceUpdate",
         "type": "object"
       },
+      "WearableResumeTeachingResponse": {
+        "properties": {
+          "hold": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WearableTeachingHoldOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resumed": {
+            "title": "Resumed",
+            "type": "boolean"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag_id",
+          "resumed"
+        ],
+        "title": "WearableResumeTeachingResponse",
+        "type": "object"
+      },
+      "WearableRevokeResponse": {
+        "properties": {
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "already_promoted_faces": {
+            "items": {
+              "$ref": "#/components/schemas/PromotedAttestationOut"
+            },
+            "title": "Already Promoted Faces",
+            "type": "array"
+          },
+          "already_revoked": {
+            "title": "Already Revoked",
+            "type": "boolean"
+          },
+          "attested_faces_revoked": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attested Faces Revoked"
+          },
+          "gallery_rows_demoted": {
+            "minimum": 0.0,
+            "title": "Gallery Rows Demoted",
+            "type": "integer"
+          },
+          "hold": {
+            "$ref": "#/components/schemas/WearableTeachingHoldOut"
+          },
+          "inferred_ranges_compensated": {
+            "minimum": 0.0,
+            "title": "Inferred Ranges Compensated",
+            "type": "integer"
+          },
+          "reason": {
+            "enum": [
+              "swap_suspected",
+              "operator"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "segment_id": {
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment_id",
+          "tag_id",
+          "reason",
+          "actor",
+          "already_revoked",
+          "gallery_rows_demoted",
+          "inferred_ranges_compensated",
+          "hold"
+        ],
+        "title": "WearableRevokeResponse",
+        "type": "object"
+      },
       "WearableSiteConfigOut": {
         "properties": {
           "bindings": {
@@ -20178,6 +20539,58 @@
           "version"
         ],
         "title": "WearableSiteConfigOut",
+        "type": "object"
+      },
+      "WearableTeachingHoldOut": {
+        "properties": {
+          "cleared_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleared At"
+          },
+          "cleared_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleared By"
+          },
+          "held_at": {
+            "format": "date-time",
+            "title": "Held At",
+            "type": "string"
+          },
+          "hold_id": {
+            "title": "Hold Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hold_id",
+          "tag_id",
+          "reason",
+          "held_at"
+        ],
+        "title": "WearableTeachingHoldOut",
         "type": "object"
       },
       "WearableUnbindRequest": {
@@ -24367,6 +24780,22 @@
                 }
               ],
               "title": "Seed Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "seed_association_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Seed Association Id"
             }
           },
           {
@@ -38951,6 +39380,54 @@
         ]
       }
     },
+    "/api/v1/wearables/associations/{segment_id}/revoke": {
+      "post": {
+        "description": "Undo everything one wearable association segment taught and hold further teaching on its tag.",
+        "operationId": "revoke_wearable_association",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "segment_id",
+            "required": true,
+            "schema": {
+              "title": "Segment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableRevokeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Revoke Wearable Association",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
     "/api/v1/wearables/devices": {
       "get": {
         "description": "List registered wearable devices.",
@@ -39146,6 +39623,67 @@
           }
         ],
         "summary": "Update Wearable Device",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/devices/{device_id}/associations": {
+      "get": {
+        "description": "List recent wearable association segments for one device with taught counts and hold state.",
+        "operationId": "list_wearable_device_associations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableDeviceAssociationsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Wearable Device Associations",
         "tags": [
           "wearables"
         ]
@@ -39687,6 +40225,54 @@
           }
         ],
         "summary": "Get Wearable Site Config",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/tags/{tag_id}/resume-teaching": {
+      "post": {
+        "description": "Clear an open teaching hold for a wearable tag so it can teach again.",
+        "operationId": "resume_wearable_tag_teaching",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "title": "Tag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearableResumeTeachingResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Resume Wearable Tag Teaching",
         "tags": [
           "wearables"
         ]

@@ -221,6 +221,7 @@ permission_map:
     - "identity_review:read"
     - "face_prototypes:read"
     - "wearables:read"
+    - "wearables:revoke_teaching"
     - "face_prototypes:write"
 
   operator:
@@ -409,6 +410,9 @@ permission_map:
     - "GET /api/v1/wearables/nodes"
     - "GET /api/v1/wearables/nodes/*"
     - "POST /api/v1/wearables/nodes/survey-check"
+  "wearables:revoke_teaching":
+    - "POST /api/v1/wearables/associations/*/revoke"
+    - "POST /api/v1/wearables/tags/*/resume-teaching"
   "wearables:manage":
     - "POST /api/v1/wearables/devices"
     - "PATCH /api/v1/wearables/devices/*"

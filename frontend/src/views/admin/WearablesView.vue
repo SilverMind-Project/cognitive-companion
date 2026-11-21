@@ -274,8 +274,15 @@
       :history="state.bindingHistory"
       :loading-history="state.loadingHistory"
       :saving="state.saving"
+      :associations="state.deviceAssociations"
+      :loading-associations="state.loadingAssociations"
+      :associations-error="state.associationsError"
+      :revoking-segment-id="state.revokingSegmentId"
+      :resuming-tag-id="state.resumingTagId"
       @bind="handleBind"
       @unbind="actions.unbindDevice"
+      @revoke-association="confirmRevokeAssociation"
+      @resume-teaching="confirmResumeTeaching"
     />
 
     <!-- Confirm destructive / state-changing action -->
@@ -303,8 +310,10 @@ import { useConfirm } from "@/composables/useConfirm.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useWearables } from "@/composables/useWearables";
 import type { WearableBindingCreate, WearableDeviceOut } from "@/services/modules/wearables";
+import { useIdentityReviewStore } from "@/stores/identityReview";
 
 const { notify } = useNotify();
+const review = useIdentityReviewStore();
 const {
   confirmDialog,
   confirmTitle,
@@ -374,7 +383,10 @@ const selectedDevice = ref<WearableDeviceOut | null>(null);
 async function openBindingDialog(device: WearableDeviceOut) {
   selectedDevice.value = device;
   showBindingDialog.value = true;
-  await actions.loadBindingHistory(device.id);
+  await Promise.all([
+    actions.loadBindingHistory(device.id),
+    actions.loadDeviceAssociations(device.id),
+  ]);
 }
 
 async function openBindingDialogFromMemberDevice(deviceId: string) {
@@ -397,7 +409,29 @@ async function openBindingDialogFromMemberDevice(deviceId: string) {
     updated_at: memberEntry.valid_from,
   };
   showBindingDialog.value = true;
-  await actions.loadBindingHistory(deviceId);
+  await Promise.all([
+    actions.loadBindingHistory(deviceId),
+    actions.loadDeviceAssociations(deviceId),
+  ]);
+}
+
+async function confirmRevokeAssociation(segmentId: string) {
+  await review.load();
+  const effect =
+    review.wearableRevocationEffect() ||
+    "Revoke what this wearable association taught and pause further teaching for this tag.";
+  const ok = await showConfirm("Revoke what this taught?", effect);
+  if (!ok) return;
+  await actions.revokeAssociation(segmentId, selectedDevice.value?.id).catch(() => {});
+}
+
+async function confirmResumeTeaching(tagId: string) {
+  const ok = await showConfirm(
+    `Resume teaching for ${tagId}?`,
+    "Confirm this wearable is back on the right wearer. Further tracking periods will teach body samples and face captures again.",
+  );
+  if (!ok) return;
+  await actions.resumeTeaching(tagId, selectedDevice.value?.id).catch(() => {});
 }
 
 async function handleBind(deviceId: string, body: WearableBindingCreate) {
@@ -427,5 +461,6 @@ async function confirmDeleteNode(nodeId: string) {
 
 onMounted(() => {
   actions.loadAll();
+  void review.load();
 });
 </script>

@@ -568,6 +568,125 @@ def wearables_step(
     )
 
 
+def wearable_learners_step(cts: CTSIdentityReadiness | SourceFailure) -> ReadinessStep:
+    """Optional wearable-learners readiness step: evaluation, holds, and learner rollout."""
+    if isinstance(cts, SourceFailure):
+        return _unknown("wearable_learners", cts, optional=True)
+
+    learners = cts.wearable_learners
+    mode = learners.wearable_mode if learners is not None else cts.wearable_mode
+    if mode == "off" or learners is None:
+        return ReadinessStep(
+            key="wearable_learners",
+            state="blocked",
+            detail=(
+                "The wearable channel is off in the tracking orchestrator, so wearable learners "
+                "cannot run."
+            ),
+            next_action="configure_wearables",
+            optional=True,
+        )
+
+    if learners.open_teaching_holds > 0:
+        return ReadinessStep(
+            key="wearable_learners",
+            state="attention",
+            detail=(
+                f"{_count(learners.open_teaching_holds, 'wearable tag')} "
+                f"{'is' if learners.open_teaching_holds == 1 else 'are'} held from teaching "
+                "after revocation or suspected swap. Review what was taught and resume teaching "
+                "when the band is back on the right wearer."
+            ),
+            next_action="resume_wearable_teaching",
+            optional=True,
+        )
+
+    taught = cts.wearable_gallery_counts
+    pending_taught = taught.pending_review if taught is not None else 0
+    any_learner_on = (
+        learners.wearable_seeding_enabled
+        or learners.face_attestation_mode == "enabled"
+        or learners.wearable_backfill_enabled
+    )
+
+    if learners.evaluation_sample_rate <= 0.0:
+        return ReadinessStep(
+            key="wearable_learners",
+            state="attention",
+            detail=(
+                f"Wearable mode is {mode}, but image-only evaluation sampling is off "
+                "(sample_rate is 0). Enable evaluation sampling so wearable teaching can be "
+                "measured."
+            ),
+            next_action="enable_wearable_learners",
+            optional=True,
+        )
+
+    if mode == "shadow" or not any_learner_on:
+        if pending_taught > 0:
+            return ReadinessStep(
+                key="wearable_learners",
+                state="attention",
+                detail=(
+                    f"Wearable mode is {mode} with {_count(pending_taught, 'wearable-taught body sample')} "
+                    "waiting for review."
+                ),
+                next_action="review_body_samples",
+                optional=True,
+            )
+        return ReadinessStep(
+            key="wearable_learners",
+            state="attention",
+            detail=(
+                f"Wearable mode is {mode} with evaluation sampling at "
+                f"{learners.evaluation_sample_rate:.0%}. Turn on wearable seeding or face "
+                "attestation once shadow checks look good."
+            ),
+            next_action="enable_wearable_learners",
+            optional=True,
+        )
+
+    days = learners.evaluation_days_14d
+    diff = learners.attribution_difference_14d
+    revoked_note = (
+        f" {_count(learners.revoked_segments_14d, 'segment')} revoked in the last 14 days."
+        if learners.revoked_segments_14d > 0
+        else ""
+    )
+    if days == 0 or diff is None:
+        return ReadinessStep(
+            key="wearable_learners",
+            state="attention",
+            detail=(
+                "Wearable learners are running, waiting for paired image-only evaluation days "
+                f"over the last 14 days.{revoked_note}"
+            ),
+            next_action="review_shadow",
+            optional=True,
+        )
+    if diff <= 0.0:
+        return ReadinessStep(
+            key="wearable_learners",
+            state="attention",
+            detail=(
+                f"Wearable learners are running, but the 14-day image-only attribution difference "
+                f"is {diff:+.3f} across {_count(days, 'day')} (not yet positive).{revoked_note}"
+            ),
+            next_action="review_body_samples",
+            optional=True,
+        )
+    return ReadinessStep(
+        key="wearable_learners",
+        state="ready",
+        detail=(
+            f"Wearable learners are running with a {diff:+.3f} 14-day image-only attribution "
+            f"difference across {_count(days, 'day')} and no open teaching holds.{revoked_note}"
+        ),
+        next_action="none",
+        optional=True,
+    )
+
+
 def review_queues(
     roster: RosterHealthEnvelope | SourceFailure,
     summary: CalibrationSummaryInfo | SourceFailure,

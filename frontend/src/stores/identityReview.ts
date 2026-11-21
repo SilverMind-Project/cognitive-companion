@@ -64,5 +64,19 @@ export const useIdentityReviewStore = defineStore("identityReview", () => {
     return surface(name)?.guarantee ?? "";
   }
 
-  return { vocabulary, error, load, surface, verdict, effect, guarantee };
+  /** What revoking one wearable association's teaching changes, in the server's words. */
+  function wearableRevocationEffect(): string {
+    return vocabulary.value?.wearable_revocation_effect ?? "";
+  }
+
+  return {
+    vocabulary,
+    error,
+    load,
+    surface,
+    verdict,
+    effect,
+    guarantee,
+    wearableRevocationEffect,
+  };
 });

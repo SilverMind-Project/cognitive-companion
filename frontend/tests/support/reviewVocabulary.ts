@@ -11,6 +11,8 @@ const PLACEHOLDER = "{member}";
 
 export const REVIEW_VOCABULARY: ReviewVocabulary = {
   member_placeholder: PLACEHOLDER,
+  wearable_revocation_effect:
+    "Server: demotes body samples, revokes attested faces, compensates backfill, and pauses teaching.",
   surfaces: [
     {
       surface: "visitors",

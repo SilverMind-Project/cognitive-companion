@@ -94,6 +94,17 @@
           data-test="seed-source-filter"
           @update:model-value="(v) => actions.setFilter('seed_source', v || null)"
         />
+        <v-chip
+          v-if="state.filters.value.seed_association_id"
+          size="small"
+          color="secondary"
+          variant="tonal"
+          closable
+          data-test="association-filter-chip"
+          @click:close="actions.setFilter('seed_association_id', null)"
+        >
+          Association: {{ state.filters.value.seed_association_id.slice(0, 8) }}
+        </v-chip>
       </div>
 
       <!-- Batch decisions: negative verdicts only; approval needs individual visual review -->
@@ -203,6 +214,16 @@
               <td>
                 <v-chip size="x-small" :color="stateColor(c.state)" variant="tonal">
                   {{ stateLabel(c.state) }}
+                </v-chip>
+                <v-chip
+                  v-if="isRevoked(c)"
+                  size="x-small"
+                  color="error"
+                  variant="tonal"
+                  class="ml-1"
+                  data-test="revoked-badge"
+                >
+                  Revoked
                 </v-chip>
               </td>
               <td>{{ relativeAge(c.created_at || c.seen_at) }}</td>
@@ -319,7 +340,11 @@
                 alt="Candidate crop"
               />
               <div v-else class="deleted-crop text-medium-emphasis">
-                Crop deleted (rejected candidate). Audit metadata retained.
+                {{
+                  detailCandidate.state === "expired"
+                    ? "Crop deleted (expired by retention policy). Audit metadata retained."
+                    : "Crop deleted (rejected candidate). Audit metadata retained."
+                }}
               </div>
             </div>
 
@@ -603,6 +628,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { useReIDReview } from "@/composables/useReIDReview";
 import { useIdentityReadiness } from "@/composables/useIdentityReadiness";
 import { useNotify } from "@/composables/useNotify";
@@ -666,14 +692,16 @@ const STATE_LABELS = {
   auto_verified: "Auto-verified",
   operator_verified: "Verified",
   rejected: "Rejected",
+  expired: "Expired",
 };
 const STATE_COLORS = {
   pending_review: "warning",
   auto_verified: "info",
   operator_verified: "success",
   rejected: undefined,
+  expired: undefined,
 };
-const STATE_ORDER = ["pending_review", "auto_verified", "operator_verified", "rejected"];
+const STATE_ORDER = ["pending_review", "auto_verified", "operator_verified", "rejected", "expired"];
 const SEED_SOURCE_LABELS = {
   face: "Face",
   wearable_attested: "Wearable, path matched",
@@ -750,6 +778,9 @@ function stateLabel(s) {
 }
 function stateColor(s) {
   return STATE_COLORS[s];
+}
+function isRevoked(c) {
+  return typeof c?.review_reason === "string" && c.review_reason.startsWith("wearable_revoked:");
 }
 function modelOk(c) {
   // The server is authoritative; this only mirrors the detail eligibility flag
@@ -927,7 +958,17 @@ useReviewKeys({
   onVerdict: (verdict) => void onVerdict(verdict),
 });
 
+const route = useRoute();
+
 onMounted(() => {
+  const assocQuery = route?.query?.seed_association_id;
+  if (typeof assocQuery === "string" && assocQuery) {
+    state.filters.value = { ...state.filters.value, seed_association_id: assocQuery };
+  }
+  const stateQuery = route?.query?.state;
+  if (typeof stateQuery === "string" && STATE_ORDER.includes(stateQuery)) {
+    state.filters.value = { ...state.filters.value, state: stateQuery };
+  }
   void refreshAll();
   void readiness.actions.load();
   void review.load();

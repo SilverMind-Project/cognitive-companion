@@ -157,6 +157,7 @@ class ReIDReviewService:
                 auto_verified=raw["auto_verified"],
                 operator_verified=raw["operator_verified"],
                 rejected=raw["rejected"],
+                expired=raw.get("expired", 0),
             )
         except (KeyError, TypeError, ValidationError) as exc:
             raise ReviewContractError("malformed counts envelope") from exc
@@ -326,11 +327,12 @@ class ReIDReviewService:
 
     @staticmethod
     def _candidate(raw: dict, presign: Presigner) -> ReviewCandidateView:
-        # Media is presigned only for a live object. A rejected candidate's crop
-        # is deleted upstream, so never presign its key (would 404 in the browser).
+        # Media is presigned only for a live object. Rejected and expired candidates have their
+        # crop objects deleted upstream, so never presign their keys (would 404 in the browser).
         state = raw.get("state")
-        crop_url = None if state == "rejected" else presign(raw.get("crop_key"))
-        frame_url = None if state == "rejected" else presign(raw.get("source_frame_key"))
+        media_deleted = state in ("rejected", "expired")
+        crop_url = None if media_deleted else presign(raw.get("crop_key"))
+        frame_url = None if media_deleted else presign(raw.get("source_frame_key"))
         return ReviewCandidateView(
             candidate_id=raw["candidate_id"],
             identity_id=raw.get("identity_id"),

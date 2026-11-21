@@ -5461,6 +5461,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/wearables/associations/{segment_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Wearable Association
+         * @description Undo everything one wearable association segment taught and hold further teaching on its tag.
+         */
+        post: operations["revoke_wearable_association"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/wearables/devices": {
         parameters: {
             query?: never;
@@ -5507,6 +5527,26 @@ export interface paths {
          * @description Update a wearable device label, hardware key, or active status.
          */
         patch: operations["update_wearable_device"];
+        trace?: never;
+    };
+    "/api/v1/wearables/devices/{device_id}/associations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Wearable Device Associations
+         * @description List recent wearable association segments for one device with taught counts and hold state.
+         */
+        get: operations["list_wearable_device_associations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/wearables/devices/{device_id}/bind": {
@@ -5675,6 +5715,26 @@ export interface paths {
         get: operations["get_wearable_site_config"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wearables/tags/{tag_id}/resume-teaching": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume Wearable Tag Teaching
+         * @description Clear an open teaching hold for a wearable tag so it can teach again.
+         */
+        post: operations["resume_wearable_tag_teaching"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8584,7 +8644,7 @@ export interface components {
              * Blocking Step
              * @description The first required step that is blocked; null when none is
              */
-            blocking_step: ("roster" | "ingest" | "floor_frame" | "capture" | "labeling" | "artifact" | "face_policy" | "templates" | "body_gallery" | "wearables") | null;
+            blocking_step: ("roster" | "ingest" | "floor_frame" | "capture" | "labeling" | "artifact" | "face_policy" | "templates" | "body_gallery" | "wearables" | "wearable_learners") | null;
             /**
              * Checked At
              * Format: date-time
@@ -10201,6 +10261,18 @@ export interface components {
             /** Prototype Count */
             prototype_count: number;
         };
+        /** PromotedAttestationOut */
+        PromotedAttestationOut: {
+            /** Candidate Id */
+            candidate_id: string;
+            /** Person Id */
+            person_id?: string | null;
+            /**
+             * Pose Bin
+             * @default frontal
+             */
+            pose_bin: string;
+        };
         /** ProposeSegmentRequest */
         ProposeSegmentRequest: {
             /** At */
@@ -10712,12 +10784,12 @@ export interface components {
              * Key
              * @enum {string}
              */
-            key: "roster" | "ingest" | "floor_frame" | "capture" | "labeling" | "artifact" | "face_policy" | "templates" | "body_gallery" | "wearables";
+            key: "roster" | "ingest" | "floor_frame" | "capture" | "labeling" | "artifact" | "face_policy" | "templates" | "body_gallery" | "wearables" | "wearable_learners";
             /**
              * Next Action
              * @enum {string}
              */
-            next_action: "none" | "enroll_members" | "review_visitors" | "fix_camera_ingest" | "upload_floor_plan" | "draw_room_polygons" | "calibrate_cameras" | "enable_capture" | "label_captures" | "fit_and_deploy_artifact" | "refit_artifact" | "review_shadow" | "set_policy_calibrated" | "enable_templates" | "review_body_samples" | "configure_wearables" | "check_service";
+            next_action: "none" | "enroll_members" | "review_visitors" | "fix_camera_ingest" | "upload_floor_plan" | "draw_room_polygons" | "calibrate_cameras" | "enable_capture" | "label_captures" | "fit_and_deploy_artifact" | "refit_artifact" | "review_shadow" | "set_policy_calibrated" | "enable_templates" | "review_body_samples" | "configure_wearables" | "resume_wearable_teaching" | "enable_wearable_learners" | "check_service";
             /**
              * Optional
              * @description An optional improvement: its state never blocks the steps after it
@@ -10964,12 +11036,17 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "pending_review" | "auto_verified" | "operator_verified" | "rejected";
+            state: "pending_review" | "auto_verified" | "operator_verified" | "rejected" | "expired";
         };
         /** ReviewCountsResponse */
         ReviewCountsResponse: {
             /** Auto Verified */
             auto_verified: number;
+            /**
+             * Expired
+             * @default 0
+             */
+            expired: number;
             /** Operator Verified */
             operator_verified: number;
             /** Pending Review */
@@ -11083,6 +11160,12 @@ export interface components {
             member_placeholder: string;
             /** Surfaces */
             surfaces: components["schemas"]["ReviewSurfaceOut"][];
+            /**
+             * Wearable Revocation Effect
+             * @description What revoking a wearable association's teaching changes, in plain words
+             * @default
+             */
+            wearable_revocation_effect: string;
         };
         /** RevisionResponse */
         RevisionResponse: {
@@ -13057,6 +13140,66 @@ export interface components {
             /** Unbound Devices */
             unbound_devices: components["schemas"]["WearableDeviceOut"][];
         };
+        /** WearableAssociationTaughtOut */
+        WearableAssociationTaughtOut: {
+            /** Attestation Grade */
+            attestation_grade: string;
+            /** Attested Faces Active */
+            attested_faces_active?: number | null;
+            /** Attested Faces Promoted */
+            attested_faces_promoted?: number | null;
+            /** Attested Faces Revoked */
+            attested_faces_revoked?: number | null;
+            /** Attested Faces Total */
+            attested_faces_total?: number | null;
+            /** Close Reason */
+            close_reason?: string | null;
+            /** Ended At */
+            ended_at?: string | null;
+            /** Gallery Rows By State */
+            gallery_rows_by_state?: {
+                [key: string]: number;
+            };
+            /**
+             * Gallery Rows Total
+             * @default 0
+             */
+            gallery_rows_total: number;
+            /** Identity Id */
+            identity_id: string;
+            /**
+             * Inferred Ranges Live
+             * @default 0
+             */
+            inferred_ranges_live: number;
+            /**
+             * Inferred Ranges Total
+             * @default 0
+             */
+            inferred_ranges_total: number;
+            /** Ph Id */
+            ph_id: string;
+            /** Revoke Reason */
+            revoke_reason?: string | null;
+            /** Revoked At */
+            revoked_at?: string | null;
+            /** Revoked By */
+            revoked_by?: string | null;
+            /** Segment Id */
+            segment_id: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /**
+             * Swap Suspected
+             * @default false
+             */
+            swap_suspected: boolean;
+            /** Tag Id */
+            tag_id: string;
+        };
         /** WearableBindingCreate */
         WearableBindingCreate: {
             /**
@@ -13105,6 +13248,21 @@ export interface components {
             valid_from: string;
             /** Valid To */
             valid_to: string | null;
+        };
+        /** WearableDeviceAssociationsOut */
+        WearableDeviceAssociationsOut: {
+            /** Associations */
+            associations: components["schemas"]["WearableAssociationTaughtOut"][];
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            open_hold?: components["schemas"]["WearableTeachingHoldOut"] | null;
+            /** Tag Id */
+            tag_id: string;
+            /** Teaching Held */
+            teaching_held: boolean;
         };
         /** WearableDeviceCreate */
         WearableDeviceCreate: {
@@ -13205,6 +13363,39 @@ export interface components {
             /** Label */
             label?: string | null;
         };
+        /** WearableResumeTeachingResponse */
+        WearableResumeTeachingResponse: {
+            hold?: components["schemas"]["WearableTeachingHoldOut"] | null;
+            /** Resumed */
+            resumed: boolean;
+            /** Tag Id */
+            tag_id: string;
+        };
+        /** WearableRevokeResponse */
+        WearableRevokeResponse: {
+            /** Actor */
+            actor: string;
+            /** Already Promoted Faces */
+            already_promoted_faces?: components["schemas"]["PromotedAttestationOut"][];
+            /** Already Revoked */
+            already_revoked: boolean;
+            /** Attested Faces Revoked */
+            attested_faces_revoked?: number | null;
+            /** Gallery Rows Demoted */
+            gallery_rows_demoted: number;
+            hold: components["schemas"]["WearableTeachingHoldOut"];
+            /** Inferred Ranges Compensated */
+            inferred_ranges_compensated: number;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "swap_suspected" | "operator";
+            /** Segment Id */
+            segment_id: string;
+            /** Tag Id */
+            tag_id: string;
+        };
         /** WearableSiteConfigOut */
         WearableSiteConfigOut: {
             /** Bindings */
@@ -13217,6 +13408,24 @@ export interface components {
             nodes: components["schemas"]["SiteConfigNodeOut"][];
             /** Version */
             version: string;
+        };
+        /** WearableTeachingHoldOut */
+        WearableTeachingHoldOut: {
+            /** Cleared At */
+            cleared_at?: string | null;
+            /** Cleared By */
+            cleared_by?: string | null;
+            /**
+             * Held At
+             * Format: date-time
+             */
+            held_at: string;
+            /** Hold Id */
+            hold_id: string;
+            /** Reason */
+            reason: string;
+            /** Tag Id */
+            tag_id: string;
         };
         /** WearableUnbindRequest */
         WearableUnbindRequest: {
@@ -15571,6 +15780,7 @@ export interface operations {
                 model_version?: string | null;
                 source_type?: string | null;
                 seed_source?: ("face" | "wearable_attested" | "wearable_room_attested" | "operator") | null;
+                seed_association_id?: string | null;
                 since?: string | null;
                 until?: string | null;
                 limit?: number;
@@ -23702,6 +23912,37 @@ export interface operations {
             };
         };
     };
+    revoke_wearable_association: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                segment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableRevokeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_wearable_devices: {
         parameters: {
             query?: {
@@ -23819,6 +24060,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WearableDeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_wearable_device_associations: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableDeviceAssociationsOut"];
                 };
             };
             /** @description Validation Error */
@@ -24172,6 +24446,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WearableSiteConfigOut"];
+                };
+            };
+        };
+    };
+    resume_wearable_tag_teaching: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearableResumeTeachingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

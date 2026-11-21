@@ -212,6 +212,7 @@ def wire_identity_services(app: FastAPI) -> None:
         WearableBindingService,
         WearableDeviceService,
         WearableSiteConfigService,
+        WearableTeachingRevocationService,
     )
 
     wearable_repo = SqlAlchemyWearableRepository(get_session)
@@ -219,6 +220,9 @@ def wire_identity_services(app: FastAPI) -> None:
     app.state.wearable_binding_service = WearableBindingService(wearable_repo)
     app.state.rf_node_service = RfNodeService(wearable_repo)
     app.state.wearable_site_config_service = WearableSiteConfigService(wearable_repo)
+    app.state.wearable_teaching_revocation_service = WearableTeachingRevocationService(
+        wearable_repo, app.state.orchestrator_client
+    )
     _mcp_svc.wearable_device_service = app.state.wearable_device_service
     _mcp_svc.wearable_binding_service = app.state.wearable_binding_service
 

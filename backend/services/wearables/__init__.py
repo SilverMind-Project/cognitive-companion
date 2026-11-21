@@ -8,6 +8,9 @@ from backend.services.wearables.site_config_service import (
     WearableSiteConfigService,
     WearablesReadinessSnapshot,
 )
+from backend.services.wearables.teaching_revocation_service import (
+    WearableTeachingRevocationService,
+)
 
 __all__ = [
     "RfNodeService",
@@ -15,5 +18,6 @@ __all__ = [
     "WearableBindingService",
     "WearableDeviceService",
     "WearableSiteConfigService",
+    "WearableTeachingRevocationService",
     "WearablesReadinessSnapshot",
 ]

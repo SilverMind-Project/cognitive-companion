@@ -38,6 +38,8 @@ export function useReIDReview(notify) {
     source_type: null,
     // Where the label came from: a face, or a wearable (path matched or alone in the room).
     seed_source: null,
+    // Optional wearable association segment filter (linked from Wearables view).
+    seed_association_id: null,
   });
 
   // -- selection (batch reject only) ---------------------------------------
@@ -52,7 +54,13 @@ export function useReIDReview(notify) {
   const acting = ref(false);
 
   // -- counts (shared indicator source) ------------------------------------
-  const counts = ref({ pending_review: 0, auto_verified: 0, operator_verified: 0, rejected: 0 });
+  const counts = ref({
+    pending_review: 0,
+    auto_verified: 0,
+    operator_verified: 0,
+    rejected: 0,
+    expired: 0,
+  });
   // The zeros above are placeholders, not a reading: views must not treat them as "nothing
   // proposed" until a load succeeds, and must show a failed load rather than stale numbers.
   const countsLoaded = ref(false);

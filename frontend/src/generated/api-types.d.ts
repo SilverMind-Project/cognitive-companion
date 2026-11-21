@@ -3998,6 +3998,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/persons/heights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Member Heights
+         * @description Minimal member height roster for CTS operator-height sync (reads local DB only).
+         */
+        get: operations["list_member_heights"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/persons/locations": {
         parameters: {
             query?: never;
@@ -4149,6 +4169,26 @@ export interface paths {
          * @description Remove face enrollment data for a person.
          */
         delete: operations["delete_enrollment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/persons/{person_id}/height-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Person Height Profile
+         * @description Return the operator-entered height and effective CTS standing height profile.
+         */
+        get: operations["get_person_height_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -8574,6 +8614,8 @@ export interface components {
             cts_alert_config?: {
                 [key: string]: unknown;
             } | null;
+            /** Height Cm */
+            height_cm?: number | null;
             /** Id */
             id: string;
             /**
@@ -8601,6 +8643,8 @@ export interface components {
              * @default 0
              */
             embedding_count: number;
+            /** Height Cm */
+            height_cm?: number | null;
             /** Id */
             id: string;
             /** Is Active */
@@ -8627,6 +8671,8 @@ export interface components {
             cts_alert_config?: {
                 [key: string]: unknown;
             } | null;
+            /** Height Cm */
+            height_cm?: number | null;
             /** Is Active */
             is_active?: boolean | null;
             /** Is Guest */
@@ -9894,6 +9940,49 @@ export interface components {
             embedding_count: number;
             /** Name */
             name: string;
+            /** Person Id */
+            person_id: string;
+        };
+        /**
+         * PersonHeightProfileOut
+         * @description Combined operator-entered height and CTS effective standing height profile.
+         */
+        PersonHeightProfileOut: {
+            /**
+             * Cameras
+             * @default 0
+             */
+            cameras: number;
+            /**
+             * Cts Available
+             * @default true
+             */
+            cts_available: boolean;
+            /** Effective Height M */
+            effective_height_m?: number | null;
+            /** Effective Sigma M */
+            effective_sigma_m?: number | null;
+            /** Operator Height Cm */
+            operator_height_cm?: number | null;
+            /** Person Id */
+            person_id: string;
+            /**
+             * Samples
+             * @default 0
+             */
+            samples: number;
+            /** Source */
+            source?: ("operator" | "learned") | null;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /**
+         * PersonHeightSyncItem
+         * @description Minimal member standing-height entry synced to CTS.
+         */
+        PersonHeightSyncItem: {
+            /** Height Cm */
+            height_cm?: number | null;
             /** Person Id */
             person_id: string;
         };
@@ -20596,6 +20685,26 @@ export interface operations {
             };
         };
     };
+    list_member_heights: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonHeightSyncItem"][];
+                };
+            };
+        };
+    };
     get_all_person_locations: {
         parameters: {
             query?: never;
@@ -20878,6 +20987,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_person_height_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonHeightProfileOut"];
+                };
             };
             /** @description Validation Error */
             422: {

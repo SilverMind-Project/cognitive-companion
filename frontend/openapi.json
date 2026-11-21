@@ -7274,6 +7274,19 @@
             ],
             "title": "Cts Alert Config"
           },
+          "height_cm": {
+            "anyOf": [
+              {
+                "maximum": 220.0,
+                "minimum": 90.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
           "id": {
             "maxLength": 64,
             "minLength": 1,
@@ -7340,6 +7353,19 @@
             "default": 0,
             "title": "Embedding Count",
             "type": "integer"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "maximum": 220.0,
+                "minimum": 90.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
           },
           "id": {
             "title": "Id",
@@ -7409,6 +7435,19 @@
               }
             ],
             "title": "Cts Alert Config"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "maximum": 220.0,
+                "minimum": 90.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
           },
           "is_active": {
             "anyOf": [
@@ -11024,6 +11063,119 @@
           "created_at"
         ],
         "title": "PersonEnrollmentOut",
+        "type": "object"
+      },
+      "PersonHeightProfileOut": {
+        "description": "Combined operator-entered height and CTS effective standing height profile.",
+        "properties": {
+          "cameras": {
+            "default": 0,
+            "title": "Cameras",
+            "type": "integer"
+          },
+          "cts_available": {
+            "default": true,
+            "title": "Cts Available",
+            "type": "boolean"
+          },
+          "effective_height_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Height M"
+          },
+          "effective_sigma_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Sigma M"
+          },
+          "operator_height_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Height Cm"
+          },
+          "person_id": {
+            "title": "Person Id",
+            "type": "string"
+          },
+          "samples": {
+            "default": 0,
+            "title": "Samples",
+            "type": "integer"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "operator",
+                  "learned"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "person_id"
+        ],
+        "title": "PersonHeightProfileOut",
+        "type": "object"
+      },
+      "PersonHeightSyncItem": {
+        "description": "Minimal member standing-height entry synced to CTS.",
+        "properties": {
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "person_id": {
+            "title": "Person Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "person_id"
+        ],
+        "title": "PersonHeightSyncItem",
         "type": "object"
       },
       "PersonLocationEnvelope": {
@@ -33904,6 +34056,37 @@
         ]
       }
     },
+    "/api/v1/persons/heights": {
+      "get": {
+        "description": "Minimal member height roster for CTS operator-height sync (reads local DB only).",
+        "operationId": "list_member_heights",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PersonHeightSyncItem"
+                  },
+                  "title": "Response List Member Heights",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Member Heights",
+        "tags": [
+          "persons"
+        ]
+      }
+    },
     "/api/v1/persons/locations": {
       "get": {
         "description": "Return current location for every household member with an open segment.\n\nU2/D1: one endpoint for \"where is everyone\" \u2014 fetches the whole household\nin one call. U4 uses this instead of per-person fetches.",
@@ -34350,6 +34533,54 @@
           }
         ],
         "summary": "Get Enrollment",
+        "tags": [
+          "persons"
+        ]
+      }
+    },
+    "/api/v1/persons/{person_id}/height-profile": {
+      "get": {
+        "description": "Return the operator-entered height and effective CTS standing height profile.",
+        "operationId": "get_person_height_profile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonHeightProfileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Person Height Profile",
         "tags": [
           "persons"
         ]

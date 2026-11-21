@@ -6,6 +6,9 @@ class.  No other module may import ``httpx`` for upstream calls.
 
 from __future__ import annotations
 
+from urllib.parse import quote
+
+from backend.core.upstream_errors import UpstreamError
 from backend.integrations._upstream_base import UpstreamClient
 
 
@@ -236,6 +239,17 @@ class OrchestratorClient(UpstreamClient):
     async def identity_readiness(self) -> dict:
         """Identity policies, gallery counts, and camera calibration as CTS runs them."""
         r = await self._request("GET", "/internal/identity/readiness")
+        return r.json()
+
+    async def get_identity_height_profile(self, identity_id: str) -> dict | None:
+        """Fetch the effective CTS standing height profile for *identity_id*, or None on 404."""
+        encoded = quote(identity_id, safe="")
+        try:
+            r = await self._request("GET", f"/internal/identity/height-profiles/{encoded}")
+        except UpstreamError as exc:
+            if exc.status == 404:
+                return None
+            raise
         return r.json()
 
     async def learned_transitions(self) -> dict:

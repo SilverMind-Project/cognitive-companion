@@ -418,6 +418,9 @@
             </v-card>
           </v-col>
           <v-col cols="12">
+            <MemberHeightProfileCard :person-id="personId" />
+          </v-col>
+          <v-col cols="12">
             <MemberPrototypesCard :person-id="personId" />
           </v-col>
         </v-row>
@@ -436,6 +439,7 @@ import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
 import MedicationScheduleCard from "../../components/person/MedicationScheduleCard.vue";
+import MemberHeightProfileCard from "../../components/person/MemberHeightProfileCard.vue";
 import MemberPrototypesCard from "../../components/person/MemberPrototypesCard.vue";
 import PersonTimeline from "../../components/person/PersonTimeline.vue";
 import PresenceWidget from "../../components/cts/PresenceWidget.vue";

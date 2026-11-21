@@ -15,6 +15,7 @@ type Schemas = components["schemas"];
 export type PersonLocationEnvelope = Schemas["PersonLocationEnvelope"];
 export type HouseholdMemberOut = Schemas["HouseholdMemberOut"];
 export type RosterHealthEnvelope = Schemas["RosterHealthEnvelope"];
+export type PersonHeightProfileOut = Schemas["PersonHeightProfileOut"];
 
 type HeatmapParams = operations["get_heatmap"]["parameters"]["query"];
 
@@ -81,6 +82,15 @@ export const enrollPerson = (id: string, formData: FormData) =>
 export const deleteEnrollment = (id: string) =>
   unwrap(
     client.DELETE("/api/v1/persons/{person_id}/enrollment", {
+      params: { path: { person_id: id } },
+    }),
+  );
+
+// ─── Standing height profile (operator entry + CTS effective profile) ──────
+
+export const getPersonHeightProfile = (id: string) =>
+  unwrap(
+    client.GET("/api/v1/persons/{person_id}/height-profile", {
       params: { path: { person_id: id } },
     }),
   );

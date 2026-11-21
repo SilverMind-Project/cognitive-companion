@@ -340,6 +340,8 @@ class ReIDReviewService:
             state=raw["state"],
             label_source=raw.get("label_source"),
             candidate_reason=raw.get("candidate_reason"),
+            seed_source=raw.get("seed_source", "face"),
+            seed_association_id=raw.get("seed_association_id"),
             model_version=raw.get("model_version"),
             preprocessing_version=raw.get("preprocessing_version"),
             dimension=raw.get("dimension"),

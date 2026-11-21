@@ -90,6 +90,16 @@ describe("useReIDReview", () => {
     expect(state.filters.value.camera_id).toBe("kitchen-1");
   });
 
+  it("filters by where the label came from", async () => {
+    mockSvc.list.mockResolvedValue({ candidates: [], total: 0, limit: 25, offset: 0 });
+    const { state, actions } = useReIDReview(notify);
+    expect(state.filters.value.seed_source).toBeNull();
+    await actions.setFilter("seed_source", "wearable_room_attested");
+    expect(mockSvc.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ seed_source: "wearable_room_attested", offset: 0 }),
+    );
+  });
+
   it("a stale earlier list response cannot overwrite a newer one", async () => {
     const { state, actions } = useReIDReview(notify);
     let resolveSlow;

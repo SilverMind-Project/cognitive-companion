@@ -116,6 +116,8 @@ class CTSIdentityReadiness(BaseModel):
     expected_arcface_model_version: str | None
     expected_quality_version: str
     reid_gallery_counts: CTSGalleryCounts | None
+    # Rows a wearable taught, by state; absent from an orchestrator that predates them.
+    wearable_gallery_counts: CTSGalleryCounts | None = None
     cameras: list[CTSCameraCalibration]
     overlap_group_count: int | None
     identities_known: int | None

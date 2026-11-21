@@ -22,6 +22,9 @@ from backend.routers.dependencies import (
     get_identity_review_registry,
 )
 from backend.schemas.face_calibration import (
+    AttestationAuditSummaryEnvelope,
+    AttestedFaceListResponse,
+    AuditAttestedFaceRequest,
     CalibrationCandidateListResponse,
     CalibrationCandidateView,
     FaceCalibrationReviewRequest,
@@ -155,7 +158,9 @@ async def delete_calibration_candidate(
     return Response(status_code=204)
 
 
-@router.post("/candidates/{candidate_id}/promote", response_model=PromoteCalibrationCandidateResponse)
+@router.post(
+    "/candidates/{candidate_id}/promote", response_model=PromoteCalibrationCandidateResponse
+)
 async def promote_calibration_candidate(
     candidate_id: str,
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
@@ -185,5 +190,76 @@ async def get_face_calibration_summary(
 ) -> FaceCalibrationSummaryEnvelope:
     try:
         return await svc.get_summary()
+    except PersonIDUpstreamError as exc:
+        raise _upstream(exc) from exc
+
+
+# -- Wearable-attested faces --------------------------------------------------
+#
+# A wearable association labeled these faces in person-identification-service. They sit outside
+# the labeling queue: an operator audits a random sample (the audit decides whether the labels
+# may ever calibrate) and may promote a good one into recognition, one face at a time.
+
+
+@router.get("/attestations", response_model=AttestedFaceListResponse)
+async def list_attested_faces(
+    identity_id: str | None = Query(default=None, min_length=1, max_length=64),
+    audited: bool | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
+    minio: MinioClient = Depends(get_config_minio_client),
+    _auth: AuthContext = Depends(require_token(_REVIEW)),
+) -> AttestedFaceListResponse:
+    try:
+        return await svc.list_attested(
+            identity_id=identity_id, audited=audited, limit=limit, presign=_presigner(minio)
+        )
+    except PersonIDUpstreamError as exc:
+        raise _upstream(exc) from exc
+
+
+@router.get("/attestations/audit-sample", response_model=AttestedFaceListResponse)
+async def get_attested_face_audit_sample(
+    n: int = Query(default=50, ge=1, le=200),
+    svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
+    minio: MinioClient = Depends(get_config_minio_client),
+    _auth: AuthContext = Depends(require_token(_REVIEW)),
+) -> AttestedFaceListResponse:
+    """A uniform random sample drawn upstream, so the auditor never chooses which faces to judge."""
+    try:
+        return await svc.attestation_audit_sample(n=n, presign=_presigner(minio))
+    except PersonIDUpstreamError as exc:
+        raise _upstream(exc) from exc
+
+
+@router.post("/attestations/{candidate_id}/audit", response_model=CalibrationCandidateView)
+async def audit_attested_face(
+    candidate_id: str,
+    body: AuditAttestedFaceRequest,
+    svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
+    minio: MinioClient = Depends(get_config_minio_client),
+    auth: AuthContext = Depends(require_token(_REVIEW)),
+) -> CalibrationCandidateView:
+    """Record whether a wearable-attested label is right; changes no label or gallery."""
+    actor = actor_from_auth(auth)
+    try:
+        result = await svc.audit_attested_face(
+            candidate_id, verdict=body.verdict, actor=actor, presign=_presigner(minio)
+        )
+    except PersonIDUpstreamError as exc:
+        raise _upstream(exc) from exc
+    logger.info(
+        "face_attestation_audited", candidate_id=candidate_id, verdict=body.verdict, actor=actor
+    )
+    return result
+
+
+@router.get("/attestations/audit-summary", response_model=AttestationAuditSummaryEnvelope)
+async def get_attested_face_audit_summary(
+    svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
+    _auth: AuthContext = Depends(require_token(_REVIEW)),
+) -> AttestationAuditSummaryEnvelope:
+    try:
+        return await svc.attestation_audit_summary()
     except PersonIDUpstreamError as exc:
         raise _upstream(exc) from exc

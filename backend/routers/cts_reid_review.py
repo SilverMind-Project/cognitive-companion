@@ -37,6 +37,7 @@ from backend.schemas.cts_reid_review import (
     ReviewCandidateView,
     ReviewCountsResponse,
     ReviewEventsResponse,
+    SeedSource,
 )
 from backend.schemas.identity_review import BatchReviewResponse
 from backend.services.cts.reid_review_service import (
@@ -77,6 +78,7 @@ async def list_candidates(
     camera_id: str | None = None,
     model_version: str | None = None,
     source_type: str | None = None,
+    seed_source: SeedSource | None = None,
     since: datetime | None = None,
     until: datetime | None = None,
     limit: int = 50,
@@ -94,6 +96,8 @@ async def list_candidates(
         params["model_version"] = model_version
     if source_type:
         params["source_type"] = source_type
+    if seed_source:
+        params["seed_source"] = seed_source
     if since:
         params["since"] = since.isoformat()
     if until:

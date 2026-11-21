@@ -261,3 +261,41 @@ async def test_adapter_refuses_approval_bad_reasons_and_missing_versions(decisio
     with pytest.raises(AppValidationError):
         await ReIDReviewAdapter(service).apply(decision, actor="a")
     service.reject_many.assert_not_called()
+
+
+async def test_seed_source_round_trips_and_defaults_to_face(service_and_client):
+    service, client = service_and_client
+    wearable = _raw_candidate(state="pending_review") | {
+        "seed_source": "wearable_room_attested",
+        "seed_association_id": "seg-1",
+        "confidence": None,
+    }
+    client.get_review_candidate = AsyncMock(
+        return_value={
+            "candidate": wearable,
+            "events": [],
+            "eligibility": {"eligible": True, "model_compatible": True, "reasons": []},
+        }
+    )
+    detail = await service.get_detail("c1", presign=_presign)
+    assert (detail.candidate.seed_source, detail.candidate.seed_association_id) == (
+        "wearable_room_attested",
+        "seg-1",
+    )
+    client.get_review_candidate = AsyncMock(
+        return_value={
+            "candidate": _raw_candidate(),
+            "events": [],
+            "eligibility": {"eligible": True, "model_compatible": True, "reasons": []},
+        }
+    )
+    assert (await service.get_detail("c1", presign=_presign)).candidate.seed_source == "face"
+    client.get_review_candidate = AsyncMock(
+        return_value={
+            "candidate": _raw_candidate() | {"seed_source": "guess"},
+            "events": [],
+            "eligibility": {"eligible": True, "model_compatible": True, "reasons": []},
+        }
+    )
+    with pytest.raises(ReviewContractError):
+        await service.get_detail("c1", presign=_presign)

@@ -466,6 +466,14 @@ def body_gallery_step(cts: CTSIdentityReadiness | SourceFailure) -> ReadinessSte
         f"{voting} voting samples ({counts.operator_verified} operator verified), "
         f"{counts.pending_review} waiting for review, {counts.rejected} rejected."
     )
+    taught = cts.wearable_gallery_counts
+    if taught is not None and (
+        taught.pending_review + taught.auto_verified + taught.operator_verified + taught.rejected
+    ):
+        summary += (
+            f" Of these, a wearable taught {taught.auto_verified + taught.operator_verified} "
+            f"voting and {taught.pending_review} waiting for review."
+        )
     if counts.pending_review:
         return ReadinessStep(
             key="body_gallery",

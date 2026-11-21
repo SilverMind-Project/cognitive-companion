@@ -2432,6 +2432,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/face-calibration/attestations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Attested Faces */
+        get: operations["list_attested_faces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/face-calibration/attestations/audit-sample": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Attested Face Audit Sample
+         * @description A uniform random sample drawn upstream, so the auditor never chooses which faces to judge.
+         */
+        get: operations["get_attested_face_audit_sample"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/face-calibration/attestations/audit-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Attested Face Audit Summary */
+        get: operations["get_attested_face_audit_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/face-calibration/attestations/{candidate_id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Audit Attested Face
+         * @description Record whether a wearable-attested label is right; changes no label or gallery.
+         */
+        post: operations["audit_attested_face"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/face-calibration/candidates": {
         parameters: {
             query?: never;
@@ -6040,6 +6114,55 @@ export interface components {
             note?: string | null;
         };
         /**
+         * AttestationAuditSummaryEnvelope
+         * @description How far the audit of wearable-attested face labels has come (counts only).
+         */
+        AttestationAuditSummaryEnvelope: {
+            /** Attested */
+            attested: number;
+            /** Audited */
+            audited: number;
+            /** Correct */
+            correct: number;
+            /**
+             * Meets Bar
+             * @description Attested labels may be used in the next calibration fit
+             */
+            meets_bar: boolean;
+            /** Min Audited */
+            min_audited: number;
+            /** Min Precision Lower Bound */
+            min_precision_lower_bound: number;
+            /** Not A Face */
+            not_a_face: number;
+            /**
+             * Precision Lower Bound
+             * @description Wilson 95% lower bound of correct / audited; null before any audit
+             */
+            precision_lower_bound: number | null;
+            /** Wrong */
+            wrong: number;
+        };
+        /**
+         * AttestedFaceListResponse
+         * @description Faces a wearable labeled; never in the labeling queue and never enrolled by themselves.
+         */
+        AttestedFaceListResponse: {
+            /** Candidates */
+            candidates: components["schemas"]["CalibrationCandidateView"][];
+        };
+        /**
+         * AuditAttestedFaceRequest
+         * @description The auditor is the authenticated caller; the browser never names one.
+         */
+        AuditAttestedFaceRequest: {
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "correct" | "wrong" | "not_a_face";
+        };
+        /**
          * AutoCalibrateRequest
          * @description Request body for depth-based automatic homography estimation.
          *
@@ -6385,6 +6508,17 @@ export interface components {
         };
         /** CalibrationCandidateView */
         CalibrationCandidateView: {
+            /**
+             * Attestation Grade
+             * @description For a wearable-attested face: the grade of the association that labeled it. Room grade means the member was the only person in the room with the tag.
+             */
+            attestation_grade?: ("room" | "trajectory") | null;
+            /** Audit Verdict */
+            audit_verdict?: ("correct" | "wrong" | "not_a_face") | null;
+            /** Audited At */
+            audited_at?: string | null;
+            /** Audited By */
+            audited_by?: string | null;
             /** Camera Id */
             camera_id: string;
             /** Candidate Id */
@@ -6409,7 +6543,7 @@ export interface components {
              * Label State
              * @enum {string}
              */
-            label_state: "unlabeled" | "labeled" | "rejected";
+            label_state: "unlabeled" | "labeled" | "rejected" | "attested";
             /** Labeled At */
             labeled_at?: string | null;
             /** Labeled By */
@@ -10813,6 +10947,15 @@ export interface components {
             reviewed_actor?: string | null;
             /** Reviewed Time */
             reviewed_time?: string | null;
+            /** Seed Association Id */
+            seed_association_id?: string | null;
+            /**
+             * Seed Source
+             * @description Where the row's identity label came from: a recognized face, a wearable whose track was matched to this person (wearable_attested, votes at reduced trust until approved), or a wearable that was alone in the room with this person (wearable_room_attested, never votes until approved)
+             * @default face
+             * @enum {string}
+             */
+            seed_source: "face" | "wearable_attested" | "wearable_room_attested" | "operator";
             /** Seen At */
             seen_at?: string | null;
             /** Source Episode Id */
@@ -15427,6 +15570,7 @@ export interface operations {
                 camera_id?: string | null;
                 model_version?: string | null;
                 source_type?: string | null;
+                seed_source?: ("face" | "wearable_attested" | "wearable_room_attested" | "operator") | null;
                 since?: string | null;
                 until?: string | null;
                 limit?: number;
@@ -17279,6 +17423,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventLogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_attested_faces: {
+        parameters: {
+            query?: {
+                identity_id?: string | null;
+                audited?: boolean | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttestedFaceListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_attested_face_audit_sample: {
+        parameters: {
+            query?: {
+                n?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttestedFaceListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_attested_face_audit_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttestationAuditSummaryEnvelope"];
+                };
+            };
+        };
+    };
+    audit_attested_face: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                candidate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuditAttestedFaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalibrationCandidateView"];
                 };
             };
             /** @description Validation Error */

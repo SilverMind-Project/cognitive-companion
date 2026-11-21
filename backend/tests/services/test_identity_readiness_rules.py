@@ -381,3 +381,18 @@ def test_roster_step_reports_prototype_counts_without_identity_ids() -> None:
     assert "Face prototypes across enrolled members: 5 frontal, 1 left, 0 right, 1 down." in step.detail
     assert "secret-member-id-1" not in step.detail
     assert "secret-member-id-2" not in step.detail
+
+
+def test_body_gallery_names_what_a_wearable_taught() -> None:
+    cts = _cts(counts=_counts(pending=2, auto=3)).model_copy(
+        update={"wearable_gallery_counts": _counts(pending=2, auto=1)}
+    )
+    step = body_gallery_step(cts)
+    assert step.state == "attention"
+    assert step.detail.endswith("Of these, a wearable taught 1 voting and 2 waiting for review.")
+    # Nothing taught yet (or an orchestrator without the field): no wearable sentence.
+    untaught = _cts(counts=_counts(auto=3)).model_copy(
+        update={"wearable_gallery_counts": _counts()}
+    )
+    assert "wearable" not in body_gallery_step(untaught).detail
+    assert "wearable" not in body_gallery_step(_cts(counts=_counts(auto=3))).detail

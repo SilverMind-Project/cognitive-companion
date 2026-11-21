@@ -128,7 +128,11 @@ Each item shows:
 - source PH, observation, keyframe, and correction links;
 - a state chip visually distinct for all four lifecycle states (`pending_review`, `auto_verified`,
   `operator_verified`, `rejected`; identity-continuity M02 added `auto_verified`), and a state
-  filter option covering all four.
+  filter option covering all four;
+- where the label came from (`seed_source`: `face`, `wearable_attested`,
+  `wearable_room_attested`, `operator`, mirrored in `backend/schemas/cts_reid_review.py`), shown
+  as a chip with copy that says a wearable on the wrong wrist labels the wrong person, and a
+  filter. Room-attested rows always arrive `pending_review`.
 
 Actions are `Approve`, `Reject`, `Relabel`, and `Demote`, offered through the shared verdict bar:
 choosing the proposed member approves, choosing another relabels, "Not in the household" rejects as
@@ -228,6 +232,15 @@ household calibration. It is a biometric-admin surface, separate from visitor re
 - Delete removes the row and its crop in person-id and goes through `useConfirm` (if the capture
   was already promoted, its promoted embedding stays in the gallery while the thumbnail reference
   is cleared).
+
+Wearable-attested faces are a third mode of the same page ("Attested faces",
+`AttestedFacesPanel` with `useAttestedFaceAudit`): faces a wearable association labeled in
+person-id (`label_state = attested`). They never enter the labeling queue. The operator judges a
+uniform random sample the server draws (`GET /api/v1/face-calibration/attestations/audit-sample`;
+keys `c` right person, `w` wrong person, `x` not a face), sees the audit summary and whether the
+precision bar is met (server-computed), and may promote one face at a time through the same
+promote route and a confirm that asks to check the person. The auditor is
+`actor_from_auth(auth)`; every route uses `face_calibration.review`.
 
 Required tests: router permission and presign tests, the person-id client envelope tests (502 on
 a malformed upstream), the MCP/BFF parity test for the summary, and composable and view tests for

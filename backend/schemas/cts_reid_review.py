@@ -32,6 +32,8 @@ RejectReasonCode = Literal[
 # out-of-vocabulary state from a stale or newer upstream is a contract violation
 # (502), not silently accepted.
 ReviewState = Literal["pending_review", "auto_verified", "operator_verified", "rejected"]
+# Mirrors CTS GallerySeedSource (reid_gallery.seed_source); change both together.
+SeedSource = Literal["face", "wearable_attested", "wearable_room_attested", "operator"]
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +58,16 @@ class ReviewCandidateView(BaseModel):
     state: ReviewState
     label_source: str | None = None
     candidate_reason: str | None = None
+    seed_source: SeedSource = Field(
+        "face",
+        description=(
+            "Where the row's identity label came from: a recognized face, a wearable whose "
+            "track was matched to this person (wearable_attested, votes at reduced trust until "
+            "approved), or a wearable that was alone in the room with this person "
+            "(wearable_room_attested, never votes until approved)"
+        ),
+    )
+    seed_association_id: str | None = None
     model_version: str | None = None
     preprocessing_version: str | None = None
     dimension: int | None = None

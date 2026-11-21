@@ -36,6 +36,8 @@ export function useReIDReview(notify) {
     camera_id: null,
     model_version: null,
     source_type: null,
+    // Where the label came from: a face, or a wearable (path matched or alone in the room).
+    seed_source: null,
   });
 
   // -- selection (batch reject only) ---------------------------------------

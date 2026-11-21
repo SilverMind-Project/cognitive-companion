@@ -17,6 +17,8 @@ from backend.integrations.person_id_client import (
     PrototypeInfo,
 )
 from backend.schemas.face_calibration import (
+    AttestationAuditSummaryEnvelope,
+    AttestedFaceListResponse,
     CalibrationCandidateListResponse,
     CalibrationCandidateView,
     CalibrationIdentityProgressView,
@@ -124,6 +126,47 @@ class FaceCalibrationReviewService:
     async def delete_prototype(self, person_id: str, prototype_id: str) -> None:
         await self._client.delete_member_prototype(person_id, prototype_id)
 
+    async def list_attested(
+        self,
+        *,
+        identity_id: str | None,
+        audited: bool | None,
+        limit: int,
+        presign: Presigner = _no_presign,
+    ) -> AttestedFaceListResponse:
+        faces = await self._client.list_attested_faces(
+            identity_id=identity_id, audited=audited, limit=limit
+        )
+        return AttestedFaceListResponse(candidates=[self._view(c, presign) for c in faces])
+
+    async def attestation_audit_sample(
+        self, *, n: int, presign: Presigner = _no_presign
+    ) -> AttestedFaceListResponse:
+        faces = await self._client.get_attestation_audit_sample(n)
+        return AttestedFaceListResponse(candidates=[self._view(c, presign) for c in faces])
+
+    async def audit_attested_face(
+        self, candidate_id: str, *, verdict: str, actor: str, presign: Presigner = _no_presign
+    ) -> CalibrationCandidateView:
+        audited = await self._client.audit_attested_face(
+            candidate_id, verdict=verdict, audited_by=actor
+        )
+        return self._view(audited, presign)
+
+    async def attestation_audit_summary(self) -> AttestationAuditSummaryEnvelope:
+        s = await self._client.get_attestation_audit_summary()
+        return AttestationAuditSummaryEnvelope(
+            attested=s.attested,
+            audited=s.audited,
+            correct=s.correct,
+            wrong=s.wrong,
+            not_a_face=s.not_a_face,
+            precision_lower_bound=s.precision_lower_bound,
+            min_audited=s.min_audited,
+            min_precision_lower_bound=s.min_precision_lower_bound,
+            meets_bar=s.meets_bar,
+        )
+
     async def get_summary(self) -> FaceCalibrationSummaryEnvelope:
         summary = await self._client.get_calibration_summary()
         return FaceCalibrationSummaryEnvelope(
@@ -168,6 +211,10 @@ class FaceCalibrationReviewService:
             promoted=c.promoted,
             promotion_eligible=c.promotion_eligible,
             promotion_ineligible_reason=c.promotion_ineligible_reason,
+            attestation_grade=c.attestation_grade,
+            audit_verdict=c.audit_verdict,
+            audited_by=c.audited_by,
+            audited_at=c.audited_at,
         )
 
     @staticmethod

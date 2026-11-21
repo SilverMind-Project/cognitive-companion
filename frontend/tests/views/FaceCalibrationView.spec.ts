@@ -31,6 +31,11 @@ vi.mock("@/composables/useFaceCalibrationReview", () => ({
   useFaceCalibrationReview: () => store.value,
 }));
 
+const { attestedAudit } = vi.hoisted(() => ({ attestedAudit: { value: undefined as unknown } }));
+vi.mock("@/composables/useAttestedFaceAudit", () => ({
+  useAttestedFaceAudit: () => attestedAudit.value,
+}));
+
 const { readinessSteps } = vi.hoisted(() => ({
   readinessSteps: { value: {} as Record<string, unknown> },
 }));
@@ -152,7 +157,26 @@ function press(key: string, target: EventTarget = window) {
   target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
 }
 
+function makeAttestedAudit() {
+  const state = reactive({
+    sample: [] as unknown[],
+    index: 0,
+    exemplars: [] as unknown[],
+    summary: null,
+    loading: false,
+    error: "",
+    forbidden: false,
+    acting: false,
+  });
+  return {
+    state,
+    current: computed(() => null),
+    actions: { load: vi.fn(), audit: vi.fn(), promote: vi.fn(), next: vi.fn(), previous: vi.fn() },
+  };
+}
+
 beforeEach(() => {
+  attestedAudit.value = makeAttestedAudit();
   store.value = makeStore();
   confirmResult.value = true;
   confirmResult.asked = [];
@@ -363,5 +387,35 @@ describe("FaceCalibrationView", () => {
     expect(wrapper.get("[data-test='promote']").attributes("disabled")).toBeDefined();
     expect(wrapper.get("[data-test='promotion-reason']").text()).toContain("quality below 0.5");
     wrapper.unmount();
+  });
+});
+
+describe("FaceCalibrationView attested faces", () => {
+  it("switches to the attested-face audit, loads it, and leaves the labeling queue alone", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    const audit = attestedAudit.value as ReturnType<typeof makeAttestedAudit>;
+    wrapper.findComponent({ name: "CcSegmentedToggle" }).vm.$emit("update:modelValue", "attested");
+    await flushPromises();
+    expect(audit.actions.load).toHaveBeenCalledTimes(1);
+    expect(wrapper.find("[data-test=attested-faces]").exists()).toBe(true);
+    expect(wrapper.find("[data-test=current-capture]").exists()).toBe(false);
+    expect(current().actions.setQueueState).not.toHaveBeenCalled();
+  });
+
+  it("promotes an attested face only after a confirm that asks to check the person", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    const audit = attestedAudit.value as ReturnType<typeof makeAttestedAudit>;
+    wrapper.findComponent({ name: "CcSegmentedToggle" }).vm.$emit("update:modelValue", "attested");
+    await flushPromises();
+    wrapper.findComponent({ name: "AttestedFacesPanel" }).vm.$emit("promote", {
+      candidate_id: "g1",
+      label_identity_id: "amma",
+      pose_bin: "left",
+    });
+    await flushPromises();
+    expect(confirmResult.asked.at(-1)).toContain("Check that it really is");
+    expect(audit.actions.promote).toHaveBeenCalledWith("g1");
   });
 });

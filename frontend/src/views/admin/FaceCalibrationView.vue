@@ -15,7 +15,7 @@
       </div>
       <v-spacer />
       <CcSegmentedToggle
-        :model-value="queueState"
+        :model-value="showAttested ? 'attested' : queueState"
         :options="QUEUE_STATE_OPTIONS"
         size="default"
         data-test="queue-state-toggle"
@@ -32,247 +32,264 @@
       </v-chip>
     </div>
 
-    <v-alert
-      v-if="state.forbidden"
-      type="warning"
-      variant="tonal"
-      class="mb-4"
-      data-test="forbidden"
-    >
-      Labeling faces for calibration needs the face calibration review permission, which only
-      caregiver admins hold.
-    </v-alert>
+    <AttestedFacesPanel
+      v-if="showAttested"
+      :audit="attested"
+      :resident-name="residentName"
+      :keys-enabled="!confirmDialog"
+      @promote="onPromoteAttested"
+    />
 
-    <v-alert v-if="state.error" type="error" variant="tonal" class="mb-4" data-test="load-error">
-      {{ state.error }}
-      <template #append>
-        <v-btn size="small" variant="text" @click="actions.load">Retry</v-btn>
-      </template>
-    </v-alert>
-
-    <ReviewSelectionToolbar
-      v-if="queueState === 'unlabeled' && !state.loading && !state.forbidden && state.queue.length"
-      class="mb-4"
-      :active="state.selecting"
-      :selectable-count="state.queue.length"
-      :selected-count="state.selection.length"
-      @update:active="actions.setSelecting"
-      @select-all="actions.selectAll"
-      @clear="actions.clearSelection"
-    >
-      <v-btn
-        v-for="verdict in batchVerdicts"
-        :key="verdict.verdict"
-        size="small"
-        variant="outlined"
-        :disabled="!state.selection.length"
-        :loading="state.acting"
-        :data-test="`batch-${verdict.verdict}`"
-        @click="onBatch(verdict.verdict)"
+    <template v-else>
+      <v-alert
+        v-if="state.forbidden"
+        type="warning"
+        variant="tonal"
+        class="mb-4"
+        data-test="forbidden"
       >
-        {{ VERDICT_LABELS[verdict.verdict] }}
-      </v-btn>
-      <span class="text-caption text-medium-emphasis">
-        Members are labeled one face at a time.
-      </span>
-    </ReviewSelectionToolbar>
+        Labeling faces for calibration needs the face calibration review permission, which only
+        caregiver admins hold.
+      </v-alert>
 
-    <div v-if="state.loading" class="d-flex justify-center pa-8">
-      <v-progress-circular indeterminate color="primary" />
-    </div>
+      <v-alert v-if="state.error" type="error" variant="tonal" class="mb-4" data-test="load-error">
+        {{ state.error }}
+        <template #append>
+          <v-btn size="small" variant="text" @click="actions.load">Retry</v-btn>
+        </template>
+      </v-alert>
 
-    <v-row
-      v-else-if="!state.forbidden && state.selecting && state.queue.length"
-      data-test="selection-grid"
-    >
-      <v-col v-for="capture in state.queue" :key="capture.candidate_id" cols="6" sm="3" md="2">
-        <button
-          type="button"
-          class="calibration-tile"
-          :class="{ 'calibration-tile--selected': state.selection.includes(capture.candidate_id) }"
-          :aria-pressed="state.selection.includes(capture.candidate_id)"
-          :data-test="`tile-${capture.candidate_id}`"
-          @click="actions.toggleSelection(capture.candidate_id)"
+      <ReviewSelectionToolbar
+        v-if="
+          queueState === 'unlabeled' && !state.loading && !state.forbidden && state.queue.length
+        "
+        class="mb-4"
+        :active="state.selecting"
+        :selectable-count="state.queue.length"
+        :selected-count="state.selection.length"
+        @update:active="actions.setSelecting"
+        @select-all="actions.selectAll"
+        @clear="actions.clearSelection"
+      >
+        <v-btn
+          v-for="verdict in batchVerdicts"
+          :key="verdict.verdict"
+          size="small"
+          variant="outlined"
+          :disabled="!state.selection.length"
+          :loading="state.acting"
+          :data-test="`batch-${verdict.verdict}`"
+          @click="onBatch(verdict.verdict)"
         >
-          <img
-            v-if="capture.crop_url"
-            :src="capture.crop_url"
-            alt="Aligned face crop"
-            class="calibration-tile__crop"
-          />
-          <span v-else class="text-caption">Crop unavailable</span>
-        </button>
-      </v-col>
-    </v-row>
+          {{ VERDICT_LABELS[verdict.verdict] }}
+        </v-btn>
+        <span class="text-caption text-medium-emphasis">
+          Members are labeled one face at a time.
+        </span>
+      </ReviewSelectionToolbar>
 
-    <v-row v-else-if="!state.forbidden">
-      <v-col cols="12" md="7">
-        <v-card v-if="current" class="glass-card pa-4" data-test="current-capture">
-          <div class="d-flex ga-4 flex-wrap">
+      <div v-if="state.loading" class="d-flex justify-center pa-8">
+        <v-progress-circular indeterminate color="primary" />
+      </div>
+
+      <v-row
+        v-else-if="!state.forbidden && state.selecting && state.queue.length"
+        data-test="selection-grid"
+      >
+        <v-col v-for="capture in state.queue" :key="capture.candidate_id" cols="6" sm="3" md="2">
+          <button
+            type="button"
+            class="calibration-tile"
+            :class="{
+              'calibration-tile--selected': state.selection.includes(capture.candidate_id),
+            }"
+            :aria-pressed="state.selection.includes(capture.candidate_id)"
+            :data-test="`tile-${capture.candidate_id}`"
+            @click="actions.toggleSelection(capture.candidate_id)"
+          >
             <img
-              v-if="current.crop_url"
-              :src="current.crop_url"
+              v-if="capture.crop_url"
+              :src="capture.crop_url"
               alt="Aligned face crop"
-              class="calibration-crop"
+              class="calibration-tile__crop"
             />
-            <div v-else class="calibration-crop d-flex align-center justify-center text-caption">
-              Crop unavailable
+            <span v-else class="text-caption">Crop unavailable</span>
+          </button>
+        </v-col>
+      </v-row>
+
+      <v-row v-else-if="!state.forbidden">
+        <v-col cols="12" md="7">
+          <v-card v-if="current" class="glass-card pa-4" data-test="current-capture">
+            <div class="d-flex ga-4 flex-wrap">
+              <img
+                v-if="current.crop_url"
+                :src="current.crop_url"
+                alt="Aligned face crop"
+                class="calibration-crop"
+              />
+              <div v-else class="calibration-crop d-flex align-center justify-center text-caption">
+                Crop unavailable
+              </div>
+              <div class="text-body-2">
+                <div><strong>Camera</strong> {{ current.camera_id }}</div>
+                <div><strong>Captured</strong> {{ formatDateTime(current.captured_at) }}</div>
+                <div><strong>Face quality</strong> {{ current.quality_score.toFixed(2) }}</div>
+                <div v-if="current.pose_bin"><strong>Pose</strong> {{ current.pose_bin }}</div>
+                <div>
+                  <strong>Eye distance</strong>
+                  {{
+                    current.interocular_px == null
+                      ? "unmeasured"
+                      : `${current.interocular_px.toFixed(0)} px`
+                  }}
+                </div>
+                <div>
+                  <strong>Closest member</strong> {{ current.nearest_person_id ?? "none" }}
+                  <span class="text-medium-emphasis">
+                    (similarity {{ current.nearest_similarity.toFixed(2) }})
+                  </span>
+                </div>
+                <div
+                  v-if="queueState === 'labeled'"
+                  class="d-flex align-center flex-wrap ga-2 mt-2"
+                >
+                  <v-chip size="small" variant="tonal" color="primary" data-test="label-chip">
+                    {{ labelSummary(current) }}
+                  </v-chip>
+                  <v-chip
+                    v-if="current.promoted"
+                    size="small"
+                    variant="tonal"
+                    color="success"
+                    data-test="promoted-chip"
+                  >
+                    Promoted
+                  </v-chip>
+                </div>
+                <div class="text-medium-emphasis mt-2">
+                  {{ state.index + 1 }} of {{ state.queue.length }}{{ state.nextCursor ? "+" : "" }}
+                </div>
+              </div>
+            </div>
+
+            <ReviewVerdictBar
+              v-if="queueState === 'unlabeled'"
+              class="mt-4"
+              surface="face_calibration"
+              :members="keyedResidents"
+              :disabled="state.acting"
+              @member="onMember"
+              @verdict="onVerdict"
+            />
+
+            <div
+              v-else-if="current.label_kind === 'member'"
+              class="d-flex align-center flex-wrap ga-3 mt-4"
+              data-test="promotion-bar"
+            >
+              <v-btn
+                size="small"
+                color="primary"
+                variant="flat"
+                :disabled="state.acting || current.promoted || !current.promotion_eligible"
+                :loading="state.acting"
+                :title="promotionReason(current)"
+                data-test="promote"
+                @click="onPromote"
+              >
+                Use for recognition
+              </v-btn>
+              <span
+                v-if="promotionReason(current)"
+                class="text-caption text-medium-emphasis"
+                data-test="promotion-reason"
+              >
+                {{ promotionReason(current) }}
+              </span>
+            </div>
+            <div class="d-flex ga-2 mt-3">
+              <v-btn size="small" variant="text" :disabled="state.acting" @click="actions.previous"
+                >Previous</v-btn
+              >
+              <v-btn size="small" variant="text" :disabled="state.acting" @click="actions.next">{{
+                queueState === "labeled" ? "Next" : "Skip"
+              }}</v-btn>
+              <v-spacer />
+              <v-btn
+                v-if="queueState === 'unlabeled'"
+                size="small"
+                variant="text"
+                :disabled="state.acting"
+                title="Unusable for any purpose: the capture is set aside and deleted with the rest"
+                data-test="reject"
+                @click="actions.reject"
+                >Reject capture</v-btn
+              >
+              <v-btn
+                size="small"
+                variant="text"
+                color="error"
+                :disabled="state.acting"
+                data-test="delete"
+                @click="onDelete"
+              >
+                Delete
+              </v-btn>
+            </div>
+          </v-card>
+
+          <v-card v-else flat class="pa-8 text-center glass-card" data-test="empty-queue">
+            <v-card-text class="text-grey text-h6">{{
+              queueState === "labeled" ? "No labeled captures yet" : "Nothing waiting to be labeled"
+            }}</v-card-text>
+            <v-card-text v-if="captureOffNextAction" class="text-grey" data-test="capture-next">
+              Capture is off, so there is nothing to label. Next:
+              {{ captureOffNextAction }}.
+              <router-link to="/admin/identity-setup">See identity setup</router-link>
+            </v-card-text>
+            <v-card-text v-else class="text-grey">
+              Captures appear here while calibration capture is switched on in the person
+              identification service settings.
+            </v-card-text>
+          </v-card>
+        </v-col>
+
+        <v-col cols="12" md="5">
+          <v-card v-if="state.summary" class="glass-card pa-4" data-test="progress">
+            <div class="text-subtitle-1 font-weight-bold mb-2">Progress</div>
+            <div
+              v-for="identity in state.summary.identities"
+              :key="identity.identity_id"
+              class="mb-3"
+            >
+              <div class="d-flex text-body-2">
+                <span>{{ residentName(identity.identity_id) }}</span>
+                <v-spacer />
+                <span
+                  >{{ identity.labeled_faces }} / {{ identity.target_labeled_faces }} faces,
+                  {{ identity.episodes }} walks</span
+                >
+              </div>
+              <v-progress-linear
+                :model-value="
+                  Math.min(100, (100 * identity.labeled_faces) / identity.target_labeled_faces)
+                "
+                rounded
+                height="6"
+              />
             </div>
             <div class="text-body-2">
-              <div><strong>Camera</strong> {{ current.camera_id }}</div>
-              <div><strong>Captured</strong> {{ formatDateTime(current.captured_at) }}</div>
-              <div><strong>Face quality</strong> {{ current.quality_score.toFixed(2) }}</div>
-              <div v-if="current.pose_bin"><strong>Pose</strong> {{ current.pose_bin }}</div>
-              <div>
-                <strong>Eye distance</strong>
-                {{
-                  current.interocular_px == null
-                    ? "unmeasured"
-                    : `${current.interocular_px.toFixed(0)} px`
-                }}
-              </div>
-              <div>
-                <strong>Closest member</strong> {{ current.nearest_person_id ?? "none" }}
-                <span class="text-medium-emphasis">
-                  (similarity {{ current.nearest_similarity.toFixed(2) }})
-                </span>
-              </div>
-              <div v-if="queueState === 'labeled'" class="d-flex align-center flex-wrap ga-2 mt-2">
-                <v-chip size="small" variant="tonal" color="primary" data-test="label-chip">
-                  {{ labelSummary(current) }}
-                </v-chip>
-                <v-chip
-                  v-if="current.promoted"
-                  size="small"
-                  variant="tonal"
-                  color="success"
-                  data-test="promoted-chip"
-                >
-                  Promoted
-                </v-chip>
-              </div>
-              <div class="text-medium-emphasis mt-2">
-                {{ state.index + 1 }} of {{ state.queue.length }}{{ state.nextCursor ? "+" : "" }}
-              </div>
+              Visitors (not enrolled): {{ state.summary.not_enrolled_episodes }} walks
             </div>
-          </div>
-
-          <ReviewVerdictBar
-            v-if="queueState === 'unlabeled'"
-            class="mt-4"
-            surface="face_calibration"
-            :members="keyedResidents"
-            :disabled="state.acting"
-            @member="onMember"
-            @verdict="onVerdict"
-          />
-
-          <div
-            v-else-if="current.label_kind === 'member'"
-            class="d-flex align-center flex-wrap ga-3 mt-4"
-            data-test="promotion-bar"
-          >
-            <v-btn
-              size="small"
-              color="primary"
-              variant="flat"
-              :disabled="state.acting || current.promoted || !current.promotion_eligible"
-              :loading="state.acting"
-              :title="promotionReason(current)"
-              data-test="promote"
-              @click="onPromote"
-            >
-              Use for recognition
-            </v-btn>
-            <span
-              v-if="promotionReason(current)"
-              class="text-caption text-medium-emphasis"
-              data-test="promotion-reason"
-            >
-              {{ promotionReason(current) }}
-            </span>
-          </div>
-          <div class="d-flex ga-2 mt-3">
-            <v-btn size="small" variant="text" :disabled="state.acting" @click="actions.previous"
-              >Previous</v-btn
-            >
-            <v-btn size="small" variant="text" :disabled="state.acting" @click="actions.next">{{
-              queueState === "labeled" ? "Next" : "Skip"
-            }}</v-btn>
-            <v-spacer />
-            <v-btn
-              v-if="queueState === 'unlabeled'"
-              size="small"
-              variant="text"
-              :disabled="state.acting"
-              title="Unusable for any purpose: the capture is set aside and deleted with the rest"
-              data-test="reject"
-              @click="actions.reject"
-              >Reject capture</v-btn
-            >
-            <v-btn
-              size="small"
-              variant="text"
-              color="error"
-              :disabled="state.acting"
-              data-test="delete"
-              @click="onDelete"
-            >
-              Delete
-            </v-btn>
-          </div>
-        </v-card>
-
-        <v-card v-else flat class="pa-8 text-center glass-card" data-test="empty-queue">
-          <v-card-text class="text-grey text-h6">{{
-            queueState === "labeled" ? "No labeled captures yet" : "Nothing waiting to be labeled"
-          }}</v-card-text>
-          <v-card-text v-if="captureOffNextAction" class="text-grey" data-test="capture-next">
-            Capture is off, so there is nothing to label. Next:
-            {{ captureOffNextAction }}.
-            <router-link to="/admin/identity-setup">See identity setup</router-link>
-          </v-card-text>
-          <v-card-text v-else class="text-grey">
-            Captures appear here while calibration capture is switched on in the person
-            identification service settings.
-          </v-card-text>
-        </v-card>
-      </v-col>
-
-      <v-col cols="12" md="5">
-        <v-card v-if="state.summary" class="glass-card pa-4" data-test="progress">
-          <div class="text-subtitle-1 font-weight-bold mb-2">Progress</div>
-          <div
-            v-for="identity in state.summary.identities"
-            :key="identity.identity_id"
-            class="mb-3"
-          >
-            <div class="d-flex text-body-2">
-              <span>{{ residentName(identity.identity_id) }}</span>
-              <v-spacer />
-              <span
-                >{{ identity.labeled_faces }} / {{ identity.target_labeled_faces }} faces,
-                {{ identity.episodes }} walks</span
-              >
+            <div class="text-caption text-medium-emphasis mt-2">
+              Each resident needs many labeled faces across several separate walks, and some
+              visitors must be labeled too, before calibration can be fitted.
             </div>
-            <v-progress-linear
-              :model-value="
-                Math.min(100, (100 * identity.labeled_faces) / identity.target_labeled_faces)
-              "
-              rounded
-              height="6"
-            />
-          </div>
-          <div class="text-body-2">
-            Visitors (not enrolled): {{ state.summary.not_enrolled_episodes }} walks
-          </div>
-          <div class="text-caption text-medium-emphasis mt-2">
-            Each resident needs many labeled faces across several separate walks, and some visitors
-            must be labeled too, before calibration can be fitted.
-          </div>
-        </v-card>
-      </v-col>
-    </v-row>
+          </v-card>
+        </v-col>
+      </v-row>
+    </template>
 
     <v-dialog v-model="confirmDialog" max-width="400" persistent>
       <v-card rounded="xl">
@@ -290,8 +307,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import CcSegmentedToggle from "@/components/common/CcSegmentedToggle.vue";
+import AttestedFacesPanel from "@/components/identity/AttestedFacesPanel.vue";
+import { useAttestedFaceAudit } from "@/composables/useAttestedFaceAudit";
 import ReviewSelectionToolbar from "@/components/identity/ReviewSelectionToolbar.vue";
 import ReviewVerdictBar from "@/components/identity/ReviewVerdictBar.vue";
 import { VERDICT_LABELS, type ReviewVerdict } from "@/constants/identityReview";
@@ -311,11 +330,15 @@ import type { CalibrationCandidateView } from "@/services/modules/face_calibrati
 const QUEUE_STATE_OPTIONS = [
   { value: "unlabeled", label: "Unlabeled" },
   { value: "labeled", label: "Labeled" },
+  { value: "attested", label: "Attested faces" },
 ];
 
 const { notify } = useNotify();
 const { state, current, keyedResidents, actions } = useFaceCalibrationReview(notify);
 const queueState = computed<CalibrationQueueState>(() => state.queueState ?? "unlabeled");
+// Faces a wearable labeled are audited apart from the labeling queue (they are machine labels).
+const showAttested = ref(false);
+const attested = useAttestedFaceAudit(notify);
 const {
   confirmDialog,
   confirmText,
@@ -358,9 +381,22 @@ function promotionReason(candidate: CalibrationCandidateView): string {
 }
 
 function onQueueStateChange(nextState: string) {
-  if (nextState === "unlabeled" || nextState === "labeled") {
+  if (nextState === "attested") {
+    showAttested.value = true;
+    void attested.actions.load();
+  } else if (nextState === "unlabeled" || nextState === "labeled") {
+    showAttested.value = false;
     void actions.setQueueState(nextState);
   }
+}
+
+async function onPromoteAttested(face: CalibrationCandidateView) {
+  const who = residentName(face.label_identity_id ?? "");
+  const ok = await confirmRequire(
+    `Add this ${face.pose_bin || "frontal"} face, which a wearable labeled as ${who}, to ${who}'s recognition gallery? Check that it really is ${who}. Calibrated recognition authority for ${who} will pause until the next calibration fit.`,
+    { confirmText: "Use for recognition", color: "primary" },
+  );
+  if (ok) await attested.actions.promote(face.candidate_id);
 }
 
 async function onPromote() {
@@ -418,6 +454,7 @@ async function onBatch(verdict: ReviewVerdict) {
 
 useReviewKeys({
   enabled: () =>
+    !showAttested.value &&
     queueState.value === "unlabeled" &&
     !confirmDialog.value &&
     !state.acting &&

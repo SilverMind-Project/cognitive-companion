@@ -650,6 +650,111 @@
         "title": "ApproveRequest",
         "type": "object"
       },
+      "AttestationAuditSummaryEnvelope": {
+        "description": "How far the audit of wearable-attested face labels has come (counts only).",
+        "properties": {
+          "attested": {
+            "minimum": 0.0,
+            "title": "Attested",
+            "type": "integer"
+          },
+          "audited": {
+            "minimum": 0.0,
+            "title": "Audited",
+            "type": "integer"
+          },
+          "correct": {
+            "minimum": 0.0,
+            "title": "Correct",
+            "type": "integer"
+          },
+          "meets_bar": {
+            "description": "Attested labels may be used in the next calibration fit",
+            "title": "Meets Bar",
+            "type": "boolean"
+          },
+          "min_audited": {
+            "title": "Min Audited",
+            "type": "integer"
+          },
+          "min_precision_lower_bound": {
+            "title": "Min Precision Lower Bound",
+            "type": "number"
+          },
+          "not_a_face": {
+            "minimum": 0.0,
+            "title": "Not A Face",
+            "type": "integer"
+          },
+          "precision_lower_bound": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Wilson 95% lower bound of correct / audited; null before any audit",
+            "title": "Precision Lower Bound"
+          },
+          "wrong": {
+            "minimum": 0.0,
+            "title": "Wrong",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "attested",
+          "audited",
+          "correct",
+          "wrong",
+          "not_a_face",
+          "precision_lower_bound",
+          "min_audited",
+          "min_precision_lower_bound",
+          "meets_bar"
+        ],
+        "title": "AttestationAuditSummaryEnvelope",
+        "type": "object"
+      },
+      "AttestedFaceListResponse": {
+        "description": "Faces a wearable labeled; never in the labeling queue and never enrolled by themselves.",
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/CalibrationCandidateView"
+            },
+            "title": "Candidates",
+            "type": "array"
+          }
+        },
+        "required": [
+          "candidates"
+        ],
+        "title": "AttestedFaceListResponse",
+        "type": "object"
+      },
+      "AuditAttestedFaceRequest": {
+        "additionalProperties": false,
+        "description": "The auditor is the authenticated caller; the browser never names one.",
+        "properties": {
+          "verdict": {
+            "enum": [
+              "correct",
+              "wrong",
+              "not_a_face"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict"
+        ],
+        "title": "AuditAttestedFaceRequest",
+        "type": "object"
+      },
       "AutoCalibrateRequest": {
         "description": "Request body for depth-based automatic homography estimation.\n\n``minio_key`` is optional.  When omitted the BFF fetches a fresh JPEG\nsnapshot from the RTSP ingress and passes it directly to the orchestrator,\nso the button works even when no live tracking stream is running.",
         "properties": {
@@ -1617,6 +1722,61 @@
       },
       "CalibrationCandidateView": {
         "properties": {
+          "attestation_grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "room",
+                  "trajectory"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a wearable-attested face: the grade of the association that labeled it. Room grade means the member was the only person in the room with the tag.",
+            "title": "Attestation Grade"
+          },
+          "audit_verdict": {
+            "anyOf": [
+              {
+                "enum": [
+                  "correct",
+                  "wrong",
+                  "not_a_face"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Verdict"
+          },
+          "audited_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audited At"
+          },
+          "audited_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audited By"
+          },
           "camera_id": {
             "title": "Camera Id",
             "type": "string"
@@ -1684,7 +1844,8 @@
             "enum": [
               "unlabeled",
               "labeled",
-              "rejected"
+              "rejected",
+              "attested"
             ],
             "title": "Label State",
             "type": "string"
@@ -13775,6 +13936,29 @@
             ],
             "title": "Reviewed Time"
           },
+          "seed_association_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Association Id"
+          },
+          "seed_source": {
+            "default": "face",
+            "description": "Where the row's identity label came from: a recognized face, a wearable whose track was matched to this person (wearable_attested, votes at reduced trust until approved), or a wearable that was alone in the room with this person (wearable_room_attested, never votes until approved)",
+            "enum": [
+              "face",
+              "wearable_attested",
+              "wearable_room_attested",
+              "operator"
+            ],
+            "title": "Seed Source",
+            "type": "string"
+          },
           "seen_at": {
             "anyOf": [
               {
@@ -24165,6 +24349,28 @@
           },
           {
             "in": "query",
+            "name": "seed_source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "face",
+                    "wearable_attested",
+                    "wearable_room_attested",
+                    "operator"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Seed Source"
+            }
+          },
+          {
+            "in": "query",
             "name": "since",
             "required": false,
             "schema": {
@@ -27731,6 +27937,225 @@
         "summary": "Get Event",
         "tags": [
           "events"
+        ]
+      }
+    },
+    "/api/v1/face-calibration/attestations": {
+      "get": {
+        "operationId": "list_attested_faces",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "identity_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identity Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "audited",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Audited"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttestedFaceListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Attested Faces",
+        "tags": [
+          "face-calibration"
+        ]
+      }
+    },
+    "/api/v1/face-calibration/attestations/audit-sample": {
+      "get": {
+        "description": "A uniform random sample drawn upstream, so the auditor never chooses which faces to judge.",
+        "operationId": "get_attested_face_audit_sample",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "n",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "N",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttestedFaceListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Attested Face Audit Sample",
+        "tags": [
+          "face-calibration"
+        ]
+      }
+    },
+    "/api/v1/face-calibration/attestations/audit-summary": {
+      "get": {
+        "operationId": "get_attested_face_audit_summary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttestationAuditSummaryEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Attested Face Audit Summary",
+        "tags": [
+          "face-calibration"
+        ]
+      }
+    },
+    "/api/v1/face-calibration/attestations/{candidate_id}/audit": {
+      "post": {
+        "description": "Record whether a wearable-attested label is right; changes no label or gallery.",
+        "operationId": "audit_attested_face",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditAttestedFaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationCandidateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Audit Attested Face",
+        "tags": [
+          "face-calibration"
         ]
       }
     },

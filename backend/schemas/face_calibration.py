@@ -13,8 +13,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-CalibrationLabelState = Literal["unlabeled", "labeled", "rejected"]
+CalibrationLabelState = Literal["unlabeled", "labeled", "rejected", "attested"]
 CalibrationLabelKind = Literal["member", "not_enrolled", "not_a_face"]
+AttestationAuditVerdict = Literal["correct", "wrong", "not_a_face"]
 
 
 class CalibrationCandidateView(BaseModel):
@@ -40,6 +41,48 @@ class CalibrationCandidateView(BaseModel):
     promoted: bool = False
     promotion_eligible: bool = False
     promotion_ineligible_reason: str | None = None
+    attestation_grade: Literal["room", "trajectory"] | None = Field(
+        None,
+        description=(
+            "For a wearable-attested face: the grade of the association that labeled it. "
+            "Room grade means the member was the only person in the room with the tag."
+        ),
+    )
+    audit_verdict: AttestationAuditVerdict | None = None
+    audited_by: str | None = None
+    audited_at: datetime | None = None
+
+
+class AttestedFaceListResponse(BaseModel):
+    """Faces a wearable labeled; never in the labeling queue and never enrolled by themselves."""
+
+    candidates: list[CalibrationCandidateView]
+
+
+class AuditAttestedFaceRequest(BaseModel):
+    """The auditor is the authenticated caller; the browser never names one."""
+
+    model_config = {"extra": "forbid"}
+
+    verdict: AttestationAuditVerdict
+
+
+class AttestationAuditSummaryEnvelope(BaseModel):
+    """How far the audit of wearable-attested face labels has come (counts only)."""
+
+    attested: int = Field(..., ge=0)
+    audited: int = Field(..., ge=0)
+    correct: int = Field(..., ge=0)
+    wrong: int = Field(..., ge=0)
+    not_a_face: int = Field(..., ge=0)
+    precision_lower_bound: float | None = Field(
+        ..., description="Wilson 95% lower bound of correct / audited; null before any audit"
+    )
+    min_audited: int
+    min_precision_lower_bound: float
+    meets_bar: bool = Field(
+        ..., description="Attested labels may be used in the next calibration fit"
+    )
 
 
 class PromoteCalibrationCandidateResponse(BaseModel):

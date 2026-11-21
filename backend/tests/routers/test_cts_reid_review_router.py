@@ -334,3 +334,19 @@ def test_no_mcp_tool_for_reid_review():
     assert "reid_review" not in names
     assert "gallery_review" not in names
     assert "demote" not in names
+
+
+def test_seed_source_filter_is_forwarded_and_validated(client_authorized):
+    client, svc = client_authorized
+    body = client.get(
+        "/api/v1/cts/identity/reid-review/candidates",
+        params={"seed_source": "wearable_room_attested"},
+    ).json()
+    assert body["candidates"][0]["seed_source"] == "face"
+    assert svc.list_candidates.await_args.kwargs["params"]["seed_source"] == (
+        "wearable_room_attested"
+    )
+    bad = client.get(
+        "/api/v1/cts/identity/reid-review/candidates", params={"seed_source": "guess"}
+    )
+    assert bad.status_code == 422

@@ -168,3 +168,69 @@ async def test_promote_list_rebuild_and_delete_prototypes() -> None:
         await client.delete_member_prototype("amma", "p1")
     args, _kwargs = mock_del.__aenter__.return_value.request.await_args
     assert args == ("DELETE", "http://person-id-test/api/v1/members/amma/prototypes/p1")
+
+
+_ATTESTED = _CANDIDATE | {
+    "label_state": "attested",
+    "labeled_by": "wearable:seg-1",
+    "attestation_association_id": "seg-1",
+    "attestation_grade": "trajectory",
+    "audit_verdict": "correct",
+    "audited_by": "admin",
+    "audited_at": "2026-10-22T10:00:00+00:00",
+}
+
+
+async def test_attested_faces_parse_provenance_and_send_filters() -> None:
+    client = _make_client()
+    mock = _mock_http({"candidates": [_ATTESTED]})
+    with patch(_HTTPX_TARGET, return_value=mock):
+        [face] = await client.list_attested_faces(identity_id="amma", audited=False, limit=40)
+    args, kwargs = mock.__aenter__.return_value.request.await_args
+    assert args == ("GET", "http://person-id-test/api/v1/calibration/attestations")
+    assert kwargs["params"] == {"limit": "40", "identity_id": "amma", "audited": "false"}
+    assert (face.label_state, face.attestation_grade, face.audit_verdict) == (
+        "attested",
+        "trajectory",
+        "correct",
+    )
+    assert face.audited_at is not None
+
+
+async def test_audit_sends_the_auditor() -> None:
+    client = _make_client()
+    mock = _mock_http(_ATTESTED)
+    with patch(_HTTPX_TARGET, return_value=mock):
+        await client.audit_attested_face("c1", verdict="correct", audited_by="admin")
+    args, kwargs = mock.__aenter__.return_value.request.await_args
+    assert args == ("POST", "http://person-id-test/api/v1/calibration/attestations/c1/audit")
+    assert kwargs["json"] == {"verdict": "correct", "audited_by": "admin"}
+
+
+async def test_audit_summary_parses_and_fails_closed_on_a_bad_envelope() -> None:
+    client = _make_client()
+    payload = {
+        "attested": 10,
+        "audited": 2,
+        "correct": 2,
+        "wrong": 0,
+        "not_a_face": 0,
+        "precision_lower_bound": None,
+        "min_audited": 200,
+        "min_precision_lower_bound": 0.99,
+        "meets_bar": False,
+    }
+    with patch(_HTTPX_TARGET, return_value=_mock_http(payload)):
+        summary = await client.get_attestation_audit_summary()
+    assert (summary.attested, summary.precision_lower_bound, summary.meets_bar) == (10, None, False)
+    with (
+        patch(_HTTPX_TARGET, return_value=_mock_http({"attested": 1})),
+        pytest.raises(PersonIDUpstreamError) as err,
+    ):
+        await client.get_attestation_audit_summary()
+    assert err.value.status == 502
+    with (
+        patch(_HTTPX_TARGET, return_value=_mock_http({"faces": []})),
+        pytest.raises(PersonIDUpstreamError),
+    ):
+        await client.get_attestation_audit_sample(5)

@@ -80,6 +80,20 @@
           class="filter-control"
           @update:model-value="(v) => actions.setFilter('model_version', v || null)"
         />
+        <v-select
+          :model-value="state.filters.value.seed_source"
+          :items="SEED_SOURCE_OPTIONS"
+          placeholder="Label source"
+          aria-label="Filter by label source"
+          prepend-inner-icon="mdi-source-branch"
+          variant="outlined"
+          density="compact"
+          hide-details
+          clearable
+          class="filter-control"
+          data-test="seed-source-filter"
+          @update:model-value="(v) => actions.setFilter('seed_source', v || null)"
+        />
       </div>
 
       <!-- Batch decisions: negative verdicts only; approval needs individual visual review -->
@@ -204,7 +218,19 @@
                   {{ c.model_version || "-" }}
                 </span>
               </td>
-              <td>{{ c.candidate_reason || "-" }}</td>
+              <td>
+                <v-chip
+                  v-if="c.seed_source && c.seed_source !== 'face'"
+                  size="x-small"
+                  variant="tonal"
+                  color="secondary"
+                  :title="SEED_SOURCE_HINTS[c.seed_source]"
+                  data-test="seed-source-chip"
+                >
+                  {{ SEED_SOURCE_LABELS[c.seed_source] }}
+                </v-chip>
+                <span v-else>{{ c.candidate_reason || "-" }}</span>
+              </td>
               <td class="text-right" @click.stop>
                 <v-btn
                   icon="mdi-eye-outline"
@@ -326,6 +352,18 @@
                 <tr>
                   <td>Candidate reason</td>
                   <td>{{ detailCandidate.candidate_reason || "-" }}</td>
+                </tr>
+                <tr>
+                  <td>Label came from</td>
+                  <td data-test="detail-seed-source">
+                    {{ SEED_SOURCE_LABELS[detailCandidate.seed_source] || "-" }}
+                    <div
+                      v-if="SEED_SOURCE_HINTS[detailCandidate.seed_source]"
+                      class="text-caption text-medium-emphasis"
+                    >
+                      {{ SEED_SOURCE_HINTS[detailCandidate.seed_source] }}
+                    </div>
+                  </td>
                 </tr>
                 <tr>
                   <td>Crop quality</td>
@@ -636,6 +674,23 @@ const STATE_COLORS = {
   rejected: undefined,
 };
 const STATE_ORDER = ["pending_review", "auto_verified", "operator_verified", "rejected"];
+const SEED_SOURCE_LABELS = {
+  face: "Face",
+  wearable_attested: "Wearable, path matched",
+  wearable_room_attested: "Wearable, alone in room",
+  operator: "Operator",
+};
+// Review copy: a wearable can be on the wrong wrist, so the crop is what decides.
+const SEED_SOURCE_HINTS = {
+  wearable_attested:
+    "The wearable's path matched this person's track. Check the crop: a band worn by someone else would label the wrong person.",
+  wearable_room_attested:
+    "This person was alone in the room with the wearable. Check the crop: a band worn by someone else would label the wrong person.",
+};
+const SEED_SOURCE_OPTIONS = Object.entries(SEED_SOURCE_LABELS).map(([value, title]) => ({
+  value,
+  title,
+}));
 
 const countsKnown = computed(() => state.countsLoaded.value && !state.countsError.value);
 

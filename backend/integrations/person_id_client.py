@@ -187,8 +187,10 @@ class VisitorSightingInfo:
     crop_object: str | None = None
 
 
-CalibrationLabelState = Literal["unlabeled", "labeled", "rejected"]
+CalibrationLabelState = Literal["unlabeled", "labeled", "rejected", "attested"]
 CalibrationLabelKind = Literal["member", "not_enrolled", "not_a_face"]
+AttestationAuditVerdict = Literal["correct", "wrong", "not_a_face"]
+AttestationGrade = Literal["room", "trajectory"]
 
 
 @dataclass
@@ -215,6 +217,27 @@ class CalibrationCandidateInfo:
     promoted: bool = False
     promotion_eligible: bool = False
     promotion_ineligible_reason: str | None = None
+    # Wearable attestation provenance and its audit; set only on attested captures.
+    attestation_association_id: str | None = None
+    attestation_grade: AttestationGrade | None = None
+    audit_verdict: AttestationAuditVerdict | None = None
+    audited_by: str | None = None
+    audited_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class AttestationAuditSummaryInfo:
+    """Audit of wearable-attested face labels; counts and the precision bound only."""
+
+    attested: int
+    audited: int
+    correct: int
+    wrong: int
+    not_a_face: int
+    precision_lower_bound: float | None
+    min_audited: int
+    min_precision_lower_bound: float
+    meets_bar: bool
 
 
 @dataclass
@@ -949,6 +972,61 @@ class PersonIDClient:
         except (KeyError, TypeError) as exc:
             raise PersonIDUpstreamError(502, f"malformed health response: {exc}") from exc
 
+    async def list_attested_faces(
+        self, *, identity_id: str | None, audited: bool | None, limit: int
+    ) -> list[CalibrationCandidateInfo]:
+        """Wearable-attested captures, best quality first (the exemplar grid)."""
+        params = {"limit": str(limit)}
+        if identity_id:
+            params["identity_id"] = identity_id
+        if audited is not None:
+            params["audited"] = "true" if audited else "false"
+        data = await self._request_or_raise(
+            "GET", "/api/v1/calibration/attestations", params=params
+        )
+        return self._calibration_candidates_or_502(data)
+
+    async def get_attestation_audit_sample(self, n: int) -> list[CalibrationCandidateInfo]:
+        """A uniform random sample of unaudited attested captures, drawn by person-id."""
+        data = await self._request_or_raise(
+            "GET", "/api/v1/calibration/attestations/audit-sample", params={"n": str(n)}
+        )
+        return self._calibration_candidates_or_502(data)
+
+    async def audit_attested_face(
+        self, candidate_id: str, *, verdict: str, audited_by: str
+    ) -> CalibrationCandidateInfo:
+        data = await self._request_or_raise(
+            "POST",
+            f"/api/v1/calibration/attestations/{candidate_id}/audit",
+            json={"verdict": verdict, "audited_by": audited_by},
+        )
+        return self._calibration_candidate_or_502(data)
+
+    async def get_attestation_audit_summary(self) -> AttestationAuditSummaryInfo:
+        data = await self._request_or_raise("GET", "/api/v1/calibration/attestations/audit-summary")
+        try:
+            bound = data["precision_lower_bound"]
+            return AttestationAuditSummaryInfo(
+                attested=int(data["attested"]),
+                audited=int(data["audited"]),
+                correct=int(data["correct"]),
+                wrong=int(data["wrong"]),
+                not_a_face=int(data["not_a_face"]),
+                precision_lower_bound=None if bound is None else float(bound),
+                min_audited=int(data["min_audited"]),
+                min_precision_lower_bound=float(data["min_precision_lower_bound"]),
+                meets_bar=bool(data["meets_bar"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed attestation audit summary: {exc}") from exc
+
+    def _calibration_candidates_or_502(self, data: Any) -> list[CalibrationCandidateInfo]:
+        try:
+            return [self._parse_calibration_candidate(c) for c in data["candidates"]]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed attested face list: {exc}") from exc
+
     def _calibration_candidate_or_502(self, data: Any) -> CalibrationCandidateInfo:
         try:
             return self._parse_calibration_candidate(data)
@@ -979,6 +1057,13 @@ class PersonIDClient:
             promoted=bool(c.get("promoted", False)),
             promotion_eligible=bool(c.get("promotion_eligible", False)),
             promotion_ineligible_reason=c.get("promotion_ineligible_reason"),
+            attestation_association_id=c.get("attestation_association_id"),
+            attestation_grade=c.get("attestation_grade"),
+            audit_verdict=c.get("audit_verdict"),
+            audited_by=c.get("audited_by"),
+            audited_at=(
+                None if c.get("audited_at") is None else datetime.fromisoformat(c["audited_at"])
+            ),
         )
 
     async def _request_or_raise(

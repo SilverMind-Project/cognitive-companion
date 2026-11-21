@@ -87,3 +87,31 @@ export const deletePersonPrototype = (personId: string, prototypeId: string) =>
       params: { path: { person_id: personId, prototype_id: prototypeId } },
     }),
   );
+
+export type AttestationAuditSummary = Schemas["AttestationAuditSummaryEnvelope"];
+export type AttestationAuditVerdict = Schemas["AuditAttestedFaceRequest"]["verdict"];
+
+/**
+ * Faces a wearable labeled (state `attested`), best face quality first. They never enter the
+ * labeling queue and never reach recognition unless an operator promotes one.
+ */
+export const listAttestedFaces = (query: { identity_id?: string; audited?: boolean } = {}) =>
+  unwrap(client.GET("/api/v1/face-calibration/attestations", { params: { query } }));
+
+/** A uniform random sample of unaudited attested faces, drawn by the server. */
+export const getAttestedFaceAuditSample = (n = 25) =>
+  unwrap(
+    client.GET("/api/v1/face-calibration/attestations/audit-sample", { params: { query: { n } } }),
+  );
+
+/** Record whether a wearable's label on this face is right; changes no label or gallery. */
+export const auditAttestedFace = (candidateId: string, verdict: AttestationAuditVerdict) =>
+  unwrap(
+    client.POST("/api/v1/face-calibration/attestations/{candidate_id}/audit", {
+      params: { path: { candidate_id: candidateId } },
+      body: { verdict },
+    }),
+  );
+
+export const getAttestedFaceAuditSummary = () =>
+  unwrap(client.GET("/api/v1/face-calibration/attestations/audit-summary", {}));

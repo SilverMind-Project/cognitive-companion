@@ -94,6 +94,13 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 - **Shared floor-plan geometry.** `backend/services/floor_plan_geometry.py` is the single helper for active floor-plan ID resolution, scale validation, and metre-to-normalised coordinate bounds shared by camera calibration and `RfNodeService`. RF nodes store `DOUBLE PRECISION` coordinates (`x_m`, `y_m`, `z_m`), bind to the active `floor_plan_id`, and validate pairwise tape-distance checks via `POST /api/v1/wearables/nodes/survey-check`.
 - **Site-config sync and MCP parity.** `GET /api/v1/wearables/site-config` is gated by strict `require_token("wearables:site_config")` (granted to `cts_ingress` and `admin`, denied to `caregiver`). Two read-only MCP tools (`get_wearable_assignments`, `get_wearable_device_status`) call the same service methods as the BFF router; wearable mutations remain BFF-only.
 
+### Household presence publisher
+
+- `HouseholdPresencePublisher` (`backend/services/cts/household_presence_publisher.py`, wired in `backend/bootstrap/presence.py` when `cts.enabled` and `redis.url` are set) publishes raw protobuf `HouseholdPresence` messages (field `"presence"`, generated in `backend/integrations/proto/continuoustracking/v1/household_pb2.py`) to the `cc.household_presence` Redis stream on any state change and at least every 60 seconds.
+- **Shared `PresenceStatus` vocabulary.** `PresenceStatus` is defined once in `cts_contracts.household` (`cts-contracts >= 0.4.0`) and imported by `backend/services/presence/types.py` and CTS; never define a second copy.
+- **Direct service calls and fail-closed roster gate.** The publisher calls `PresenceService`, `RosterHealthService.get_roster_health()`, and `OccupancyReadModel` directly (never HTTP routes). When `RosterHealthService` raises `PersonIDUpstreamError`, it publishes `roster_complete = false` so CTS keeps closed-world prior shaping inactive instead of reasoning over an unverified roster.
+- **Visitor detection.** `visitors_present` is true when any active `is_guest=True` member is currently present (in `OccupancyReadModel` or `PresenceService`) or when any surfaced unnamed visitor cluster has `last_seen_at` within the last hour (`RosterHealthService.has_recent_surfaced_visitor`).
+
 ### WebSocket security
 
 - The `/ws/cts` WebSocket reads the API key from `sec-websocket-protocol` header, not from a query parameter.

@@ -9,19 +9,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
+from cts_contracts.household import PresenceStatus
 
-class PresenceStatus(StrEnum):
-    """Current presence status of a household member."""
-
-    PRESENT_ROOM = "present_room"
-    PRESENT_HOME = "present_home"
-    AWAY = "away"
-    ASLEEP = "asleep"
-    UNKNOWN = "unknown"
-    STALE = "stale"
+__all__ = [
+    "PresenceProvider",
+    "PresenceSnapshot",
+    "PresenceSource",
+    "PresenceStatus",
+]
 
 
 @dataclass(frozen=True)

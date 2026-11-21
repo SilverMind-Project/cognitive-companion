@@ -314,6 +314,7 @@ The primary CTS data paths are:
 | `tracking.continuations` and `tracking.room_transitions` | Cross-camera PH continuation candidates and room transition events |
 | `scene.samples` | Scene samples for timeline and analysis surfaces (`SceneSample`) |
 | `cc.identity_assertions` | Outbound protobuf stream (`CCIdentityAssertion`) forwarding external reCamera face assertions to CTS `WorldTrackingStage` |
+| `cc.household_presence` | Outbound protobuf stream (`HouseholdPresence`, field `"presence"`) published by `HouseholdPresencePublisher` on change and every 60 s with fused `PresenceStatus`, fail-closed `roster_complete`, and `visitors_present` for CTS closed-world prior shaping |
 | Identity roster sync and purge | Automated `POST /internal/gallery/identities/sync` and `DELETE /internal/gallery/identities/{person_id}` calls keeping CTS `reid_gallery` and `IdentityResolver` aligned with the CC household roster |
 | Camera optics and calibration sync | `GET /api/v1/cts/cameras/{camera_id}/optics`, `POST /api/v1/cts/cameras/optics-preview`, and observed stream resolution sync from CTS `GET /internal/calibration/status` |
 | Wearable registry and RF node site-config | CC owns `wearable_devices`, `wearable_bindings`, and `rf_nodes` in PostgreSQL and serves `GET /api/v1/wearables/site-config` (metres on the active floor plan) to CTS `CCConfigSyncService` and RF ingress adapters |

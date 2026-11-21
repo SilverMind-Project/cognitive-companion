@@ -123,6 +123,17 @@ class CTSCameraCalibration(BaseModel):
     calibrated: bool
 
 
+class CTSClosedWorldReadiness(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    mode: str = "off"
+    active: bool = False
+    inactive_reason: str | None = None
+    roster_complete: bool | None = None
+    visitors_present: bool | None = None
+    presence_age_s: float | None = Field(default=None, ge=0.0)
+
+
 class CTSIdentityReadiness(BaseModel):
     """The tracking orchestrator's ``GET /internal/identity/readiness`` response."""
 
@@ -133,12 +144,14 @@ class CTSIdentityReadiness(BaseModel):
     face_quality_mode: str
     cc_assertion_mode: str
     wearable_mode: str = "off"
+    closed_world_mode: str = "off"
     expected_arcface_model_version: str | None
     expected_quality_version: str
     reid_gallery_counts: CTSGalleryCounts | None
     # Rows a wearable taught, by state; absent from an orchestrator that predates them.
     wearable_gallery_counts: CTSGalleryCounts | None = None
     wearable_learners: CTSWearableLearnersReadiness | None = None
+    closed_world: CTSClosedWorldReadiness | None = None
     cameras: list[CTSCameraCalibration]
     overlap_group_count: int | None
     identities_known: int | None

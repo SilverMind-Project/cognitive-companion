@@ -112,6 +112,11 @@ buffer and rate-limit telemetry across both aggregation paths.
   live in `cts-contracts`; wire messages (`TagFix`, `AdapterCapability`, reserved
   `AnonymousPositionTrack`) live in `continuous-tracking/proto/` and ride Redis Streams
   `wearable.fixes`, `wearable.capabilities`, and reserved `position.tracks`.
+- **Household presence stream:** `PresenceStatus` lives once in `cts_contracts.household`
+  (`cts-contracts >= 0.4.0`); `HouseholdPresencePublisher` publishes protobuf `HouseholdPresence`
+  (field `"presence"`, `backend/integrations/proto/continuoustracking/v1/household_pb2.py`) to
+  `cc.household_presence` on change and every 60 s, failing closed (`roster_complete=false`) when
+  person-id is unreachable.
 
 ## Claude Code guardrails
 

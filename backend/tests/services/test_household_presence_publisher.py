@@ -227,7 +227,7 @@ def test_roster_step_reports_closed_world_activity() -> None:
         face_quality_mode="shadow",
         cc_assertion_mode="shadow",
         closed_world_mode="shadow",
-        expected_arcface_model_version=None,
+        expected_recognizer_version=None,
         expected_quality_version="heuristic-v1",
         reid_gallery_counts=None,
         closed_world=CTSClosedWorldReadiness(

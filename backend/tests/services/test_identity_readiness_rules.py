@@ -80,9 +80,13 @@ def _health(
     status: str = "degraded_missing",
     covered: list[str] | None = None,
     template_status: str = "degraded_missing",
+    recognizer_version: str = "",
 ) -> CalibrationHealthInfo:
     return CalibrationHealthInfo(
-        status=status, covered_identities=covered, template_status=template_status
+        status=status,
+        covered_identities=covered,
+        template_status=template_status,
+        recognizer_version=recognizer_version,
     )
 
 
@@ -96,13 +100,14 @@ def _cts(
     templates: str = "off",
     counts: CTSGalleryCounts | None = None,
     calibrated: tuple[str, ...] = (),
+    expected_recognizer_version: str | None = None,
 ) -> CTSIdentityReadiness:
     return CTSIdentityReadiness(
         face_evidence_policy=policy,
         face_templates_mode=templates,
         face_quality_mode="shadow",
         cc_assertion_mode="shadow",
-        expected_arcface_model_version=None,
+        expected_recognizer_version=expected_recognizer_version,
         expected_quality_version="heuristic-v1",
         reid_gallery_counts=counts,
         cameras=[CTSCameraCalibration(camera_id=c, calibrated=True) for c in calibrated],
@@ -262,23 +267,64 @@ def test_labeling(summary: CalibrationSummaryInfo, state: str, action: str) -> N
 
 
 @pytest.mark.parametrize(
-    ("health", "members", "state", "action"),
+    ("health", "members", "cts", "state", "action"),
     [
-        (_health(), _members("a"), "blocked", "fit_and_deploy_artifact"),
-        (_health("invalid"), _members("a"), "blocked", "fit_and_deploy_artifact"),
-        (_health("ready", ["a"]), _members("a", "b"), "attention", "refit_artifact"),
-        (_health("ready", ["a", "b"]), _members("a", "b"), "ready", "none"),
-        (_health("ready", ["a"]), _DOWN, "unknown", "check_service"),
+        (_health(), _members("a"), None, "blocked", "fit_and_deploy_artifact"),
+        (
+            _health("degraded_incompatible", recognizer_version="adaface_ir50_webface4m"),
+            _members("a"),
+            None,
+            "blocked",
+            "refit_artifact",
+        ),
+        (_health("invalid"), _members("a"), None, "blocked", "fit_and_deploy_artifact"),
+        (_health("ready", ["a"]), _members("a", "b"), None, "attention", "refit_artifact"),
+        (
+            _health("ready", ["a", "b"], recognizer_version="adaface_ir50_webface4m"),
+            _members("a", "b"),
+            _cts(expected_recognizer_version="buffalo_l"),
+            "blocked",
+            "refit_artifact",
+        ),
+        (
+            _health("ready", ["a", "b"], recognizer_version="buffalo_l"),
+            _members("a", "b"),
+            _cts(expected_recognizer_version="buffalo_l"),
+            "ready",
+            "none",
+        ),
+        (_health("ready", ["a", "b"]), _members("a", "b"), None, "ready", "none"),
+        (_health("ready", ["a"]), _DOWN, None, "unknown", "check_service"),
     ],
 )
 def test_artifact(
     health: CalibrationHealthInfo,
     members: list[MemberInfo] | SourceFailure,
+    cts: CTSIdentityReadiness | None,
     state: str,
     action: str,
 ) -> None:
-    step = artifact_step(health, members)
+    step = artifact_step(health, members, cts)
     assert (step.state, step.next_action) == (state, action)
+
+
+def test_cts_identity_readiness_syncs_legacy_arcface_alias() -> None:
+    legacy = CTSIdentityReadiness.model_validate(
+        {
+            "face_evidence_policy": "shadow",
+            "face_templates_mode": "off",
+            "face_quality_mode": "shadow",
+            "cc_assertion_mode": "shadow",
+            "expected_arcface_model_version": "buffalo_l",
+            "expected_quality_version": "heuristic-v1",
+            "reid_gallery_counts": None,
+            "cameras": [],
+            "overlap_group_count": 0,
+            "identities_known": 1,
+        }
+    )
+    assert legacy.expected_recognizer_version == "buffalo_l"
+    assert legacy.expected_arcface_model_version == "buffalo_l"
 
 
 @pytest.mark.parametrize(
@@ -378,7 +424,10 @@ def test_roster_step_reports_prototype_counts_without_identity_ids() -> None:
     ]
     step = roster_step(_roster(members=2), members)
     assert step.state == "ready"
-    assert "Face prototypes across enrolled members: 5 frontal, 1 left, 0 right, 1 down." in step.detail
+    assert (
+        "Face prototypes across enrolled members: 5 frontal, 1 left, 0 right, 1 down."
+        in step.detail
+    )
     assert "secret-member-id-1" not in step.detail
     assert "secret-member-id-2" not in step.detail
 

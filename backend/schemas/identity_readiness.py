@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.schemas.identity_review import ReviewSurface
 
@@ -145,7 +145,8 @@ class CTSIdentityReadiness(BaseModel):
     cc_assertion_mode: str
     wearable_mode: str = "off"
     closed_world_mode: str = "off"
-    expected_arcface_model_version: str | None
+    expected_recognizer_version: str | None = None
+    expected_arcface_model_version: str | None = None
     expected_quality_version: str
     reid_gallery_counts: CTSGalleryCounts | None
     # Rows a wearable taught, by state; absent from an orchestrator that predates them.
@@ -155,3 +156,17 @@ class CTSIdentityReadiness(BaseModel):
     cameras: list[CTSCameraCalibration]
     overlap_group_count: int | None
     identities_known: int | None
+
+    @model_validator(mode="after")
+    def _sync_expected_recognizer_version(self) -> CTSIdentityReadiness:
+        if (
+            self.expected_recognizer_version is None
+            and self.expected_arcface_model_version is not None
+        ):
+            self.expected_recognizer_version = self.expected_arcface_model_version
+        elif (
+            self.expected_arcface_model_version is None
+            and self.expected_recognizer_version is not None
+        ):
+            self.expected_arcface_model_version = self.expected_recognizer_version
+        return self

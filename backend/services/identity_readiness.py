@@ -94,14 +94,25 @@ class IdentityReadinessService:
             self._cts_readiness(),
             self._ingest_health([c.camera_id for c in household.cameras]),
         )
-        artifact_ready = not isinstance(health, SourceFailure) and health.status == ARTIFACT_READY
+        recognizer_mismatch = (
+            not isinstance(health, SourceFailure)
+            and isinstance(cts, CTSIdentityReadiness)
+            and bool(cts.expected_recognizer_version)
+            and bool(health.recognizer_version)
+            and cts.expected_recognizer_version != health.recognizer_version
+        )
+        artifact_ready = (
+            not isinstance(health, SourceFailure)
+            and health.status == ARTIFACT_READY
+            and not recognizer_mismatch
+        )
         steps = [
             roster_step(roster, members, cts),
             ingest_step(ingest),
             floor_frame_step(household, cts),
             capture_step(summary, health),
             labeling_step(summary),
-            artifact_step(health, members),
+            artifact_step(health, members, cts),
             face_policy_step(cts, artifact_ready),
             templates_step(cts, health),
             body_gallery_step(cts),

@@ -43,8 +43,18 @@ class _Roster:
 
 
 class _PersonID:
-    def __init__(self, error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        error: Exception | None = None,
+        health: CalibrationHealthInfo | None = None,
+    ) -> None:
         self._error = error
+        self._health = health or CalibrationHealthInfo(
+            status="degraded_missing",
+            covered_identities=None,
+            template_status="degraded_missing",
+            recognizer_version="buffalo_l",
+        )
 
     def _check(self) -> None:
         if self._error is not None:
@@ -64,9 +74,7 @@ class _PersonID:
 
     async def get_calibration_health(self) -> CalibrationHealthInfo:
         self._check()
-        return CalibrationHealthInfo(
-            status="degraded_missing", covered_identities=None, template_status="degraded_missing"
-        )
+        return self._health
 
     async def list_members(self) -> list[MemberInfo]:
         self._check()
@@ -101,7 +109,8 @@ _CTS_BODY: dict[str, Any] = {
     "face_templates_mode": "off",
     "face_quality_mode": "shadow",
     "cc_assertion_mode": "shadow",
-    "expected_arcface_model_version": None,
+    "expected_recognizer_version": "buffalo_l",
+    "expected_arcface_model_version": "buffalo_l",
     "expected_quality_version": "heuristic-v1",
     "reid_gallery_counts": {
         "pending_review": 0,
@@ -252,3 +261,28 @@ async def test_cts_disabled_reports_unknown_cts_steps(db_factory, household) -> 
     assert states["ingest"] == "unknown"
     assert states["face_policy"] == "unknown"
     assert "CTS is disabled" in next(s.detail for s in envelope.steps if s.key == "ingest")
+
+
+async def test_recognizer_version_mismatch_blocks_artifact_step(db_factory, household) -> None:
+    person_id = _PersonID(
+        health=CalibrationHealthInfo(
+            status="ready",
+            covered_identities=["m1"],
+            template_status="ready",
+            recognizer_version="adaface_ir50_webface4m",
+        )
+    )
+    envelope = await _service(
+        db_factory,
+        person_id=person_id,
+        orchestrator=_Orchestrator(_CTS_BODY),
+        ingress=_Ingress({"hall": 0.4, "kitchen": 0.9}),
+    ).get_readiness()
+
+    artifact = next(s for s in envelope.steps if s.key == "artifact")
+    policy = next(s for s in envelope.steps if s.key == "face_policy")
+    assert artifact.state == "blocked"
+    assert artifact.next_action == "refit_artifact"
+    assert "adaface_ir50_webface4m" in artifact.detail
+    assert "buffalo_l" in artifact.detail
+    assert policy.next_action == "fit_and_deploy_artifact"

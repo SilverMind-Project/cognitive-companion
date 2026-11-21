@@ -74,6 +74,7 @@ class FaceResult:
     second_best_similarity: float | None = None
     margin: float | None = None
     gallery_representation: str = "centroid"
+    recognizer_version: str = ""
 
 
 @dataclass
@@ -274,6 +275,9 @@ class CalibrationHealthInfo:
     # Identities the single-frame artifact was fitted for; None when no artifact is loaded.
     covered_identities: list[str] | None
     template_status: str
+    recognizer_version: str = ""
+    active_profile: str = ""
+    licence: str = ""
 
 
 @dataclass
@@ -330,6 +334,11 @@ class VisitorNameResult:
 def _raw_similarity(face: dict[str, Any]) -> float:
     """A face's raw cosine similarity; an older service sends only the "similarity" alias."""
     return float(face.get("raw_similarity", face.get("similarity", 0.0)))
+
+
+def _recognizer_version(face: dict[str, Any]) -> str:
+    """Decode recognizer_version with a one-release fallback to arcface_model_version."""
+    return str(face.get("recognizer_version") or face.get("arcface_model_version") or "")
 
 
 def _extract_detail(response: httpx.Response) -> str:
@@ -468,6 +477,7 @@ class PersonIDClient:
                 ),
                 margin=float(f["margin"]) if f.get("margin") is not None else None,
                 gallery_representation=str(f.get("gallery_representation", "centroid")),
+                recognizer_version=_recognizer_version(f),
             )
             for f in data.get("faces", [])
         ]
@@ -968,6 +978,14 @@ class PersonIDClient:
                 status=str(calibration["status"]),
                 covered_identities=None if covered is None else [str(i) for i in covered],
                 template_status=str(data["template_calibration"]["status"]),
+                recognizer_version=str(
+                    data.get("recognizer_version")
+                    or calibration.get("recognizer_version")
+                    or data.get("model")
+                    or ""
+                ),
+                active_profile=str(data.get("active_profile") or ""),
+                licence=str(data.get("licence") or ""),
             )
         except (KeyError, TypeError) as exc:
             raise PersonIDUpstreamError(502, f"malformed health response: {exc}") from exc
@@ -1126,6 +1144,7 @@ class PersonIDClient:
                     second_best_similarity=f.get("second_best_similarity"),
                     margin=f.get("margin"),
                     gallery_representation=f.get("gallery_representation", "centroid"),
+                    recognizer_version=_recognizer_version(f),
                 )
                 for f in frame.get("faces", [])
             ]

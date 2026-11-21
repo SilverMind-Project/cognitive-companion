@@ -47,7 +47,7 @@ def _cts_readiness(
         face_quality_mode="enabled",
         cc_assertion_mode="enabled",
         wearable_mode=wearable_mode,
-        expected_arcface_model_version="buffalo_l",
+        expected_recognizer_version="buffalo_l",
         expected_quality_version="heuristic-v1",
         reid_gallery_counts=CTSGalleryCounts(
             pending_review=pending_taught,
@@ -286,9 +286,7 @@ def test_revoke_and_resume_routes_reject_caregiver_403_and_allow_caregiver_admin
 
     ks = _ensure_keystore()
     caregiver_auth = AuthContext(key="k-caregiver", name="Caregiver", permissions=["caregiver"])
-    admin_auth = AuthContext(
-        key="k-admin", name="Caregiver Admin", permissions=["caregiver_admin"]
-    )
+    admin_auth = AuthContext(key="k-admin", name="Caregiver Admin", permissions=["caregiver_admin"])
     assert ks.has_token(caregiver_auth, "wearables:revoke_teaching") is False
     assert ks.has_token(admin_auth, "wearables:revoke_teaching") is True
 

@@ -30,6 +30,7 @@ STALE_FRAME_S = 60.0
 FACE_ONLY_ROLE = "face_capable"
 ARTIFACT_READY = "ready"
 ARTIFACT_MISSING = "degraded_missing"
+ARTIFACT_INCOMPATIBLE = "degraded_incompatible"
 
 _ROSTER_SCOPE = (
     "Roster health can only check people listed under People: the person you care for must be "
@@ -368,6 +369,7 @@ def labeling_step(summary: CalibrationSummaryInfo | SourceFailure) -> ReadinessS
 def artifact_step(
     health: CalibrationHealthInfo | SourceFailure,
     members: list[MemberInfo] | SourceFailure,
+    cts: CTSIdentityReadiness | SourceFailure | None = None,
 ) -> ReadinessStep:
     if isinstance(health, SourceFailure):
         return _unknown("artifact", health)
@@ -378,12 +380,43 @@ def artifact_step(
             detail="No face calibration artifact is deployed; face scores are uncalibrated.",
             next_action="fit_and_deploy_artifact",
         )
+    if health.status == ARTIFACT_INCOMPATIBLE:
+        recognizer_note = (
+            f" for active recognizer {health.recognizer_version}"
+            if health.recognizer_version
+            else ""
+        )
+        return ReadinessStep(
+            key="artifact",
+            state="blocked",
+            detail=(
+                "The deployed calibration artifact is incompatible with the current face "
+                f"recognizer or gallery representation{recognizer_note}; refit and redeploy it."
+            ),
+            next_action="refit_artifact",
+        )
     if health.status != ARTIFACT_READY:
         return ReadinessStep(
             key="artifact",
             state="blocked",
             detail=f"The calibration artifact is not usable (status {health.status}).",
             next_action="fit_and_deploy_artifact",
+        )
+    if (
+        isinstance(cts, CTSIdentityReadiness)
+        and cts.expected_recognizer_version
+        and health.recognizer_version
+        and cts.expected_recognizer_version != health.recognizer_version
+    ):
+        return ReadinessStep(
+            key="artifact",
+            state="blocked",
+            detail=(
+                f"Tracking expects recognizer {cts.expected_recognizer_version} while person "
+                f"identification runs {health.recognizer_version}; calibrated face confidence is "
+                "paused until both match and the artifact is refitted."
+            ),
+            next_action="refit_artifact",
         )
     if isinstance(members, SourceFailure):
         return _unknown("artifact", members)

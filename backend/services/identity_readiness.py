@@ -96,7 +96,7 @@ class IdentityReadinessService:
         )
         artifact_ready = not isinstance(health, SourceFailure) and health.status == ARTIFACT_READY
         steps = [
-            roster_step(roster, members),
+            roster_step(roster, members, cts),
             ingest_step(ingest),
             floor_frame_step(household, cts),
             capture_step(summary, health),

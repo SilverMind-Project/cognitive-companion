@@ -266,6 +266,7 @@ neither `wire_cts` nor `wire_cts_disabled` touches it.
 | --- | --- |
 | `ha_state_cache` | `ha_client` |
 | `presence` | `ha_state_cache`, `person_location_service` |
+| `household_presence_publisher` | `presence`, `roster_health_service`, `occupancy_read_model` (`None` when `cts.enabled=false` or `redis.url` is empty) |
 
 ## Resolution of pre-existing gap (M39 Part B)
 

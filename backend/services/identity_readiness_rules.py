@@ -123,21 +123,46 @@ def _prototype_counts_detail(members: list[MemberInfo] | SourceFailure | None) -
     return f"Face prototypes across enrolled members: {', '.join(parts)}. "
 
 
+def _closed_world_detail(cts: CTSIdentityReadiness | SourceFailure | None) -> str:
+    if not isinstance(cts, CTSIdentityReadiness) or cts.closed_world is None:
+        return ""
+    cw = cts.closed_world
+    if cw.mode == "off":
+        return "Closed-world prior shaping is off. "
+    if cw.active:
+        if cw.inactive_reason == "presence_stale":
+            return (
+                f"Closed-world prior shaping is active ({cw.mode}; household presence is stale, "
+                "so away penalties are paused). "
+            )
+        return f"Closed-world prior shaping is active ({cw.mode}). "
+    reason_map = {
+        "roster_incomplete": "roster incomplete",
+        "no_presence": "waiting for household presence stream",
+        "no_identities": "no enrolled identities synced",
+    }
+    reason_text = reason_map.get(cw.inactive_reason or "", cw.inactive_reason or "gated")
+    return f"Closed-world prior shaping is inactive ({cw.mode}: {reason_text}). "
+
+
 def roster_step(
     roster: RosterHealthEnvelope | SourceFailure,
     members: list[MemberInfo] | SourceFailure | None = None,
+    cts: CTSIdentityReadiness | SourceFailure | None = None,
 ) -> ReadinessStep:
     if isinstance(roster, SourceFailure):
         return _unknown("roster", roster)
     missing = len(roster.members_without_face_enrollment)
     clusters = roster.surfaced_unnamed_visitor_clusters
     prototypes = _prototype_counts_detail(members)
+    closed_world = _closed_world_detail(cts)
     if roster.active_member_count == 0:
         return ReadinessStep(
             key="roster",
             state="blocked",
             detail=(
                 "Nobody is listed. List and enroll every person who lives in the house. "
+                + closed_world
                 + _ROSTER_SCOPE
             ),
             next_action="enroll_members",
@@ -152,6 +177,7 @@ def roster_step(
                 f"{roster.min_face_embeddings} enrolled face photos. "
                 + (_clusters(clusters) + " " if clusters else "")
                 + prototypes
+                + closed_world
                 + _ROSTER_SCOPE
             ),
             next_action="enroll_members",
@@ -160,7 +186,7 @@ def roster_step(
         return ReadinessStep(
             key="roster",
             state="attention",
-            detail=f"{_clusters(clusters)} {prototypes}{_ROSTER_SCOPE}",
+            detail=f"{_clusters(clusters)} {prototypes}{closed_world}{_ROSTER_SCOPE}",
             next_action="review_visitors",
         )
     everyone = (
@@ -171,7 +197,7 @@ def roster_step(
     return ReadinessStep(
         key="roster",
         state="ready",
-        detail=f"{everyone} enrolled. {prototypes}{_ROSTER_SCOPE}",
+        detail=f"{everyone} enrolled. {prototypes}{closed_world}{_ROSTER_SCOPE}",
         next_action="none",
     )
 

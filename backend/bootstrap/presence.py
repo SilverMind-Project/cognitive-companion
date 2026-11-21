@@ -58,3 +58,24 @@ async def wire_presence(app: FastAPI, settings: Settings, container: ServiceCont
         "presence_service_started",
         providers=[p.name for p in providers],
     )
+
+    # Publish fused household presence + roster completeness to CTS when CTS is enabled.
+    app.state.household_presence_publisher = None
+    redis_url = settings.as_str("redis.url", allow_empty=True)
+    if settings.as_bool("cts.enabled") and redis_url:
+        import redis.asyncio as aioredis
+
+        from backend.core.database import get_session
+        from backend.services.cts.household_presence_publisher import (
+            HouseholdPresencePublisher,
+        )
+
+        publisher = HouseholdPresencePublisher(
+            redis_client=aioredis.from_url(redis_url, decode_responses=False),
+            presence_service=presence_service,
+            roster_health_service=app.state.roster_health_service,
+            db_factory=get_session,
+            occupancy_read_model=app.state.occupancy_read_model,
+        )
+        await publisher.start()
+        app.state.household_presence_publisher = publisher

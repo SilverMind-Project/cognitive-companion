@@ -87,6 +87,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "guided_task_service",
         "ha_client",
         "ha_state_cache",
+        "household_presence_publisher",
         "identity_correction_service",
         "identity_readiness_service",
         "identity_review_registry",

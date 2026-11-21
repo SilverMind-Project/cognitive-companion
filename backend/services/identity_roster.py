@@ -76,3 +76,22 @@ class RosterHealthService:
                 return False, 0
             raise
         return True, result.total
+
+    async def has_recent_surfaced_visitor(
+        self,
+        *,
+        within_s: float = 3600.0,
+        now: datetime | None = None,
+    ) -> bool:
+        """Return True if any surfaced unnamed visitor cluster was seen within *within_s*."""
+        try:
+            result = await self._client.list_visitor_clusters("surfaced")
+        except PersonIDUpstreamError as exc:
+            if exc.status == _CLUSTERING_DISABLED_STATUS:
+                return False
+            raise
+        ref_time = now or datetime.now(UTC)
+        return any(
+            (ref_time - cluster.last_seen_at).total_seconds() <= within_s
+            for cluster in result.clusters
+        )

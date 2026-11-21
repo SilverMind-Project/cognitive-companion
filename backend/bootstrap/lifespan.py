@@ -82,6 +82,8 @@ async def lifespan(app: FastAPI):
 
     # -- Shutdown ----------------------------------------------------------
     app.state.scheduler.shutdown(wait=False)
+    if app.state.household_presence_publisher is not None:
+        await app.state.household_presence_publisher.stop()
     if cts_runtime is not None:
         await cts_runtime.stop()
     if app.state.ha_state_cache is not None:

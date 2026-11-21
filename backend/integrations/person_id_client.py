@@ -332,8 +332,8 @@ class VisitorNameResult:
 
 
 def _raw_similarity(face: dict[str, Any]) -> float:
-    """A face's raw cosine similarity; an older service sends only the "similarity" alias."""
-    return float(face.get("raw_similarity", face.get("similarity", 0.0)))
+    """Read a face's raw cosine similarity from the FaceDetection wire contract."""
+    return float(face.get("similarity", 0.0))
 
 
 def _recognizer_version(face: dict[str, Any]) -> str:

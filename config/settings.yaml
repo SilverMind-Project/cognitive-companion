@@ -9,7 +9,7 @@ app:
   # External origin for links in outbound notifications, e.g. https://home.example.net.
   # Empty keeps relative links for in-app surfaces.
   public_base_url: ""
-  # Display names for resident-facing language codes (M27/D15/G5). Used to
+  # Display names for resident-facing language codes. Used to
   # resolve Routine.language_override into the agent's language directive
   # and to constrain the Routine Builder's language select. An unmapped
   # code degrades loudly (backend/services/guided_task/language.py) rather
@@ -108,7 +108,7 @@ llm:
       temperature: 0.7
       top_p: 0.9
 
-  # Admission control (DL-M09): the single choke point in front of every
+  # Admission control: the single choke point in front of every
   # local (Spark-hosted) vision/text LLM provider. Vision lane defaults to 1
   # (the Spark serves one heavy vision request well, two badly); the text
   # lane is cheaper but still competes for the same GPU. A queued call
@@ -195,12 +195,12 @@ guided_task:
   transcript_retention_days: 30
   # Ceiling on how long guided_task_start parks its owning pipeline execution,
   # regardless of the computed summon + routine-scale budget. A safety net for
-  # a wedged session, not the normal resume path (M25/G6).
+  # a wedged session, not the normal resume path.
   max_pipeline_park_s: 7200
   escalation_channels: ["telegram", "pwa_popup_text"]
   summon_channels: ["ha_speaker_tts", "pwa_popup_text"]
   rephrase_via: "agent"
-  # Literal-TTS summon announcement, per resident language (M27/D15/G5).
+  # Literal-TTS summon announcement, per resident language.
   # Resolution order: Routine.language_override, then tts.default_language,
   # then "en". A resolved language missing here falls back to "en" and logs
   # guided_summon_language_missing (backend/services/guided_task/service.py).
@@ -208,9 +208,9 @@ guided_task:
     en: "Please come to the companion screen when you are ready for your routine."
     ta: "நீங்க ரெடி ஆன உடனே, கொஞ்சம் அந்த கம்பேனியன் ஸ்க்ரீனுக்கு (companion screen) வாங்க."
   vision:
-    # Camera count cap for the D5 cascade, independent of max_frames (the
-    # per-camera frame budget below). Overridable per profile via
-    # vision.confirm.max_cameras / vision.watch.max_cameras (M28/G11).
+    # Camera count cap for the visual confirmation cascade, independent of
+    # max_frames (the per-camera frame budget below). Overridable per profile
+    # via vision.confirm.max_cameras / vision.watch.max_cameras.
     max_cameras: 3
     confirm:
       window_s: 20
@@ -252,9 +252,9 @@ mcp:
     - "get_local_datetime"
     - "get_person_activities"
     - "get_enrolled_persons"
-    # DL-M04: activity ledger query surface (daily-living countable/duration
-    # questions -- medication/TV/meals). Never answer these by aggregating
-    # semantic-memory captions (DL2); always call these tools.
+    # Activity ledger query surface (countable and duration questions about
+    # medication, TV, and meals). Always call these tools rather than
+    # aggregating semantic-memory captions.
     - "get_person_timeline"
     - "get_daily_report"
     - "get_open_sessions"
@@ -290,7 +290,7 @@ person_tracking:
   location_stale_minutes: 30
   ha_propagation: true
 
-# Unified person-location SSOT (PersonLocationService). M38: un-gated from
+# Unified person-location SSOT (PersonLocationService): un-gated from
 # cts.enabled and source-arbitrated across world_tracker/face_sighting/sensor.
 person_location:
   inferred_dwell_max_s: 14400.0  # 4 hours; camera-blind bathroom dwell timeout
@@ -318,18 +318,15 @@ scene_analysis:
   enabled: true
   timeout: 30
 
-# Semantic Memory Service (also provides object trend tracking API)
-# Re-enabled 2026-07-21 (DL-M01 diagnosis): the service is reachable and the
-# CTS scene.samples consumer has zero lag; this flag was the only thing
-# preventing every consumed sample from being persisted. See the dated
-# "L1 diagnosis result" addendum in daily-living-m00-*.md for the full
-# evidence chain.
+# Semantic Memory Service (also provides object trend tracking API).
+# Keep enabled whenever semantic-memory-service is deployed so consumed
+# scene.samples events are persisted instead of silently dropped.
 semantic_memory:
   url: "${SEMANTIC_MEMORY_URL}"         # e.g. http://localhost:8400
   enabled: true
   timeout: 10
 
-# Daily Living program (DL-M01): memory + ledger health surfacing thresholds.
+# Daily living memory + ledger health surfacing thresholds.
 daily_living:
   health:
     # Semantic-memory last write older than this many hours is "stale" on the
@@ -338,8 +335,8 @@ daily_living:
     # Activity-ledger last write (any type) older than this many hours is
     # "stale" on the admin dashboard health tile.
     ledger_stale_hours: 48
-  # DL-M04: activity ledger population (TV, meals). Deployment-specific
-  # values (entity id, room names, person id) are placeholders in the
+  # Activity ledger population (TV, meals). Deployment-specific values
+  # (entity id, room names, person id) are placeholders in the
   # daily_living_activity.json rule bundle; these are the shared timing knobs.
   tv:
     # HA media_player entity id backing the watching_tv rules' home_state
@@ -353,10 +350,10 @@ daily_living:
     # Re-seating within this gap continues the same meal_eating session
     # (one lunch, not two).
     merge_gap_minutes: 20
-  # DL-M06: tea-intent shadow detector. Documented here per the M00 plan-author
-  # defaults table; the daily_living_tea_intent_shadow.json rule bundle bakes
-  # the current values in as literals (rule bundles do not read settings.yaml
-  # at import time), matching the tv/meals bundles above. Change both together.
+  # Tea-intent shadow detector defaults. The daily_living_tea_intent_shadow.json
+  # rule bundle bakes the current values in as literals (rule bundles do not read
+  # settings.yaml at import time), matching the tv/meals bundles above. Change
+  # both together.
   intent:
     # Kitchen dwell (presence_dwell filter) before the intent cascade runs;
     # short enough to catch tea, long enough to skip walk-throughs.
@@ -366,12 +363,11 @@ daily_living:
     # trigger_cooloff), so a negative verdict never suppresses the next poll.
     rate_limit_minutes: 45
 
-# DL-M08: hygiene VLM confirm, shower proxy, and caregiver alert (CC half of
-# L9; the CTS half's hygiene.same_clothes.* keys live in the tracking-orchestrator
-# settings.yaml). Documented here per the M00 plan-author defaults table; the
-# daily_living_hygiene_confirm.json rule bundle bakes the current values in as
-# literals (rule bundles do not read settings.yaml at import time). Change both
-# together.
+# Hygiene VLM confirm, shower proxy, and caregiver alert (the paired CTS
+# hygiene.same_clothes.* keys live in tracking-orchestrator/config/settings.yaml).
+# The daily_living_hygiene_confirm.json rule bundle bakes the current values in
+# as literals (rule bundles do not read settings.yaml at import time). Change
+# both together.
 hygiene:
   shower:
     # Lookback for the bathroom-dwell shower proxy join.
@@ -387,10 +383,10 @@ hygiene:
     # to keep text-only alerts while leaving this default documented here.
     include_images: true
 
-# DL-M09: novelty_gate step default. CLIP-embedding cosine distance below
-# this vs. the last analyzed frame for a scope means "scene unchanged,
-# skip" (saves the tier-3/4 model calls downstream). Per-step config can
-# override; this is the authoring default only.
+# novelty_gate step default. CLIP-embedding cosine distance below this vs. the
+# last analyzed frame for a scope means "scene unchanged, skip" (saves heavy
+# downstream VLM/LLM calls). Per-step config can override; this is the
+# authoring default only.
 novelty_gate:
   min_distance: 0.06
 
@@ -481,7 +477,7 @@ cts:
   # Optional rates keyed by camera_id, for example: {kitchen_cam: 1.0}
   image_rate_overrides: {}
 
-  # Redis Streams config (M8/M9 subscribers).
+  # Redis Streams consumed by CTS subscribers.
   consumer_id: "${HOSTNAME}"
   tracking_events_stream: "tracking.events"
   revisions_stream: "tracking.revisions"
@@ -492,18 +488,16 @@ cts:
   # protected from a subsequent out-of-order CTS event (seconds).
   lock_seconds: 60
 
-  # M06: fallback identity-revision supersession window (seconds) for
-  # automatic revisions carrying no explicit range_start/range_end. Mirrors
-  # CTS resolver.revision_horizon_s; change both together.
+  # Fallback identity-revision supersession window (seconds) for automatic
+  # revisions carrying no explicit range_start/range_end. Mirrors CTS
+  # resolver.revision_horizon_s; change both together.
   revision_horizon_s: 600.0
 
-  # M38 shipped this publishing flag default false because the proto could
-  # not represent "no floor point" and reCamera camera ids never match CTS
-  # camera ids. identity-continuity M09 fixes both (has_floor_point wire
-  # flag, room-level matching) and flips this default to true: the resolver
-  # side starts in shadow mode (resolver.cc_assertion_mode on the CTS side),
-  # so publishing now is safe and is required for the shadow measurement to
-  # collect data.
+  # Publish CC-side face sightings to cc.identity_assertions (using the
+  # has_floor_point wire flag and room-level matching when no floor point is
+  # present). CTS consumes assertions in shadow mode by default
+  # (resolver.cc_assertion_mode), so publishing is safe and supplies shadow
+  # measurement data.
   identity_assertions:
     publish_enabled: true
 

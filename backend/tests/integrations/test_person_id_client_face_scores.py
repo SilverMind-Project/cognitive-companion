@@ -55,10 +55,10 @@ async def test_batch_faces_carry_raw_similarity_from_recorded_response() -> None
 
 
 @pytest.mark.asyncio
-async def test_older_service_without_raw_similarity_falls_back_to_similarity() -> None:
+async def test_batch_faces_read_similarity_directly_ignoring_legacy_confidence() -> None:
     payload = json.loads(_FIXTURE.read_text())
     for face in payload["frames"][0]["faces"]:
-        del face["raw_similarity"]
+        assert "raw_similarity" not in face
     with _patched_post(payload):
         result = await _client().identify_batch(["aW1n"])
 

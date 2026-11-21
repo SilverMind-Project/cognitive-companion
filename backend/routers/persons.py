@@ -27,6 +27,8 @@ from backend.schemas.person import (
     HouseholdMemberOut,
     HouseholdMemberUpdate,
     PersonEnrollmentOut,
+    PersonHeightProfileOut,
+    PersonHeightSyncItem,
     PersonPrototypesResponse,
     RebuildPrototypesResponse,
 )
@@ -97,6 +99,7 @@ async def create_member(
         id=body.id,
         name=body.name,
         is_guest=body.is_guest,
+        height_cm=body.height_cm,
         metadata_json=body.metadata_json,
     )
 
@@ -125,6 +128,18 @@ async def list_enrolled(
             created_at=m.created_at,
         )
         for m in enrolled
+    ]
+
+
+@router.get("/heights", response_model=list[PersonHeightSyncItem])
+async def list_member_heights(
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_token("persons:heights_sync")),
+) -> list[PersonHeightSyncItem]:
+    """Minimal member height roster for CTS operator-height sync (reads local DB only)."""
+    members = db.query(HouseholdMember).order_by(HouseholdMember.id).all()
+    return [
+        PersonHeightSyncItem(person_id=member.id, height_cm=member.height_cm) for member in members
     ]
 
 
@@ -300,6 +315,56 @@ async def delete_person_prototype(
         actor=actor,
     )
     return Response(status_code=204)
+
+
+@router.get("/{person_id}/height-profile", response_model=PersonHeightProfileOut)
+async def get_person_height_profile(
+    person_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _auth=Depends(require_permission("caregiver")),
+) -> PersonHeightProfileOut:
+    """Return the operator-entered height and effective CTS standing height profile."""
+    member = db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail=f"Member '{person_id}' not found")
+
+    orch_client = getattr(request.app.state, "orchestrator_client", None)
+    if orch_client is None:
+        return PersonHeightProfileOut(
+            person_id=person_id,
+            operator_height_cm=member.height_cm,
+            cts_available=False,
+        )
+
+    try:
+        profile = await orch_client.get_identity_height_profile(person_id)
+    except UpstreamError, OSError:
+        logger.warning("cts_height_profile_fetch_failed", person_id=person_id)
+        return PersonHeightProfileOut(
+            person_id=person_id,
+            operator_height_cm=member.height_cm,
+            cts_available=False,
+        )
+
+    if profile is None:
+        return PersonHeightProfileOut(
+            person_id=person_id,
+            operator_height_cm=member.height_cm,
+            cts_available=True,
+        )
+
+    return PersonHeightProfileOut(
+        person_id=person_id,
+        operator_height_cm=member.height_cm,
+        effective_height_m=profile.get("height_m"),
+        effective_sigma_m=profile.get("height_sigma_m"),
+        source=profile.get("source"),
+        samples=int(profile.get("samples", 0)),
+        cameras=int(profile.get("cameras", 0)),
+        updated_at=profile.get("updated_at"),
+        cts_available=True,
+    )
 
 
 @router.get("/{person_id}", response_model=HouseholdMemberOut)

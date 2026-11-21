@@ -22,10 +22,17 @@ def insert_household_member(
     id: str,
     name: str,
     is_guest: bool = False,
+    height_cm: float | None = None,
     metadata_json: dict | None = None,
 ) -> HouseholdMember:
     """Insert a new household member row. Caller must ensure ``id`` is free."""
-    member = HouseholdMember(id=id, name=name, is_guest=is_guest, metadata_json=metadata_json)
+    member = HouseholdMember(
+        id=id,
+        name=name,
+        is_guest=is_guest,
+        height_cm=height_cm,
+        metadata_json=metadata_json,
+    )
     db.add(member)
     db.commit()
     db.refresh(member)

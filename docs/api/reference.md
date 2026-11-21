@@ -243,10 +243,12 @@ health service itself is unwired.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/persons` | List household members |
-| `POST` | `/persons` | Create a household member |
+| `GET` | `/persons` | List household members (includes optional `height_cm`) |
+| `POST` | `/persons` | Create a household member (accepts optional `height_cm` in `[90, 220]`) |
+| `GET` | `/persons/heights` | Minimal member standing-height sync feed for CTS (`persons:heights_sync`; granted to `cts_ingress` and `admin`, reads local `household_members` only) |
 | `GET` | `/persons/{person_id}` | Get a member |
-| `PATCH` | `/persons/{person_id}` | Update a member |
+| `GET` | `/persons/{person_id}/height-profile` | Combined operator-entered `height_cm` and effective CTS standing height profile (`learned` or `operator`, sample/camera counts, uncertainty; degrades cleanly with `cts_available: false` if CTS is unreachable) |
+| `PATCH` | `/persons/{person_id}` | Update a member (including optional `height_cm` in `[90, 220]` or `null` to clear) |
 | `DELETE` | `/persons/{person_id}` | Delete a member |
 | `POST` | `/persons/{person_id}/enroll` | Upload face enrollment photos |
 | `GET` | `/persons/{person_id}/enrollment` | Get enrollment status |

@@ -283,6 +283,7 @@ permission_map:
     - "GET /api/v1/rooms*"
     - "GET /api/v1/household/floor-plan"
     - "wearables:site_config"
+    - "persons:heights_sync"
 
   "device:recamera":
     - "POST /api/v1/device/recamera"
@@ -423,3 +424,7 @@ permission_map:
     - "DELETE /api/v1/wearables/nodes/*"
   "wearables:site_config":
     - "GET /api/v1/wearables/site-config"
+
+  # Operator-entered standing heights synced to CTS.
+  "persons:heights_sync":
+    - "GET /api/v1/persons/heights"

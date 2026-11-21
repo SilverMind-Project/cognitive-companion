@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -40,6 +40,7 @@ class HouseholdMemberCreate(BaseModel):
     id: str = Field(..., min_length=1, max_length=64)
     name: str = Field(..., min_length=1, max_length=128)
     is_guest: bool = False
+    height_cm: float | None = Field(default=None, ge=90.0, le=220.0)
     metadata_json: dict | None = None
     cts_alert_config: dict[str, Any] | None = None
 
@@ -48,6 +49,7 @@ class HouseholdMemberUpdate(BaseModel):
     name: str | None = None
     is_active: bool | None = None
     is_guest: bool | None = None
+    height_cm: float | None = Field(default=None, ge=90.0, le=220.0)
     metadata_json: dict | None = None
     cts_alert_config: dict[str, Any] | None = None
 
@@ -57,12 +59,34 @@ class HouseholdMemberOut(OutSchema):
     name: str
     is_active: bool
     is_guest: bool
+    height_cm: float | None = Field(default=None, ge=90.0, le=220.0)
     metadata_json: dict | None = None
     cts_alert_config: dict[str, Any] | None = None
     created_at: UTCDatetime
     updated_at: OptionalUTCDatetime = None
     is_enrolled: bool = False
     embedding_count: int = 0
+
+
+class PersonHeightSyncItem(BaseModel):
+    """Minimal member standing-height entry synced to CTS."""
+
+    person_id: str
+    height_cm: float | None = None
+
+
+class PersonHeightProfileOut(BaseModel):
+    """Combined operator-entered height and CTS effective standing height profile."""
+
+    person_id: str
+    operator_height_cm: float | None = None
+    effective_height_m: float | None = None
+    effective_sigma_m: float | None = None
+    source: Literal["operator", "learned"] | None = None
+    samples: int = 0
+    cameras: int = 0
+    updated_at: OptionalUTCDatetime = None
+    cts_available: bool = True
 
 
 # -- Enrollment --------------------------------------------------------------

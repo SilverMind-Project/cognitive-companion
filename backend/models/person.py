@@ -78,6 +78,7 @@ class HouseholdMember(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_guest: Mapped[bool] = mapped_column(Boolean, default=False)
     alert_priority: Mapped[int] = mapped_column(Integer, default=5)
+    height_cm: Mapped[float | None] = mapped_column(Float, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Per-person CTS alert configuration. Keys: enabled_kinds (list[str]), min_severity (str).
     # NULL means "use the default profile" (all kinds, info severity).

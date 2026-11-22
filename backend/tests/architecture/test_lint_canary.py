@@ -25,11 +25,14 @@ _EXPECTED_CODES = frozenset(
         "PGH003",
         "S608",
         "TID251",
+        "TID252",
     }
 )
 
 
-def _ruff_codes(config_path: Path) -> set[str]:
+def _ruff_codes(
+    config_path: Path, stdin_filename: str = "backend/services/_lint_canary.py"
+) -> set[str]:
     result = subprocess.run(
         [
             sys.executable,
@@ -40,7 +43,7 @@ def _ruff_codes(config_path: Path) -> set[str]:
             str(config_path),
             "--output-format=json",
             "--stdin-filename",
-            "backend/services/_lint_canary.py",
+            stdin_filename,
             "-",
         ],
         input=_CANARY.read_text(encoding="utf-8"),
@@ -60,6 +63,11 @@ def test_pyproject_enforces_all_guardrail_rules() -> None:
     assert not missing, (
         f"backend/pyproject.toml did not report expected ruff codes: {sorted(missing)}"
     )
+
+
+def test_init_reexports_are_exempt_from_tid252() -> None:
+    reported = _ruff_codes(_PYPROJECT, stdin_filename="backend/services/__init__.py")
+    assert "TID252" not in reported
 
 
 def test_canary_detects_removed_rule(tmp_path: Path) -> None:

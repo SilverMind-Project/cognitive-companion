@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from .types import SourceTag
+from backend.services.person_location.types import SourceTag
 
 # Priority ranking: higher wins outright. Mirrors
 # backend/services/cts/source_authority.py's SOURCE_PRIORITY, minus the

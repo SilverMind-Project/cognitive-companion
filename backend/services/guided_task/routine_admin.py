@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from backend.core.exceptions import NotFoundError, ValidationError
 from backend.core.logging import get_logger
 from backend.models.person import ActivityTypeEnum
+from backend.schemas._completion_gate import normalize_completion_gate
 from backend.schemas.guided_task import (
     GuidedSessionOut,
     RoutineActivityTypeOptionsOut,
@@ -26,68 +26,8 @@ logger = get_logger(__name__)
 
 
 def sanitize_completion_gate(gate: dict[str, Any]) -> dict[str, Any]:
-    if not isinstance(gate, dict):
-        return gate
-
-    gate = copy.deepcopy(gate)
-    vision = gate.get("vision") or gate.get("vision_confirm")
-    if isinstance(vision, dict):
-        legacy_keys = []
-        if "camera_ids" in vision:
-            legacy_keys.append("camera_ids")
-        if "description" in vision:
-            legacy_keys.append("description")
-
-        if legacy_keys:
-            logger.warning(
-                "legacy_vision_gate_keys_ignored",
-                keys=legacy_keys,
-            )
-            for k in legacy_keys:
-                vision.pop(k, None)
-
-        new_vision = {}
-        if "gate_graph_rule_id" in vision:
-            new_vision["gate_graph_rule_id"] = vision["gate_graph_rule_id"]
-
-        confirm = vision.get("confirm")
-        if isinstance(confirm, dict):
-            new_vision["confirm"] = {
-                "window_s": confirm.get("window_s"),
-                "max_frames": confirm.get("max_frames"),
-                "max_cameras": confirm.get("max_cameras"),
-                "min_confidence": confirm.get("min_confidence"),
-                "min_interval_s": confirm.get("min_interval_s"),
-                "model_id": confirm.get("model_id"),
-                "on_max_disagreements": confirm.get("on_max_disagreements"),
-            }
-        elif "confirm" in vision:
-            new_vision["confirm"] = confirm
-
-        watch = vision.get("watch")
-        if isinstance(watch, dict):
-            new_vision["watch"] = {
-                "enabled": watch.get("enabled"),
-                "tick_s": watch.get("tick_s"),
-                "window_s": watch.get("window_s"),
-                "max_frames": watch.get("max_frames"),
-                "max_cameras": watch.get("max_cameras"),
-                "model_id": watch.get("model_id"),
-                "auto_advance": watch.get("auto_advance"),
-                "auto_advance_k": watch.get("auto_advance_k"),
-            }
-        elif "watch" in vision:
-            new_vision["watch"] = watch
-
-        for k, v in vision.items():
-            if k not in {"confirm", "watch", "gate_graph_rule_id", "camera_ids", "description"}:
-                new_vision[k] = v
-
-        gate["vision"] = new_vision
-        if "vision_confirm" in gate:
-            gate.pop("vision_confirm", None)
-
-    return gate
+    result: dict[str, Any] = normalize_completion_gate(gate)
+    return result
 
 
 class RoutineAdmin:

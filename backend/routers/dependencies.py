@@ -56,7 +56,14 @@ if TYPE_CHECKING:
     from backend.services.identity_roster import RosterHealthService
     from backend.services.identity_targets import IdentityTargetsService
     from backend.services.inference_telemetry import InferenceTelemetryService
+    from backend.services.knowledge.content_generation import ContentGenerationService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
+    from backend.services.knowledge.info_card_service import InfoCardService
+    from backend.services.knowledge.ingestion_service import KnowledgeIngestionService
+    from backend.services.knowledge.interaction_service import KnowledgeInteractionService
+    from backend.services.knowledge.layout_registry import LayoutRegistry
+    from backend.services.knowledge.quiz_service import QuizService
+    from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
     from backend.services.media_observability import MediaObservabilityService
     from backend.services.medication_schedule import MedicationScheduleService
     from backend.services.occupancy import OccupancyReadModel
@@ -78,6 +85,7 @@ if TYPE_CHECKING:
 __all__ = [
     "get_companion_surface_service",
     "get_config_minio_client",
+    "get_content_generation",
     "get_conversation_manager",
     "get_cts_runtime",
     "get_daily_living_health",
@@ -91,9 +99,13 @@ __all__ = [
     "get_identity_readiness_service",
     "get_identity_targets_service",
     "get_inference_telemetry",
+    "get_info_card_service",
     "get_ingress_admin_client",
     "get_keyframe_read_service",
     "get_knowledge_delivery",
+    "get_knowledge_ingestion",
+    "get_knowledge_interaction_service",
+    "get_layout_registry",
     "get_llm_model_registry",
     "get_media_observability",
     "get_medication_schedule_service",
@@ -102,6 +114,7 @@ __all__ = [
     "get_orchestrator_client",
     "get_person_location_service",
     "get_ph_enrichment_service",
+    "get_quiz_service",
     "get_realtime_provider",
     "get_rf_node_service",
     "get_roster_health_service",
@@ -109,6 +122,7 @@ __all__ = [
     "get_sensor_polling",
     "get_signals_feed",
     "get_visitor_admin_service",
+    "get_voice_instructions",
     "get_wearable_binding_service",
     "get_wearable_device_service",
     "get_wearable_site_config_service",
@@ -418,6 +432,62 @@ def get_knowledge_delivery(request: Request) -> KnowledgeDeliveryService:
     svc: KnowledgeDeliveryService | None = request.app.state.knowledge_delivery
     if svc is None:
         raise _raise_503("knowledge_delivery", "Knowledge delivery service")
+    return svc
+
+
+def get_info_card_service(request: Request) -> InfoCardService:
+    """Return the lifespan-managed info card service (503 if unavailable)."""
+    svc: InfoCardService | None = request.app.state.info_card_service
+    if svc is None:
+        raise _raise_503("info_card_service", "Info card service")
+    return svc
+
+
+def get_quiz_service(request: Request) -> QuizService:
+    """Return the lifespan-managed quiz service (503 if unavailable)."""
+    svc: QuizService | None = request.app.state.quiz_service
+    if svc is None:
+        raise _raise_503("quiz_service", "Quiz service")
+    return svc
+
+
+def get_knowledge_interaction_service(request: Request) -> KnowledgeInteractionService:
+    """Return the lifespan-managed knowledge interaction service (503 if unavailable)."""
+    svc: KnowledgeInteractionService | None = request.app.state.knowledge_interaction_service
+    if svc is None:
+        raise _raise_503("knowledge_interaction_service", "Knowledge interaction service")
+    return svc
+
+
+def get_content_generation(request: Request) -> ContentGenerationService:
+    """Return the lifespan-managed content generation service (503 if unavailable)."""
+    svc: ContentGenerationService | None = request.app.state.knowledge_content_gen
+    if svc is None:
+        raise _raise_503("knowledge_content_gen", "Content generation service")
+    return svc
+
+
+def get_knowledge_ingestion(request: Request) -> KnowledgeIngestionService:
+    """Return the lifespan-managed knowledge ingestion service (503 if unavailable)."""
+    svc: KnowledgeIngestionService | None = request.app.state.knowledge_ingestion
+    if svc is None:
+        raise _raise_503("knowledge_ingestion", "Knowledge ingestion service")
+    return svc
+
+
+def get_layout_registry(request: Request) -> LayoutRegistry:
+    """Return the lifespan-managed layout registry (503 if unavailable)."""
+    svc: LayoutRegistry | None = request.app.state.layout_registry
+    if svc is None:
+        raise _raise_503("layout_registry", "Layout registry")
+    return svc
+
+
+def get_voice_instructions(request: Request) -> VoiceInstructionConfig:
+    """Return the lifespan-managed voice instruction config (503 if unavailable)."""
+    svc: VoiceInstructionConfig | None = request.app.state.voice_instructions
+    if svc is None:
+        raise _raise_503("voice_instructions", "Voice instruction config")
     return svc
 
 

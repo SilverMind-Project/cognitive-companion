@@ -19864,9 +19864,11 @@ export interface operations {
     list_info_card_deliveries: {
         parameters: {
             query?: {
+                info_card_id?: number | null;
                 date_from?: string | null;
                 date_to?: string | null;
                 limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -19897,11 +19899,15 @@ export interface operations {
     list_queries: {
         parameters: {
             query?: {
+                senior_id?: string | null;
                 date_from?: string | null;
                 date_to?: string | null;
                 answered_via?: string | null;
+                min_similarity?: number | null;
+                max_similarity?: number | null;
                 q?: string | null;
                 limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -19932,10 +19938,13 @@ export interface operations {
     list_quiz_sessions: {
         parameters: {
             query?: {
+                quiz_id?: number | null;
+                senior_id?: string | null;
                 date_from?: string | null;
                 date_to?: string | null;
                 status?: string | null;
                 limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -21633,6 +21642,7 @@ export interface operations {
             query?: {
                 status?: string | null;
                 tag?: string | null;
+                document_id?: number | null;
                 limit?: number;
                 offset?: number;
             };

@@ -21,6 +21,7 @@ import { useMedicationSchedule } from "@/composables/useMedicationSchedule.js";
 import { usePHDetail } from "@/composables/usePHDetail.js";
 import { usePHLifecycle } from "@/composables/usePHLifecycle.js";
 import { usePHList } from "@/composables/usePHList.js";
+import { useQuizzesAdmin } from "@/composables/useQuizzesAdmin.js";
 import { useReIDReview } from "@/composables/useReIDReview.js";
 import { useRoutineBuilder } from "@/composables/useRoutineBuilder.js";
 import { useVisitorReview } from "@/composables/useVisitorReview.js";
@@ -98,6 +99,8 @@ const ENFORCED_SERVER_COMPOSABLES: Record<string, () => Record<string, unknown>>
   "usePHDetail.js": () => usePHDetail() as unknown as Record<string, unknown>,
   "usePHLifecycle.js": () => usePHLifecycle(makeNotify()) as unknown as Record<string, unknown>,
   "usePHList.js": () => usePHList() as unknown as Record<string, unknown>,
+  "useQuizzesAdmin.js": () =>
+    useQuizzesAdmin({ notify: makeNotify() }) as unknown as Record<string, unknown>,
   "useReIDReview.js": () => useReIDReview(makeNotify()) as unknown as Record<string, unknown>,
   "useRoutineBuilder.js": () =>
     useRoutineBuilder({ notify: makeNotify() }) as unknown as Record<string, unknown>,

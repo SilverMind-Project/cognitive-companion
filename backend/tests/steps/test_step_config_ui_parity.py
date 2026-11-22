@@ -130,7 +130,6 @@ def _vue_scalar_defaults(text: str) -> dict[str, object]:
 # tolerates the Vue value, and prefer fixing the drift to widening this set.
 _KNOWN_VALUE_DRIFT: dict[str, set[str]] = {
     "activity_detection": {"confidence"},  # Vue stores "0.8" as a string
-    "daily_report": {"summary_model_id"},
     "ha_action": {"data"},
     "interactive_prompt": {
         "escalate_button_text",

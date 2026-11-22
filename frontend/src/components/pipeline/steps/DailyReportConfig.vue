@@ -33,15 +33,6 @@
     "
   />
   <v-text-field
-    v-if="modelValue.generate_summary_text"
-    :model-value="modelValue.summary_model_id"
-    label="Summary Model ID"
-    hint="LLM model ID for summary generation."
-    persistent-hint
-    class="mb-4"
-    @update:model-value="emit('update:modelValue', { ...modelValue, summary_model_id: $event })"
-  />
-  <v-text-field
     :model-value="modelValue.output_key"
     label="Output Key"
     hint="pipeline_data key for the report list. Default: daily_reports"
@@ -55,7 +46,6 @@ export const stepDefaults = {
   person_ids: [],
   report_date_offset_days: 0,
   generate_summary_text: false,
-  summary_model_id: "",
   notify_on_complete: false,
   output_key: "daily_reports",
 };

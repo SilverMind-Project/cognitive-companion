@@ -6,6 +6,7 @@ colour convert, resize/fit per layout spec, encode, upload to MinIO.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -74,33 +75,42 @@ class ImagePipeline:
         if original_bytes is None:
             raise FileNotFoundError(f"Original not found in MinIO: {original_object_name}")
 
-        img: Image.Image = Image.open(BytesIO(original_bytes))
-        # Honour EXIF orientation, then strip metadata
-        img = ImageOps.exif_transpose(img)
+        # Decoding, resizing, and encoding a camera-sized photo takes long enough to stall
+        # voice and WebSocket traffic, so the CPU work runs on a worker thread.
+        encoded = await asyncio.to_thread(self._encode_variants, original_bytes, slot.variants)
 
         results: dict[str, RenderedVariant] = {}
-        for surface, spec in slot.variants.items():
-            variant = self._render_one(img, spec)
+        for surface, spec, data, width, height in encoded:
             object_name = f"{target_key_prefix}__{surface}.{spec.format}"
-            content_type = _content_type_for(spec.format)
-            buf = BytesIO()
-            save_kwargs: dict = {"format": _pillow_format(spec.format)}
-            if (spec.format == "webp" and spec.quality) or (spec.format == "jpeg" and spec.quality):
-                save_kwargs["quality"] = spec.quality
-            variant.save(buf, **save_kwargs)
-            data = buf.getvalue()
-            await self._minio.async_upload_bytes(data, object_name, content_type)
-
+            await self._minio.async_upload_bytes(data, object_name, _content_type_for(spec.format))
             results[surface] = RenderedVariant(
                 object_name=object_name,
-                width=variant.width,
-                height=variant.height,
+                width=width,
+                height=height,
                 format=spec.format,
                 size_bytes=len(data),
                 generated_at=datetime.now(UTC).isoformat(),
             )
-
         return results
+
+    def _encode_variants(
+        self, original_bytes: bytes, variants: Mapping[str, ImageVariantSpec]
+    ) -> list[tuple[str, ImageVariantSpec, bytes, int, int]]:
+        """Render every surface variant to encoded bytes: ``(surface, spec, data, w, h)``."""
+        img: Image.Image = Image.open(BytesIO(original_bytes))
+        # Honour EXIF orientation, then strip metadata
+        img = ImageOps.exif_transpose(img)
+
+        encoded: list[tuple[str, ImageVariantSpec, bytes, int, int]] = []
+        for surface, spec in variants.items():
+            variant = self._render_one(img, spec)
+            buf = BytesIO()
+            save_kwargs: dict[str, Any] = {"format": _pillow_format(spec.format)}
+            if spec.format in ("webp", "jpeg") and spec.quality:
+                save_kwargs["quality"] = spec.quality
+            variant.save(buf, **save_kwargs)
+            encoded.append((surface, spec, buf.getvalue(), variant.width, variant.height))
+        return encoded
 
     # -- purge -------------------------------------------------------------
 

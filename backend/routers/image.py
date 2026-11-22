@@ -4,6 +4,7 @@ eInk display image endpoints  per-device serving, template CRUD, rendering.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from datetime import UTC, datetime
@@ -212,23 +213,27 @@ async def preview_render_form(
     eink_renderer = request.app.state.eink_renderer
     regions: list[dict] = json.loads(regions_json)
 
+    # Preview rendering reads MinIO and the database and runs PIL synchronously; keep it off
+    # the event loop.
     if image is not None:
         content = await image.read()
-        png_bytes = eink_renderer.render_preview_inline(
+        png_bytes = await asyncio.to_thread(
+            eink_renderer.render_preview_inline,
             text=text,
             image_bytes=content,
             regions=regions,
             font_filename=font_filename,
         )
     elif template_id is not None:
-        png_bytes = eink_renderer.render_preview_with_overrides(
+        png_bytes = await asyncio.to_thread(
+            eink_renderer.render_preview_with_overrides,
             text=text,
             template_id=template_id,
             regions_override=regions if regions else None,
             font_filename_override=font_filename,
         )
     else:
-        png_bytes = eink_renderer.render_preview(text=text)
+        png_bytes = await asyncio.to_thread(eink_renderer.render_preview, text=text)
 
     return Response(content=png_bytes, media_type="image/png")
 

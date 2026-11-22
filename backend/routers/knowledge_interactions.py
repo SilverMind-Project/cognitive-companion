@@ -12,10 +12,10 @@ from fastapi import APIRouter, Depends, Query
 from backend.core.auth import require_permission
 from backend.routers.dependencies import get_knowledge_interaction_service
 from backend.schemas.knowledge_interactions import (
-    InfoCardDeliveryOut,
+    InfoCardDeliveryListResponse,
     QuizSessionDetailOut,
-    QuizSessionListOut,
-    SeniorKnowledgeQueryOut,
+    QuizSessionListResponse,
+    SeniorKnowledgeQueryListResponse,
     TagAnalyticsOut,
 )
 from backend.services.knowledge.interaction_service import KnowledgeInteractionService
@@ -23,7 +23,7 @@ from backend.services.knowledge.interaction_service import KnowledgeInteractionS
 router = APIRouter(prefix="/knowledge-interactions", tags=["knowledge-interactions"])
 
 
-@router.get("/queries", response_model=list[SeniorKnowledgeQueryOut])
+@router.get("/queries", response_model=SeniorKnowledgeQueryListResponse)
 async def list_queries(
     senior_id: str | None = Query(None),
     date_from: date | None = Query(None),
@@ -36,7 +36,7 @@ async def list_queries(
     offset: int = Query(0, ge=0),
     svc: KnowledgeInteractionService = Depends(get_knowledge_interaction_service),
     _auth: None = Depends(require_permission("knowledge.interactions:read")),
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     return svc.list_queries(
         senior_id=senior_id,
         answered_via=answered_via,
@@ -50,7 +50,7 @@ async def list_queries(
     )
 
 
-@router.get("/quiz-sessions", response_model=list[QuizSessionListOut])
+@router.get("/quiz-sessions", response_model=QuizSessionListResponse)
 async def list_quiz_sessions(
     quiz_id: int | None = Query(None),
     senior_id: str | None = Query(None),
@@ -61,7 +61,7 @@ async def list_quiz_sessions(
     offset: int = Query(0, ge=0),
     svc: KnowledgeInteractionService = Depends(get_knowledge_interaction_service),
     _auth: None = Depends(require_permission("knowledge.interactions:read")),
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     return svc.list_quiz_sessions(
         quiz_id=quiz_id,
         senior_id=senior_id,
@@ -82,7 +82,7 @@ async def get_quiz_session_detail(
     return svc.get_quiz_session(session_id)
 
 
-@router.get("/info-card-deliveries", response_model=list[InfoCardDeliveryOut])
+@router.get("/info-card-deliveries", response_model=InfoCardDeliveryListResponse)
 async def list_info_card_deliveries(
     info_card_id: int | None = Query(None),
     date_from: date | None = Query(None),
@@ -91,7 +91,7 @@ async def list_info_card_deliveries(
     offset: int = Query(0, ge=0),
     svc: KnowledgeInteractionService = Depends(get_knowledge_interaction_service),
     _auth: None = Depends(require_permission("knowledge.interactions:read")),
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     return svc.list_info_card_deliveries(
         info_card_id=info_card_id,
         date_from=date_from,

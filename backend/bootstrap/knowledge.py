@@ -17,8 +17,39 @@ from fastapi import FastAPI
 from backend.core.config import Settings
 from backend.core.database import get_session
 from backend.core.logging import get_logger
+from backend.integrations.llm import LLMModelRegistry
 
 logger = get_logger(__name__)
+
+KNOWLEDGE_MODEL_SETTING_KEYS: tuple[str, ...] = (
+    "knowledge.answer_model",
+    "knowledge.paraphrase_model",
+    "knowledge.quiz_generation_model",
+)
+
+
+def validate_knowledge_models(settings: Settings, registry: LLMModelRegistry) -> list[str]:
+    """Return the knowledge model setting keys whose id is not in ``llm.models``.
+
+    An unknown id makes every senior RAG answer, paraphrase, and quiz draft fail at call time
+    with an empty or raised result, which is invisible until a resident asks a question. Each
+    offender is logged at startup with the ids that do exist. Startup still continues: the
+    knowledge features degrade, but the safety watch and escalation must not go down over a
+    knowledge-model typo, so the shipped config is pinned by a unit test instead.
+    """
+    available = sorted(c.id for c in registry.all_configs())
+    invalid: list[str] = []
+    for key in KNOWLEDGE_MODEL_SETTING_KEYS:
+        model_id = settings.as_str(key, allow_empty=True)
+        if registry.get_config(model_id) is None:
+            invalid.append(key)
+            logger.error(
+                "knowledge_invalid_model_id_configured",
+                setting_key=key,
+                model_id=model_id,
+                available_models=available,
+            )
+    return invalid
 
 
 def wire_knowledge(app: FastAPI, settings: Settings) -> None:
@@ -26,6 +57,7 @@ def wire_knowledge(app: FastAPI, settings: Settings) -> None:
     ws_manager = app.state.ws_manager
     eink_renderer = app.state.eink_renderer
     llm_model_registry = app.state.llm_model_registry
+    validate_knowledge_models(settings, llm_model_registry)
 
     # -- Embedding client ---------------------------------------------------
     from backend.integrations.triton_embedding_client import TritonEmbeddingClient

@@ -346,10 +346,21 @@ There is no operator-edited adjacency graph: cameras that overlap are declared a
 
 | Resource | Representative endpoints |
 | --- | --- |
-| Knowledge documents | `POST /knowledge`, `GET /knowledge`, `GET /knowledge/{doc_id}`, `PATCH /knowledge/{doc_id}`, approval, archive, restore, delete, re-embed |
-| Knowledge images | `POST /knowledge/{doc_id}/images`, `PATCH /knowledge/{doc_id}/images/{img_id}`, `DELETE /knowledge/{doc_id}/images/{img_id}` |
+| Knowledge documents | `POST /knowledge/documents`, `GET /knowledge/documents`, `GET /knowledge/documents/{doc_id}`, `PATCH /knowledge/documents/{doc_id}`, approval, archive, restore, delete, re-embed |
+| Knowledge images | `POST /knowledge/documents/{doc_id}/images`, `PATCH /knowledge/documents/{doc_id}/images/{img_id}`, `DELETE /knowledge/documents/{doc_id}/images/{img_id}` |
 | Info cards | CRUD, approve, archive, restore, suggest, and slot update endpoints under `/info-cards` |
-| Interactions | `GET /knowledge-interactions/queries`, `/quiz-sessions`, and `/info-card-deliveries` |
+| Quizzes | CRUD, approve, archive, restore, question CRUD, reorder, and question image endpoints under `/quizzes` |
+| Interactions | `GET /knowledge-interactions/queries`, `/quiz-sessions`, and `/info-card-deliveries` return `{items, total}`; `GET /knowledge/analytics/tags` |
+
+Lifecycle rules the endpoints enforce:
+
+- A new or edited document is chunked and embedded after it is saved; it reports `status: chunked` once its chunks exist. `POST .../reembed` re-embeds unchanged content and keeps an approved document approved (503 when the embedding service is unavailable, 409 when archived).
+- Deleting an info card or quiz that any rule step references (enabled or disabled), or that has delivery or session history, returns 409; archive it instead. Deleting a quiz question that has recorded responses returns 409. Deleting a document referenced by a non-archived card or quiz returns 409.
+- Approving a quiz requires at least one question, question text, two or more choices with one correct choice on multiple-choice questions, and an expected answer on open-ended questions (409 otherwise).
+- Changing an approved info card to a layout whose `min_images` its slots cannot meet returns 409; slots the new layout has no position for are removed.
+- Rejected image uploads (type, size, undecodable, pixel count) return 422.
+- Interaction `date_from`/`date_to` are inclusive household calendar days in `app.timezone`.
+- MCP parity: `list_senior_knowledge_queries`, `list_quiz_sessions_history`, and `get_quiz_tag_analytics` call the same `KnowledgeInteractionService` methods under `knowledge.interactions:read`.
 
 
 ## CTS camera profiles and optics

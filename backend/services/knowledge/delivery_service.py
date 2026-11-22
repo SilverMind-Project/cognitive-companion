@@ -156,7 +156,7 @@ class KnowledgeDeliveryService:
                     object_name = eink_var.get("object_name") or slot.original_object_name
                     if object_name and self._minio:
                         try:
-                            eink_image_bytes = self._minio.get_object(object_name)
+                            eink_image_bytes = await self._minio.async_get_object(object_name)
                         except Exception:
                             logger.exception("eink_image_fetch_failed", object_name=object_name)
                     break  # Use only the first image slot for eink

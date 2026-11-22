@@ -1,7 +1,8 @@
-"""Review, correction, visitor, and quiz-approval actions are attributed to the API key's name.
+"""Review, correction, visitor, approval, and authoring actions record the API key name.
 
 These routes once read ``request.state.auth_context``, which nothing sets, so every ReID review,
-PH correction, and visitor decision was recorded as "system" and every quiz approval as NULL.
+PH correction, and visitor decision was recorded as "system", every quiz and info card approval as
+NULL, and every knowledge document as created by "caregiver".
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from backend.core.auth import AuthContext, actor_from_auth, get_auth_context
 from backend.core.config import Settings
 from backend.core.exceptions import AuthenticationError, register_exception_handlers
 from backend.integrations.person_id_client import VisitorReviewItem
-from backend.routers import cts_ph, cts_reid_review, quizzes, visitors
+from backend.routers import cts_ph, cts_reid_review, info_cards, knowledge, quizzes, visitors
 from backend.routers.dependencies import (
     get_config_minio_client,
     get_identity_review_registry,
@@ -156,6 +157,60 @@ def test_quiz_approval_stores_the_key_name() -> None:
     assert response.status_code == 200
     svc.approve_quiz.assert_called_once_with(1, approved_by=_KEY_NAME)
     assert response.json()["approved_by"] == _KEY_NAME
+
+
+def test_auth_actor_recorded_on_document_create_and_info_card_approve() -> None:
+    stamp = datetime(2026, 11, 1, tzinfo=UTC)
+    doc = MagicMock(
+        id=7,
+        title="Family",
+        source_text="Priya lives in Boston.",
+        tags=[],
+        status="chunked",
+        created_by=_KEY_NAME,
+        created_at=stamp,
+        updated_at=stamp,
+        archived_at=None,
+        images=[],
+        chunks=[],
+    )
+    ingestion = MagicMock()
+    ingestion.create_document = AsyncMock(return_value=doc)
+    doc_app = _app(knowledge.router)
+    doc_app.state.knowledge_ingestion = ingestion
+    doc_app.state.minio_client = MagicMock()
+
+    created = TestClient(doc_app).post(
+        "/api/v1/knowledge/documents", data={"title": "Family", "source_text": "Priya"}
+    )
+
+    assert created.status_code == 201
+    assert ingestion.create_document.await_args.kwargs["created_by"] == _KEY_NAME
+
+    card_svc = MagicMock()
+    card_svc.approve_card.return_value = {
+        "id": 3,
+        "document_id": None,
+        "layout_id": "text_only",
+        "title": "Tea",
+        "body_text": "Chai at four.",
+        "voice_instruction": "",
+        "tags": [],
+        "status": "approved",
+        "version": 2,
+        "approved_by": _KEY_NAME,
+        "approved_at": stamp.isoformat(),
+        "created_at": stamp.isoformat(),
+        "updated_at": stamp.isoformat(),
+        "image_slots": [],
+    }
+    card_app = _app(info_cards.router)
+    card_app.state.info_card_service = card_svc
+
+    approved = TestClient(card_app).post("/api/v1/info-cards/3/approve")
+
+    assert approved.status_code == 200
+    card_svc.approve_card.assert_called_once_with(3, approved_by=_KEY_NAME)
 
 
 def test_an_unauthenticated_review_is_rejected_before_any_actor_is_computed() -> None:

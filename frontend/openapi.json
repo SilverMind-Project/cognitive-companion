@@ -8047,6 +8047,28 @@
         "title": "InfoCardCreate",
         "type": "object"
       },
+      "InfoCardDeliveryListResponse": {
+        "description": "Paginated info card delivery history.",
+        "properties": {
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/InfoCardDeliveryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "InfoCardDeliveryListResponse",
+        "type": "object"
+      },
       "InfoCardDeliveryOut": {
         "properties": {
           "channels": {
@@ -13051,6 +13073,28 @@
         "title": "QuizSessionListOut",
         "type": "object"
       },
+      "QuizSessionListResponse": {
+        "description": "Paginated quiz session history.",
+        "properties": {
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/QuizSessionListOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "QuizSessionListResponse",
+        "type": "object"
+      },
       "QuizStatusOut": {
         "description": "Acknowledgement of a status transition (archive/restore/reorder).",
         "properties": {
@@ -17888,6 +17932,28 @@
           "stale"
         ],
         "title": "SemanticMemoryHealthOut",
+        "type": "object"
+      },
+      "SeniorKnowledgeQueryListResponse": {
+        "description": "Paginated senior RAG query history.",
+        "properties": {
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SeniorKnowledgeQueryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "SeniorKnowledgeQueryListResponse",
         "type": "object"
       },
       "SeniorKnowledgeQueryOut": {
@@ -32591,11 +32657,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/InfoCardDeliveryOut"
-                  },
-                  "title": "Response List Info Card Deliveries",
-                  "type": "array"
+                  "$ref": "#/components/schemas/InfoCardDeliveryListResponse"
                 }
               }
             },
@@ -32770,11 +32832,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SeniorKnowledgeQueryOut"
-                  },
-                  "title": "Response List Queries",
-                  "type": "array"
+                  "$ref": "#/components/schemas/SeniorKnowledgeQueryListResponse"
                 }
               }
             },
@@ -32917,11 +32975,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/QuizSessionListOut"
-                  },
-                  "title": "Response List Quiz Sessions",
-                  "type": "array"
+                  "$ref": "#/components/schemas/QuizSessionListResponse"
                 }
               }
             },
@@ -33582,7 +33636,7 @@
     },
     "/api/v1/knowledge/documents/{doc_id}/reembed": {
       "post": {
-        "description": "Force re-chunk and re-embed a document. Resets status to uploaded first.",
+        "description": "Re-chunk and re-embed unchanged content; an approved document stays approved.",
         "operationId": "reembed_document",
         "parameters": [
           {

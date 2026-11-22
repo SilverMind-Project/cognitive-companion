@@ -1,6 +1,9 @@
-"""Document CRUD with status transition guards and image management.
+"""Document CRUD with status transition guards, image management, and chunk embedding.
 
-Phase 2: adds chunking + embedding via Triton.
+Chunking and embedding run after the document row is committed, in their own short
+transactions: the Triton call happens outside any open transaction, and the chunk rows and
+the ``uploaded -> chunked`` transition are written together on a row loaded in that same
+session. See ``_chunk_and_embed``.
 """
 
 from __future__ import annotations
@@ -8,11 +11,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import UploadFile
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
-from backend.core.exceptions import ConflictError, NotFoundError, ValidationError
+from backend.core.exceptions import AppError, ConflictError, NotFoundError, ValidationError
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
 from backend.integrations.triton_embedding_client import TritonEmbeddingClient
@@ -107,24 +110,21 @@ class KnowledgeIngestionService:
                 db.add(img_row)
 
             db.commit()
-            db.refresh(doc)
+            doc_id = doc.id
             logger.info(
                 "knowledge_document_created",
-                doc_id=doc.id,
-                title=title,
+                doc_id=doc_id,
                 image_count=len(images),
             )
-            # Chunk + embed after commit (external side effect)
-            await self._chunk_and_embed(doc)
-            # Eagerly load relationships so they survive session close
-            _ = doc.images
-            _ = doc.chunks
-            return doc
         except Exception:
             db.rollback()
             raise
         finally:
             db.close()
+
+        # A failed embed leaves the document 'uploaded'; the retry job picks it up.
+        await self._chunk_and_embed(doc_id)
+        return self._require_document(doc_id)
 
     def list_documents_by_tags(
         self, tags: list[str], *, limit: int = 50
@@ -150,6 +150,12 @@ class KnowledgeIngestionService:
             return docs
         finally:
             db.close()
+
+    def _require_document(self, doc_id: int) -> KnowledgeDocument:
+        doc = self.get_document(doc_id)
+        if doc is None:
+            raise NotFoundError("Knowledge document", doc_id)
+        return doc
 
     def get_document(self, doc_id: int) -> KnowledgeDocument | None:
         db: Session = self._db_factory()
@@ -231,23 +237,36 @@ class KnowledgeIngestionService:
 
             doc.updated_at = datetime.now(UTC)
             db.commit()
-            db.refresh(doc)
-
-            # Re-chunk after commit if source text changed
-            if source_changed:
-                await self._chunk_and_embed(doc)
-
-            _ = doc.images
-            _ = doc.chunks
-            return doc
-        except NotFoundError:
-            db.rollback()
-            raise
         except Exception:
             db.rollback()
             raise
         finally:
             db.close()
+
+        if source_changed:
+            await self._chunk_and_embed(doc_id)
+        return self._require_document(doc_id)
+
+    async def reembed_document(self, doc_id: int) -> KnowledgeDocument:
+        """Re-chunk and re-embed unchanged content, keeping the review status.
+
+        The content did not change, so an approved document stays approved (and keeps
+        answering senior questions); only an 'uploaded' document advances to 'chunked'.
+        Raises 409 for an archived document and 503 when the embedding service is not
+        configured or the embed fails, because the caregiver asked for this explicitly.
+        """
+        doc = self._require_document(doc_id)
+        if doc.status == "archived":
+            raise ConflictError(
+                f"Knowledge document {doc_id} is archived; restore it before re-embedding."
+            )
+        if not await self._chunk_and_embed(doc_id):
+            raise AppError(
+                f"Re-embedding knowledge document {doc_id} failed; the embedding service is "
+                "unavailable. Existing chunks were kept.",
+                status_code=503,
+            )
+        return self._require_document(doc_id)
 
     # -- state transitions --------------------------------------------------
 
@@ -340,11 +359,12 @@ class KnowledgeIngestionService:
 
     # -- delete (hard) ------------------------------------------------------
 
-    def delete_document(self, doc_id: int) -> None:
-        """Hard-delete a document and purge its MinIO prefix.
+    async def delete_document(self, doc_id: int) -> None:
+        """Hard-delete a document, then purge its MinIO prefix ``knowledge/{doc_id}/``.
 
-        Raises ConflictError (409) if any active info card or quiz references
-        the document.
+        Raises ConflictError (409) if any non-archived info card or quiz references
+        the document. The purge runs only after the delete commits, so a failed delete
+        never loses images; a failed purge leaves orphaned objects and is logged.
         """
         db: Session = self._db_factory()
         try:
@@ -382,126 +402,137 @@ class KnowledgeIngestionService:
 
             db.delete(doc)
             db.commit()
-        except NotFoundError, ConflictError:
-            db.rollback()
-            raise
         except Exception:
             db.rollback()
             raise
         finally:
             db.close()
+
+        prefix = f"knowledge/{doc_id}/"
+        try:
+            await self._image_pipeline.purge_prefix(prefix)
+        except Exception:  # the delete already committed; orphaned objects are only logged
+            logger.exception("knowledge_document_purge_failed", doc_id=doc_id, prefix=prefix)
 
     # -- chunking + embedding -----------------------------------------------
 
-    async def _chunk_and_embed(self, doc: KnowledgeDocument) -> None:
-        """Chunk source_text and embed via Triton. Idempotent: deletes old
-        chunks first, then inserts new ones. Leaves doc in 'uploaded' on
-        Triton failure so the operator can retry.
+    async def _chunk_and_embed(self, doc_id: int) -> bool:
+        """Replace a document's chunks with fresh embeddings. Returns True on success.
+
+        Three steps, none holding a transaction across the Triton call: snapshot the source
+        text, embed outside any transaction, then in one session lock the row, replace the
+        chunks, advance 'uploaded' to 'chunked', and commit. The status change is made on the
+        row loaded in that writing session; mutating an instance owned by another session is
+        silently discarded and left every document 'uploaded' and re-embedded forever.
+
+        If the text changed while embedding, the write is abandoned: the edit that changed it
+        schedules its own embed, and writing the stale chunks would mark them current. Any
+        failure leaves the document in its previous state for the retry job.
         """
         if self._embedding_client is None:
-            logger.warning("chunk_embed_skipped_no_client", doc_id=doc.id)
-            return
+            logger.warning("chunk_embed_skipped_no_client", doc_id=doc_id)
+            return False
 
         db: Session = self._db_factory()
         try:
-            # Delete existing chunks
-            db.execute(
-                text("DELETE FROM knowledge_document_chunks WHERE document_id = :did"),
-                {"did": doc.id},
-            )
-            db.flush()
-
-            # Chunk source text
-            chunk_size = settings.as_int("knowledge.chunk_size_tokens")
-            chunk_overlap = settings.as_int("knowledge.chunk_overlap_tokens")
-            # Approximate: 1 token ≈ 4 characters
-            char_size = chunk_size * 4
-            char_overlap = chunk_overlap * 4
-
-            from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-            splitter = RecursiveCharacterTextSplitter(
-                chunk_size=char_size,
-                chunk_overlap=char_overlap,
-                length_function=len,
-                separators=["\n\n", "\n", ". ", " ", ""],
-            )
-            chunks = splitter.split_text(doc.source_text)
-
-            if not chunks:
-                logger.info("chunk_embed_no_chunks", doc_id=doc.id)
-                return
-
-            # Embed chunks
-            embeddings = await self._embedding_client.embed_chunks(chunks)
-
-            # Insert chunk rows
-            char_pos = 0
-            for idx, (chunk_text, emb) in enumerate(zip(chunks, embeddings, strict=False)):
-                chunk = KnowledgeDocumentChunk(
-                    document_id=doc.id,
-                    chunk_index=idx,
-                    text=chunk_text,
-                    embedding=emb,
-                    char_start=char_pos,
-                    char_end=char_pos + len(chunk_text),
-                )
-                db.add(chunk)
-                char_pos += len(chunk_text)
-
-            # Transition status
-            doc.status = "chunked"
-            doc.updated_at = datetime.now(UTC)
-
-            db.commit()
-            logger.info(
-                "chunk_embed_complete",
-                doc_id=doc.id,
-                chunk_count=len(chunks),
-            )
-        except Exception:
-            db.rollback()
-            logger.exception("chunk_embed_failed", doc_id=doc.id)
-            # Leave doc in 'uploaded' so the operator can retry
+            snapshot = db.get(KnowledgeDocument, doc_id)
+            if snapshot is None or snapshot.status == "archived":
+                return False
+            source_text = snapshot.source_text or ""
         finally:
             db.close()
+
+        chunks = _split_source_text(source_text)
+        try:
+            embeddings = await self._embedding_client.embed_chunks(chunks) if chunks else []
+        except Exception:  # embedding outage: the retry job re-attempts
+            logger.exception("chunk_embed_failed", doc_id=doc_id, stage="embed")
+            return False
+        if len(embeddings) != len(chunks):
+            logger.error(
+                "chunk_embed_count_mismatch",
+                doc_id=doc_id,
+                chunk_count=len(chunks),
+                embedding_count=len(embeddings),
+            )
+            return False
+
+        db = self._db_factory()
+        try:
+            doc_row = db.execute(
+                select(KnowledgeDocument).where(KnowledgeDocument.id == doc_id).with_for_update()
+            ).scalar_one_or_none()
+            if doc_row is None or doc_row.status == "archived":
+                db.rollback()
+                return False
+            if (doc_row.source_text or "") != source_text:
+                db.rollback()
+                logger.info("chunk_embed_superseded", doc_id=doc_id)
+                return False
+
+            db.execute(
+                delete(KnowledgeDocumentChunk).where(KnowledgeDocumentChunk.document_id == doc_id)
+            )
+            char_pos = 0
+            for idx, (chunk_text, emb) in enumerate(zip(chunks, embeddings, strict=True)):
+                db.add(
+                    KnowledgeDocumentChunk(
+                        document_id=doc_id,
+                        chunk_index=idx,
+                        text=chunk_text,
+                        embedding=emb,
+                        char_start=char_pos,
+                        char_end=char_pos + len(chunk_text),
+                    )
+                )
+                char_pos += len(chunk_text)
+
+            if doc_row.status == "uploaded":
+                doc_row.status = "chunked"
+            doc_row.updated_at = datetime.now(UTC)
+            db.commit()
+        except Exception:  # previous chunks stay; the retry job re-attempts
+            db.rollback()
+            logger.exception("chunk_embed_failed", doc_id=doc_id, stage="write")
+            return False
+        finally:
+            db.close()
+
+        logger.info("chunk_embed_complete", doc_id=doc_id, chunk_count=len(chunks))
+        return True
 
     # -- re-embed scheduler job ---------------------------------------------
 
     async def reembed_stuck_documents(self) -> int:
-        """Find documents stuck in 'uploaded' status and retry chunk+embed.
+        """Retry chunk + embed for documents still in 'uploaded'. Returns the success count.
 
-        Called periodically by the scheduler. Returns count of documents
-        successfully re-embedded.
+        Called periodically by the scheduler. A successful embed moves the document to
+        'chunked', so each document is processed until it succeeds and then never again.
         """
         if self._embedding_client is None:
             return 0
 
         db: Session = self._db_factory()
         try:
-            docs = (
+            doc_ids = list(
                 db.execute(
-                    select(KnowledgeDocument)
+                    select(KnowledgeDocument.id)
                     .where(KnowledgeDocument.status == "uploaded")
+                    .order_by(KnowledgeDocument.id.asc())
                     .limit(20)
-                )
-                .scalars()
-                .all()
+                ).scalars()
             )
-
-            count = 0
-            for doc in docs:
-                try:
-                    await self._chunk_and_embed(doc)
-                    count += 1
-                except Exception:
-                    logger.exception("reembed_stuck_failed", doc_id=doc.id)
-
-            if count > 0:
-                logger.info("reembed_stuck_complete", count=count, total=len(docs))
-            return count
         finally:
             db.close()
+
+        succeeded = 0
+        for doc_id in doc_ids:
+            if await self._chunk_and_embed(doc_id):
+                succeeded += 1
+
+        if doc_ids:
+            logger.info("reembed_stuck_complete", succeeded=succeeded, attempted=len(doc_ids))
+        return succeeded
 
     # -- images -------------------------------------------------------------
 
@@ -542,7 +573,7 @@ class KnowledgeIngestionService:
 
             img = Image.open(io.BytesIO(data))
             w, h = img.size
-            self._minio.upload_bytes(data, object_name, content_type)
+            await self._minio.async_upload_bytes(data, object_name, content_type)
 
             img_row = KnowledgeDocumentImage(
                 document_id=doc_id,
@@ -616,6 +647,26 @@ class KnowledgeIngestionService:
 
 
 # -- helpers ------------------------------------------------------------------
+
+
+def _split_source_text(source_text: str) -> list[str]:
+    """Split document text into overlapping chunks sized from ``knowledge.chunk_*_tokens``.
+
+    Sizes are approximated at four characters per token. Whitespace-only text yields no
+    chunks, which still counts as successfully chunked.
+    """
+    if not source_text.strip():
+        return []
+
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=settings.as_int("knowledge.chunk_size_tokens") * 4,
+        chunk_overlap=settings.as_int("knowledge.chunk_overlap_tokens") * 4,
+        length_function=len,
+        separators=["\n\n", "\n", ". ", " ", ""],
+    )
+    return splitter.split_text(source_text)
 
 
 def _extension_for(content_type: str) -> str:

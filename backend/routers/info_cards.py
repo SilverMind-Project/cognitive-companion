@@ -6,9 +6,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
-from backend.core.auth import require_permission
+from backend.core.auth import AuthContext, actor_from_auth, require_permission
 from backend.core.exceptions import ValidationError
 from backend.routers.dependencies import get_content_generation, get_info_card_service
 from backend.schemas.info_cards import (
@@ -81,7 +81,7 @@ async def update_info_card(
     svc: InfoCardService = Depends(get_info_card_service),
     _auth: None = Depends(require_permission("info_cards:write")),
 ) -> dict[str, Any]:
-    return svc.update_card(card_id, updates=body.model_dump(exclude_none=True))
+    return await svc.update_card(card_id, updates=body.model_dump(exclude_none=True))
 
 
 # -- state transitions -------------------------------------------------------
@@ -90,14 +90,10 @@ async def update_info_card(
 @router.post("/{card_id}/approve", response_model=InfoCardOut)
 async def approve_info_card(
     card_id: int,
-    request: Request,
     svc: InfoCardService = Depends(get_info_card_service),
-    _auth: None = Depends(require_permission("info_cards:write")),
+    auth: AuthContext = Depends(require_permission("info_cards:write")),
 ) -> dict[str, Any]:
-    approved_by = getattr(request.state, "auth_context", None)
-    if approved_by and hasattr(approved_by, "name"):
-        approved_by = approved_by.name
-    return svc.approve_card(card_id, approved_by=approved_by)
+    return svc.approve_card(card_id, approved_by=actor_from_auth(auth))
 
 
 @router.post("/{card_id}/archive", response_model=InfoCardStatusOut)

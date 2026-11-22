@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 
-from backend.core.auth import require_permission
+from backend.core.auth import AuthContext, actor_from_auth, require_permission
 from backend.core.exceptions import NotFoundError
 from backend.routers.dependencies import get_knowledge_ingestion
 from backend.schemas.knowledge import (
@@ -52,17 +52,14 @@ async def create_document(
     tags: str = Form(""),
     images: list[UploadFile] = File(default_factory=list),
     ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
-    _auth: None = Depends(require_permission("knowledge.documents:write")),
+    auth: AuthContext = Depends(require_permission("knowledge.documents:write")),
 ) -> dict[str, Any]:
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
-    created_by = (
-        request.state.auth_context.name if hasattr(request.state, "auth_context") else "caregiver"
-    )
     doc = await ingestion.create_document(
         title=title,
         source_text=source_text,
         tags=tag_list,
-        created_by=created_by,
+        created_by=actor_from_auth(auth),
         images=images,
     )
     return _doc_out(doc, request.app.state.minio_client)
@@ -155,14 +152,10 @@ async def restore_document(
 @router.delete("/{doc_id}", status_code=204)
 async def delete_document(
     doc_id: int,
-    request: Request,
     ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:delete")),
 ) -> None:
-    _ = request.app.state.minio_client
-    ingestion.delete_document(doc_id)
-    pipeline = request.app.state.image_pipeline
-    await pipeline.purge_prefix(f"knowledge/{doc_id}/")
+    await ingestion.delete_document(doc_id)
 
 
 @router.post("/{doc_id}/reembed", response_model=KnowledgeDocumentOut)
@@ -172,13 +165,9 @@ async def reembed_document(
     ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:write")),
 ) -> dict[str, Any]:
-    """Force re-chunk and re-embed a document. Resets status to uploaded first."""
-    doc = ingestion.get_document(doc_id)
-    if doc is None:
-        raise NotFoundError("Knowledge document", doc_id)
-
-    updated = await ingestion.update_document(doc_id, source_text=doc.source_text)
-    return _doc_out(updated, request.app.state.minio_client)
+    """Re-chunk and re-embed unchanged content; an approved document stays approved."""
+    doc = await ingestion.reembed_document(doc_id)
+    return _doc_out(doc, request.app.state.minio_client)
 
 
 # -- document images ---------------------------------------------------------

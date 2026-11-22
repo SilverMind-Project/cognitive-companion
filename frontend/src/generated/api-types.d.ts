@@ -3782,7 +3782,7 @@ export interface paths {
         put?: never;
         /**
          * Reembed Document
-         * @description Force re-chunk and re-embed a document. Resets status to uploaded first.
+         * @description Re-chunk and re-embed unchanged content; an approved document stays approved.
          */
         post: operations["reembed_document"];
         delete?: never;
@@ -8885,6 +8885,19 @@ export interface components {
              */
             voice_instruction: string;
         };
+        /**
+         * InfoCardDeliveryListResponse
+         * @description Paginated info card delivery history.
+         */
+        InfoCardDeliveryListResponse: {
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["InfoCardDeliveryOut"][];
+            /** Total */
+            total: number;
+        };
         /** InfoCardDeliveryOut */
         InfoCardDeliveryOut: {
             /** Channels */
@@ -10735,6 +10748,19 @@ export interface components {
             status: string;
         };
         /**
+         * QuizSessionListResponse
+         * @description Paginated quiz session history.
+         */
+        QuizSessionListResponse: {
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["QuizSessionListOut"][];
+            /** Total */
+            total: number;
+        };
+        /**
          * QuizStatusOut
          * @description Acknowledgement of a status transition (archive/restore/reorder).
          */
@@ -12390,6 +12416,19 @@ export interface components {
             total_movements: number;
             /** Total Observations */
             total_observations: number;
+        };
+        /**
+         * SeniorKnowledgeQueryListResponse
+         * @description Paginated senior RAG query history.
+         */
+        SeniorKnowledgeQueryListResponse: {
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["SeniorKnowledgeQueryOut"][];
+            /** Total */
+            total: number;
         };
         /** SeniorKnowledgeQueryOut */
         SeniorKnowledgeQueryOut: {
@@ -19882,7 +19921,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InfoCardDeliveryOut"][];
+                    "application/json": components["schemas"]["InfoCardDeliveryListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19921,7 +19960,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SeniorKnowledgeQueryOut"][];
+                    "application/json": components["schemas"]["SeniorKnowledgeQueryListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19958,7 +19997,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QuizSessionListOut"][];
+                    "application/json": components["schemas"]["QuizSessionListResponse"];
                 };
             };
             /** @description Validation Error */

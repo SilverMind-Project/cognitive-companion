@@ -82,6 +82,27 @@ class InfoCardDeliveryOut(OutSchema):
     dismissed_by: str | None = None
 
 
+class SeniorKnowledgeQueryListResponse(OutSchema):
+    """Paginated senior RAG query history."""
+
+    items: list[SeniorKnowledgeQueryOut] = []
+    total: int
+
+
+class QuizSessionListResponse(OutSchema):
+    """Paginated quiz session history."""
+
+    items: list[QuizSessionListOut] = []
+    total: int
+
+
+class InfoCardDeliveryListResponse(OutSchema):
+    """Paginated info card delivery history."""
+
+    items: list[InfoCardDeliveryOut] = []
+    total: int
+
+
 class TagAnalyticsItem(OutSchema):
     """Usage of one tag across documents and quizzes."""
 

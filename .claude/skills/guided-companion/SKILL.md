@@ -148,15 +148,15 @@ takeover). Emergencies (hazard, fall) skip the ladder and alert immediately. Saf
 events enter the state machine as `safety_event`; the watch never advances steps.
 
 **Ownership rule:** the state machine owns attempts/timeout escalation
-exclusively, through `timeout_tick`. The safety watch owns perception conditions
-only (room, hazard, no-motion, blocked reports) and must be once-per-threshold,
-never per-tick re-fire; a condition that keeps being true on every tick (e.g.
-repeated blocked-step reports) is checked against the session's own event history
-(`GuidedTaskStore.has_event`) before it is re-emitted, so a fixable perception
-condition escalates once, not on a timer. When consuming CTS signal kinds (e.g.
+exclusively, through `timeout_tick`. `GuidedTaskSafetyWatch` must never check `idle_s > policy.step_timeout_s` or emit `abandoned` on idle time; an idle check in the safety watch races with `on_step_timeout` and defeats vision-watch `nag_suppressed` (where `progress_seen_at` holds retry prompting without advancing `last_activity_at`). The safety watch owns perception conditions
+only (`left_expected_room`, `hazard_active`, `no_motion`, `repeated_confusion`) and must be once-per-threshold per step (`step_ord`),
+never per-tick re-fire; every perception condition must check `GuidedTaskStore.has_event(session.id, kind="safety_event", step_ord=step.ord, condition=...)` (and filter signals to `received_at >= session.last_activity_at`) before emitting, so a fixable perception
+condition escalates once per step, not on every 20-second tick. When multiple safety conditions fire on the same tick, `Watch.tick` coalesces them (recording each event row for audit) and dispatches `apply_decision` once for the highest-severity event (`emergency > high > medium > low`) so the caregiver never receives duplicate escalation notifications on a single tick. Hazard frame collection (`_hazard_event`) must use `select_cameras_tagged` and multi-source frame collection (CTS bucketizer + reCamera `event_aggregator`), never CTS-only `select_cameras`. When consuming CTS signal kinds (e.g.
 the no-motion condition's kind set), guard the local subset against the canonical
 `ALL_SIGNAL_KINDS` with a `subset <= set(ALL_SIGNAL_KINDS)`-style test so a future
 kind rename cannot silently orphan the subscription.
+
+**Escalation channel boundary (caregiver-only vs resident-facing).** Escalation notifications dispatched by `FullEscalator` contain caregiver diagnostic payloads (session ID, failure reason, recent transcript, and `/admin/guided-sessions/{id}` takeover URL). They must go exclusively to caregiver channels (`telegram`, `webhook`, and `pipeline_ws_manager` on `/ws/pipeline`) and must never be dispatched to the resident's companion WebSocket (`ws_manager` on `/ws/audio` / `pwa_popup_text`) or read aloud over in-home speakers (`ha_speaker_tts`). In-room audio or tablet popups of diagnostic escalation dumps startle and disorient a resident with dementia.
 
 ## 11. Seamless to her, auditable for the caregiver
 
@@ -165,6 +165,18 @@ her as "human". Internally, every turn is attributed via `conversation_manager`
 actor roles (`user`, `assistant`, `orchestrator`, `system`, and a caregiver role),
 so the caregiver trail is fully auditable. Orchestrator/caregiver prompts are hidden
 from her UI exactly as `audio_handler` already hides orchestrator prompts.
+
+**Takeover and release voice invariants.**
+- `Caregiver.inject_caregiver_message` must compose the system instruction via `ctx.voice_instructions.compose("guided_task", base_instruction, resource_override=routine.system_instruction_override)` plus `compose_language_directive`, matching `AgentSessionVoice.speak_step`. Never pass a raw `routine.system_instruction_override` that drops `guided_task_default` when the override is empty.
+- When `caregiver_advance` is called while `session.status == "escalated"`, it must record a `takeover_started` event before transitioning to `"caregiver_takeover"`.
+- When `release_takeover` transitions the session back to `"waiting"`, if the step was advanced during takeover (no `step_prompted` event exists yet for `updated.current_step_ord`), `release_takeover` must call `presentation.speak(updated, step, is_retry=False)` so the resident hears the new step prompt immediately rather than sitting in silence until a step timeout fires.
+
+**Live session telemetry (`broadcast_session_update`).** `Presentation.broadcast_session_update` must be emitted (to `pipeline_ws_manager` on `/ws/pipeline`) on every session state or step transition: `_begin_session`, every branch of `Runtime.apply_decision` (`advance`, `skip`, `retry`, `escalate`), `Runtime.complete`, `Runtime.abandon`, `ResidentActions` (`repeat_step`, `report_blocked`, `request_help`), and every caregiver takeover action. Also broadcast a resident-safe `guided_session_state` event to `ws_manager` (`/ws/audio`) so the senior companion PWA guided-task widget stays synchronized in real time.
+
+**Multimodal senior companion surface and native Android / TV hardware capabilities.** A senior with dementia frequently experiences presbycusis (age-related hearing loss), working-memory decay, and loss of executive initiation (they cannot be expected to walk up to a sleeping tablet and tap a microphone button).
+- While a guided session is in `active`, `waiting`, `escalated`, or `caregiver_takeover`, the Companion surface (`CompanionView.vue`) must display a guided-task widget with the current step prompt in high-contrast large typography (`>= 24px` on tablet, `>= 36px` on TV), step progress (`Step X of N`), and large touch/D-pad targets (`>= 64px` height) for `"I'm Done"`, `"Repeat"`, and `"I Need Help"`, wired over `/ws/audio` (`guided_step_action`) to `GuidedTaskService`.
+- **Surface-targeted hardware activation (`surface_id` routing):** WebSocket connections on `/ws/audio?surface_id=<id>` register their `surface_id` with `ConnectionManager`. When a sensor cue, routine start, or step prompt targets a specific room or `surface_id`, `ConnectionManager.send_to_surface(surface_id, ...)` dispatches `surface_hardware_command` (`wake_screen`, `enable_microphone`, `enable_camera`, `volume_min_pct`, `attention_chime`) **only** to the surface(s) in the resident's active room, never activating microphones or waking screens in empty rooms.
+- **Native Android Tablet & Google TV shell:** On Android tablets (`kind="tablet"`) and Google TV / Android TV (`kind="tv"`), the Capacitor + Kotlin native shell (`CompanionForegroundService` + `CompanionHardwarePlugin`) sets `mediaPlaybackRequiresUserGesture = false`, wakes the screen (`setTurnScreenOn(true)` / HDMI-CEC One-Touch Play on TV), activates hardware-AEC microphone capture and optional front-camera face/attention verification (`CameraX` + ML Kit Face Detection) without requiring a tap, and releases the microphone/camera back to ambient mode as soon as the session ends. Every senior-facing dialog (`QuizDialog.vue`, `InfoCardDialog.vue`, `InteractivePromptDialog.vue`, and the guided-task widget) must support both touch (tablet) and D-Pad spatial navigation (`ArrowUp`/`ArrowDown`/`Enter` on Android TV).
 
 **Conversation linkage.** Guided sessions reference `conversation_sessions`
 via `guided_sessions.conversation_session_id`, a nullable FK set once a realtime
@@ -280,7 +292,7 @@ A vision-confirmation gate is a callable pipeline graph: a `Rule` with `trigger_
 
 **Bounded disagreement.** When she says "done" but the gate returns `complete=False`, the disagreement is recorded. After `max_disagreements` consecutive disagreements (counted durably via `GuidedSessionEvent` rows), the system defers to her (`actor="resident"`, `vision_deferred`) or escalates if `on_max_disagreements: "escalate"` is configured. Never trap her behind a camera that will not agree.
 
-**Config shape.** `completion_gate.vision: {gate_graph_rule_id, confirm: {window_s, max_frames, min_confidence, min_interval_s, max_disagreements, on_max_disagreements, model_id}, watch: {enabled, tick_s, window_s, max_frames, model_id, auto_advance, auto_advance_k}}`; empty = inherit the `config/settings.yaml` default through `resolve_policy`.
+**Config shape and single-source sanitization.** `completion_gate.vision: {gate_graph_rule_id, confirm: {window_s, max_frames, max_cameras, min_confidence, min_interval_s, max_disagreements, on_max_disagreements, model_id}, watch: {enabled, tick_s, window_s, max_frames, max_cameras, min_confidence, model_id, auto_advance, auto_advance_k}}`; empty = inherit the `config/settings.yaml` default through `resolve_policy`. `sanitize_completion_gate` must live in one place (`backend/services/guided_task/routine_admin.py`) and be called by `RoutineStepIn.validate_completion_gate` (`backend/schemas/guided_task.py`) so schema validation and service persistence never drift or silently strip `max_disagreements`, `max_cameras`, or `min_confidence`. Both `VisionEvaluator.is_complete` and `Watch._vision_watch_tick` must pass `confirm_cfg.max_cameras` / `watch_cfg.max_cameras` into `resolve_val(...)` before falling back to `guided_task.vision.max_cameras`.
 
 ### Authoring a vision gate
 

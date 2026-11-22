@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from backend.models.person import ActivityTypeEnum
+from backend.schemas._completion_gate import normalize_completion_gate
 
 # ---------------------------------------------------------------------------
 # Routine CRUD
@@ -31,69 +32,7 @@ class RoutineStepIn(BaseModel):
     @field_validator("completion_gate", mode="before")
     @classmethod
     def validate_completion_gate(cls, v: Any) -> Any:
-        if not isinstance(v, dict):
-            return v
-
-        v = dict(v)
-        vision = v.get("vision") or v.get("vision_confirm")
-        if isinstance(vision, dict):
-            legacy_keys = []
-            if "camera_ids" in vision:
-                legacy_keys.append("camera_ids")
-            if "description" in vision:
-                legacy_keys.append("description")
-
-            if legacy_keys:
-                from backend.core.logging import get_logger
-
-                get_logger("backend.schemas.guided_task").warning(
-                    "legacy_vision_gate_keys_ignored",
-                    legacy_keys=legacy_keys,
-                )
-                for k in legacy_keys:
-                    vision.pop(k, None)
-
-            new_vision = {}
-            if "gate_graph_rule_id" in vision:
-                new_vision["gate_graph_rule_id"] = vision["gate_graph_rule_id"]
-
-            confirm = vision.get("confirm")
-            if isinstance(confirm, dict):
-                new_vision["confirm"] = {
-                    "window_s": confirm.get("window_s"),
-                    "max_frames": confirm.get("max_frames"),
-                    "min_confidence": confirm.get("min_confidence"),
-                    "min_interval_s": confirm.get("min_interval_s"),
-                    "model_id": confirm.get("model_id"),
-                    "max_disagreements": confirm.get("max_disagreements"),
-                    "on_max_disagreements": confirm.get("on_max_disagreements"),
-                }
-            elif "confirm" in vision:
-                new_vision["confirm"] = confirm
-
-            watch = vision.get("watch")
-            if isinstance(watch, dict):
-                new_vision["watch"] = {
-                    "enabled": watch.get("enabled"),
-                    "tick_s": watch.get("tick_s"),
-                    "window_s": watch.get("window_s"),
-                    "max_frames": watch.get("max_frames"),
-                    "model_id": watch.get("model_id"),
-                    "auto_advance": watch.get("auto_advance"),
-                    "auto_advance_k": watch.get("auto_advance_k"),
-                }
-            elif "watch" in vision:
-                new_vision["watch"] = watch
-
-            for k, val in vision.items():
-                if k not in {"confirm", "watch", "gate_graph_rule_id", "camera_ids", "description"}:
-                    new_vision[k] = val
-
-            v["vision"] = new_vision
-            if "vision_confirm" in v:
-                v.pop("vision_confirm", None)
-
-        return v
+        return normalize_completion_gate(v)
 
 
 class RoutineStepOut(BaseModel):

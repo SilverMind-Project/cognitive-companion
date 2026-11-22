@@ -17,6 +17,7 @@ Load and follow these skills from `.claude/skills/` when the work matches the sc
 | `cts-identity-admin` | CTS keyframe identity displays, Person Hypothesis correction workflows, ReID review, identity provenance APIs | Server-owned identity semantics, explicit `Set to Unknown`, one correction-target endpoint |
 | `daily-living` | Daily-living detection, the activity ledger, hygiene and intent signals, semantic-memory writes, rule bundles, inference load | Typed ledger rows not captions, one semantic-memory write seam, shadow-first detectors |
 | `guided-companion` | Routines, the guided-task state machine, interactive sessions, completion evaluators, safety watch, escalation, guided MCP tools | Deterministic state machine, injectable clock, reuse the interactive-session primitives |
+| `knowledge-and-cognitive-care` | Knowledge Repository, Info Cards, Quizzes, Senior RAG Q&A, knowledge pipeline steps (`info_card`, `quiz_start`, `knowledge_query`), senior companion cognitive UX | Service-layer ownership, 409 delete guards, multimodal voice+PWA sync, errorless learning / gentle reminiscence UX |
 
 Each skill's `SKILL.md` holds its rules as one-liners; `engineering-standards` and `front-end`
 keep the detail in a `reference/` directory beside it. Cross-cutting rules (markdown, comments,

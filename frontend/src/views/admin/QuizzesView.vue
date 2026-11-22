@@ -9,7 +9,7 @@
       </div>
       <v-spacer />
       <v-select
-        v-model="filters.status"
+        v-model="state.filters.status"
         :items="statusOptions"
         label="Status"
         variant="outlined"
@@ -17,13 +17,10 @@
         hide-details
         clearable
         style="max-width: 160px"
-        @update:model-value="
-          page = 1;
-          fetchQuizzes();
-        "
+        @update:model-value="actions.onFilterChange()"
       />
       <v-combobox
-        v-model="filters.tags"
+        v-model="state.filters.tags"
         label="Tags"
         variant="outlined"
         multiple
@@ -31,17 +28,17 @@
         hide-details
         clearable
         style="max-width: 200px"
-        @update:model-value="
-          page = 1;
-          fetchQuizzes();
-        "
+        @update:model-value="actions.onFilterChange()"
       />
       <v-btn
-        color="primary"
-        variant="flat"
-        prepend-icon="mdi-plus"
-        @click="showCreateDialog = true"
+        color="secondary"
+        variant="tonal"
+        prepend-icon="mdi-auto-fix"
+        @click="showSuggestDialog = true"
       >
+        Generate with AI
+      </v-btn>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreateDialog">
         New Quiz
       </v-btn>
     </div>
@@ -49,15 +46,15 @@
     <v-card class="glass-card">
       <v-data-table
         :headers="headers"
-        :items="quizzes"
-        :loading="loading"
-        :items-length="totalItems"
-        :items-per-page="itemsPerPage"
-        :page="page"
+        :items="state.quizzes"
+        :loading="state.loading"
+        :items-length="state.totalQuizzes"
+        :items-per-page="state.itemsPerPage"
+        :page="state.page"
         :show-expand="true"
         item-value="id"
-        @update:options="onPageOptions"
-        @click:row="toggleExpand"
+        @update:options="actions.onPageOptions"
+        @click:row="actions.toggleExpand"
       >
         <template #[`item.question_count`]="{ item }">
           {{ item.questions?.length ?? item.question_count ?? 0 }}
@@ -65,7 +62,7 @@
 
         <template #[`item.layout_id`]="{ item }">
           <v-chip size="x-small" color="primary" variant="outlined">
-            {{ item.question_layout_id ?? "—" }}
+            {{ item.question_layout_id ?? "-" }}
           </v-chip>
         </template>
 
@@ -81,7 +78,7 @@
             size="small"
             variant="text"
             color="primary"
-            @click.stop="editQuiz(item)"
+            @click.stop="openEditDialog(item)"
           />
           <v-btn
             v-if="item.status !== 'approved'"
@@ -89,14 +86,14 @@
             size="small"
             variant="text"
             color="success"
-            @click.stop="approve(item)"
+            @click.stop="actions.approveQuiz(item)"
           />
           <v-btn
             v-if="item.status !== 'archived'"
             icon="mdi-archive"
             size="small"
             variant="text"
-            @click.stop="archive(item)"
+            @click.stop="actions.archiveQuiz(item)"
           />
           <v-btn
             v-if="item.status === 'archived'"
@@ -104,7 +101,7 @@
             size="small"
             variant="text"
             color="warning"
-            @click.stop="restore(item)"
+            @click.stop="actions.restoreQuiz(item)"
           />
           <v-btn
             icon="mdi-delete"
@@ -118,461 +115,64 @@
         <template #expanded-row="{ item }">
           <td :colspan="headers.length" class="pa-4">
             <v-divider class="mb-2" />
-            <div
-              v-for="(q, idx) in expandedQuizzes[item.id]?.questions || []"
+            <QuizQuestionEditorCard
+              v-for="(q, idx) in state.expandedQuizzes[item.id]?.questions || []"
               :key="q.id"
-              class="mb-4"
-            >
-              <v-row dense>
-                <v-col cols="auto">
-                  <v-btn
-                    icon="mdi-chevron-up"
-                    size="x-small"
-                    variant="text"
-                    :disabled="idx === 0"
-                    @click="moveQuestion(item, idx, -1)"
-                  />
-                  <v-btn
-                    icon="mdi-chevron-down"
-                    size="x-small"
-                    variant="text"
-                    :disabled="idx === (expandedQuizzes[item.id]?.questions?.length || 0) - 1"
-                    @click="moveQuestion(item, idx, 1)"
-                  />
-                </v-col>
-                <v-col>
-                  <v-radio-group v-model="q.question_type" inline density="compact" hide-details>
-                    <v-radio label="Multiple Choice" value="multiple_choice" />
-                    <v-radio label="Open Ended" value="open_ended" />
-                  </v-radio-group>
-                  <v-textarea
-                    v-model="q.question_text"
-                    label="Question"
-                    rows="2"
-                    density="compact"
-                    class="mt-1"
-                    hide-details
-                    @change="updateQuestion(item, q)"
-                  />
-                  <!-- Multiple choice choices -->
-                  <div v-if="q.question_type === 'multiple_choice'" class="ml-4 mt-1">
-                    <div
-                      v-for="(ch, ci) in q.choices"
-                      :key="ci"
-                      class="d-flex align-center ga-1 mb-1"
-                    >
-                      <v-text-field
-                        v-model="ch.text"
-                        label="Choice text"
-                        density="compact"
-                        hide-details
-                        style="min-width: 200px"
-                        @change="updateQuestion(item, q)"
-                      />
-                      <v-checkbox
-                        v-model="ch.is_correct"
-                        label="Correct"
-                        density="compact"
-                        hide-details
-                        @change="updateQuestion(item, q)"
-                      />
-                      <v-btn
-                        icon="mdi-close"
-                        size="x-small"
-                        variant="text"
-                        color="error"
-                        @click="removeChoice(q, ci)"
-                      />
-                    </div>
-                    <v-btn
-                      size="x-small"
-                      variant="text"
-                      prepend-icon="mdi-plus"
-                      @click="addChoice(q)"
-                    >
-                      Choice
-                    </v-btn>
-                  </div>
-                  <v-text-field
-                    v-else
-                    v-model="q.expected_answer"
-                    label="Expected answer"
-                    density="compact"
-                    hide-details
-                    class="mt-1"
-                    @change="updateQuestion(item, q)"
-                  />
-                  <v-textarea
-                    v-model="q.explanation"
-                    label="Explanation"
-                    rows="1"
-                    density="compact"
-                    hide-details
-                    class="mt-1"
-                    @change="updateQuestion(item, q)"
-                  />
-                  <v-btn
-                    color="error"
-                    size="x-small"
-                    variant="text"
-                    class="mt-1"
-                    @click="confirmDeleteQuestion(item, q)"
-                  >
-                    Delete Question
-                  </v-btn>
-                </v-col>
-              </v-row>
-              <v-divider v-if="idx < (item.questions?.length || 0) - 1" class="mt-2" />
-            </div>
+              :question="q"
+              :index="idx"
+              :total="(state.expandedQuizzes[item.id]?.questions || []).length"
+              :show-reorder="true"
+              card-variant="flat"
+              card-class="mb-4 pa-2"
+              @change="(updated) => actions.saveQuestion(item, updated)"
+              @move="(dir) => actions.moveQuestion(item, idx, dir)"
+              @delete="confirmDeleteQuestion(item, q)"
+            />
             <v-btn
               color="primary"
               size="small"
               variant="outlined"
               prepend-icon="mdi-plus"
               class="mt-2"
-              @click="addQuestion(item)"
+              @click="actions.addQuestion(item)"
             >
               Add Question
             </v-btn>
           </td>
         </template>
+
+        <template #no-data>
+          <div class="pa-6 text-center">
+            <v-card flat>
+              <v-card-text class="text-medium-emphasis text-h6">No quizzes yet</v-card-text>
+              <v-card-text class="text-medium-emphasis">
+                Create a quiz manually or generate one from a knowledge document.
+              </v-card-text>
+            </v-card>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 
-    <!-- Create Dialog: large sectioned (generate, details, questions) -->
-    <AppDialog
-      v-model="showCreateDialog"
-      v-model:section="createSection"
-      size="lg"
-      persistent
-      icon="mdi-help-box-outline"
-      label="Create New"
-      title="Quiz"
-      :sections="createSections"
-      hint="Generate questions from a knowledge document, or add them manually."
-      confirm-label="Create Quiz"
-      :confirm-loading="creating"
-      @cancel="closeCreateDialog"
-      @confirm="submitCreate"
-    >
-      <template #section-generate>
-        <LlmModelPicker
-          v-model="generateModelId"
-          :model-items="llmModelItems"
-          label="LLM Model"
-          hint="Model used for quiz generation"
-          persistent-hint
-          clearable
-          class="mb-3"
-        />
-        <v-select
-          v-model="createForm.document_id"
-          :items="documentOptions"
-          item-title="title"
-          item-value="id"
-          label="Knowledge Document"
-          hint="Source document for generation"
-          persistent-hint
-          clearable
-          class="mb-3"
-        />
-        <v-row dense align="center">
-          <v-col cols="6" sm="3">
-            <v-text-field
-              v-model="generateNumQuestions"
-              label="Questions"
-              type="number"
-              :min="1"
-              :max="20"
-              hide-details
-            />
-          </v-col>
-          <v-col cols="6" sm="4">
-            <v-select
-              v-model="generateMix"
-              :items="[
-                { title: 'Mixed', value: 'mixed' },
-                { title: 'Multiple Choice', value: 'mc_only' },
-              ]"
-              item-title="title"
-              item-value="value"
-              label="Mix"
-              hide-details
-            />
-          </v-col>
-          <v-col cols="12" sm="5">
-            <v-btn
-              color="secondary"
-              variant="tonal"
-              prepend-icon="mdi-auto-fix"
-              :loading="generating"
-              :disabled="!createForm.document_id"
-              block
-              @click="generateQuiz"
-            >
-              Generate
-            </v-btn>
-          </v-col>
-        </v-row>
-      </template>
+    <QuizFormDialog
+      ref="formDialogRef"
+      v-model="showFormDialog"
+      :mode="formMode"
+      :quiz="editingQuiz"
+      :layouts="state.layouts"
+      :document-options="state.documents"
+      :llm-model-items="state.llmModelItems"
+      @saved="actions.fetchQuizzes()"
+      @regenerate-question="onRegenerateInDialog"
+    />
 
-      <template #section-details>
-        <v-row dense>
-          <v-col cols="12" sm="6">
-            <v-text-field
-              v-model="createForm.title"
-              label="Title"
-              :rules="[(r) => !!r || 'Title is required']"
-            />
-          </v-col>
-          <v-col cols="12" sm="6">
-            <v-select
-              v-model="createForm.question_layout_id"
-              :items="layouts"
-              item-title="display_name"
-              item-value="id"
-              label="Question Layout"
-              :rules="[(r) => !!r || 'Layout is required']"
-            />
-          </v-col>
-        </v-row>
-        <v-textarea
-          v-model="createForm.intro_voice_template"
-          label="Intro Voice Template"
-          rows="3"
-          class="mb-3"
-        />
-        <v-combobox v-model="createForm.tags" label="Tags" multiple chips deletable-chips />
-      </template>
+    <QuizSuggestDialog
+      v-model="showSuggestDialog"
+      :document-options="state.documents"
+      :llm-model-items="state.llmModelItems"
+      @suggested="onSuggestedQuiz"
+    />
 
-      <template #section-questions>
-        <div class="d-flex align-center mb-3">
-          <span class="text-subtitle-2">Questions ({{ createForm.questions.length }})</span>
-          <v-spacer />
-          <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="addCreateQuestion">
-            Add Question
-          </v-btn>
-        </div>
-        <div v-if="!createForm.questions.length" class="text-body-2 text-medium-emphasis">
-          No questions yet. Generate them from a document, or add one.
-        </div>
-        <v-card
-          v-for="(q, idx) in createForm.questions"
-          :key="idx"
-          variant="tonal"
-          class="mb-3 pa-3"
-        >
-          <div class="d-flex align-center mb-2">
-            <v-chip size="x-small" color="primary" variant="tonal" class="mr-2">
-              {{ idx + 1 }}
-            </v-chip>
-            <v-radio-group v-model="q.question_type" inline density="compact" hide-details>
-              <v-radio label="Multiple Choice" value="multiple_choice" />
-              <v-radio label="Open Ended" value="open_ended" />
-            </v-radio-group>
-            <v-spacer />
-            <v-btn
-              icon="mdi-close"
-              size="x-small"
-              variant="text"
-              color="error"
-              @click="removeCreateQuestion(idx)"
-            />
-          </div>
-          <v-textarea
-            v-model="q.question_text"
-            label="Question"
-            rows="2"
-            density="compact"
-            hide-details
-            class="mb-2"
-          />
-          <!-- Multiple choice choices -->
-          <div v-if="q.question_type === 'multiple_choice'" class="ml-2 mb-2">
-            <div v-for="(ch, ci) in q.choices" :key="ci" class="d-flex align-center ga-1 mb-1">
-              <v-text-field
-                v-model="ch.text"
-                label="Choice text"
-                density="compact"
-                hide-details
-                style="min-width: 200px"
-              />
-              <v-checkbox v-model="ch.is_correct" label="Correct" density="compact" hide-details />
-              <v-btn
-                icon="mdi-close"
-                size="x-small"
-                variant="text"
-                color="error"
-                @click="removeCreateChoice(q, ci)"
-              />
-            </div>
-            <v-btn
-              size="x-small"
-              variant="text"
-              prepend-icon="mdi-plus"
-              @click="addCreateChoice(q)"
-            >
-              Choice
-            </v-btn>
-          </div>
-          <template v-else>
-            <v-text-field
-              v-model="q.expected_answer"
-              label="Expected answer"
-              density="compact"
-              hide-details
-              class="mb-2"
-            />
-          </template>
-          <v-textarea
-            v-model="q.explanation"
-            label="Explanation"
-            rows="1"
-            density="compact"
-            hide-details
-          />
-        </v-card>
-      </template>
-    </AppDialog>
-
-    <!-- Edit Dialog: large sectioned (details, questions) -->
-    <AppDialog
-      v-model="showEditDialog"
-      v-model:section="editSection"
-      size="lg"
-      persistent
-      icon="mdi-help-box-outline"
-      label="Edit"
-      title="Quiz"
-      :sections="editSections"
-      hint="Modify quiz metadata and edit individual questions."
-      :confirm-loading="saving"
-      @confirm="submitEdit"
-    >
-      <template #section-details>
-        <v-row dense>
-          <v-col cols="12" sm="6">
-            <v-text-field v-model="editForm.title" label="Title" />
-          </v-col>
-          <v-col cols="12" sm="6">
-            <v-select
-              v-model="editForm.question_layout_id"
-              :items="layouts"
-              item-title="display_name"
-              item-value="id"
-              label="Question Layout"
-            />
-          </v-col>
-        </v-row>
-        <v-textarea
-          v-model="editForm.intro_voice_template"
-          label="Intro Voice Template"
-          rows="3"
-          class="mb-3"
-        />
-        <v-combobox v-model="editForm.tags" label="Tags" multiple chips deletable-chips />
-      </template>
-
-      <template #section-questions>
-        <v-row dense align="center" class="mb-2">
-          <v-col cols="12" sm="8">
-            <LlmModelPicker
-              v-model="editLlmModelId"
-              :model-items="llmModelItems"
-              label="LLM Model"
-              hint="Model used when regenerating individual questions"
-              persistent-hint
-              clearable
-            />
-          </v-col>
-          <v-col cols="12" sm="4" class="text-sm-right">
-            <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="addEditQuestion">
-              Add Question
-            </v-btn>
-          </v-col>
-        </v-row>
-        <div class="text-subtitle-2 mb-2">Questions ({{ editForm.questions.length }})</div>
-        <div v-if="!editForm.questions.length" class="text-body-2 text-medium-emphasis">
-          No questions yet.
-        </div>
-        <v-card v-for="(q, idx) in editForm.questions" :key="idx" variant="tonal" class="mb-3 pa-3">
-          <div class="d-flex align-center mb-2">
-            <v-chip size="x-small" color="primary" variant="tonal" class="mr-2">
-              {{ idx + 1 }}
-            </v-chip>
-            <v-radio-group v-model="q.question_type" inline density="compact" hide-details>
-              <v-radio label="Multiple Choice" value="multiple_choice" />
-              <v-radio label="Open Ended" value="open_ended" />
-            </v-radio-group>
-            <v-spacer />
-            <v-btn
-              icon="mdi-refresh"
-              size="x-small"
-              variant="text"
-              color="secondary"
-              :disabled="!editLlmModelId"
-              class="mr-1"
-              @click="regenerateEditQuestion(idx)"
-            />
-            <v-btn
-              icon="mdi-close"
-              size="x-small"
-              variant="text"
-              color="error"
-              @click="removeEditQuestion(idx)"
-            />
-          </div>
-          <v-textarea
-            v-model="q.question_text"
-            label="Question"
-            rows="2"
-            density="compact"
-            hide-details
-            class="mb-2"
-          />
-          <div v-if="q.question_type === 'multiple_choice'" class="ml-2 mb-2">
-            <div v-for="(ch, ci) in q.choices" :key="ci" class="d-flex align-center ga-1 mb-1">
-              <v-text-field
-                v-model="ch.text"
-                label="Choice text"
-                density="compact"
-                hide-details
-                style="min-width: 200px"
-              />
-              <v-checkbox v-model="ch.is_correct" label="Correct" density="compact" hide-details />
-              <v-btn
-                icon="mdi-close"
-                size="x-small"
-                variant="text"
-                color="error"
-                @click="removeEditChoice(q, ci)"
-              />
-            </div>
-            <v-btn size="x-small" variant="text" prepend-icon="mdi-plus" @click="addEditChoice(q)">
-              Choice
-            </v-btn>
-          </div>
-          <template v-else>
-            <v-text-field
-              v-model="q.expected_answer"
-              label="Expected answer"
-              density="compact"
-              hide-details
-              class="mb-2"
-            />
-          </template>
-          <v-textarea
-            v-model="q.explanation"
-            label="Explanation"
-            rows="1"
-            density="compact"
-            hide-details
-          />
-        </v-card>
-      </template>
-    </AppDialog>
-
-    <!-- Confirm Dialog -->
     <v-dialog v-model="confirmDialog" max-width="400" persistent>
       <v-card rounded="xl">
         <v-card-title v-if="confirmTitle">{{ confirmTitle }}</v-card-title>
@@ -580,12 +180,11 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
-          <v-btn :color="confirmColor" @click="onConfirm">{{ confirmLabel }}</v-btn>
+          <v-btn :color="confirmColor" variant="flat" @click="onConfirm">{{ confirmLabel }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Delete Confirm Dialog -->
     <ArchiveOrDeleteDialog
       v-model="deleteDialog"
       noun="quiz"
@@ -597,13 +196,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from "vue";
+import { ref, onMounted } from "vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
-import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import { useConfirm } from "@/composables/useConfirm.js";
-import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
-import AppDialog from "@/components/common/AppDialog.vue";
+import { useQuizzesAdmin } from "@/composables/useQuizzesAdmin.js";
+import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
+import QuizQuestionEditorCard from "@/components/knowledge/QuizQuestionEditorCard.vue";
+import QuizFormDialog from "@/components/knowledge/QuizFormDialog.vue";
+import QuizSuggestDialog from "@/components/knowledge/QuizSuggestDialog.vue";
 
 const { notify } = useNotify();
 const {
@@ -618,27 +219,15 @@ const {
   onCancel,
 } = useConfirm();
 
-const quizzes = ref([]);
-const layouts = ref([]);
-const documentOptions = ref([]);
-const llmModelItems = ref([]);
-const loading = ref(false);
-const totalItems = ref(0);
-const itemsPerPage = ref(20);
-const page = ref(1);
-const creating = ref(false);
-const generating = ref(false);
-const generateModelId = ref("");
-const generateNumQuestions = ref(5);
-const generateMix = ref("mixed");
-const showCreateDialog = ref(false);
-const showEditDialog = ref(false);
+const { state, actions } = useQuizzesAdmin({ notify });
+
+const showFormDialog = ref(false);
+const showSuggestDialog = ref(false);
+const formMode = ref("create");
+const editingQuiz = ref(null);
+const formDialogRef = ref(null);
 const deleteDialog = ref(false);
-const expandedRows = ref(new Set());
-const expandedQuizzes = ref({});
-const saving = ref(false);
-const editingQuizId = ref(null);
-const editLlmModelId = ref("");
+const deleteTarget = ref(null);
 
 const headers = [
   { title: "Title", key: "title", sortable: true },
@@ -652,489 +241,49 @@ const headers = [
 
 const statusOptions = ["draft", "approved", "archived"];
 
-const filters = reactive({
-  status: null,
-  tags: [],
-});
-
-const createForm = reactive({
-  title: "",
-  question_layout_id: null,
-  intro_voice_template: "",
-  tags: [],
-  document_id: null,
-  questions: [],
-});
-
-const editForm = reactive({
-  title: "",
-  question_layout_id: null,
-  intro_voice_template: "",
-  tags: [],
-  questions: [],
-});
-
-const createSection = ref("generate");
-const editSection = ref("details");
-const createDetailsError = ref(false);
-
-const createSections = computed(() => [
-  {
-    key: "generate",
-    label: "Generate",
-    icon: "mdi-auto-fix",
-    description: "Draft the quiz from a knowledge document, then review the questions.",
-  },
-  {
-    key: "details",
-    label: "Details",
-    icon: "mdi-text-box-outline",
-    error: createDetailsError.value,
-  },
-  {
-    key: "questions",
-    label: `Questions (${createForm.questions.length})`,
-    icon: "mdi-help-circle-outline",
-  },
-]);
-
-const editSections = computed(() => [
-  { key: "details", label: "Details", icon: "mdi-text-box-outline" },
-  {
-    key: "questions",
-    label: `Questions (${editForm.questions.length})`,
-    icon: "mdi-help-circle-outline",
-  },
-]);
-
-// Each opening starts at the first section, with no stale validation flag.
-watch(showCreateDialog, (open) => {
-  if (!open) return;
-  createSection.value = "generate";
-  createDetailsError.value = false;
-});
-watch(showEditDialog, (open) => {
-  if (open) editSection.value = "details";
-});
-
-watch(
-  () => [createForm.title, createForm.question_layout_id],
-  ([title, layout]) => {
-    if (title && layout) createDetailsError.value = false;
-  },
-);
-
 function statusColor(status) {
   const map = {
-    draft: "blue",
-    approved: "green",
-    archived: "grey",
+    draft: "info",
+    approved: "success",
+    archived: "secondary",
   };
   return map[status] || "default";
 }
 
-async function fetchQuizzes() {
-  loading.value = true;
+function openCreateDialog() {
+  formMode.value = "create";
+  editingQuiz.value = null;
+  showFormDialog.value = true;
+}
+
+async function openEditDialog(item) {
   try {
-    const params = { limit: itemsPerPage.value, offset: (page.value - 1) * itemsPerPage.value };
-    if (filters.status) params.status = filters.status;
-    if (filters.tags && filters.tags.length > 0) params.tags = filters.tags.join(",");
-    const res = await api.getQuizzes(params);
-    quizzes.value = res.items ?? [];
-    totalItems.value = res.total ?? 0;
-  } catch (err) {
-    notify.error("Failed to load quizzes: " + (err.message || err));
-  } finally {
-    loading.value = false;
-  }
-}
-
-function onPageOptions({ page: newPage, itemsPerPage: newPerPage }) {
-  // The server table echoes its current options on mount; that repeats the mount fetch.
-  if (newPage === page.value && newPerPage === itemsPerPage.value) return;
-  if (newPerPage !== itemsPerPage.value) {
-    itemsPerPage.value = newPerPage;
-    page.value = 1;
-  } else {
-    page.value = newPage;
-  }
-  expandedRows.value = new Set();
-  expandedQuizzes.value = {};
-  fetchQuizzes();
-}
-
-async function fetchLayouts() {
-  try {
-    const res = await api.getKnowledgeLayouts("quiz_question");
-    layouts.value = res.layouts ?? [];
-  } catch (err) {
-    notify.error("Failed to load layouts: " + (err.message || err));
-  }
-}
-
-async function fetchDocuments() {
-  try {
-    const res = await api.getKnowledgeDocuments({ per_page: 200 });
-    documentOptions.value = res.items ?? [];
-  } catch (_) {
-    // non-critical
-  }
-}
-
-async function fetchLLMModels() {
-  try {
-    llmModelItems.value = await api.getLLMModels();
-  } catch (_) {
-    // non-critical
-  }
-}
-
-async function generateQuiz() {
-  if (!createForm.document_id) {
-    notify.warning("Select a knowledge document first.");
-    return;
-  }
-  generating.value = true;
-  try {
-    const suggestion = await api.suggestQuiz(
-      createForm.document_id,
-      generateNumQuestions.value,
-      generateMix.value,
-      generateModelId.value || undefined,
-    );
-    if (suggestion.title) createForm.title = suggestion.title;
-    if (suggestion.intro_voice_template)
-      createForm.intro_voice_template = suggestion.intro_voice_template;
-    if (suggestion.questions && suggestion.questions.length > 0) {
-      createForm.questions = suggestion.questions.map((q) => ({
-        id: null,
-        question_type: q.question_type || "multiple_choice",
-        question_text: q.question_text || "",
-        choices: q.choices || [],
-        expected_answer: q.expected_answer || "",
-        explanation: q.explanation || "",
-      }));
-    }
-    notify.success(`Generated ${suggestion.questions?.length || 0} questions.`);
-    createSection.value = "questions";
-  } catch (err) {
-    notify.error("Failed to generate quiz: " + (err.message || err));
-  } finally {
-    generating.value = false;
-  }
-}
-
-function addCreateQuestion() {
-  createForm.questions.push({
-    id: null,
-    question_type: "multiple_choice",
-    question_text: "",
-    choices: [],
-    expected_answer: "",
-    explanation: "",
-  });
-}
-
-function removeCreateQuestion(idx) {
-  createForm.questions.splice(idx, 1);
-}
-
-function addCreateChoice(q) {
-  if (!q.choices) q.choices = [];
-  q.choices.push({ id: null, text: "", is_correct: false });
-}
-
-function removeCreateChoice(q, ci) {
-  if (q.choices) q.choices.splice(ci, 1);
-}
-
-// -- Edit dialog helpers --------------------------------------------------
-
-async function editQuiz(item) {
-  try {
-    const quiz = await api.getQuiz(item.id);
-    editingQuizId.value = quiz.id;
-    editForm.title = quiz.title || "";
-    editForm.question_layout_id = quiz.question_layout_id || null;
-    editForm.intro_voice_template = quiz.intro_voice_template || "";
-    editForm.tags = quiz.tags || [];
-    editForm.questions = (quiz.questions || []).map((q) => ({
-      id: q.id,
-      question_type: q.question_type || "multiple_choice",
-      question_text: q.question_text || "",
-      choices: q.choices || [],
-      expected_answer: q.expected_answer || "",
-      explanation: q.explanation || "",
-    }));
-    editLlmModelId.value = "";
-    showEditDialog.value = true;
+    const detail = await api.getQuiz(item.id);
+    formMode.value = "edit";
+    editingQuiz.value = detail;
+    showFormDialog.value = true;
   } catch (err) {
     notify.error("Failed to load quiz: " + (err.message || err));
   }
 }
 
-async function submitEdit() {
-  if (!editingQuizId.value) return;
-  saving.value = true;
-  try {
-    await api.updateQuiz(editingQuizId.value, {
-      title: editForm.title,
-      question_layout_id: editForm.question_layout_id,
-      intro_voice_template: editForm.intro_voice_template,
-      tags: editForm.tags,
-    });
-    // Sync questions: update existing, create new, delete removed
-    const currentIds = new Set(editForm.questions.filter((q) => q.id).map((q) => q.id));
-    const originalQuiz = await api.getQuiz(editingQuizId.value);
-    for (const origQ of originalQuiz.questions || []) {
-      if (!currentIds.has(origQ.id)) {
-        await api.deleteQuizQuestion(editingQuizId.value, origQ.id);
-      }
-    }
-    for (const q of editForm.questions) {
-      if (q.id) {
-        await api.updateQuizQuestion(editingQuizId.value, q.id, {
-          question_text: q.question_text,
-          question_type: q.question_type,
-          choices: q.choices || [],
-          expected_answer: q.expected_answer || "",
-          explanation: q.explanation || "",
-        });
-      } else {
-        await api.createQuizQuestion(editingQuizId.value, {
-          question_text: q.question_text,
-          question_type: q.question_type,
-          choices: q.choices || [],
-          expected_answer: q.expected_answer || "",
-          explanation: q.explanation || "",
-        });
-      }
-    }
-    notify.success("Quiz updated.");
-    showEditDialog.value = false;
-    editingQuizId.value = null;
-    await fetchQuizzes();
-  } catch (err) {
-    notify.error("Failed to update quiz: " + (err.message || err));
-  } finally {
-    saving.value = false;
-  }
+function onSuggestedQuiz(payload) {
+  formMode.value = "create";
+  editingQuiz.value = null;
+  showFormDialog.value = true;
+  formDialogRef.value?.applySuggestion(payload);
 }
 
-function addEditQuestion() {
-  editForm.questions.push({
-    id: null,
-    question_type: "multiple_choice",
-    question_text: "",
-    choices: [],
-    expected_answer: "",
-    explanation: "",
-  });
-}
-
-function removeEditQuestion(idx) {
-  editForm.questions.splice(idx, 1);
-}
-
-function addEditChoice(q) {
-  if (!q.choices) q.choices = [];
-  q.choices.push({ id: null, text: "", is_correct: false });
-}
-
-function removeEditChoice(q, ci) {
-  if (q.choices) q.choices.splice(ci, 1);
-}
-
-async function regenerateEditQuestion(idx) {
-  const q = editForm.questions[idx];
-  if (!q) return;
-  if (!q.id) {
-    notify.warning("Save the quiz first, then regenerate this question.");
-    return;
-  }
-  const quiz = await api.getQuiz(editingQuizId.value);
-  if (!quiz.document_id) {
-    notify.warning("Quiz has no linked document for regeneration.");
-    return;
-  }
-  try {
-    const suggestion = await api.regenerateQuizQuestion(
-      editingQuizId.value,
-      q.id,
-      editLlmModelId.value || undefined,
-    );
-    if (suggestion.question_text) q.question_text = suggestion.question_text;
-    if (suggestion.choices) q.choices = suggestion.choices;
-    if (suggestion.expected_answer) q.expected_answer = suggestion.expected_answer;
-    if (suggestion.explanation) q.explanation = suggestion.explanation;
-    notify.success("Question regenerated.");
-  } catch (err) {
-    notify.error("Failed to regenerate: " + (err.message || err));
-  }
-}
-
-async function toggleExpand(event, { item }) {
-  if (expandedRows.value.has(item.id)) {
-    expandedRows.value.delete(item.id);
-    delete expandedQuizzes.value[item.id];
-  } else {
-    expandedRows.value.add(item.id);
-    try {
-      expandedQuizzes.value[item.id] = await api.getQuiz(item.id);
-    } catch (_) {
-      expandedQuizzes.value[item.id] = null;
-    }
-  }
-  // Force reactivity
-  expandedRows.value = new Set(expandedRows.value);
-  expandedQuizzes.value = { ...expandedQuizzes.value };
-}
-
-async function submitCreate() {
-  if (!createForm.title || !createForm.question_layout_id) {
-    createDetailsError.value = true;
-    createSection.value = "details";
-    notify.warning("Title and Layout are required.");
-    return;
-  }
-  creating.value = true;
-  try {
-    const quiz = await api.createQuiz({
-      title: createForm.title,
-      question_layout_id: createForm.question_layout_id,
-      intro_voice_template: createForm.intro_voice_template,
-      tags: createForm.tags,
-      document_id: createForm.document_id || undefined,
-    });
-    // Create questions
-    for (const q of createForm.questions) {
-      await api.createQuizQuestion(quiz.id, {
-        question_text: q.question_text,
-        question_type: q.question_type,
-        choices: q.choices || [],
-        expected_answer: q.expected_answer || "",
-        explanation: q.explanation || "",
-      });
-    }
-    notify.success(`Quiz created with ${createForm.questions.length} question(s).`);
-    closeCreateDialog();
-    await fetchQuizzes();
-  } catch (err) {
-    notify.error("Failed to create quiz: " + (err.message || err));
-  } finally {
-    creating.value = false;
-  }
-}
-
-function closeCreateDialog() {
-  showCreateDialog.value = false;
-  createForm.title = "";
-  createForm.question_layout_id = null;
-  createForm.intro_voice_template = "";
-  createForm.tags = [];
-  createForm.document_id = null;
-  createForm.questions = [];
-  generateModelId.value = "";
-  generateNumQuestions.value = 5;
-  generateMix.value = "mixed";
-}
-
-async function addQuestion(quiz) {
-  try {
-    await api.createQuizQuestion(quiz.id, {
-      question_text: "",
-      question_type: "multiple_choice",
-      choices: [],
-      expected_answer: "",
-      explanation: "",
-    });
-    notify.success("Question added.");
-    await fetchQuizzes();
-  } catch (err) {
-    notify.error("Failed to add question: " + (err.message || err));
-  }
-}
-
-async function updateQuestion(quiz, question) {
-  try {
-    await api.updateQuizQuestion(quiz.id, question.id, {
-      question_text: question.question_text,
-      question_type: question.question_type,
-      choices: question.choices,
-      expected_answer: question.expected_answer,
-      explanation: question.explanation,
-    });
-  } catch (err) {
-    notify.error("Failed to update question: " + (err.message || err));
-  }
+async function onRegenerateInDialog({ question, modelId }) {
+  if (!editingQuiz.value?.id) return;
+  await actions.regenerateQuestion(editingQuiz.value.id, question, modelId);
 }
 
 async function confirmDeleteQuestion(quiz, question) {
   const ok = await confirmRequire("Delete this question?");
   if (!ok) return;
-  try {
-    await api.deleteQuizQuestion(quiz.id, question.id);
-    notify.success("Question deleted.");
-    await fetchQuizzes();
-  } catch (err) {
-    notify.error("Failed to delete question: " + (err.message || err));
-  }
+  await actions.deleteQuestion(quiz, question);
 }
-
-async function moveQuestion(quiz, question, direction) {
-  try {
-    await api.reorderQuizQuestions(quiz.id, {
-      question_id: question.id,
-      direction,
-    });
-    await fetchQuizzes();
-  } catch (err) {
-    notify.error("Failed to reorder: " + (err.message || err));
-  }
-}
-
-function addChoice(question) {
-  if (!question.choices) question.choices = [];
-  question.choices.push({ id: null, text: "", is_correct: false });
-}
-
-function removeChoice(question, index) {
-  if (question.choices) {
-    question.choices.splice(index, 1);
-  }
-}
-
-async function approve(item) {
-  try {
-    await api.approveQuiz(item.id);
-    notify.success("Quiz approved.");
-    await fetchQuizzes();
-  } catch (err) {
-    notify.error("Failed to approve: " + (err.message || err));
-  }
-}
-
-async function archive(item) {
-  try {
-    await api.archiveQuiz(item.id);
-    notify.success("Quiz archived.");
-    await fetchQuizzes();
-  } catch (err) {
-    notify.error("Failed to archive: " + (err.message || err));
-  }
-}
-
-async function restore(item) {
-  try {
-    await api.restoreQuiz(item.id);
-    notify.success("Quiz restored.");
-    await fetchQuizzes();
-  } catch (err) {
-    notify.error("Failed to restore: " + (err.message || err));
-  }
-}
-
-const deleteTarget = ref(null);
 
 function confirmDelete(item) {
   deleteTarget.value = item;
@@ -1143,7 +292,7 @@ function confirmDelete(item) {
 
 async function doArchive() {
   deleteDialog.value = false;
-  if (deleteTarget.value) await archive(deleteTarget.value);
+  if (deleteTarget.value) await actions.archiveQuiz(deleteTarget.value);
   deleteTarget.value = null;
 }
 
@@ -1152,19 +301,13 @@ async function doDelete() {
   const item = deleteTarget.value;
   deleteTarget.value = null;
   if (!item) return;
-  try {
-    await api.deleteQuiz(item.id);
-    notify.success("Quiz deleted.");
-    await fetchQuizzes();
-  } catch (err) {
-    notify.error("Failed to delete: " + (err.message || err));
-  }
+  await actions.deleteQuiz(item);
 }
 
 onMounted(() => {
-  fetchQuizzes();
-  fetchLayouts();
-  fetchDocuments();
-  fetchLLMModels();
+  actions.fetchQuizzes();
+  actions.fetchLayouts();
+  actions.fetchDocuments();
+  actions.fetchLLMModels();
 });
 </script>

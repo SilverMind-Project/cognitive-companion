@@ -203,6 +203,10 @@ def create_app() -> FastAPI:
     mcp_asgi = _mcp_server.streamable_http_app()
     app.mount("/mcp", MCPAuthMiddleware(mcp_asgi))
 
+    app.state.info_card_service = None
+    app.state.quiz_service = None
+    app.state.knowledge_interaction_service = None
+
     return app
 
 

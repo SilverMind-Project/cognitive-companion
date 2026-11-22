@@ -7,7 +7,6 @@ PH correction, and visitor decision was recorded as "system" and every quiz appr
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,7 +15,6 @@ from fastapi.testclient import TestClient
 
 from backend.core.auth import AuthContext, actor_from_auth, get_auth_context
 from backend.core.config import Settings
-from backend.core.database import get_db
 from backend.core.exceptions import AuthenticationError, register_exception_handlers
 from backend.integrations.person_id_client import VisitorReviewItem
 from backend.routers import cts_ph, cts_reid_review, quizzes, visitors
@@ -132,32 +130,31 @@ def test_visitor_review_records_the_key_name() -> None:
 
 
 def test_quiz_approval_stores_the_key_name() -> None:
-    quiz = SimpleNamespace(
-        id=1,
-        document_id=None,
-        title="Quiz",
-        question_layout_id="quiz-default",
-        intro_voice_template="",
-        voice_instruction="",
-        tags=[],
-        status="draft",
-        version=1,
-        approved_by=None,
-        approved_at=None,
-        created_at=datetime(2026, 11, 1, tzinfo=UTC),
-        updated_at=datetime(2026, 11, 1, tzinfo=UTC),
-        questions=[],
-    )
-    db = MagicMock()
-    db.execute.return_value.scalar_one_or_none.return_value = quiz
+    approved_out = {
+        "id": 1,
+        "document_id": None,
+        "title": "Quiz",
+        "question_layout_id": "quiz-default",
+        "intro_voice_template": "",
+        "voice_instruction": "",
+        "tags": [],
+        "status": "approved",
+        "version": 2,
+        "approved_by": _KEY_NAME,
+        "approved_at": datetime(2026, 11, 1, tzinfo=UTC).isoformat(),
+        "created_at": datetime(2026, 11, 1, tzinfo=UTC).isoformat(),
+        "updated_at": datetime(2026, 11, 1, tzinfo=UTC).isoformat(),
+        "questions": [],
+    }
+    svc = MagicMock()
+    svc.approve_quiz.return_value = approved_out
     app = _app(quizzes.router)
-    app.dependency_overrides[get_db] = lambda: db
-    app.state.minio_client = MagicMock()
+    app.state.quiz_service = svc
 
     response = TestClient(app).post("/api/v1/quizzes/1/approve")
 
     assert response.status_code == 200
-    assert quiz.approved_by == _KEY_NAME
+    svc.approve_quiz.assert_called_once_with(1, approved_by=_KEY_NAME)
     assert response.json()["approved_by"] == _KEY_NAME
 
 

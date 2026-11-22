@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 
 from backend.core.auth import require_permission
 from backend.core.exceptions import NotFoundError
+from backend.routers.dependencies import get_knowledge_ingestion
 from backend.schemas.knowledge import (
     KnowledgeDocumentImageOut,
     KnowledgeDocumentImageUpdate,
@@ -23,12 +24,8 @@ from backend.services.knowledge.ingestion_service import KnowledgeIngestionServi
 router = APIRouter(prefix="/knowledge/documents", tags=["knowledge"])
 
 
-def _get_ingestion(request: Request) -> KnowledgeIngestionService:
-    return request.app.state.knowledge_ingestion
-
-
-def _add_presigned(img_row, minio_client) -> dict:
-    d = {
+def _add_presigned(img_row: Any, minio_client: Any) -> dict[str, Any]:
+    d: dict[str, Any] = {
         "id": img_row.id,
         "document_id": img_row.document_id,
         "minio_object_name": img_row.minio_object_name,
@@ -42,7 +39,7 @@ def _add_presigned(img_row, minio_client) -> dict:
         d["presigned_url"] = minio_client.generate_presigned_url(
             img_row.minio_object_name, expiration=3600
         )
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - optional presigned URL enrichment
         d["presigned_url"] = None
     return d
 
@@ -54,9 +51,9 @@ async def create_document(
     source_text: str = Form(...),
     tags: str = Form(""),
     images: list[UploadFile] = File(default_factory=list),
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:write")),
-):
-    ingestion = _get_ingestion(request)
+) -> dict[str, Any]:
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
     created_by = (
         request.state.auth_context.name if hasattr(request.state, "auth_context") else "caregiver"
@@ -68,8 +65,7 @@ async def create_document(
         created_by=created_by,
         images=images,
     )
-    minio = request.app.state.minio_client
-    return _doc_out(doc, minio)
+    return _doc_out(doc, request.app.state.minio_client)
 
 
 @router.get("", response_model=KnowledgeDocumentListResponse)
@@ -80,9 +76,9 @@ async def list_documents(
     q: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:read")),
-):
-    ingestion = _get_ingestion(request)
+) -> dict[str, Any]:
     docs, total = ingestion.list_documents(status=status, tag=tag, q=q, limit=limit, offset=offset)
     return {
         "items": [
@@ -99,9 +95,9 @@ async def list_documents(
 async def get_document(
     doc_id: int,
     request: Request,
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:read")),
-):
-    ingestion = _get_ingestion(request)
+) -> dict[str, Any]:
     doc = ingestion.get_document(doc_id)
     if doc is None:
         raise NotFoundError("Knowledge document", doc_id)
@@ -113,9 +109,9 @@ async def update_document(
     doc_id: int,
     body: KnowledgeDocumentUpdate,
     request: Request,
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:write")),
-):
-    ingestion = _get_ingestion(request)
+) -> dict[str, Any]:
     doc = await ingestion.update_document(doc_id, **body.model_dump(exclude_none=True))
     return _doc_out(doc, request.app.state.minio_client)
 
@@ -127,9 +123,9 @@ async def update_document(
 async def approve_document(
     doc_id: int,
     request: Request,
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:write")),
-):
-    ingestion = _get_ingestion(request)
+) -> dict[str, Any]:
     doc = ingestion.approve_document(doc_id)
     return _doc_out(doc, request.app.state.minio_client)
 
@@ -138,9 +134,9 @@ async def approve_document(
 async def archive_document(
     doc_id: int,
     request: Request,
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:write")),
-):
-    ingestion = _get_ingestion(request)
+) -> dict[str, Any]:
     doc = ingestion.archive_document(doc_id)
     return _doc_out(doc, request.app.state.minio_client)
 
@@ -149,9 +145,9 @@ async def archive_document(
 async def restore_document(
     doc_id: int,
     request: Request,
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:write")),
-):
-    ingestion = _get_ingestion(request)
+) -> dict[str, Any]:
     doc = ingestion.restore_document(doc_id)
     return _doc_out(doc, request.app.state.minio_client)
 
@@ -160,15 +156,11 @@ async def restore_document(
 async def delete_document(
     doc_id: int,
     request: Request,
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:delete")),
-):
-    ingestion = _get_ingestion(request)
-    _ = request.app.state.minio_client  # ensure MinIO is available
-    try:
-        ingestion.delete_document(doc_id)
-    except NotFoundError as e:
-        raise e
-    # Purge MinIO prefix after successful DB delete
+) -> None:
+    _ = request.app.state.minio_client
+    ingestion.delete_document(doc_id)
     pipeline = request.app.state.image_pipeline
     await pipeline.purge_prefix(f"knowledge/{doc_id}/")
 
@@ -177,15 +169,14 @@ async def delete_document(
 async def reembed_document(
     doc_id: int,
     request: Request,
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:write")),
-):
+) -> dict[str, Any]:
     """Force re-chunk and re-embed a document. Resets status to uploaded first."""
-    ingestion = _get_ingestion(request)
     doc = ingestion.get_document(doc_id)
     if doc is None:
         raise NotFoundError("Knowledge document", doc_id)
 
-    # Reset to uploaded and re-chunk (update_document handles _chunk_and_embed internally)
     updated = await ingestion.update_document(doc_id, source_text=doc.source_text)
     return _doc_out(updated, request.app.state.minio_client)
 
@@ -200,9 +191,9 @@ async def add_document_image(
     file: UploadFile = File(...),
     alt_text: str = Form(""),
     ord: int | None = Form(None),
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:write")),
-):
-    ingestion = _get_ingestion(request)
+) -> dict[str, Any]:
     img_row = await ingestion.add_image(doc_id, file, alt_text=alt_text, ord=ord)
     return _add_presigned(img_row, request.app.state.minio_client)
 
@@ -213,9 +204,10 @@ async def update_document_image(
     img_id: int,
     body: KnowledgeDocumentImageUpdate,
     request: Request,
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:write")),
-):
-    ingestion = _get_ingestion(request)
+) -> dict[str, Any]:
+    _ = doc_id
     img_row = ingestion.update_image(img_id, **body.model_dump(exclude_none=True))
     return _add_presigned(img_row, request.app.state.minio_client)
 
@@ -224,17 +216,17 @@ async def update_document_image(
 async def delete_document_image(
     doc_id: int,
     img_id: int,
-    request: Request,
+    ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:delete")),
-):
-    ingestion = _get_ingestion(request)
+) -> None:
+    _ = doc_id
     await ingestion.delete_image(img_id)
 
 
 # -- serialisers ------------------------------------------------------------
 
 
-def _doc_out(doc, minio_client) -> dict[str, Any]:
+def _doc_out(doc: Any, minio_client: Any) -> dict[str, Any]:
     return {
         "id": doc.id,
         "title": doc.title,
@@ -250,7 +242,8 @@ def _doc_out(doc, minio_client) -> dict[str, Any]:
     }
 
 
-def _doc_list_out(doc, minio_client) -> dict[str, Any]:
+def _doc_list_out(doc: Any, minio_client: Any) -> dict[str, Any]:
+    _ = minio_client
     return {
         "id": doc.id,
         "title": doc.title,

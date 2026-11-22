@@ -24,6 +24,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from backend.core.time import to_app_timezone
 from backend.filters import FilterRegistry
 from backend.filters.base import ContextFilter, FilterMetadata
 from backend.services.cts.signal_config import ALL_SIGNAL_KINDS
@@ -168,7 +169,7 @@ class DementiaSignalFilter(ContextFilter):
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=UTC)
 
-            event_time = dt.time()
+            event_time = to_app_timezone(dt).time()
             start = datetime.strptime(start_str, "%H:%M").time()
             end = datetime.strptime(end_str, "%H:%M").time()
 

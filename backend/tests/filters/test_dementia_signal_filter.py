@@ -7,6 +7,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 import backend.models  # noqa: F401
+from backend.core import time as core_time
+from backend.core.config import Settings
 from backend.filters import FilterRegistry
 from backend.filters.builtin.dementia_signal import DementiaSignalFilter
 from backend.models.cts_signal import DementiaSignal
@@ -176,16 +178,24 @@ class TestMinSeverityFilter:
 
 
 class TestTimeOfDayFilter:
-    def test_within_window_passes(self, filt: DementiaSignalFilter):
+    def test_within_window_passes(
+        self, filt: DementiaSignalFilter, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(core_time, "settings", Settings.from_dict({"app": {"timezone": "UTC"}}))
         cfg = {"time_of_day": {"start": "19:00", "end": "21:00"}}
         assert filt.evaluate(cfg, _SIGNAL_EVENT, _NOW) is True
 
-    def test_outside_window_fails(self, filt: DementiaSignalFilter):
+    def test_outside_window_fails(
+        self, filt: DementiaSignalFilter, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(core_time, "settings", Settings.from_dict({"app": {"timezone": "UTC"}}))
         cfg = {"time_of_day": {"start": "08:00", "end": "12:00"}}
         assert filt.evaluate(cfg, _SIGNAL_EVENT, _NOW) is False
 
-    def test_midnight_crossing_window(self, filt: DementiaSignalFilter):
-        # 20:00 UTC should match a 22:00-06:00 window
+    def test_midnight_crossing_window(
+        self, filt: DementiaSignalFilter, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(core_time, "settings", Settings.from_dict({"app": {"timezone": "UTC"}}))
         cfg = {"time_of_day": {"start": "22:00", "end": "06:00"}}
         assert filt.evaluate(cfg, _SIGNAL_EVENT, _NOW) is False
 
@@ -197,6 +207,105 @@ class TestTimeOfDayFilter:
             },
         }
         assert filt.evaluate(cfg, late_event, _NOW) is True
+
+    def test_converts_utc_to_app_timezone_at_local_boundary(
+        self, filt: DementiaSignalFilter, monkeypatch: pytest.MonkeyPatch
+    ):
+        # America/New_York in April is EDT (UTC-4).
+        monkeypatch.setattr(
+            core_time, "settings", Settings.from_dict({"app": {"timezone": "America/New_York"}})
+        )
+        cfg = {"time_of_day": {"start": "22:00", "end": "06:00"}}
+
+        # 23:00 UTC is 19:00 EDT: inside 22:00-06:00 in UTC, but outside in local time.
+        evening_local = {
+            **_SIGNAL_EVENT,
+            "payload": {
+                **_SIGNAL_EVENT["payload"],
+                "window_end": "2026-04-23T23:00:00+00:00",
+            },
+        }
+        assert filt.evaluate(cfg, evening_local, _NOW) is False
+
+        # 01:59 UTC is 21:59 EDT (one minute before local boundary): outside.
+        just_before = {
+            **_SIGNAL_EVENT,
+            "payload": {
+                **_SIGNAL_EVENT["payload"],
+                "window_end": "2026-04-24T01:59:00+00:00",
+            },
+        }
+        assert filt.evaluate(cfg, just_before, _NOW) is False
+
+        # 02:00 UTC is 22:00 EDT (exact local boundary): inside.
+        at_start = {
+            **_SIGNAL_EVENT,
+            "payload": {
+                **_SIGNAL_EVENT["payload"],
+                "window_end": "2026-04-24T02:00:00+00:00",
+            },
+        }
+        assert filt.evaluate(cfg, at_start, _NOW) is True
+
+        # 10:00 UTC is 06:00 EDT (exact end boundary): inside; 10:01 UTC (06:01 EDT): outside.
+        at_end = {
+            **_SIGNAL_EVENT,
+            "payload": {
+                **_SIGNAL_EVENT["payload"],
+                "window_end": "2026-04-24T10:00:00+00:00",
+            },
+        }
+        after_end = {
+            **_SIGNAL_EVENT,
+            "payload": {
+                **_SIGNAL_EVENT["payload"],
+                "window_end": "2026-04-24T10:01:00+00:00",
+            },
+        }
+        assert filt.evaluate(cfg, at_end, _NOW) is True
+        assert filt.evaluate(cfg, after_end, _NOW) is False
+
+    def test_window_across_dst_transitions(
+        self, filt: DementiaSignalFilter, monkeypatch: pytest.MonkeyPatch
+    ):
+        # America/New_York springs forward on 2026-03-08 (EST UTC-5 -> EDT UTC-4 at 07:00 UTC)
+        # and falls back on 2026-11-01 (EDT UTC-4 -> EST UTC-5 at 06:00 UTC).
+        monkeypatch.setattr(
+            core_time, "settings", Settings.from_dict({"app": {"timezone": "America/New_York"}})
+        )
+        cfg = {"time_of_day": {"start": "22:00", "end": "06:00"}}
+
+        # Night of spring-forward: 06:30 UTC is 01:30 EST (inside); 07:30 UTC is 03:30 EDT (inside).
+        # 10:00 UTC is 06:00 EDT (end boundary, inside); 10:01 UTC is 06:01 EDT (outside).
+        # Under fixed EST (UTC-5), 10:01 UTC would still be 05:01 and wrongly match.
+        spring_before = {
+            **_SIGNAL_EVENT,
+            "payload": {**_SIGNAL_EVENT["payload"], "window_end": "2026-03-08T06:30:00+00:00"},
+        }
+        spring_after = {
+            **_SIGNAL_EVENT,
+            "payload": {**_SIGNAL_EVENT["payload"], "window_end": "2026-03-08T07:30:00+00:00"},
+        }
+        spring_after_end = {
+            **_SIGNAL_EVENT,
+            "payload": {**_SIGNAL_EVENT["payload"], "window_end": "2026-03-08T10:01:00+00:00"},
+        }
+        assert filt.evaluate(cfg, spring_before, _NOW) is True
+        assert filt.evaluate(cfg, spring_after, _NOW) is True
+        assert filt.evaluate(cfg, spring_after_end, _NOW) is False
+
+        # Night of fall-back: 10:30 UTC is 05:30 EST (still inside 22:00-06:00), whereas under
+        # EDT (UTC-4) it would be 06:30 and wrongly rejected. 11:01 UTC is 06:01 EST (outside).
+        fall_still_inside = {
+            **_SIGNAL_EVENT,
+            "payload": {**_SIGNAL_EVENT["payload"], "window_end": "2026-11-01T10:30:00+00:00"},
+        }
+        fall_after_end = {
+            **_SIGNAL_EVENT,
+            "payload": {**_SIGNAL_EVENT["payload"], "window_end": "2026-11-01T11:01:00+00:00"},
+        }
+        assert filt.evaluate(cfg, fall_still_inside, _NOW) is True
+        assert filt.evaluate(cfg, fall_after_end, _NOW) is False
 
 
 # ---------------------------------------------------------------------------

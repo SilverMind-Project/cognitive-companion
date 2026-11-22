@@ -242,10 +242,6 @@ def test_auth_required_and_rejected_without_permission(db_session) -> None:
 
 def test_auth_yaml_covers_gate_graph_routes() -> None:
     data = yaml.safe_load(Path("config/auth.yaml").read_text())
-    pm = data["permission_map"]
-    assert "GET /api/v1/gate-graphs" in pm["gate_graphs:read"]
-    assert "GET /api/v1/gate-presets" in pm["gate_graphs:read"]
-    assert "POST /api/v1/gate-graphs" in pm["gate_graphs:write"]
-    assert "POST /api/v1/gate-graphs/*" in pm["gate_graphs:write"]
-    assert "gate_graphs:read" in pm["caregiver"]
-    assert "gate_graphs:write" in pm["caregiver"]
+    roles = data["roles"]
+    assert "gate_graphs:read" in roles["caregiver"]
+    assert "gate_graphs:write" in roles["admin"]

@@ -131,10 +131,7 @@ def test_current_zone_endpoint_returns_zone(db_factory, db_session) -> None:
 
 def test_auth_yaml_covers_room_zone_routes() -> None:
     data = yaml.safe_load(Path("config/auth.yaml").read_text())
-    permission_map = data["permission_map"]
+    roles = data["roles"]
 
-    assert "GET /api/v1/rooms/*/zones" in permission_map["room_zones:read"]
-    assert "GET /api/v1/persons/*/current-zone" in permission_map["room_zones:read"]
-    assert "POST /api/v1/rooms/*/zones" in permission_map["room_zones:write"]
-    assert "PATCH /api/v1/zones/*" in permission_map["room_zones:write"]
-    assert "DELETE /api/v1/zones/*" in permission_map["room_zones:write"]
+    assert "room_zones:read" in roles["caregiver"]
+    assert "room_zones:write" in roles["admin"]

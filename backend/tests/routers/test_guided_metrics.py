@@ -71,7 +71,7 @@ def test_guided_metrics_requires_auth() -> None:
 
 def test_auth_yaml_covers_guided_metrics_routes() -> None:
     data = yaml.safe_load(Path("config/auth.yaml").read_text())
-    permission_map = data["permission_map"]
+    roles = data["roles"]
 
-    assert "GET /api/v1/guided-metrics/*" in permission_map["guided_metrics:read"]
-    assert "guided_metrics:read" in permission_map["caregiver"]
+    assert "guided_metrics:read" in roles["caregiver"]
+    assert "guided_metrics:read" in roles["mcp_readonly"]

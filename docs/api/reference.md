@@ -2,7 +2,7 @@
 
 All HTTP endpoints are served under `/api/v1`. Endpoints require authentication unless a router explicitly documents a device or webhook auth path.
 
-Authentication is resolved from API keys, device keys, or route-specific secrets. Authorization is enforced through `config/auth.yaml` permission patterns, with EG-M14 D4 named-token shadow evaluation active alongside it. See the generated [Permission Token Migration Matrix](permissions-migration.md) for the full route-by-role access matrix, proposed D4 tokens, and `M14-T` approval table.
+Authentication is resolved from API keys, device keys, or route-specific secrets. Authorization uses named D4 `<resource>:<action>` permission tokens enforced by pure role membership against `config/auth.yaml` `roles:`. See the generated [Permission Token Reference](permissions.md) for the complete route, WebSocket, and role access matrix.
 
 ## Execution observability
 
@@ -245,7 +245,7 @@ health service itself is unwired.
 | --- | --- | --- |
 | `GET` | `/persons` | List household members (includes optional `height_cm`) |
 | `POST` | `/persons` | Create a household member (accepts optional `height_cm` in `[90, 220]`) |
-| `GET` | `/persons/heights` | Minimal member standing-height sync feed for CTS (`persons:heights_sync`; granted to `cts_ingress` and `admin`, reads local `household_members` only) |
+| `GET` | `/persons/heights` | Minimal member standing-height sync feed for CTS (`persons.heights:read`; granted to `cts_ingress` and `admin`, reads local `household_members` only) |
 | `GET` | `/persons/{person_id}` | Get a member |
 | `GET` | `/persons/{person_id}/height-profile` | Combined operator-entered `height_cm` and effective CTS standing height profile (`learned` or `operator`, sample/camera counts, uncertainty; degrades cleanly with `cts_available: false` if CTS is unreachable) |
 | `PATCH` | `/persons/{person_id}` | Update a member (including optional `height_cm` in `[90, 220]` or `null` to clear) |
@@ -275,7 +275,7 @@ The occupancy read-model, the signals feed, roster health, and identity readines
 
 Proxies person-identification-service's visitor clustering API. Naming
 is a two-system transaction (face-service member, then a CC household member with `is_guest=true`)
-orchestrated by `VisitorAdminService`. Permission: `visitors.review`, a strict `require_token` grant
+orchestrated by `VisitorAdminService`. Permission: `visitors:review`, a named D4 grant
 separate from the broad `caregiver`/`caregiver_admin` `GET /api/v1/*` globs, the same pattern as
 `cts.identity.gallery_review`. No MCP tool: naming/dismissing/merging a visitor cluster is a
 caregiver-admin action, not agent-facing (see `test_no_mcp_tool_for_visitor_mutations`).
@@ -298,7 +298,7 @@ created but the CC household member insert failed; the face-service call is idem
 
 Proxies person-identification-service's calibration review API: an admin labels the faces
 person-id sampled from tracker identify calls, which the offline `fit-v2` command then fits on.
-Permission: `face_calibration.review`, a strict `require_token` grant held only by
+Permission: `face_calibration:review`, a named D4 grant held only by
 `caregiver_admin`. The labeler and promoter actor are the authenticated caller (`actor_from_auth`),
 never a request field. person-id returns MinIO crop keys; the router presigns them into `crop_url`
 (one hour) and sends no key or embedding to the browser. A label never changes the gallery; only
@@ -364,7 +364,7 @@ Hardware-neutral camera profiles live on `/cts/cameras` (`role`, `face_id_enable
 
 ## Wearables and RF nodes
 
-Hardware-neutral registry of wearable tags, time-bounded consented member bindings, fixed RF nodes on the household floor plan, and wearable teaching revocation. Endpoints use strict token checks (`wearables:read`, `wearables:manage`, `wearables:revoke_teaching`, `wearables:site_config`). Two read-only MCP tools (`get_wearable_assignments`, `get_wearable_device_status`) call the same service methods as the router; mutations (including teaching revocation and resume) are BFF-only and never exposed as MCP tools.
+Hardware-neutral registry of wearable tags, time-bounded consented member bindings, fixed RF nodes on the household floor plan, and wearable teaching revocation. Endpoints use D4 permission tokens (`wearables:read`, `wearables:write`, `wearables.teaching:write`, `wearables.site_config:read`). Two read-only MCP tools (`get_wearable_assignments`, `get_wearable_device_status`) call the same service methods as the router and share `wearables:read`; mutations (including teaching revocation and resume) are BFF-only and never exposed as MCP tools.
 
 | Method | Path | Permission | Description |
 | --- | --- | --- | --- |
@@ -383,7 +383,7 @@ Hardware-neutral registry of wearable tags, time-bounded consented member bindin
 | `GET` | `/wearables/devices/{device_id}/associations` | `wearables:read` | List recent wearable-to-PH teaching segments for one device with taught counts (gallery rows, attested faces, live backfill ranges) and current tag teaching-hold status |
 | `POST` | `/wearables/associations/{segment_id}/revoke` | `wearables:revoke_teaching` | Caregiver-admin only (`actor_from_auth(auth)`): demote `auto_verified` gallery rows from this segment, revoke its attested face captures in person-id, compensate live inferred backfill ranges, and pause further teaching on the tag |
 | `POST` | `/wearables/tags/{tag_id}/resume-teaching` | `wearables:revoke_teaching` | Caregiver-admin only (`actor_from_auth(auth)`): clear an open teaching hold for a tag so future attested periods may teach again |
-| `GET` | `/wearables/site-config` | `wearables:site_config` | Live site configuration (active nodes, devices, and open bindings in metres on the active floor plan) polled by CTS `CCConfigSyncService` and RF ingress adapters; granted to `cts_ingress` and `admin`, denied to `caregiver` |
+| `GET` | `/wearables/site-config` | `wearables.site_config:read` | Live site configuration (active nodes, devices, and open bindings in metres on the active floor plan) polled by CTS `CCConfigSyncService` and RF ingress adapters; granted to `cts_ingress` and `admin`, denied to `caregiver` |
 
 Deleting a household member (`DELETE /persons/{person_id}`) closes any open wearable bindings for that member before removing the person row and preserves historical binding intervals with `member_id = null`.
 

@@ -583,7 +583,7 @@ def test_an_internal_token_granted_in_auth_yaml_fails_startup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", set())
-    ks = KeyStore(permission_map={"caregiver": ["resident_session:act"]})
+    ks = KeyStore(roles={"caregiver": ["resident_session:act"]})
 
     with pytest.raises(RuntimeError, match="resident_session:act"):
         assert_declared_tokens_known(ks)

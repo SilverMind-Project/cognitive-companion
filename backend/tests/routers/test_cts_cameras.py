@@ -324,7 +324,7 @@ class TestCameraHealth:
         try:
             c.post("/api/v1/cts/cameras", json=CAMERA)
             c.app.dependency_overrides[get_auth_context] = lambda: AuthContext(  # type: ignore[union-attr]
-                key="x", name="no-perms", permissions=[]
+                key="x", name="no-perms", roles=[]
             )
             r = c.get("/api/v1/cts/cameras/kitchen-cam-1/health")
             assert r.status_code == 403
@@ -509,7 +509,7 @@ class TestCameraProfileAndOptics:
         try:
             c.post("/api/v1/cts/cameras", json=CAMERA)
             c.app.dependency_overrides[get_auth_context] = lambda: AuthContext(  # type: ignore[union-attr]
-                key="x", name="no-perms", permissions=[]
+                key="x", name="no-perms", roles=[]
             )
             assert c.get("/api/v1/cts/cameras/kitchen-cam-1/optics").status_code == 403
             assert (

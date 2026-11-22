@@ -153,13 +153,8 @@ def test_heartbeat_without_key_rejected(db_factory, db_session):
 
 def test_auth_yaml_covers_companion_surface_routes():
     data = yaml.safe_load(Path("config/auth.yaml").read_text())
-    permission_map = data["permission_map"]
+    roles = data["roles"]
 
-    assert "GET /api/v1/companion-surfaces*" in permission_map["companion_surfaces:read"]
-    assert "POST /api/v1/companion-surfaces" in permission_map["companion_surfaces:write"]
-    assert "PATCH /api/v1/companion-surfaces/*" in permission_map["companion_surfaces:write"]
-    assert (
-        "POST /api/v1/companion-surfaces/*/heartbeat"
-        in permission_map["companion_surfaces:heartbeat"]
-    )
-    assert "POST /api/v1/companion-surfaces/*/heartbeat" in permission_map["device:reterminal"]
+    assert "companion_surfaces:read" in roles["caregiver"]
+    assert "companion_surfaces:write" in roles["caregiver"]
+    assert "companion_surfaces:heartbeat" in roles["device_reterminal"]

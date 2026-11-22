@@ -76,10 +76,8 @@ def test_unknown_entry_is_404(client) -> None:
     assert client.delete(f"{URL}/999").status_code == 404
 
 
-def test_caregivers_can_read_and_write_the_schedule() -> None:
+def test_caregivers_can_read_and_admin_can_write_the_schedule() -> None:
     auth = yaml.safe_load(Path("config/auth.yaml").read_text())
-    caregiver = auth["permission_map"]["caregiver"]
-    assert {"medication:read", "medication:write"} <= set(caregiver)
-    assert (
-        "POST /api/v1/persons/*/medication-schedule" in auth["permission_map"]["medication:write"]
-    )
+    roles = auth["roles"]
+    assert "medication:read" in roles["caregiver"]
+    assert "medication:write" in roles["admin"]

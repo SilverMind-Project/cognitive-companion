@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import re
 import sys
@@ -83,10 +85,7 @@ if not url:
     config.set_main_option("sqlalchemy.url", url)
 config.set_section_option(config.config_ini_section, "sqlalchemy.url", url)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
+# SQLAlchemy model metadata for Alembic autogenerate support.
 target_metadata = Base.metadata
 
 _IGNORED_TABLES = {"spatial_ref_sys"}
@@ -138,12 +137,6 @@ def _widen_existing_version_table(connection) -> None:
     connection.exec_driver_sql(
         f"ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR({VERSION_NUM_LENGTH})"
     )
-
-
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
 
 
 def run_migrations_offline() -> None:

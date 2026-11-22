@@ -411,7 +411,7 @@ def test_lock_monitoring_truncates_long_statements():
         mock_context = Mock()
 
         long_query = (
-            "SELECT * FROM test_table WHERE "
+            "SELECT * FROM test_table WHERE "  # noqa: S608  # synthetic log-truncation fixture string, never executed
             + " OR ".join(f"id = {i}" for i in range(100))
             + " FOR UPDATE"
         )

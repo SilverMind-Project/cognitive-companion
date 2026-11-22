@@ -8,6 +8,7 @@ UWB session parameters on UWB ranging anchors.
 Revision ID: 0006_wearables_registry
 Revises: 0005_cts_camera_ir_capable
 """
+from __future__ import annotations
 
 from collections.abc import Sequence
 

@@ -69,7 +69,7 @@ def _build_app(svc_mock, *, permissions: list[str] = ("*",)):
 
 
 # ---------------------------------------------------------------------------
-# GET /api/v1/persons/{person_id}/location
+# Single person location endpoint
 # ---------------------------------------------------------------------------
 
 
@@ -158,7 +158,7 @@ class TestGetAllPersonLocations:
 
 
 # ---------------------------------------------------------------------------
-# GET /api/v1/rooms/{room_id}/occupants
+# Room occupants endpoint
 # ---------------------------------------------------------------------------
 
 

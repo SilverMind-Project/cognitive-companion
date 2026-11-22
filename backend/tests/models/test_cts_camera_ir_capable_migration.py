@@ -46,7 +46,7 @@ def test_downgrade_and_upgrade_round_trip_ir_capable(db_engine) -> None:
             assert "ir_capable" in _columns(connection)
             assert (
                 connection.execute(
-                    text(f"SELECT ir_capable FROM {TABLE} WHERE id = 'cam-ir'")
+                    text(f"SELECT ir_capable FROM {TABLE} WHERE id = 'cam-ir'")  # noqa: S608  # module constant TABLE in migration test
                 ).scalar_one()
                 is True
             )
@@ -61,7 +61,7 @@ def test_downgrade_and_upgrade_round_trip_ir_capable(db_engine) -> None:
             assert "ir_capable" in _columns(connection)
             assert (
                 connection.execute(
-                    text(f"SELECT ir_capable FROM {TABLE} WHERE id = 'cam-ir'")
+                    text(f"SELECT ir_capable FROM {TABLE} WHERE id = 'cam-ir'")  # noqa: S608  # module constant TABLE in migration test
                 ).scalar_one()
                 is None
             )

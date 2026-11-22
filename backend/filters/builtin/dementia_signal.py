@@ -170,8 +170,9 @@ class DementiaSignalFilter(ContextFilter):
                 dt = dt.replace(tzinfo=UTC)
 
             event_time = to_app_timezone(dt).time()
-            start = datetime.strptime(start_str, "%H:%M").time()
-            end = datetime.strptime(end_str, "%H:%M").time()
+            # HH:MM window bounds are timezone-less wall-clock times compared in app.timezone.
+            start = datetime.strptime(start_str, "%H:%M").time()  # noqa: DTZ007
+            end = datetime.strptime(end_str, "%H:%M").time()  # noqa: DTZ007
 
             if start <= end:
                 return start <= event_time <= end

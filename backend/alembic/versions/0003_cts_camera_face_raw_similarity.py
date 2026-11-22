@@ -7,6 +7,7 @@ are kept; the new check rejects anything outside [0, 1].
 Revision ID: 0003_cts_camera_face_raw_similarity
 Revises: 0002_medication_schedule
 """
+from __future__ import annotations
 
 from collections.abc import Sequence
 

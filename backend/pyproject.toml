@@ -87,7 +87,7 @@ packages = ["backend"]
 [tool.ruff]
 target-version = "py314"
 line-length = 100
-extend-exclude = ["integrations/proto", "scripts/*"]
+extend-exclude = ["integrations/proto", "scripts/*", "tests/fixtures/lint_canary"]
 
 [tool.ruff.lint]
 # U6b: BLE001 (blind-except) guard — no silent fallbacks (rule 15).
@@ -113,16 +113,24 @@ extend-exclude = ["integrations/proto", "scripts/*"]
 # All other broad-excepts outside this allowlist must either:
 #   a) re-raise after logging (transient errors on required paths), or
 #   b) carry a per-site # noqa: BLE001 comment stating the reason.
-extend-per-file-ignores = {"steps/_scaffold/__init__.py" = ["T201"], "integrations/*.py" = ["BLE001"], "channels/builtin/*.py" = ["BLE001"], "websocket/*.py" = ["BLE001"], "mcp/server.py" = ["BLE001"], "mcp/middleware.py" = ["BLE001"], "tests/**/*.py" = ["BLE001"]}
+extend-per-file-ignores = { "steps/_scaffold/__init__.py" = ["T201"], "integrations/*.py" = ["BLE001"], "channels/builtin/*.py" = ["BLE001"], "websocket/*.py" = ["BLE001"], "mcp/server.py" = ["BLE001"], "mcp/middleware.py" = ["BLE001"], "tests/**/*.py" = ["BLE001"], "core/logging.py" = ["TID251"], "tests/core/test_logging.py" = ["TID251"], "_version.py" = ["I002"] }  # _version.py is generated as a single __version__ assignment by scripts/release.sh
 
 select = [
     "E",     # pycodestyle errors
     "F",     # pyflakes (includes unused imports, undefined names)
     "I",     # isort
+    "I002",  # require `from __future__ import annotations`
     "W",     # pycodestyle warnings
     "UP",    # pyupgrade  modernize syntax
     "B",     # flake8-bugbear  common bug patterns
     "BLE",   # U6b: blind-except guard (BLE001) — no silent fallbacks (rule 15)
+    "DTZ",   # flake8-datetimez  timezone-aware datetimes only
+    "ASYNC", # flake8-async  no blocking calls in async code
+    "PGH",   # pygrep-hooks  specific type: ignore codes
+    "G",     # flake8-logging-format  no f-strings in log calls; use .exception()
+    "S608",  # flake8-bandit  parameterized SQL only
+    "TID",   # flake8-tidy-imports  banned logging APIs (+ relative imports in EG-M12)
+    "ERA",   # eradicate  no commented-out code
     "SIM",   # flake8-simplify
     "RUF",   # ruff-specific rules
     "PIE",   # flake8-pie  misc lint
@@ -131,9 +139,13 @@ select = [
     "T20",   # flake8-print  flag print() left in code
 ]
 ignore = [
-    "E501",    # line length handled by formatter
-    "B008",    # Depends() in FastAPI param defaults is idiomatic
-    "RUF012",  # ClassVar for mutable class attrs  too noisy for registries
+    "E501",     # line length handled by formatter
+    "B008",     # Depends() in FastAPI param defaults is idiomatic
+    "RUF012",   # ClassVar for mutable class attrs  too noisy for registries
+    "ASYNC109", # async functions taking a timeout parameter are an established integration-client pattern
+]
+extend-ignore = [
+    "TID252",   # relative imports converted in EG-M12
 ]
 # TCH/TC (flake8-type-checking: move type-only imports behind TYPE_CHECKING)
 # is not enforced. This is an honest gap, not a half-enabled state — adopting
@@ -141,8 +153,16 @@ ignore = [
 # pair selected the ruleset and then fully ignored it, which is dead config
 # that misrepresented what was enforced).
 
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"structlog.get_logger".msg = "Use backend.core.logging.get_logger"
+"logging.getLogger".msg = "Use backend.core.logging.get_logger"
+
 [tool.ruff.lint.isort]
 known-first-party = ["backend"]
+required-imports = ["from __future__ import annotations"]
 
 # ── Mypy ─────────────────────────────────────────────────────────
 [tool.mypy]

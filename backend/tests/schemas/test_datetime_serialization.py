@@ -74,7 +74,7 @@ from backend.schemas.sensor import SensorOut
                 "font_filename": "font.ttf",
                 "regions_json": [],
                 "is_default": False,
-                "created_at": datetime(2026, 4, 11, 13, 30, 0),
+                "created_at": datetime(2026, 4, 11, 13, 30, 0),  # noqa: DTZ001  # intentionally naive to test Z-suffix normalization
                 "updated_at": None,
             },
             "created_at",
@@ -87,7 +87,7 @@ from backend.schemas.sensor import SensorOut
                 "sensor_id": "display-1",
                 "template_id": None,
                 "rendered_text": "Lunch",
-                "expires_at": datetime(2026, 4, 11, 13, 30, 0),
+                "expires_at": datetime(2026, 4, 11, 13, 30, 0),  # noqa: DTZ001  # intentionally naive to test Z-suffix normalization
                 "updated_at": None,
             },
             "expires_at",

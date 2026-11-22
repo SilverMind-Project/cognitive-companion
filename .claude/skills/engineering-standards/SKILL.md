@@ -61,26 +61,31 @@ line; the detail, examples, and rationale live in `reference/`. Frontend UI rule
 15. A required upstream contract fails closed with a typed 502/503: never `.get("required", [])`
     or fabricated display data. An optional integration returns an explicit zero value and logs.
 16. Broad `except Exception` only inside the BLE001 allowlist paths in `backend/pyproject.toml`;
-    elsewhere a narrow exception or `# noqa: BLE001` with a reason.
+    elsewhere a narrow exception or `# noqa: BLE001` with a reason (ruff `BLE001`). No
+    commented-out code (ruff `ERA001`); no blocking I/O in async code (ruff `ASYNC`).
 17. Log with `backend.core.logging.get_logger(__name__)`, event name first, `key=value` fields;
-    never `print`, `logging.getLogger`, structlog's `get_logger`, or f-strings in log calls. Never
+    never `print` (ruff `T20`), `logging.getLogger` or `structlog.get_logger` (ruff `TID251`),
+    f-strings in log calls (ruff `G004`), or `.error(..., exc_info=True)` (ruff `G201`). Never
     log secrets, keys, names, face crops, embeddings, or person-tied positions.
-18. Every public signature is annotated; `backend.core` is strict mypy. `T | None`, built-in
-    generics, `collections.abc`; no `Any` in `ServiceContainer` fields or service parameters.
+18. Every public signature is annotated; `backend.core` is strict mypy; specific
+    `# type: ignore[code]` only (ruff `PGH003`). `T | None`, built-in generics,
+    `collections.abc`; no `Any` in `ServiceContainer` fields or service parameters.
 19. Pydantic v2 at boundaries with `extra="forbid"` on Create/Update schemas; frozen dataclasses
     for results returned to callers.
 20. Absolute imports with the full `backend.` path; `from __future__ import annotations` in every
-    file.
+    file (ruff `I002`).
 
 ## Time
 
-21. Storage is timezone-aware UTC. Wall-clock rules use `app.timezone`; convert before comparing a
-    time of day. Time-based logic takes an injectable clock; tests never sleep.
+21. Timezone-aware datetimes only (ruff `DTZ`); storage is UTC. Wall-clock rules use
+    `app.timezone`; convert before comparing a time of day. Time-based logic takes an injectable
+    clock; tests never sleep.
 
 ## Database
 
 22. Schema changes are new Alembic revisions on top of head; the baseline is frozen; `downgrade()`
     exactly reverses `upgrade()`; never drop and recreate a database (`reference/database.md`).
+    Parameterized SQL only (ruff `S608`).
 23. An invariant is a constraint or (partial) unique index mapped to a domain error, never a
     read-then-write check.
 

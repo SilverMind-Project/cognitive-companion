@@ -90,7 +90,7 @@ def _build_app(svc_mock):
 
 
 # ---------------------------------------------------------------------------
-# GET /persons/{person_id}/location
+# Single person location endpoint
 # ---------------------------------------------------------------------------
 
 
@@ -128,7 +128,7 @@ class TestPersonLocationBackCompat:
 
 
 # ---------------------------------------------------------------------------
-# GET /persons/locations (batch)
+# Batch person locations endpoint
 # ---------------------------------------------------------------------------
 
 
@@ -152,7 +152,7 @@ class TestBatchLocationsBackCompat:
 
 
 # ---------------------------------------------------------------------------
-# GET /rooms/{room_id}/occupants
+# Room occupants endpoint
 # ---------------------------------------------------------------------------
 
 

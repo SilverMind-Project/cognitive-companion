@@ -28,7 +28,7 @@ class _TimestampRow(Base):
 
 class TestNormalizeUtcDatetime:
     def test_normalizes_naive_values_to_utc(self) -> None:
-        value = datetime(2026, 4, 11, 13, 30, 0)
+        value = datetime(2026, 4, 11, 13, 30, 0)  # noqa: DTZ001  # intentionally naive test input
 
         normalized = normalize_utc_datetime(value)
 
@@ -56,11 +56,14 @@ class TestUTCDateTime:
 
     def test_rejects_naive_bind_values(self) -> None:
         with pytest.raises(ValueError, match="timezone-aware"):
-            UTCDateTime().process_bind_param(datetime(2026, 4, 11, 13, 30, 0), postgresql_dialect())
+            UTCDateTime().process_bind_param(
+                datetime(2026, 4, 11, 13, 30, 0),  # noqa: DTZ001  # intentionally naive test input
+                postgresql_dialect(),
+            )
 
     def test_result_value_normalizes_naive_to_utc(self) -> None:
         """Defensive normalisation for server defaults that may return naive values."""
-        value = datetime(2026, 4, 11, 13, 30, 0)
+        value = datetime(2026, 4, 11, 13, 30, 0)  # noqa: DTZ001  # intentionally naive test input
 
         loaded = UTCDateTime().process_result_value(value, postgresql_dialect())
 

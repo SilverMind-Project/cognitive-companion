@@ -631,6 +631,7 @@ class SqlAlchemyObservationRepository:
                     f"\n              AND ({local_minute} >= :start_minute"
                     f" OR {local_minute} < :end_minute)"
                 )
+        # time_clause is assembled from constant SQL fragments; all values use :named bind params.
         _SQL = text(f"""
             SELECT x_bin, y_bin, SUM(weight) AS weight
             FROM location_heatmaps_15m
@@ -639,7 +640,7 @@ class SqlAlchemyObservationRepository:
               AND time_bucket_15m < :until{time_clause}
             GROUP BY x_bin, y_bin
             ORDER BY weight DESC
-        """)
+        """)  # noqa: S608  # constant SQL fragments with bound params
         with transaction(self._db_factory) as db:
             rows = db.execute(_SQL, params).all()
         return [

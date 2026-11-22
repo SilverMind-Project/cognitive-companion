@@ -37,7 +37,7 @@ class TestParseTs:
         assert parse_ts(dt) == dt
 
     def test_naive_datetime_becomes_utc_aware(self):
-        dt = datetime(2026, 5, 13, 12, 0, 0)
+        dt = datetime(2026, 5, 13, 12, 0, 0)  # noqa: DTZ001  # intentionally naive test input
         result = parse_ts(dt)
         assert result.tzinfo is not None
         assert result.tzinfo.utcoffset(result) == timedelta(0)
@@ -74,7 +74,7 @@ class TestEnsureAware:
         assert ensure_aware(dt) is dt
 
     def test_naive_becomes_utc(self):
-        dt = datetime(2026, 5, 13, 12, 0, 0)
+        dt = datetime(2026, 5, 13, 12, 0, 0)  # noqa: DTZ001  # intentionally naive test input
         result = ensure_aware(dt)
         assert result.tzinfo is not None
         assert result.hour == 12

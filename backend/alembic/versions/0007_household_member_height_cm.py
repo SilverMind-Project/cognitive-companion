@@ -3,6 +3,7 @@
 Revision ID: 0007_household_member_height_cm
 Revises: 0006_wearables_registry
 """
+from __future__ import annotations
 
 from collections.abc import Sequence
 

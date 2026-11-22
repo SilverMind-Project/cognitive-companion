@@ -9,6 +9,7 @@ recoverable and had no effect.
 Revision ID: 0004_drop_cts_adjacency_edges
 Revises: 0003_cts_camera_face_raw_similarity
 """
+from __future__ import annotations
 
 from collections.abc import Sequence
 

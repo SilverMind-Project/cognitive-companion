@@ -1,4 +1,5 @@
 """Wearable devices, consented bindings, RF nodes, and site-config services."""
+from __future__ import annotations
 
 from backend.services.wearables.binding_service import WearableBindingService
 from backend.services.wearables.device_service import WearableDeviceService

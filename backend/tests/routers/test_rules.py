@@ -1,4 +1,5 @@
 """Integration tests for rules router endpoints."""
+from __future__ import annotations
 
 from unittest.mock import AsyncMock
 

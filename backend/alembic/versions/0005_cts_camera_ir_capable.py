@@ -7,6 +7,7 @@ height, tilt, and role lets operators set expectations without naming a vendor o
 Revision ID: 0005_cts_camera_ir_capable
 Revises: 0004_drop_cts_adjacency_edges
 """
+from __future__ import annotations
 
 from collections.abc import Sequence
 

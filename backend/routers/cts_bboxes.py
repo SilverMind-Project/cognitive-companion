@@ -15,7 +15,7 @@ from backend.services.cts.bbox_annotation_service import BboxAnnotationService
 router = APIRouter(prefix="/cts/identity", tags=["cts-bboxes"])
 
 # ---------------------------------------------------------------------------
-# GET /cts/identity/keyframes/{keyframe_id}/bboxes
+# Keyframe bounding-box listing endpoint
 # ---------------------------------------------------------------------------
 
 
@@ -32,7 +32,7 @@ async def get_keyframe_bboxes(
 
 
 # ---------------------------------------------------------------------------
-# PUT /cts/identity/bboxes/{annotation_id}/override
+# Bounding-box override endpoint
 # ---------------------------------------------------------------------------
 
 
@@ -49,7 +49,7 @@ async def override_bbox(
 
 
 # ---------------------------------------------------------------------------
-# DELETE /cts/identity/bboxes/{annotation_id}
+# Bounding-box delete endpoint
 # ---------------------------------------------------------------------------
 
 

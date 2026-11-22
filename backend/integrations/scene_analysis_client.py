@@ -19,8 +19,7 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from backend.core.logging import get_logger
-
-from ._http_base import HttpUpstreamClient
+from backend.integrations._http_base import HttpUpstreamClient
 
 logger = get_logger(__name__)
 

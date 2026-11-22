@@ -8,6 +8,8 @@ import datetime
 import logging
 from pathlib import Path
 
+from . import config  # relative import (TID252)
+
 logger = logging.getLogger(__name__)  # TID251
 
 

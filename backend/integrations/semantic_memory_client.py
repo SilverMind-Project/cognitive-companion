@@ -23,8 +23,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from backend.core.logging import get_logger
 from backend.core.time import normalize_utc_datetime
-
-from ._http_base import HttpUpstreamClient
+from backend.integrations._http_base import HttpUpstreamClient
 
 logger = get_logger(__name__)
 

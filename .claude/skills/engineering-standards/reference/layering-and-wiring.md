@@ -48,7 +48,7 @@ from backend.<layer>.<module> import ...
 
 - Use `from __future__ import annotations` in every `.py` file.
 - Group imports: stdlib, third-party, application. One blank line between groups.
-- No relative imports. Always use the full `backend.` path.
+- Absolute imports only with the full `backend.` path (ruff `TID252`); `__init__.py` re-exports may be relative.
 - No `import *` outside of `__init__.py` re-export blocks.
 
 ## Router service access

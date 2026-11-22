@@ -14,7 +14,12 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from .types import EntrySource, ExitSource, PresenceSegment, SourceTag
+from backend.services.person_location.types import (
+    EntrySource,
+    ExitSource,
+    PresenceSegment,
+    SourceTag,
+)
 
 
 class EventKind(StrEnum):

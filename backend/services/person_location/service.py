@@ -15,17 +15,16 @@ from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.schemas.cts_analytics import HeatmapBin as HeatmapBinSchema
 from backend.schemas.cts_analytics import HeatmapEnvelope
-
-from .config import PersonLocationConfig
-from .repositories import ObservationRepository, SegmentRepository
-from .segment_state_machine import (
+from backend.services.person_location.config import PersonLocationConfig
+from backend.services.person_location.repositories import ObservationRepository, SegmentRepository
+from backend.services.person_location.segment_state_machine import (
     EventKind,
     IncomingEvent,
     SegmentDecision,
     decide,
 )
-from .source_arbitration import arbitrate
-from .types import (
+from backend.services.person_location.source_arbitration import arbitrate
+from backend.services.person_location.types import (
     BackfillDwellInput,
     BackfillIngestResult,
     CurrentLocation,

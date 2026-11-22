@@ -21,8 +21,7 @@ from backend.core.database import transaction
 from backend.models.location_observation import LocationObservation as LOObs
 from backend.models.presence_segment import PresenceSegment as PSeg
 from backend.models.room import Room
-
-from .types import (
+from backend.services.person_location.types import (
     EntrySource,
     ExitSource,
     HeatmapBin,
@@ -836,7 +835,7 @@ class SqlAlchemySegmentRepository:
 
 
 def _obs_to_domain(row: LOObs, room_name: str | None = None) -> LocationObservation:
-    from .types import FloorPoint
+    from backend.services.person_location.types import FloorPoint
 
     fp = None
     if row.floor_x_m is not None and row.floor_y_m is not None:
@@ -859,7 +858,7 @@ def _obs_to_domain(row: LOObs, room_name: str | None = None) -> LocationObservat
 
 
 def _bucketed_row_to_domain(row) -> LocationObservation:
-    from .types import FloorPoint
+    from backend.services.person_location.types import FloorPoint
 
     fp = None
     if row.floor_x_m is not None and row.floor_y_m is not None:

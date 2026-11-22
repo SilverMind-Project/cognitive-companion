@@ -72,8 +72,8 @@ line; the detail, examples, and rationale live in `reference/`. Frontend UI rule
     `collections.abc`; no `Any` in `ServiceContainer` fields or service parameters.
 19. Pydantic v2 at boundaries with `extra="forbid"` on Create/Update schemas; frozen dataclasses
     for results returned to callers.
-20. Absolute imports with the full `backend.` path; `from __future__ import annotations` in every
-    file (ruff `I002`).
+20. Absolute imports only with the full `backend.` path (ruff `TID252`); `__init__.py` re-exports
+    may be relative. `from __future__ import annotations` in every file (ruff `I002`).
 
 ## Time
 

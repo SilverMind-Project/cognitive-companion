@@ -354,7 +354,7 @@ There is no operator-edited adjacency graph: cameras that overlap are declared a
 
 Lifecycle rules the endpoints enforce:
 
-- A new or edited document is chunked and embedded after it is saved; it reports `status: chunked` once its chunks exist. `POST .../reembed` re-embeds unchanged content and keeps an approved document approved (503 when the embedding service is unavailable, 409 when archived).
+- A new or edited document is chunked and embedded after it is saved; it reports `status: chunked` once its chunks exist. `POST .../reembed` re-embeds unchanged content and keeps an approved document approved (503 when the embedding service is unavailable, 409 when archived). Only text that differs sends a document back to review; editing an archived document keeps it archived until it is restored. The 10-minute retry job also re-embeds chunked or approved documents that have text but no chunks.
 - Deleting an info card or quiz that any rule step references (enabled or disabled), or that has delivery or session history, returns 409; archive it instead. Deleting a quiz question that has recorded responses returns 409. Deleting a document referenced by a non-archived card or quiz returns 409.
 - Approving a quiz requires at least one question, question text, two or more choices with one correct choice on multiple-choice questions, and an expected answer on open-ended questions (409 otherwise).
 - Changing an approved info card to a layout whose `min_images` its slots cannot meet returns 409; slots the new layout has no position for are removed.

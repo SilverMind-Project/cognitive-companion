@@ -3,52 +3,39 @@
 # API keys for human users, services, and AI agents.
 # Device keys are 8-char uppercase alphanumeric (A-Z, 0-9) used by
 # hardware devices that cannot set HTTP headers.
+#
+# Authorization uses named D4 <resource>:<action> permission tokens.
+# Roles are token sets defined exclusively under roles: below.
 
 api_keys:
   - key: "${CC_ADMIN_API_KEY}"
     name: "Admin"
-    permissions:
-      - "admin"
     roles:
       - "admin"
 
   - key: "${CC_CAREGIVER_API_KEY}"
     name: "Caregiver"
-    permissions:
-      - "caregiver"
     roles:
       - "caregiver"
 
   - key: "${CC_MCP_API_KEY}"
     name: "OpenClaw Agent"
-    permissions:
-      - "mcp_readonly"
-      - "rules:write_via_mcp"
     roles:
       - "mcp_readonly"
       - "mcp_rules_import"
 
-  # CTS operator key: full camera-management and calibration access.
   - key: "${CC_OPERATOR_API_KEY}"
     name: "CTS Operator"
-    permissions:
-      - "operator"
     roles:
       - "operator"
 
-  # CTS caregiver-admin key: read + calibrate, no write.
   - key: "${CC_CAREGIVER_ADMIN_API_KEY}"
     name: "Caregiver Admin"
-    permissions:
-      - "caregiver_admin"
     roles:
       - "caregiver_admin"
 
-  # rtsp-ingress service key: read camera roster for reconciliation only.
   - key: "${CC_INGRESS_API_KEY}"
     name: "RTSP Ingress Service"
-    permissions:
-      - "cts_ingress"
     roles:
       - "cts_ingress"
 
@@ -57,404 +44,36 @@ device_keys:
     name: "Kitchen reCamera"
     device_type: "recamera"
     sensor_id: "recamera_kitchen1"
-    permissions:
-      - "device:recamera"
     roles:
       - "device_recamera"
   - key: "RCAM0002"
     name: "Kitchen reCamera2"
     device_type: "recamera"
     sensor_id: "recamera_kitchen2"
-    permissions:
-      - "device:recamera"
     roles:
       - "device_recamera"
   - key: "RCAM0003"
     name: "Living Room reCamera"
     device_type: "recamera"
     sensor_id: "recamera_livingroom"
-    permissions:
-      - "device:recamera"
     roles:
       - "device_recamera"
   - key: "RTRM0001"
     name: "Living Room reTerminal"
     device_type: "reterminal"
     sensor_id: "reterminal_living"
-    permissions:
-      - "device:reterminal"
-      - "image:read"
     roles:
       - "device_reterminal"
   - key: "RTRM0002"
     name: "Guest Bedroom reTerminal"
     device_type: "reterminal"
     sensor_id: "reterminal_guestbedroom"
-    permissions:
-      - "device:reterminal"
-      - "image:read"
     roles:
       - "device_reterminal"
-# Permission map - abstract names to endpoint patterns (fnmatch syntax).
-permission_map:
-  admin:
-    - "*"
 
-  caregiver:
-    - "GET /api/v1/*"
-    - "POST /api/v1/persons/*/enroll"
-    - "DELETE /api/v1/persons/*/enrollment"
-    - "GET /api/v1/conversations/*"
-    - "GET /api/v1/activities*"
-    - "GET /api/v1/workflows*"
-    - "GET /ws/cts"
-    - "GET /ws/pipeline"
-    # CTS read-only permissions
-    - "cts.view"
-    # CTS identity: view PH data (N2)
-    - "cts.identity.view"
-    - "cts.live.subscribe"
-    - "cts.signals.view"
-    - "cts.signals.delete"
-    - "cts.cameras.read"
-    - "cts.keyframes.view"
-    # CTS presence timeline (N5)
-    - "cts.presence.view"
-    - "GET /api/v1/cts/presence/*"
-    - "GET /api/v1/cts/presence-config"
-    - "POST /api/v1/cts/presence-config/reload"
-    # M2: calibration health (read-only)
-    - "GET /api/v1/cts/diagnostics/calibration"
-    # M2: heatmap analytics
-    - "cts.analytics.heatmap.view"
-    - "GET /api/v1/cts/analytics/heatmap"
-    # M3: gait mobility trend
-    - "cts.gait.trend.view"
-    - "GET /api/v1/cts/gait/trend"
-    # Knowledge repository endpoints
-    - "GET /api/v1/knowledge/documents*"
-    - "POST /api/v1/knowledge/documents*"
-    - "PATCH /api/v1/knowledge/documents*"
-    - "DELETE /api/v1/knowledge/documents*"
-    - "GET /api/v1/knowledge/layouts*"
-    - "GET /api/v1/info-cards*"
-    - "POST /api/v1/info-cards*"
-    - "PATCH /api/v1/info-cards*"
-    - "DELETE /api/v1/info-cards*"
-    - "GET /api/v1/quizzes*"
-    - "POST /api/v1/quizzes*"
-    - "PATCH /api/v1/quizzes*"
-    - "DELETE /api/v1/quizzes*"
-    - "GET /api/v1/knowledge-interactions*"
-    - "POST /api/v1/companion-surfaces"
-    - "PATCH /api/v1/companion-surfaces/*"
-    - "room_zones:read"
-    - "room_zones:write"
-    - "medication:read"
-    - "medication:write"
-    - "routines:read"
-    - "routines:write"
-    - "guided_sessions:read"
-    - "guided_sessions:takeover"
-    - "guided_metrics:read"
-    - "gate_graphs:read"
-    - "gate_graphs:write"
-    - "identity_readiness:read"
-    - "identity_targets:read"
-    - "identity_review:read"
-    - "face_prototypes:read"
-    - "wearables:read"
-
-  caregiver_admin:
-    - "GET /api/v1/*"
-    - "POST /api/v1/cts/identity/*"
-    - "GET /api/v1/activities*"
-    - "GET /ws/cts"
-    - "GET /ws/pipeline"
-    # CTS permissions for caregiver admin
-    - "cts.view"
-    # CTS identity PH surface (N2)
-    - "cts.identity.view"
-    - "cts.identity.correct"
-    - "cts.live.subscribe"
-    - "cts.signals.view"
-    - "cts.signals.delete"
-    - "cts.keyframes.view"
-    - "cts.cameras.read"
-    - "cts.cameras.write"
-    - "cts.calibrate"
-    - "cts.bboxes.write"
-    - "cts.identity.correct.batch"
-    - "cts.identity.read_enriched"
-    # M09 ReID gallery review: a distinct biometric-admin grant, separate from
-    # cts.identity.correct. Enforced by require_token, so the broad GET/POST
-    # globs above do not unlock the review surface on their own.
-    - "cts.identity.gallery_review"
-    # Identity-continuity M07: visitor cluster review/naming, a distinct
-    # biometric-admin grant like gallery review above. Enforced by
-    # require_token, so the broad GET/POST globs do not unlock it either.
-    - "visitors.review"
-    # Face calibration review: labeling sampled household faces, a distinct biometric-admin grant
-    # enforced by require_token, like visitor review above.
-    - "face_calibration.review"
-    - "persons.read"
-    - "persons.write_overrides"
-    - "cts.replay"
-    # M3: bbox annotation endpoints
-    - "PUT /api/v1/cts/identity/bboxes/*/override"
-    - "GET /api/v1/cts/identity/keyframes/*/bboxes"
-    # M2: diagnostics and transit zones
-    - "GET /api/v1/cts/diagnostics/calibration"
-    - "GET /api/v1/cts/transit-zones*"
-    - "POST /api/v1/cts/transit-zones*"
-    - "PATCH /api/v1/cts/transit-zones/*"
-    - "DELETE /api/v1/cts/transit-zones/*"
-    # CTS presence timeline (N5)
-    - "cts.presence.view"
-    - "GET /api/v1/cts/presence/*"
-    # CTS calibration health (N6)
-    - "cts.calibration.view"
-    - "GET /api/v1/cts/calibration/health"
-    # CTS signal evidence + explorer (N7)
-    - "cts.signals.evidence.view"
-    - "GET /api/v1/cts/signals/*/evidence"
-    - "GET /api/v1/cts/signals/explorer"
-    # CTS weekly reports (N7)
-    - "cts.reports.weekly.view"
-    - "POST /api/v1/cts/reports/weekly"
-    # M2: heatmap analytics
-    - "cts.analytics.heatmap.view"
-    - "GET /api/v1/cts/analytics/heatmap"
-    # M3: gait mobility trend
-    - "cts.gait.trend.view"
-    - "GET /api/v1/cts/gait/trend"
-    - "POST /api/v1/companion-surfaces"
-    - "PATCH /api/v1/companion-surfaces/*"
-    - "room_zones:read"
-    - "room_zones:write"
-    - "medication:read"
-    - "medication:write"
-    - "routines:read"
-    - "routines:write"
-    - "guided_sessions:read"
-    - "guided_sessions:takeover"
-    - "guided_metrics:read"
-    - "identity_readiness:read"
-    - "identity_targets:read"
-    - "identity_review:read"
-    - "face_prototypes:read"
-    - "wearables:read"
-    - "wearables:revoke_teaching"
-    - "face_prototypes:write"
-
-  operator:
-    - "*"
-    # Explicit CTS permissions (required by CI check: no router references
-    # a permission not listed in auth.yaml)
-    - "cts.cameras.write"
-    - "cts.calibrate"
-    - "cts.bboxes.write"
-    - "household:read"
-    - "household:write"
-
-  mcp_readonly:
-    # Reach the MCP endpoint and call its read tools. Every tool that changes state requires
-    # its own token below, so this key cannot invoke one.
-    - "mcp.tools:read"
-    - "GET /api/v1/rooms*"
-    - "GET /api/v1/sensors*"
-    - "GET /api/v1/signals/feed*"
-    - "GET /api/v1/events*"
-    - "GET /api/v1/rules*"
-    - "GET /api/v1/occupancy*"
-    - "GET /api/v1/persons*"
-    - "GET /api/v1/activities*"
-    - "GET /api/v1/workflows*"
-    - "GET /api/v1/interactive-responses*"
-    - "GET /mcp*"
-    - "POST /mcp*"
-    - "GET /api/v1/image/*"
-    - "GET /api/v1/ha/media-players"
-    - "GET /api/v1/ha/entities"
-
-  rules:write_via_mcp:
-    - "POST /api/v1/rules/import"
-    - "POST /api/v1/rules/import/preview"
-    # The MCP import_rule_bundle tool.
-    - "rules:import"
-
-  # MCP tools that change state, defined here so the startup token check knows them.
-  # Empty lists grant no REST path; only admin's "*" carries these today. To let another
-  # key call one of these tools, list the token under that key's role.
-  rules:execute: []
-  cts.signals:acknowledge: []
-  cts.identity:propose: []
-
-  # VG08: gate-graph (vision-confirm callable rule) authoring.
-  gate_graphs:read:
-    - "GET /api/v1/gate-graphs"
-    - "GET /api/v1/gate-graphs/*"
-    - "GET /api/v1/gate-presets"
-  gate_graphs:write:
-    - "POST /api/v1/gate-graphs"
-    - "POST /api/v1/gate-graphs/*"
-
-  cts_ingress:
-    - "GET /api/v1/cts/cameras"
-    - "GET /api/v1/cts/overlap_groups"
-    - "GET /api/v1/cts/transit-zones"
-    - "GET /api/v1/rooms*"
-    - "GET /api/v1/household/floor-plan"
-    - "wearables:site_config"
-    - "persons:heights_sync"
-
-  "device:recamera":
-    - "POST /api/v1/device/recamera"
-
-  # M16: "POST /api/v1/device/reterminal" removed -- no such route exists; the
-  # reTerminal surface reports in via the companion-surfaces heartbeat.
-  "device:reterminal":
-    - "POST /api/v1/companion-surfaces/*/heartbeat"
-
-  # M16: definitions for the tokens named at require_permission call sites in
-  # the core CRUD routers. These are definitions, not grants: no role list
-  # below was changed, so access is still decided by each role's own patterns
-  # (admin's "*", caregiver's "GET /api/v1/*"). They exist so that every name
-  # a call site declares resolves to a real, reviewable pattern set, which
-  # assert_declared_tokens_known() enforces at startup.
-  "rooms:read":
-    - "GET /api/v1/rooms*"
-  "rooms:write":
-    - "POST /api/v1/rooms"
-    - "PUT /api/v1/rooms/*"
-    - "DELETE /api/v1/rooms/*"
-
-  "sensors:read":
-    - "GET /api/v1/sensors*"
-  "sensors:write":
-    - "POST /api/v1/sensors"
-    - "PUT /api/v1/sensors/*"
-    - "DELETE /api/v1/sensors/*"
-
-  "events:read":
-    - "GET /api/v1/events*"
-
-  "rules:read":
-    - "GET /api/v1/rules*"
-    - "GET /api/v1/pipeline/*"
-    - "POST /api/v1/pipeline/cron/preview"
-    - "POST /api/v1/rules/*/validate"
-  "rules:write":
-    - "POST /api/v1/rules*"
-    - "PUT /api/v1/rules*"
-    - "DELETE /api/v1/rules*"
-
-  "admin:read":
-    - "GET /api/v1/admin/*"
-
-  "image:read":
-    - "GET /api/v1/image/*"
-
-  "companion_surfaces:read":
-    - "GET /api/v1/companion-surfaces*"
-
-  "companion_surfaces:write":
-    - "POST /api/v1/companion-surfaces"
-    - "PATCH /api/v1/companion-surfaces/*"
-
-  "companion_surfaces:heartbeat":
-    - "POST /api/v1/companion-surfaces/*/heartbeat"
-
-  "room_zones:read":
-    - "GET /api/v1/rooms/*/zones"
-    - "GET /api/v1/persons/*/current-zone"
-
-  "room_zones:write":
-    - "POST /api/v1/rooms/*/zones"
-    - "PATCH /api/v1/zones/*"
-    - "DELETE /api/v1/zones/*"
-
-  "medication:read":
-    - "GET /api/v1/persons/*/medication-schedule"
-
-  "medication:write":
-    - "POST /api/v1/persons/*/medication-schedule"
-    - "PATCH /api/v1/persons/*/medication-schedule/*"
-    - "DELETE /api/v1/persons/*/medication-schedule/*"
-
-  "routines:read":
-    - "GET /api/v1/routines"
-    - "GET /api/v1/routines/*"
-
-  "routines:write":
-    - "POST /api/v1/routines"
-    - "PATCH /api/v1/routines/*"
-    - "DELETE /api/v1/routines/*"
-    - "PUT /api/v1/routines/*/steps"
-    - "POST /api/v1/routines/*/test-run"
-
-  "guided_sessions:read":
-    - "GET /api/v1/guided-sessions"
-    - "GET /api/v1/guided-sessions/*/detail"
-
-  "guided_sessions:takeover":
-    - "POST /api/v1/guided-sessions/*/takeover"
-    - "POST /api/v1/guided-sessions/*/say"
-    - "POST /api/v1/guided-sessions/*/advance"
-    - "POST /api/v1/guided-sessions/*/complete"
-    - "POST /api/v1/guided-sessions/*/release"
-
-  "guided_metrics:read":
-    - "GET /api/v1/guided-metrics/*"
-
-  # Identity setup readiness: read-only status of the identity chain (counts, no identity ids).
-  "identity_readiness:read":
-    - "GET /api/v1/identity/readiness"
-
-  # The household members an identity decision may name (every correction and review surface).
-  "identity_targets:read":
-    - "GET /api/v1/identity/targets"
-
-  # What each identity review decision changes, per surface (static text, no identity data).
-  "identity_review:read":
-    - "GET /api/v1/identity/review-vocabulary"
-
-  # Pose-binned face prototypes: read for caregivers, write for caregiver-admins.
-  "face_prototypes:read":
-    - "GET /api/v1/persons/*/prototypes"
-  "face_prototypes:write":
-    - "POST /api/v1/persons/*/prototypes/rebuild"
-    - "DELETE /api/v1/persons/*/prototypes/*"
-
-  # Wearable device registry, consented bindings, RF nodes, and site config.
-  "wearables:read":
-    - "GET /api/v1/wearables/assignments"
-    - "GET /api/v1/wearables/devices"
-    - "GET /api/v1/wearables/devices/*"
-    - "GET /api/v1/wearables/nodes"
-    - "GET /api/v1/wearables/nodes/*"
-    - "POST /api/v1/wearables/nodes/survey-check"
-  "wearables:revoke_teaching":
-    - "POST /api/v1/wearables/associations/*/revoke"
-    - "POST /api/v1/wearables/tags/*/resume-teaching"
-  "wearables:manage":
-    - "POST /api/v1/wearables/devices"
-    - "PATCH /api/v1/wearables/devices/*"
-    - "POST /api/v1/wearables/devices/*/bind"
-    - "POST /api/v1/wearables/devices/*/unbind"
-    - "POST /api/v1/wearables/nodes"
-    - "PATCH /api/v1/wearables/nodes/*"
-    - "DELETE /api/v1/wearables/nodes/*"
-  "wearables:site_config":
-    - "GET /api/v1/wearables/site-config"
-
-  # Operator-entered standing heights synced to CTS.
-  "persons:heights_sync":
-    - "GET /api/v1/persons/heights"
-
-# EG-M14 D4 role token sets (enforced live in PR 3; permission_map retained for inverse shadow).
-# Admin lists all admin-only D4 tokens alongside "*" so every declared token appears in at
-# least one role. Verified by test_permissions_migration_drift.py and test_auth_shadow.py.
+# Role token sets: every route, WebSocket, and MCP tool declares one D4 token.
+# admin lists all admin-only D4 tokens alongside "*" so every declared token
+# appears explicitly in at least one role (enforced at startup and in CI).
 roles:
   admin:
     - "*"

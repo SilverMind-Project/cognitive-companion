@@ -23,7 +23,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from backend.core.auth import AuthContext, actor_from_auth, require_token
+from backend.core.auth import AuthContext, actor_from_auth, require_permission
 from backend.routers.cts_deps import cts_enabled, presigned_image_url
 from backend.routers.dependencies import get_identity_review_registry, get_reid_review_service
 from backend.schemas.cts_reid_review import (
@@ -85,7 +85,7 @@ async def list_candidates(
     limit: int = 50,
     offset: int = 0,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    _auth=Depends(require_token(_GALLERY_REVIEW)),
+    _auth=Depends(require_permission(_GALLERY_REVIEW)),
 ) -> ReviewCandidateListResponse:
     cts_enabled()
     params: dict[str, str] = {"state": state, "limit": str(limit), "offset": str(offset)}
@@ -116,7 +116,7 @@ async def list_candidates(
 @router.get("/identity/reid-review/counts", response_model=ReviewCountsResponse)
 async def review_counts(
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    _auth=Depends(require_token(_GALLERY_REVIEW)),
+    _auth=Depends(require_permission(_GALLERY_REVIEW)),
 ) -> ReviewCountsResponse:
     cts_enabled()
     try:
@@ -135,7 +135,7 @@ async def get_candidate(
     candidate_id: str,
     request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    _auth=Depends(require_token(_GALLERY_REVIEW)),
+    _auth=Depends(require_permission(_GALLERY_REVIEW)),
 ) -> ReviewCandidateDetailResponse:
     cts_enabled()
     try:
@@ -153,7 +153,7 @@ async def get_candidate(
 async def list_reid_review_events(
     candidate_id: str,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    _auth=Depends(require_token(_GALLERY_REVIEW)),
+    _auth=Depends(require_permission(_GALLERY_REVIEW)),
 ) -> ReviewEventsResponse:
     cts_enabled()
     try:
@@ -173,7 +173,7 @@ async def approve_candidate(
     body: ApproveRequest,
     request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_GALLERY_REVIEW)),
 ) -> ReviewCandidateView:
     cts_enabled()
     try:
@@ -199,7 +199,7 @@ async def relabel_candidate(
     body: RelabelRequest,
     request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_GALLERY_REVIEW)),
 ) -> ReviewCandidateView:
     cts_enabled()
     try:
@@ -226,7 +226,7 @@ async def demote_candidate(
     body: DemoteRequest,
     request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_GALLERY_REVIEW)),
 ) -> ReviewCandidateView:
     cts_enabled()
     try:
@@ -252,7 +252,7 @@ async def reject_candidate(
     body: RejectRequest,
     request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_GALLERY_REVIEW)),
 ) -> ReviewCandidateView:
     cts_enabled()
     try:
@@ -274,7 +274,7 @@ async def reject_candidate(
 async def review_batch(
     body: ReIDReviewBatchRequest,
     registry: IdentityReviewRegistry = Depends(get_identity_review_registry),
-    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_GALLERY_REVIEW)),
 ) -> BatchReviewResponse:
     """Reject several samples as not in the household or not usable; there is no batch approve."""
     cts_enabled()
@@ -301,7 +301,7 @@ async def compensate_candidate(
     candidate_id: str,
     request: Request,
     svc: ReIDReviewService = Depends(get_reid_review_service),
-    auth: AuthContext = Depends(require_token(_GALLERY_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_GALLERY_REVIEW)),
 ) -> ReviewCandidateView:
     cts_enabled()
     try:

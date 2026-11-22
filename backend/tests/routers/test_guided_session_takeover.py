@@ -173,11 +173,7 @@ def test_takeover_endpoints_require_permission(db_session, db_factory) -> None:
 
 def test_auth_yaml_covers_takeover_routes() -> None:
     data = yaml.safe_load(Path("config/auth.yaml").read_text())
-    permission_map = data["permission_map"]
+    roles = data["roles"]
 
-    assert "GET /api/v1/guided-sessions/*/detail" in permission_map["guided_sessions:read"]
-    for action in ["takeover", "say", "advance", "complete", "release"]:
-        assert (
-            f"POST /api/v1/guided-sessions/*/{action}" in permission_map["guided_sessions:takeover"]
-        )
-    assert "guided_sessions:takeover" in permission_map["caregiver"]
+    assert "guided_sessions:read" in roles["caregiver"]
+    assert "guided_sessions:takeover" in roles["admin"]

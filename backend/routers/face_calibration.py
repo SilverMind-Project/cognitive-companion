@@ -12,7 +12,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from backend.core.auth import AuthContext, actor_from_auth, require_token
+from backend.core.auth import AuthContext, actor_from_auth, require_permission
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
 from backend.integrations.person_id_client import PersonIDUpstreamError
@@ -64,7 +64,7 @@ async def list_calibration_candidates(
     cursor: str | None = None,
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
     minio: MinioClient = Depends(get_config_minio_client),
-    _auth: AuthContext = Depends(require_token(_REVIEW)),
+    _auth: AuthContext = Depends(require_permission(_REVIEW)),
 ) -> CalibrationCandidateListResponse:
     try:
         return await svc.list_candidates(
@@ -80,7 +80,7 @@ async def label_calibration_candidate(
     body: LabelCalibrationCandidateRequest,
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
     minio: MinioClient = Depends(get_config_minio_client),
-    auth: AuthContext = Depends(require_token(_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_REVIEW)),
 ) -> CalibrationCandidateView:
     actor = actor_from_auth(auth)
     try:
@@ -106,7 +106,7 @@ async def label_calibration_candidate(
 async def review_calibration_candidates(
     body: FaceCalibrationReviewRequest,
     registry: IdentityReviewRegistry = Depends(get_identity_review_registry),
-    auth: AuthContext = Depends(require_token(_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_REVIEW)),
 ) -> BatchReviewResponse:
     """Label several captures not in the household or not usable; member labels go one by one."""
     actor = actor_from_auth(auth)
@@ -134,7 +134,7 @@ async def reject_calibration_candidate(
     candidate_id: str,
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
     minio: MinioClient = Depends(get_config_minio_client),
-    auth: AuthContext = Depends(require_token(_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_REVIEW)),
 ) -> CalibrationCandidateView:
     try:
         result = await svc.reject(candidate_id, presign=_presigner(minio))
@@ -148,7 +148,7 @@ async def reject_calibration_candidate(
 async def delete_calibration_candidate(
     candidate_id: str,
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
-    auth: AuthContext = Depends(require_token(_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_REVIEW)),
 ) -> Response:
     try:
         await svc.delete(candidate_id)
@@ -164,7 +164,7 @@ async def delete_calibration_candidate(
 async def promote_calibration_candidate(
     candidate_id: str,
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
-    auth: AuthContext = Depends(require_token(_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_REVIEW)),
 ) -> PromoteCalibrationCandidateResponse:
     """Explicitly promote a labeled member capture into that person's face gallery."""
     actor = actor_from_auth(auth)
@@ -186,7 +186,7 @@ async def promote_calibration_candidate(
 @router.get("/summary", response_model=FaceCalibrationSummaryEnvelope)
 async def get_face_calibration_summary(
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
-    _auth: AuthContext = Depends(require_token(_REVIEW)),
+    _auth: AuthContext = Depends(require_permission(_REVIEW)),
 ) -> FaceCalibrationSummaryEnvelope:
     try:
         return await svc.get_summary()
@@ -208,7 +208,7 @@ async def list_attested_faces(
     limit: int = Query(default=100, ge=1, le=500),
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
     minio: MinioClient = Depends(get_config_minio_client),
-    _auth: AuthContext = Depends(require_token(_REVIEW)),
+    _auth: AuthContext = Depends(require_permission(_REVIEW)),
 ) -> AttestedFaceListResponse:
     try:
         return await svc.list_attested(
@@ -223,7 +223,7 @@ async def get_attested_face_audit_sample(
     n: int = Query(default=50, ge=1, le=200),
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
     minio: MinioClient = Depends(get_config_minio_client),
-    _auth: AuthContext = Depends(require_token(_REVIEW)),
+    _auth: AuthContext = Depends(require_permission(_REVIEW)),
 ) -> AttestedFaceListResponse:
     """A uniform random sample drawn upstream, so the auditor never chooses which faces to judge."""
     try:
@@ -238,7 +238,7 @@ async def audit_attested_face(
     body: AuditAttestedFaceRequest,
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
     minio: MinioClient = Depends(get_config_minio_client),
-    auth: AuthContext = Depends(require_token(_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_REVIEW)),
 ) -> CalibrationCandidateView:
     """Record whether a wearable-attested label is right; changes no label or gallery."""
     actor = actor_from_auth(auth)
@@ -257,7 +257,7 @@ async def audit_attested_face(
 @router.get("/attestations/audit-summary", response_model=AttestationAuditSummaryEnvelope)
 async def get_attested_face_audit_summary(
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
-    _auth: AuthContext = Depends(require_token(_REVIEW)),
+    _auth: AuthContext = Depends(require_permission(_REVIEW)),
 ) -> AttestationAuditSummaryEnvelope:
     try:
         return await svc.attestation_audit_summary()

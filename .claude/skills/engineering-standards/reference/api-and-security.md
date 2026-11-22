@@ -12,8 +12,8 @@ Read before adding or changing a route. Part of the `engineering-standards` skil
 
 ### Authentication and authorization
 
-- Every new endpoint must have an `auth.yaml` permission entry.
-- Use `require_permission(...)` on every route. New routes name a `<resource>:<action>` token (program decision D4, for example `rooms:read`); the legacy `METHOD /path`, dotted, and role-name styles migrate in EG-M14.
+- Every guarded route, WebSocket endpoint, and MCP tool declares exactly one D4 `<resource>:<action>` token (actions from the closed `ALLOWED_ACTIONS` set in `backend/core/auth.py`). Roles are token sets defined exclusively under `roles:` in `config/auth.yaml`, and authorization checks pure token membership.
+- Use `require_permission("<resource>:<action>")` on every HTTP route. List every token on at least one role in `config/auth.yaml` (admin-only tokens appear explicitly under `admin:` alongside `"*"`) and regenerate `docs/api/permissions.md` via `backend/scripts/export_route_permissions.py`.
 - Keys come from the `X-API-Key` header. Only device endpoints (`get_auth_context_device`, opted into per route) also accept a `?api_key` query parameter or a body `device_key`; never add those key paths to a browser-facing route (`testing.md`, "Envelope and authorization tests").
 
 ### Input validation

@@ -6,7 +6,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, Query, Response
 
-from backend.core.auth import AuthContext, actor_from_auth, require_token
+from backend.core.auth import AuthContext, actor_from_auth, require_permission
 from backend.routers.dependencies import (
     get_rf_node_service,
     get_wearable_binding_service,
@@ -49,7 +49,7 @@ router = APIRouter(prefix="/wearables", tags=["wearables"])
 @router.get("/site-config", response_model=WearableSiteConfigOut)
 async def get_wearable_site_config(
     svc: WearableSiteConfigService = Depends(get_wearable_site_config_service),
-    _auth: AuthContext = Depends(require_token("wearables.site_config:read")),
+    _auth: AuthContext = Depends(require_permission("wearables.site_config:read")),
 ) -> WearableSiteConfigOut:
     """Serve RF nodes in metres, time-bounded bindings, and devices for CTS and rf-ingress."""
     return svc.build_site_config()
@@ -58,7 +58,7 @@ async def get_wearable_site_config(
 @router.get("/assignments", response_model=WearableAssignmentsOut)
 async def list_wearable_assignments(
     svc: WearableBindingService = Depends(get_wearable_binding_service),
-    _auth: AuthContext = Depends(require_token("wearables:read")),
+    _auth: AuthContext = Depends(require_permission("wearables:read")),
 ) -> WearableAssignmentsOut:
     """Return active wearable devices grouped per household member, plus unbound devices."""
     return svc.list_member_assignments()
@@ -68,7 +68,7 @@ async def list_wearable_assignments(
 async def list_wearable_devices(
     active_only: bool = Query(default=False),
     svc: WearableDeviceService = Depends(get_wearable_device_service),
-    _auth: AuthContext = Depends(require_token("wearables:read")),
+    _auth: AuthContext = Depends(require_permission("wearables:read")),
 ) -> WearableDeviceListOut:
     """List registered wearable devices."""
     return svc.list_devices(active_only=active_only)
@@ -78,7 +78,7 @@ async def list_wearable_devices(
 async def create_wearable_device(
     body: WearableDeviceCreate,
     svc: WearableDeviceService = Depends(get_wearable_device_service),
-    auth: AuthContext = Depends(require_token("wearables:write")),
+    auth: AuthContext = Depends(require_permission("wearables:write")),
 ) -> WearableDeviceOut:
     """Register a new wearable device."""
     return svc.create_device(body, actor=actor_from_auth(auth))
@@ -88,7 +88,7 @@ async def create_wearable_device(
 async def get_wearable_device(
     device_id: uuid.UUID,
     svc: WearableDeviceService = Depends(get_wearable_device_service),
-    _auth: AuthContext = Depends(require_token("wearables:read")),
+    _auth: AuthContext = Depends(require_permission("wearables:read")),
 ) -> WearableDeviceOut:
     """Fetch a single registered wearable device."""
     return svc.get_device(device_id)
@@ -99,7 +99,7 @@ async def update_wearable_device(
     device_id: uuid.UUID,
     body: WearableDeviceUpdate,
     svc: WearableDeviceService = Depends(get_wearable_device_service),
-    auth: AuthContext = Depends(require_token("wearables:write")),
+    auth: AuthContext = Depends(require_permission("wearables:write")),
 ) -> WearableDeviceOut:
     """Update a wearable device label, hardware key, or active status."""
     return svc.update_device(device_id, body, actor=actor_from_auth(auth))
@@ -109,7 +109,7 @@ async def update_wearable_device(
 async def get_wearable_device_status(
     device_id: uuid.UUID,
     svc: WearableDeviceService = Depends(get_wearable_device_service),
-    _auth: AuthContext = Depends(require_token("wearables:read")),
+    _auth: AuthContext = Depends(require_permission("wearables:read")),
 ) -> WearableDeviceStatusOut:
     """Report active wearer, last-heard freshness, and battery status for one device."""
     return svc.get_device_status(device_id)
@@ -119,7 +119,7 @@ async def get_wearable_device_status(
 async def list_wearable_device_bindings(
     device_id: uuid.UUID,
     svc: WearableBindingService = Depends(get_wearable_binding_service),
-    _auth: AuthContext = Depends(require_token("wearables:read")),
+    _auth: AuthContext = Depends(require_permission("wearables:read")),
 ) -> list[WearableBindingOut]:
     """List full binding history for one wearable device, newest first."""
     return svc.list_history(device_id)
@@ -130,7 +130,7 @@ async def bind_wearable_device(
     device_id: uuid.UUID,
     body: WearableBindingCreate,
     svc: WearableBindingService = Depends(get_wearable_binding_service),
-    auth: AuthContext = Depends(require_token("wearables:write")),
+    auth: AuthContext = Depends(require_permission("wearables:write")),
 ) -> WearableBindingOut:
     """Bind a wearable device to a household member after recording consent."""
     return svc.bind(
@@ -147,7 +147,7 @@ async def unbind_wearable_device(
     device_id: uuid.UUID,
     body: WearableUnbindRequest | None = None,
     svc: WearableBindingService = Depends(get_wearable_binding_service),
-    auth: AuthContext = Depends(require_token("wearables:write")),
+    auth: AuthContext = Depends(require_permission("wearables:write")),
 ) -> WearableBindingOut:
     """Close the active binding on a wearable device."""
     return svc.unbind(
@@ -161,7 +161,7 @@ async def unbind_wearable_device(
 async def list_rf_nodes(
     active_only: bool = Query(default=False),
     svc: RfNodeService = Depends(get_rf_node_service),
-    _auth: AuthContext = Depends(require_token("wearables:read")),
+    _auth: AuthContext = Depends(require_permission("wearables:read")),
 ) -> RfNodeListOut:
     """List registered fixed RF nodes with floor-plan readiness, metre projections, and health."""
     return await svc.list_nodes_live(active_only=active_only)
@@ -171,7 +171,7 @@ async def list_rf_nodes(
 async def check_rf_node_survey(
     body: RfNodeSurveyCheckRequest,
     svc: RfNodeService = Depends(get_rf_node_service),
-    _auth: AuthContext = Depends(require_token("wearables:read")),
+    _auth: AuthContext = Depends(require_permission("wearables:read")),
 ) -> RfNodeSurveyCheckOut:
     """Compare clicked floor-plan coordinates against tape-measured distances."""
     return svc.survey_check(body)
@@ -181,7 +181,7 @@ async def check_rf_node_survey(
 async def create_rf_node(
     body: RfNodeCreate,
     svc: RfNodeService = Depends(get_rf_node_service),
-    auth: AuthContext = Depends(require_token("wearables:write")),
+    auth: AuthContext = Depends(require_permission("wearables:write")),
 ) -> RfNodeOut:
     """Place a new fixed RF node on the household floor plan."""
     return svc.create_node(body, actor=actor_from_auth(auth))
@@ -191,7 +191,7 @@ async def create_rf_node(
 async def get_rf_node(
     node_id: uuid.UUID,
     svc: RfNodeService = Depends(get_rf_node_service),
-    _auth: AuthContext = Depends(require_token("wearables:read")),
+    _auth: AuthContext = Depends(require_permission("wearables:read")),
 ) -> RfNodeOut:
     """Fetch a single fixed RF node with live last-heard time when rf-ingress is reachable."""
     return await svc.get_node_live(node_id)
@@ -202,7 +202,7 @@ async def update_rf_node(
     node_id: uuid.UUID,
     body: RfNodeUpdate,
     svc: RfNodeService = Depends(get_rf_node_service),
-    auth: AuthContext = Depends(require_token("wearables:write")),
+    auth: AuthContext = Depends(require_permission("wearables:write")),
 ) -> RfNodeOut:
     """Update a fixed RF node's position, mount height, role, or UWB parameters."""
     return svc.update_node(node_id, body, actor=actor_from_auth(auth))
@@ -212,7 +212,7 @@ async def update_rf_node(
 async def delete_rf_node(
     node_id: uuid.UUID,
     svc: RfNodeService = Depends(get_rf_node_service),
-    auth: AuthContext = Depends(require_token("wearables:write")),
+    auth: AuthContext = Depends(require_permission("wearables:write")),
 ) -> Response:
     """Delete a fixed RF node."""
     svc.delete_node(node_id, actor=actor_from_auth(auth))
@@ -224,7 +224,7 @@ async def list_wearable_device_associations(
     device_id: uuid.UUID,
     limit: int = Query(default=25, ge=1, le=100),
     svc: WearableTeachingRevocationService = Depends(get_wearable_teaching_revocation_service),
-    _auth: AuthContext = Depends(require_token("wearables:read")),
+    _auth: AuthContext = Depends(require_permission("wearables:read")),
 ) -> WearableDeviceAssociationsOut:
     """List recent wearable association segments for one device with taught counts and hold state."""
     return await svc.list_device_associations(device_id, limit=limit)
@@ -234,7 +234,7 @@ async def list_wearable_device_associations(
 async def revoke_wearable_association(
     segment_id: str,
     svc: WearableTeachingRevocationService = Depends(get_wearable_teaching_revocation_service),
-    auth: AuthContext = Depends(require_token("wearables.teaching:write")),
+    auth: AuthContext = Depends(require_permission("wearables.teaching:write")),
 ) -> WearableRevokeResponse:
     """Undo everything one wearable association segment taught and hold further teaching on its tag."""
     return await svc.revoke_association(segment_id, actor=actor_from_auth(auth))
@@ -244,7 +244,7 @@ async def revoke_wearable_association(
 async def resume_wearable_tag_teaching(
     tag_id: str,
     svc: WearableTeachingRevocationService = Depends(get_wearable_teaching_revocation_service),
-    auth: AuthContext = Depends(require_token("wearables.teaching:write")),
+    auth: AuthContext = Depends(require_permission("wearables.teaching:write")),
 ) -> WearableResumeTeachingResponse:
     """Clear an open teaching hold for a wearable tag so it can teach again."""
     return await svc.resume_tag_teaching(tag_id, actor=actor_from_auth(auth))

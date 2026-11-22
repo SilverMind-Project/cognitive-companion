@@ -7,7 +7,7 @@ import base64
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from sqlalchemy.orm import Session
 
-from backend.core.auth import AuthContext, actor_from_auth, require_permission, require_token
+from backend.core.auth import AuthContext, actor_from_auth, require_permission
 from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError
@@ -134,7 +134,7 @@ async def list_enrolled(
 @router.get("/heights", response_model=list[PersonHeightSyncItem])
 async def list_member_heights(
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_token("persons.heights:read")),
+    _auth: AuthContext = Depends(require_permission("persons.heights:read")),
 ) -> list[PersonHeightSyncItem]:
     """Minimal member height roster for CTS operator-height sync (reads local DB only)."""
     members = db.query(HouseholdMember).order_by(HouseholdMember.id).all()
@@ -265,7 +265,7 @@ async def list_person_prototypes(
     person_id: str,
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
     minio: MinioClient = Depends(get_config_minio_client),
-    _auth: AuthContext = Depends(require_token("face_prototypes:read")),
+    _auth: AuthContext = Depends(require_permission("face_prototypes:read")),
 ) -> PersonPrototypesResponse:
     """List pose-binned face prototypes for one enrolled member."""
     try:
@@ -278,7 +278,7 @@ async def list_person_prototypes(
 async def rebuild_person_prototypes(
     person_id: str,
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
-    auth: AuthContext = Depends(require_token("face_prototypes:write")),
+    auth: AuthContext = Depends(require_permission("face_prototypes:write")),
 ) -> RebuildPrototypesResponse:
     """Rebuild pose-binned face prototypes for one enrolled member."""
     actor = actor_from_auth(auth)
@@ -300,7 +300,7 @@ async def delete_person_prototype(
     person_id: str,
     prototype_id: str,
     svc: FaceCalibrationReviewService = Depends(get_face_calibration_service),
-    auth: AuthContext = Depends(require_token("face_prototypes:write")),
+    auth: AuthContext = Depends(require_permission("face_prototypes:write")),
 ) -> Response:
     """Remove a face prototype and its underlying embedding(s), rebuilding the gallery."""
     actor = actor_from_auth(auth)

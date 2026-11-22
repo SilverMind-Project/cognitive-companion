@@ -1,20 +1,17 @@
-"""Route-to-auth coverage gate (M16).
+"""Route-to-auth coverage and D4 token gate.
 
-Two independent properties, checked against the real app and the real
+Three independent properties, checked against the real app and the real
 ``config/auth.yaml``:
 
-1. every HTTP route carries a ``require_permission``/``require_token`` checker,
-   or is in the justified allowlist below;
-2. every guarded route is reachable by at least one configured role -- a route
-   no role can reach is either dead or misconfigured.
-
-The matching in (2) reuses :class:`KeyStore` rather than re-implementing glob
-expansion, so this test cannot drift from production semantics.
+1. every HTTP route carries exactly one ``require_permission`` checker declaring
+   exactly one D4 ``<resource>:<action>`` token, or is in the justified allowlist;
+2. every guarded route's D4 token is explicitly listed on at least one role in
+   ``config/auth.yaml`` (excluding ``*``), so no route is unreachable or typo'd;
+3. the permissive device key resolver stays confined to hardware device routes.
 """
 
 from __future__ import annotations
 
-import fnmatch
 from pathlib import Path
 
 import pytest
@@ -23,7 +20,13 @@ from fastapi import Depends, FastAPI
 from fastapi.routing import APIRoute, RouteContext
 from starlette.routing import Mount, Route
 
-from backend.core.auth import AuthContext, KeyStore, require_permission
+from backend.core.auth import (
+    WS_ROUTE_TOKENS,
+    AuthContext,
+    KeyStore,
+    is_valid_d4_token,
+    require_permission,
+)
 from backend.tests.routers._route_inventory import (
     api_route_contexts,
     primary_method,
@@ -65,11 +68,7 @@ _key = route_key
 
 
 def _auth_checkers(route: APIRoute | RouteContext) -> list:
-    """Return every marked auth checker in the route's dependency tree.
-
-    Accepts either an ``APIRoute`` or a ``RouteContext``; both expose
-    ``dependant``, which lets the self-test below build a throwaway app.
-    """
+    """Return every marked auth checker in the route's dependency tree."""
     found = []
     stack = list(route.dependant.dependencies)
     while stack:
@@ -86,12 +85,13 @@ _api_routes = api_route_contexts
 def _keystore() -> KeyStore:
     data = yaml.safe_load(Path("config/auth.yaml").read_text())
     return KeyStore(
-        permission_map=data.get("permission_map", {}),
+        api_keys=data.get("api_keys", []),
+        device_keys=data.get("device_keys", []),
         roles=data.get("roles", {}),
     )
 
 
-# ─── 1. Every route is guarded ────────────────────────────────────────────
+# ─── 1. Every route is guarded with exactly one D4 token ──────────────────
 
 
 def test_every_route_is_guarded_or_allowlisted() -> None:
@@ -101,22 +101,36 @@ def test_every_route_is_guarded_or_allowlisted() -> None:
         if not _auth_checkers(r) and _key(r) not in ALLOWLISTED_ROUTES
     ]
     assert not unguarded, (
-        "Routes with no require_permission/require_token dependency:\n  "
+        "Routes with no require_permission dependency:\n  "
         + "\n  ".join(sorted(unguarded))
         + "\nAdd a dependency, or allowlist with a justification in this file."
     )
 
 
-def test_allowlist_has_no_stale_entries() -> None:
-    """An allowlisted route that no longer exists (or is now guarded) must go.
+def test_every_guarded_route_declares_exactly_one_d4_token() -> None:
+    """Every guarded route carries one auth checker with one D4 ``<resource>:<action>`` token."""
+    bad_count: list[str] = []
+    bad_d4: list[str] = []
+    checked = 0
+    for r in _api_routes():
+        checkers = _auth_checkers(r)
+        if not checkers:
+            continue
+        checked += 1
+        tokens = tuple(t for c in checkers for t in getattr(c, "__cc_auth_tokens__", ()))
+        if len(checkers) != 1 or len(tokens) != 1:
+            bad_count.append(f"{_key(r)}: checkers={len(checkers)}, tokens={tokens!r}")
+            continue
+        if not is_valid_d4_token(tokens[0]):
+            bad_d4.append(f"{_key(r)}: {tokens[0]!r}")
 
-    Trusts the route inventory absolutely, so it is only as honest as that
-    enumeration: when a FastAPI upgrade reduced the visible surface to one
-    route, every entry here read as "stale" and was deleted, taking four
-    security justifications and two assertions with it. ``test_route_inventory``
-    now fails first in that scenario. Never resolve this test by deleting
-    entries without checking the routes are genuinely gone.
-    """
+    assert checked >= 300, f"Non-vacuity canary: expected >= 300 guarded routes, got {checked}"
+    assert not bad_count, "Routes must declare exactly one token:\n  " + "\n  ".join(bad_count)
+    assert not bad_d4, "Routes declaring non-D4 tokens:\n  " + "\n  ".join(bad_d4)
+
+
+def test_allowlist_has_no_stale_entries() -> None:
+    """An allowlisted route that no longer exists (or is now guarded) must go."""
     live = {_key(r) for r in _api_routes() if not _auth_checkers(r)}
     stale = sorted(set(ALLOWLISTED_ROUTES) - live)
     assert not stale, f"Allowlist entries no longer needed (route gone or now guarded): {stale}"
@@ -158,7 +172,7 @@ def test_non_api_routes_are_framework_or_mounts() -> None:
             assert route.path in FRAMEWORK_PATHS, f"Unreviewed bare route: {route.path}"
 
 
-# ─── 2. Every guarded route is reachable by some role ─────────────────────
+# ─── 2. Every guarded route is reachable by a configured role ─────────────
 
 
 def _roles_reaching_token(ks: KeyStore, token: str, *, superuser: bool) -> list[str]:
@@ -212,7 +226,9 @@ def test_routes_reachable_only_by_superuser() -> None:
         and _key(r) not in ALLOWLISTED_ROUTES
         and set(
             _roles_reaching_token(
-                ks, getattr(_auth_checkers(r)[0], "__cc_auth_tokens__", ("",))[0], superuser=False
+                ks,
+                getattr(_auth_checkers(r)[0], "__cc_auth_tokens__", ("",))[0],
+                superuser=False,
             )
         )
         <= {"admin", "operator"}
@@ -221,27 +237,18 @@ def test_routes_reachable_only_by_superuser() -> None:
         pytest.skip(f"reachable only by admin/operator ({len(only_super)}): {only_super}")
 
 
-def test_permission_map_patterns_match_a_live_route() -> None:
-    """Report-only: patterns matching nothing are stale auth.yaml entries.
+def test_every_configured_role_token_matches_a_live_route_ws_or_mcp_tool() -> None:
+    """No stale D4 tokens linger in ``config/auth.yaml`` ``roles:``."""
+    from backend.mcp import server as mcp_server
 
-    Kept as a warning rather than a failure: a pattern may legitimately
-    describe a route served by another component behind the same key.
-    """
-    from starlette.routing import WebSocketRoute
+    live_tokens: set[str] = set(WS_ROUTE_TOKENS.values()) | set(mcp_server._tool_tokens.values())
+    for r in _api_routes():
+        for checker in _auth_checkers(r):
+            live_tokens.update(getattr(checker, "__cc_auth_tokens__", ()))
 
-    live = {_key(r) for r in _api_routes()}
-    # WebSocket and mounted sub-apps are grantable targets too, and auth.yaml
-    # addresses them with the same "METHOD path" syntax.
-    for ctx in route_contexts():
-        route = ctx.original_route
-        if isinstance(route, WebSocketRoute):
-            live.add(f"GET {route.path}")
-        elif isinstance(route, Mount):
-            live.update({f"GET {route.path}", f"POST {route.path}"})
-    patterns = {p for perms in _keystore().permission_map.values() for p in perms if " " in p}
-    stale = sorted(p for p in patterns if not any(fnmatch.fnmatch(t, p) for t in live))
-    if stale:
-        pytest.skip(f"auth.yaml patterns matching no live route (report-only): {stale}")
+    configured = _keystore().known_tokens()
+    stale = sorted(configured - live_tokens)
+    assert not stale, f"Tokens in config/auth.yaml roles: matching no live route/WS/tool: {stale}"
 
 
 # ─── 3. The permissive resolver stays confined to the device surface ──────
@@ -251,8 +258,7 @@ def test_permission_map_patterns_match_a_live_route() -> None:
 DEVICE_RESOLVER_ROUTES = {
     # reCamera pushes YOLO payloads; key arrives as ?api_key= or in the body.
     "POST /api/v1/device/recamera",
-    # reTerminal e-ink displays poll for their active image; "image:read" is
-    # held only by device keys and no browser client calls this route.
+    # reTerminal e-ink displays poll for their active image.
     "GET /api/v1/image/active",
 }
 
@@ -283,22 +289,11 @@ def test_recamera_route_still_accepts_query_key() -> None:
     assert _uses_device_resolver(route)
 
 
-# ─── 4. Self-test: the gate actually catches an unguarded route ───────────
+# ─── 4. Self-test: the gate catches unguarded and non-D4 routes ───────────
 
 
 def test_gate_catches_unguarded_route() -> None:
-    """A deliberately unguarded route on a throwaway app must be detected.
-
-    Covers the *detector* (``_auth_checkers``), not the *enumeration*. That
-    distinction matters: this test kept passing throughout the period when the
-    real gate could only see one of 322 routes, because a working detector over
-    an empty collection still looks healthy. ``test_route_inventory`` is what
-    covers the enumeration.
-
-    ``app.routes`` is read directly here on purpose: routes added by decorator
-    are stored eagerly, unlike the lazily-expanded ``include_router`` entries
-    that the shared inventory exists to traverse.
-    """
+    """A deliberately unguarded route on a throwaway app must be detected."""
     app = FastAPI()
 
     @app.get("/oops")
@@ -315,21 +310,13 @@ def test_gate_catches_unguarded_route() -> None:
 
 
 def test_declared_tokens_all_exist_in_auth_yaml() -> None:
-    """Every token named on a real route resolves in config/auth.yaml.
-
-    This is the same contract the lifespan enforces via
-    ``assert_declared_tokens_known``, but scoped to tokens reachable from the
-    app's own routes rather than the process-global ``_DECLARED_TOKENS`` --
-    which any other test module can add to.
-    """
+    """Every token named on a real route is D4-valid and listed in ``config/auth.yaml``."""
     known = _keystore().known_tokens()
     declared: set[str] = set()
     for route in _api_routes():
         for checker in _auth_checkers(route):
             declared.update(getattr(checker, "__cc_auth_tokens__", ()))
-    # Names containing a space are literal "METHOD /path" patterns, which
-    # expand_permissions passes through by design.
-    unknown = sorted({t for t in declared if " " not in t} - known)
+    unknown = sorted(declared - known)
     assert not unknown, (
-        f"Tokens named at route call sites but absent from config/auth.yaml: {unknown}"
+        f"Tokens named at route call sites but absent from config/auth.yaml roles: {unknown}"
     )

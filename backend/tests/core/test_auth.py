@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from backend.core import auth as auth_module
 from backend.core.auth import (
+    ALLOWED_ACTIONS,
     AuthContext,
     KeyStore,
     _resolve_key,
@@ -15,8 +16,8 @@ from backend.core.auth import (
     get_auth_context,
     get_auth_context_device,
     invalidate_lookup_cache,
+    is_valid_d4_token,
     require_permission,
-    require_token,
 )
 from backend.core.config import Settings
 from backend.core.exceptions import AuthenticationError
@@ -27,31 +28,32 @@ from backend.core.exceptions import AuthenticationError
 class TestKeyStoreResolve:
     def test_resolve_api_key(self) -> None:
         ks = KeyStore(
-            api_keys=[{"key": "K1", "name": "admin", "permissions": ["*"]}],
+            api_keys=[{"key": "K1", "name": "admin", "roles": ["admin"]}],
+            roles={"admin": ["*"]},
         )
         ctx = ks.resolve("K1")
         assert ctx.key == "K1"
         assert ctx.name == "admin"
-        assert ctx.permissions == ["*"]
+        assert ctx.roles == ["admin"]
         assert ctx.device_type is None
         assert ctx.sensor_id is None
 
     def test_resolve_device_key_preferred_over_api(self) -> None:
-        # Same raw string appears in both lists: device wins.
         ks = KeyStore(
-            api_keys=[{"key": "SHARED", "name": "api-ver"}],
+            api_keys=[{"key": "SHARED", "name": "api-ver", "roles": ["reader"]}],
             device_keys=[
                 {
                     "key": "SHARED",
                     "name": "kitchen-cam",
                     "device_type": "camera",
                     "sensor_id": "cam-1",
-                    "permissions": ["sensors:write"],
+                    "roles": ["device_recamera"],
                 }
             ],
         )
         ctx = ks.resolve("SHARED")
         assert ctx.name == "kitchen-cam"
+        assert ctx.roles == ["device_recamera"]
         assert ctx.device_type == "camera"
         assert ctx.sensor_id == "cam-1"
 
@@ -75,42 +77,47 @@ class TestKeyStoreResolve:
             KeyStore().resolve("anything")
 
 
-class TestKeyStorePermissions:
-    def test_wildcard_allows_everything(self) -> None:
-        ks = KeyStore()
-        auth = AuthContext(key="K", name="n", permissions=["*"])
-        assert ks.has_permission(auth, "GET", "/any/path") is True
+class TestKeyStoreTokens:
+    def test_wildcard_role_allows_everything(self) -> None:
+        ks = KeyStore(roles={"admin": ["*"]})
+        auth = AuthContext(key="K", name="n", roles=["admin"])
+        assert ks.has_token(auth, "rooms:read") is True
+        assert ks.has_token(auth, "persons:delete") is True
 
-    def test_literal_pattern_match(self) -> None:
-        ks = KeyStore()
-        auth = AuthContext(key="K", name="n", permissions=["GET /rooms"])
-        assert ks.has_permission(auth, "GET", "/rooms") is True
-        assert ks.has_permission(auth, "POST", "/rooms") is False
+    def test_role_token_membership(self) -> None:
+        ks = KeyStore(roles={"caregiver": ["rooms:read", "sensors:read"]})
+        auth = AuthContext(key="K", name="n", roles=["caregiver"])
+        assert ks.has_token(auth, "rooms:read") is True
+        assert ks.has_token(auth, "rooms:write") is False
 
-    def test_fnmatch_wildcard_in_pattern(self) -> None:
-        ks = KeyStore()
-        auth = AuthContext(key="K", name="n", permissions=["GET /rooms/*"])
-        assert ks.has_permission(auth, "GET", "/rooms/42") is True
-        assert ks.has_permission(auth, "GET", "/rooms") is False
-
-    def test_permission_map_expansion(self) -> None:
+    def test_multiple_roles_union_tokens(self) -> None:
         ks = KeyStore(
-            permission_map={"rooms:read": ["GET /rooms", "GET /rooms/*"]},
+            roles={
+                "mcp_readonly": ["mcp.tools:read", "rooms:read"],
+                "mcp_rules_import": ["rules:import"],
+            }
         )
-        auth = AuthContext(key="K", name="n", permissions=["rooms:read"])
-        assert ks.has_permission(auth, "GET", "/rooms") is True
-        assert ks.has_permission(auth, "GET", "/rooms/5") is True
-        assert ks.has_permission(auth, "POST", "/rooms") is False
+        auth = AuthContext(key="K", name="n", roles=["mcp_readonly", "mcp_rules_import"])
+        assert ks.has_token(auth, "rooms:read") is True
+        assert ks.has_token(auth, "rules:import") is True
+        assert ks.has_token(auth, "rules:execute") is False
 
-    def test_method_is_case_insensitive(self) -> None:
-        ks = KeyStore()
-        auth = AuthContext(key="K", name="n", permissions=["GET /x"])
-        assert ks.has_permission(auth, "get", "/x") is True
+    def test_unknown_role_grants_nothing(self) -> None:
+        ks = KeyStore(roles={"caregiver": ["rooms:read"]})
+        # Raw token string in roles: is NOT treated as a token grant.
+        auth = AuthContext(key="K", name="n", roles=["rooms:read"])
+        assert ks.has_token(auth, "rooms:read") is False
 
-    def test_no_permissions_denies_everything(self) -> None:
+    def test_no_roles_denies_everything(self) -> None:
+        ks = KeyStore(roles={"caregiver": ["rooms:read"]})
+        auth = AuthContext(key="K", name="n", roles=[])
+        assert ks.has_token(auth, "rooms:read") is False
+
+    def test_direct_test_tokens_supported(self) -> None:
         ks = KeyStore()
-        auth = AuthContext(key="K", name="n", permissions=[])
-        assert ks.has_permission(auth, "GET", "/x") is False
+        auth = AuthContext(key="K", name="n", tokens=frozenset({"visitors:review"}))
+        assert ks.has_token(auth, "visitors:review") is True
+        assert ks.has_token(auth, "rooms:read") is False
 
 
 class TestKeyStoreFromSettings:
@@ -118,16 +125,22 @@ class TestKeyStoreFromSettings:
         s = Settings.from_dict(
             {
                 "auth": {
-                    "api_keys": [{"key": "K", "name": "n", "permissions": ["*"]}],
-                    "device_keys": [{"key": "DEV", "name": "d"}],
-                    "permission_map": {"r:read": ["GET /r"]},
+                    "api_keys": [{"key": "K", "name": "n", "roles": ["reader"]}],
+                    "device_keys": [{"key": "DEV", "name": "d", "roles": ["device"]}],
+                    "roles": {
+                        "reader": ["rooms:read"],
+                        "device": ["device.recamera:ingest"],
+                    },
                 }
             }
         )
         ks = KeyStore.from_settings(s)
-        assert ks.resolve("K").name == "n"
+        ctx = ks.resolve("K")
+        assert ctx.name == "n"
+        assert ctx.roles == ["reader"]
+        assert ks.has_token(ctx, "rooms:read") is True
+        assert ks.has_token(ctx, "rooms:write") is False
         assert ks.resolve("DEV").name == "d"
-        assert ks.expand_permissions(["r:read"]) == ["GET /r"]
 
     def test_empty_settings_produces_empty_store(self) -> None:
         ks = KeyStore.from_settings(Settings.from_dict({}))
@@ -143,13 +156,8 @@ def stub_keystore(monkeypatch: pytest.MonkeyPatch) -> KeyStore:
     """Install a fresh KeyStore as the module-level default."""
     ks = KeyStore(
         api_keys=[
-            {"key": "ADMIN", "name": "admin", "permissions": ["*"], "roles": ["admin"]},
-            {
-                "key": "READER",
-                "name": "reader",
-                "permissions": ["GET /rooms*"],
-                "roles": ["reader"],
-            },
+            {"key": "ADMIN", "name": "admin", "roles": ["admin"]},
+            {"key": "READER", "name": "reader", "roles": ["reader"]},
         ],
         device_keys=[{"key": "DEVICE01", "name": "cam", "sensor_id": "s1", "roles": ["device"]}],
         roles={
@@ -213,7 +221,7 @@ class TestGetAuthContextIntegration:
         assert r.json() == {"as": "admin"}
 
     def test_query_param_key_rejected_on_default_resolver(self, stub_keystore: KeyStore) -> None:
-        """M16: keys in query strings leak into access logs and browser history."""
+        """Keys in query strings leak into access logs and browser history."""
         client = TestClient(_make_app())
         r = client.get("/rooms?api_key=ADMIN")
         assert r.status_code == 401
@@ -238,9 +246,7 @@ class TestGetAuthContextIntegration:
         r = client.get("/rooms", headers={"X-API-Key": "READER"})
         assert r.status_code == 200
 
-    def test_reader_denied_on_non_rooms(
-        self, stub_keystore: KeyStore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_reader_denied_on_non_rooms(self, stub_keystore: KeyStore) -> None:
         app = FastAPI()
         from backend.core.exceptions import register_exception_handlers
 
@@ -291,66 +297,71 @@ class TestGetAuthContextIntegration:
             content=b"not json",
             headers={"Content-Type": "application/json"},
         )
-        # Missing key → 401, NOT 500.
         assert r.status_code == 401
 
 
-# ─── Declared-token startup contract  ────────────────────────────────
+# ─── Declared-token startup contract & D4 grammar ─────────────────────────
 
 
 class TestAssertDeclaredTokensKnown:
-    def test_unknown_token_raises_and_names_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"rooms:read", "totally:bogus"})
-        ks = KeyStore(permission_map={"rooms:read": ["GET /rooms*"]})
-        with pytest.raises(RuntimeError, match="totally:bogus"):
+    def test_unknown_d4_token_raises_and_names_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"rooms:read", "totally:read"})
+        ks = KeyStore(roles={"caregiver": ["rooms:read"]})
+        with pytest.raises(RuntimeError, match="totally:read"):
             assert_declared_tokens_known(ks)
 
-    def test_known_tokens_pass(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"rooms:read"})
-        ks = KeyStore(permission_map={"rooms:read": ["GET /rooms*"]})
-        assert_declared_tokens_known(ks)  # does not raise
-
-    def test_token_granted_only_as_a_role_value_is_known(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """auth.yaml grants require_token names as role values, not map keys."""
-        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"cts.view"})
-        ks = KeyStore(permission_map={"caregiver": ["cts.view"]})
-        assert_declared_tokens_known(ks)
-
-    def test_literal_path_patterns_need_no_definition(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_non_d4_declared_token_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"GET /api/v1/rooms"})
-        assert_declared_tokens_known(KeyStore(permission_map={}))
+        ks = KeyStore(roles={"caregiver": ["rooms:read"]})
+        with pytest.raises(RuntimeError, match="D4 grammar"):
+            assert_declared_tokens_known(ks)
+
+    def test_non_d4_configured_role_token_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"rooms:read"})
+        ks = KeyStore(roles={"caregiver": ["rooms:read", "wearables:manage"]})
+        with pytest.raises(RuntimeError, match="wearables:manage"):
+            assert_declared_tokens_known(ks)
+
+    def test_unknown_key_role_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"rooms:read"})
+        ks = KeyStore(
+            api_keys=[{"key": "K", "name": "BadKey", "roles": ["no_such_role"]}],
+            roles={"caregiver": ["rooms:read"]},
+        )
+        with pytest.raises(RuntimeError, match="no_such_role"):
+            assert_declared_tokens_known(ks)
+
+    def test_known_d4_tokens_pass(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"rooms:read"})
+        ks = KeyStore(roles={"caregiver": ["rooms:read"]})
+        assert_declared_tokens_known(ks)
 
     def test_declaring_a_token_registers_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", set())
-        require_permission("some:token")
-        require_token("other:token")
-        assert {"some:token", "other:token"} <= auth_module._DECLARED_TOKENS
+        require_permission("some:read")
+        assert "some:read" in auth_module._DECLARED_TOKENS
+
+    def test_d4_grammar_canary(self) -> None:
+        assert is_valid_d4_token("rooms:read")
+        assert is_valid_d4_token("cts.signals:acknowledge")
+        assert not is_valid_d4_token("admin")
+        assert not is_valid_d4_token("cts.cameras.read")
+        assert not is_valid_d4_token("GET /api/v1/rooms")
+        assert "manage" not in ALLOWED_ACTIONS
 
 
-# ─── Checker marker + resolver plumbing  ─────────────────────────────
+# ─── Checker marker + resolver plumbing ───────────────────────────────────
 
 
 class TestCheckerMarker:
-    """_DECLARED_TOKENS is process-global: isolate it so declaring throwaway
-    tokens here cannot leak into the real-app startup contract asserted by
-    tests/routers/test_route_auth_coverage.py."""
-
     @pytest.fixture(autouse=True)
     def _isolate_declared_tokens(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", set())
 
-    def test_both_factories_mark_their_checker(self) -> None:
-        for checker in (require_permission("rooms:read"), require_token("rooms:read")):
-            assert getattr(checker, "__cc_auth_checker__", False) is True
-
-    def test_marker_records_declared_tokens(self) -> None:
-        checker = require_permission("a:b", "c:d")
-        assert checker.__cc_auth_tokens__ == ("a:b", "c:d")
-        assert checker.__cc_auth_kind__ == "permission"
+    def test_factory_marks_checker_and_records_tokens(self) -> None:
+        checker = require_permission("rooms:read")
+        assert getattr(checker, "__cc_auth_checker__", False) is True
+        assert checker.__cc_auth_tokens__ == ("rooms:read",)
 
 
 class TestResolverPlumbing:
@@ -379,13 +390,8 @@ class TestResolverPlumbing:
         client = TestClient(self._app(dep))
         assert client.post("/thing?api_key=ADMIN").status_code == 200
 
-    def test_require_token_device_resolver_accepts_query(self, stub_keystore: KeyStore) -> None:
-        dep = require_token("*", resolver=get_auth_context_device)
-        client = TestClient(self._app(dep))
-        assert client.post("/thing?api_key=ADMIN").status_code == 200
 
-
-# ─── Denial logging  ─────────────────────────────────────────────────
+# ─── Denial logging ───────────────────────────────────────────────────────
 
 
 class TestAuthDeniedLogging:

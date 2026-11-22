@@ -170,7 +170,7 @@ changing any review surface, visitor endpoint, face calibration route, or protot
 
 Every review, correction, visitor, or approval action records its actor with
 `actor_from_auth(auth)` (`backend/core/auth.py`) on the `AuthContext` the route received from
-`require_permission` or `require_token`: the API key's name. Never read `request.state`, never
+`require_permission`: the API key's name. Never read `request.state`, never
 accept an actor from the request body, and never fall back to a placeholder such as "system".
 
 ## Identity setup readiness

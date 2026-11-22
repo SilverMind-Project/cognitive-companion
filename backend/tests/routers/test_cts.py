@@ -36,8 +36,8 @@ def _make_app(cts_enabled: bool = True) -> FastAPI:
 
     # Inject an in-memory KeyStore that grants all CTS permissions to "testkey".
     store = KeyStore(
-        api_keys=[{"key": "testkey", "name": "Test", "permissions": ["admin"]}],
-        permission_map={"admin": ["*"]},
+        api_keys=[{"key": "testkey", "name": "Test", "roles": ["admin"]}],
+        roles={"admin": ["*"]},
     )
     from backend.core import auth as auth_module
 

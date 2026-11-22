@@ -91,9 +91,9 @@ line; the detail, examples, and rationale live in `reference/`. Frontend UI rule
 
 ## API and security
 
-24. Every route has `response_model` (unless 204), a unique `(path, method)`, and
-    `require_permission`. New routes use a `<resource>:<action>` token (decision D4), defined in
-    `config/auth.yaml` and granted to a role; add a 403 test (`reference/api-and-security.md`).
+24. Every route has `response_model` (unless 204), a unique `(path, method)`, and declares one
+    D4 `<resource>:<action>` token via `require_permission`; roles are token sets in
+    `config/auth.yaml`; add a 403 test (`reference/api-and-security.md`).
 25. Keys come from the `X-API-Key` header; only device endpoints (`get_auth_context_device`)
     accept a query or body key.
 26. List endpoints that can grow paginate server-side and return `{items, total}`.

@@ -114,31 +114,31 @@ Commit `frontend/openapi.json` and the regenerated `frontend/src/generated/api-t
 this fails the build. The frontend type diff is part of your change's review surface: read it,
 because it is what the browser will actually be compiled against.
 
-### 6. Add the auth.yaml permission entry
+### 6. Add the auth.yaml permission token
 
-Every new endpoint needs coverage in `config/auth.yaml`. The file has two layers:
+Every new endpoint declares exactly one D4 `<resource>:<action>` token via `require_permission("my_resource:read")`, where `<action>` is in the closed `ALLOWED_ACTIONS` set in `backend/core/auth.py` (`read`, `write`, `delete`, `execute`, `import`, `acknowledge`, `propose`, `correct`, `calibrate`, `review`, `takeover`, `act`, `ingest`, `heartbeat`). Roles are token sets defined under `roles:` in `config/auth.yaml` (no URL globs, no role names in code):
 
 ```yaml
 # config/auth.yaml
-permission_map:
-  "my_resource:read":
-    - "GET /api/v1/my-resource/*"
-
+roles:
   caregiver:
     - "my_resource:read"
+  admin:
+    - "*"
+    - "my_resource:write"
 ```
 
-Use the permission token in `require_permission("my_resource:read")`; new tokens use the `<resource>:<action>` form (program decision D4). Legacy `"METHOD /path"` tokens still exist; for one of those, add that exact pattern to the intended role. Verify both the token definition and role assignment. Add a focused router test that expects `403` without the permission and success with it. `backend/tests/routers/test_route_auth_coverage.py` proves every route carries a permission and every named token exists in `auth.yaml`; `backend/tests/core/test_auth.py` covers expansion mechanics.
+Every declared token must appear explicitly in at least one role in `config/auth.yaml` (list admin-only tokens under `admin:` alongside `"*"`) and re-run `uv run --project backend python backend/scripts/export_route_permissions.py` to keep `docs/api/permissions.md` current. Add a focused router test expecting `403` without the token and `200`/`201` with it. `backend/tests/routers/test_route_auth_coverage.py` proves every guarded route carries one D4 token and every token is listed on at least one role; `backend/tests/core/test_auth.py` covers `KeyStore` membership and startup checks.
 
 ### 7. Add the MCP tool
 
-Add a `@_register(token=...)` decorated function in `backend/mcp/server.py`. It calls the same service function; it does not import a repository or run a query. The `token` keyword is mandatory (registration without it is a `TypeError`): read tools use `TOOLS_READ` (`mcp.tools:read`); a tool that changes state gets its own `<resource>:<action>` token, defined in `config/auth.yaml` and granted to the roles that may call it. `MCPAuthMiddleware` enforces the token on every HTTP `tools/call`, so a read-only key can never reach a mutation:
+Add a `@_register(token=...)` decorated function in `backend/mcp/server.py`. It calls the same service function; it does not import a repository or run a query. The `token` keyword is mandatory (registration without it is a `TypeError`): a read tool with an HTTP router twin takes that twin's exact D4 token (and grants it to `mcp_readonly` if it is a pure `:read` token); a read tool with no HTTP twin uses `TOOLS_READ` (`mcp.tools:read`); a tool that changes state declares its own D4 `<resource>:<action>` token in `config/auth.yaml` and grants it only to the roles that may call it. `MCPAuthMiddleware` requires `mcp.tools:read` to reach `/mcp` and enforces the tool's token on every HTTP `tools/call`, so a read-only key can never reach a mutation:
 
 ```python
-@_register(token=TOOLS_READ)
+@_register(token="my_resource:read")
 async def get_my_resource(resource_id: str) -> dict:
     """Get a my-resource envelope by ID."""
-    svc: MyService = request.app.state.my_service
+    svc: MyService = _svc.my_service
     if svc is None:
         return {"error": "service unavailable"}
     env = await svc.get_my_resource(resource_id)

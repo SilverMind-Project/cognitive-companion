@@ -279,7 +279,7 @@ def test_lifespan_wires_exactly_the_frozen_app_state_attributes(
     original_declared_tokens = set(auth_module._DECLARED_TOKENS)
     known_tokens = auth_module._ensure_keystore().known_tokens()
     auth_module._DECLARED_TOKENS.intersection_update(
-        t for t in original_declared_tokens if " " in t or t in known_tokens
+        t for t in original_declared_tokens if t in known_tokens
     )
 
     try:

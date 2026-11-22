@@ -36,11 +36,13 @@ llm:
 api_keys:
   - key: KEY1
     name: admin
-    permissions:
-      - "*"
-permission_map:
-  rooms:read:
-    - GET /rooms
+    roles:
+      - admin
+roles:
+  admin:
+    - "*"
+  reader:
+    - rooms:read
 """
     )
     (tmp_path / "notifications.yaml").write_text(
@@ -121,7 +123,7 @@ class TestLoadFromYaml:
     def test_auth_namespaced_under_auth_key(self, config_dir: Path) -> None:
         s = Settings(config_dir=config_dir, env={})
         assert s.get("auth.api_keys")[0]["key"] == "KEY1"
-        assert s.get("auth.permission_map.rooms:read") == ["GET /rooms"]
+        assert s.get("auth.roles.reader") == ["rooms:read"]
 
     def test_notifications_namespaced(self, config_dir: Path) -> None:
         s = Settings(config_dir=config_dir, env={})

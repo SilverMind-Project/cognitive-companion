@@ -22,7 +22,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend.core.auth import AuthContext, actor_from_auth, require_token
+from backend.core.auth import AuthContext, actor_from_auth, require_permission
 from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
@@ -73,7 +73,7 @@ async def list_clusters(
     status: str | None = None,
     svc: VisitorAdminService = Depends(get_visitor_admin_service),
     minio: MinioClient = Depends(get_config_minio_client),
-    _auth=Depends(require_token(_VISITORS_REVIEW)),
+    _auth=Depends(require_permission(_VISITORS_REVIEW)),
 ) -> VisitorClusterListResponse:
     try:
         return await svc.list_clusters(status=status, presign=_presigner(minio))
@@ -86,7 +86,7 @@ async def get_cluster(
     cluster_id: str,
     svc: VisitorAdminService = Depends(get_visitor_admin_service),
     minio: MinioClient = Depends(get_config_minio_client),
-    _auth=Depends(require_token(_VISITORS_REVIEW)),
+    _auth=Depends(require_permission(_VISITORS_REVIEW)),
 ) -> VisitorClusterDetailView:
     try:
         return await svc.get_cluster(cluster_id, presign=_presigner(minio))
@@ -100,7 +100,7 @@ async def name_cluster(
     body: NameVisitorRequest,
     db: Session = Depends(get_db),
     svc: VisitorAdminService = Depends(get_visitor_admin_service),
-    auth: AuthContext = Depends(require_token(_VISITORS_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_VISITORS_REVIEW)),
 ) -> NameVisitorResponse:
     try:
         result = await svc.name_cluster(cluster_id, person_id=body.person_id, name=body.name, db=db)
@@ -135,7 +135,7 @@ async def name_cluster(
 async def review_clusters(
     body: VisitorReviewRequest,
     registry: IdentityReviewRegistry = Depends(get_identity_review_registry),
-    auth: AuthContext = Depends(require_token(_VISITORS_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_VISITORS_REVIEW)),
 ) -> BatchReviewResponse:
     """Say who several clusters are: an existing member (attribute) or nobody (dismiss).
 
@@ -169,7 +169,7 @@ async def merge_clusters(
     cluster_b: str,
     svc: VisitorAdminService = Depends(get_visitor_admin_service),
     minio: MinioClient = Depends(get_config_minio_client),
-    auth: AuthContext = Depends(require_token(_VISITORS_REVIEW)),
+    auth: AuthContext = Depends(require_permission(_VISITORS_REVIEW)),
 ) -> VisitorClusterView:
     try:
         result = await svc.merge_clusters(cluster_a, cluster_b, presign=_presigner(minio))

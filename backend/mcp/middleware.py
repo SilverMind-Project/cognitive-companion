@@ -15,7 +15,7 @@ import json
 from collections.abc import Awaitable, Callable, MutableMapping
 from typing import Any
 
-from backend.core.auth import AuthContext, _resolve_key, has_role_token
+from backend.core.auth import AuthContext, _resolve_key, has_token
 from backend.core.exceptions import AuthenticationError
 from backend.core.logging import get_logger
 
@@ -70,7 +70,7 @@ class MCPAuthMiddleware:
             await self._send_error(send, 401, "Invalid API key")
             return
 
-        if not has_role_token(auth, self._read_token):
+        if not has_token(auth, self._read_token):
             await self._send_error(send, 403, "Insufficient permissions")
             return
 
@@ -111,7 +111,7 @@ class MCPAuthMiddleware:
             token = self._tool_token(name) if isinstance(name, str) else None
             if token is None:
                 return 404, _RPC_UNKNOWN_TOOL, f"Unknown tool: {name}", str(name)
-            if not has_role_token(auth, token):
+            if not has_token(auth, token):
                 return 403, _RPC_FORBIDDEN, f"Insufficient permissions for tool: {name}", name
         return None
 

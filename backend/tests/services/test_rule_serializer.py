@@ -1,4 +1,5 @@
 """Tests for rule serialization/deserialization."""
+from __future__ import annotations
 
 from datetime import UTC, datetime
 

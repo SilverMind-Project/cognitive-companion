@@ -1,4 +1,5 @@
 """Tests for the plugin migration infrastructure."""
+from __future__ import annotations
 
 import pytest
 

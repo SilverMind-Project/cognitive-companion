@@ -59,7 +59,7 @@ def _get_store(request: Request) -> SignalStore:
 
 
 # ---------------------------------------------------------------------------
-# GET /cts/signals/{signal_id}/evidence
+# Signal evidence endpoint
 # ---------------------------------------------------------------------------
 
 

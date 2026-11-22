@@ -3,6 +3,7 @@
 Revision ID: 0008_rf_node_firmware_version
 Revises: 0007_household_member_height_cm
 """
+from __future__ import annotations
 
 from collections.abc import Sequence
 

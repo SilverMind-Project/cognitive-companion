@@ -3,6 +3,7 @@
 Revision ID: 0002_medication_schedule
 Revises: 0001_baseline
 """
+from __future__ import annotations
 
 from collections.abc import Sequence
 

@@ -1,4 +1,5 @@
 """Re-export all ORM models so that `import backend.models` registers them with Base."""
+from __future__ import annotations
 
 from backend.models.companion_surface import CompanionSurface
 from backend.models.conversation import ConversationSession, ConversationTurn

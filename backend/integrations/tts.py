@@ -95,7 +95,7 @@ class TTSClient:
 
         try:
             async with httpx.AsyncClient(timeout=30) as client:
-                logger.info(f"TTS Payload: {payload}")
+                logger.info("tts_generate_request", payload=payload)
                 resp = await client.post(
                     f"{self.base_url}/audio/speech",
                     json=payload,

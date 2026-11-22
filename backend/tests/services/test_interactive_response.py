@@ -286,7 +286,7 @@ async def test_record_response_duplicate(
 
 
 # ---------------------------------------------------------------------------
-# record_response() - validation
+# Tests for record_response validation
 # ---------------------------------------------------------------------------
 
 
@@ -375,7 +375,7 @@ async def test_record_response_invalid_timestamp(
             step_id=456,
             channel="pwa_popup_text",
             action="escalate",
-            timestamp="not a datetime",  # type: ignore
+            timestamp="not a datetime",  # type: ignore[arg-type]
             raw_response={},
         )
 
@@ -392,7 +392,7 @@ async def test_record_response_invalid_raw_response(
             channel="pwa_popup_text",
             action="escalate",
             timestamp=datetime.now(UTC),
-            raw_response="not a dict",  # type: ignore
+            raw_response="not a dict",  # type: ignore[arg-type]
         )
 
 
@@ -434,7 +434,7 @@ def test_get_response_not_found(service: InteractiveResponseService) -> None:
 
 
 # ---------------------------------------------------------------------------
-# check_response_exists()
+# Tests for check_response_exists
 # ---------------------------------------------------------------------------
 
 
@@ -494,7 +494,7 @@ async def test_cancel_pending_response_job_not_found(
     def raise_exception(job_id: str) -> None:
         raise Exception("Job not found")
 
-    fake_scheduler.apscheduler.remove_job = raise_exception  # type: ignore
+    fake_scheduler.apscheduler.remove_job = raise_exception  # type: ignore[method-assign]
 
     # Should not raise exception
     await service.cancel_pending_response(execution_id=123, step_id=456)

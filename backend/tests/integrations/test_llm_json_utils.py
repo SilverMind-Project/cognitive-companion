@@ -1,4 +1,5 @@
 """Tests for backend.integrations.llm.json_utils."""
+from __future__ import annotations
 
 from backend.integrations.llm.json_utils import clean_llm_json, parse_llm_json
 

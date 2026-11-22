@@ -36,8 +36,7 @@ class Rule(Base, TimestampMixin):
     # Occupancy duration trigger configuration: {"min_minutes": int}
     occupancy_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    # Telegram command trigger configuration:
-    #   {"command": "/medication", "allowed_chat_ids": ["123456"], "respond_with_ack": true}
+    # Telegram command trigger configuration (command, allowed_chat_ids, respond_with_ack).
     telegram_trigger_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Rate limiting

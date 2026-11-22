@@ -1,4 +1,5 @@
 """Integration tests for knowledge layouts router."""
+from __future__ import annotations
 
 import pytest
 from fastapi import FastAPI

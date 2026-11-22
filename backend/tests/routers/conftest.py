@@ -7,12 +7,9 @@ import pytest
 from backend.core import auth as auth_module
 from backend.core.auth import KeyStore
 
-# the CTS presence routes require cts.presence.view. Modules that build a
-# bare app around those routers opt in with:
-#
-#     pytestmark = pytest.mark.usefixtures("cts_presence_keystore")
-#
-# and send the CTS_PRESENCE_AUTH header on each request.
+# The CTS presence routes require cts.presence.view. Modules that build a bare
+# app around those routers opt in with the ``cts_presence_keystore`` fixture
+# (via pytest.mark.usefixtures) and send the CTS_PRESENCE_AUTH header.
 CTS_PRESENCE_AUTH = {"X-API-Key": "TESTKEY"}
 
 

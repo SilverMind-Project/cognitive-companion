@@ -1,4 +1,5 @@
 """Tests for CTS calibration validation."""
+from __future__ import annotations
 
 from backend.services.cts.calibration_validator import validate_homography
 

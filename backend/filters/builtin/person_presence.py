@@ -71,7 +71,7 @@ class PersonPresenceFilter(ContextFilter):
             return current is None
         if status == "unknown":
             return False
-        # status == "home"
+        # Remaining case: home status check.
         if current is None:
             return False
         if room_name:

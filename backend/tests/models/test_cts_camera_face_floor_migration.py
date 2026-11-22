@@ -44,7 +44,8 @@ def _insert(connection: Connection, camera_id: str, value: float) -> None:
 
 def _floor(connection: Connection, camera_id: str, column: str) -> float | None:
     return connection.execute(
-        text(f"SELECT {column} FROM {TABLE} WHERE id = :id"), {"id": camera_id}
+        text(f"SELECT {column} FROM {TABLE} WHERE id = :id"),  # noqa: S608  # test-only migration helper with constant TABLE and test column names
+        {"id": camera_id},
     ).scalar_one()
 
 

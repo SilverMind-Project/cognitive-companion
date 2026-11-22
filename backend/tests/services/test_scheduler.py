@@ -87,7 +87,7 @@ def _make_cron_trigger(db, rule=None, **kwargs) -> CronTrigger:
 
 
 # ---------------------------------------------------------------------------
-# Scheduler.configure()
+# Tests for Scheduler.configure
 # ---------------------------------------------------------------------------
 
 
@@ -141,7 +141,7 @@ def test_configure_schedules_pending_resumes(
 
 
 # ---------------------------------------------------------------------------
-# Scheduler.reload_rules()
+# Tests for Scheduler.reload_rules
 # ---------------------------------------------------------------------------
 
 
@@ -169,7 +169,7 @@ def test_reload_rules_removes_and_readds(
 
 
 # ---------------------------------------------------------------------------
-# Scheduler.schedule_workflow_resume()
+# Tests for Scheduler.schedule_workflow_resume
 # ---------------------------------------------------------------------------
 
 

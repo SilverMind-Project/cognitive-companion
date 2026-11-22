@@ -288,7 +288,7 @@ class TestPoll:
 
 
 # ---------------------------------------------------------------------------
-# TelegramTriggerService._dispatch  (authorization + routing)
+# Tests for TelegramTriggerService._dispatch (authorization and routing)
 # ---------------------------------------------------------------------------
 
 

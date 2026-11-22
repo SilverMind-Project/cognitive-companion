@@ -200,7 +200,7 @@ async def get_room_occupants(
 
 
 # ---------------------------------------------------------------------------
-# GET /persons/{person_id}/dwell  (unchanged)
+# Current person dwell endpoint (unchanged)
 # ---------------------------------------------------------------------------
 
 
@@ -228,7 +228,7 @@ async def get_person_dwell(
 
 
 # ---------------------------------------------------------------------------
-# POST /persons/{person_id}/location/override  (unchanged)
+# Person location override endpoint (unchanged)
 # ---------------------------------------------------------------------------
 
 

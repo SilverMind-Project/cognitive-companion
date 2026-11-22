@@ -147,15 +147,14 @@ logger.warning("slow_step", step_type=name, elapsed_seconds=elapsed)
 logger.exception("pipeline_failed", execution_id=exec_id)  # includes traceback
 ```
 
-- Never `print()`. Never `logging.getLogger()` directly (use `get_logger()`).
-- Never `from structlog import get_logger`. The project replaced structlog with a stdlib-based
-  ``BoundLogger`` in `backend/core/logging.py` that accepts the same keyword-context API.
-  Always import ``get_logger`` from ``backend.core.logging``.
-- Never printf-style `%s` or `.format()`. Always `key=value` kwargs.
+- Never `print()` (ruff `T20`). Never `logging.getLogger()` or `structlog.get_logger()` (enforced by ruff `TID251`; always use `backend.core.logging.get_logger`).
+- Always `key=value` kwargs: no f-strings in log calls (ruff `G004`), no `.error(..., exc_info=True)` (use `.exception(...)`, ruff `G201`), no printf-style `%s` or `.format()`.
 - Event names are `snake_case` short strings describing what happened.
 - Every integration call that can fail should log at least one event (success or failure).
 
 ## Time and timezone
+
+Timezone-aware datetimes only (enforced by ruff `DTZ`).
 
 ```python
 from datetime import UTC, datetime

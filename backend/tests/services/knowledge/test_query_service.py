@@ -1,4 +1,5 @@
 """Unit tests for KnowledgeQueryService (no DB required)."""
+from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
 

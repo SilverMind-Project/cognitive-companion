@@ -1,4 +1,5 @@
 """Tests for the Lark-based expression grammar and interpreter."""
+from __future__ import annotations
 
 import pytest
 

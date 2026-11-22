@@ -1,4 +1,5 @@
 """Tests for LayoutRegistry."""
+from __future__ import annotations
 
 import tempfile
 from dataclasses import FrozenInstanceError

@@ -5,6 +5,7 @@ testcontainer -- ``db_factory`` is a plain ``MagicMock`` here -- but it lives
 in ``tests/integration/`` and should run under ``make test-integration``
 like the rest of the directory).
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock
 

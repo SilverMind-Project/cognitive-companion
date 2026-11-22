@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { computed } from "vue";
 
+vi.mock("@/services/timezone.js", () => ({ formatDateTime: (v: string) => `FMT:${v}` }));
 vi.mock("@/composables/useChartTheme.js", () => ({
   useChartTheme: () => ({ chartTheme: computed(() => ({})) }),
 }));
@@ -25,7 +26,7 @@ const stubs = {
   "v-text-field": {
     template:
       "<input :value='modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />",
-    props: ["modelValue", "disabled", "label"],
+    props: ["modelValue", "disabled", "label", "hint", "placeholder"],
   },
   "v-select": {
     template:
@@ -54,6 +55,9 @@ const SAMPLE_NODE: RfNodeOut = {
   z_m: 1.2,
   is_active: true,
   placement_residual_m: null,
+  firmware_version: "ESPresense 3.3.2",
+  last_heard_at: "2026-11-21T14:00:00Z",
+  last_heard_age_s: 12.0,
   uwb_address_hex: null,
   uwb_channel: null,
   uwb_preamble_index: null,
@@ -152,5 +156,40 @@ describe("RfNodeFloorPlanCanvas", () => {
     const alert = wrapper.get("[data-test='survey-result-alert']");
     expect(alert.attributes("data-type")).toBe("warning");
     expect(alert.text()).toContain("0.45 m");
+  });
+
+  it("displays firmware_version and formatted last_heard_at for a selected node and submits edits", async () => {
+    const wrapper = mount(RfNodeFloorPlanCanvas, {
+      props: {
+        floorPlanReady: true,
+        floorPlanUrl: "https://example.test/floor.png",
+        floorWidthM: 10,
+        floorHeightM: 8,
+        nodes: [SAMPLE_NODE],
+        rooms: [],
+        saving: false,
+        surveyResult: null,
+        checkingSurvey: false,
+      },
+      global: { stubs },
+    });
+
+    await wrapper.get("[data-test='rf-node-marker-node-lr-1']").trigger("click");
+
+    const fwInput = wrapper.get("[data-test='node-firmware-version']");
+    expect((fwInput.element as HTMLInputElement).value).toBe("ESPresense 3.3.2");
+
+    const lastHeard = wrapper.get("[data-test='node-last-heard']");
+    expect(lastHeard.text()).toContain("FMT:2026-11-21T14:00:00Z");
+
+    await fwInput.setValue("ESPresense 3.3.3");
+    await wrapper.get("[data-test='save-node-btn']").trigger("click");
+
+    const emitted = wrapper.emitted("update-node");
+    expect(emitted).toBeTruthy();
+    expect(emitted?.[0]?.[0]).toBe(SAMPLE_NODE.id);
+    expect((emitted?.[0]?.[1] as { firmware_version?: string | null }).firmware_version).toBe(
+      "ESPresense 3.3.3",
+    );
   });
 });

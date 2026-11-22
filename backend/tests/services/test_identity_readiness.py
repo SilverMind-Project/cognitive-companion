@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from cts_contracts import DeviceKind, RangingTechnology, RfNodeRole
 
 from backend.core.upstream_errors import UpstreamUnavailable
 from backend.integrations.person_id_client import (
@@ -14,10 +15,21 @@ from backend.integrations.person_id_client import (
     MemberInfo,
     PersonIDUpstreamError,
 )
+from backend.integrations.rf_ingress_client import RfIngressHealthInfo
 from backend.models.cts_camera import CtsCamera
+from backend.models.household_settings import HouseholdSettings
+from backend.models.person import HouseholdMember
 from backend.models.room import Room
 from backend.schemas.identity_roster import RosterHealthEnvelope, RosterMemberRef
+from backend.schemas.wearables import RfNodeCreate, WearableDeviceCreate
 from backend.services.identity_readiness import IdentityReadinessService
+from backend.services.wearables import (
+    RfNodeService,
+    SqlAlchemyWearableRepository,
+    WearableBindingService,
+    WearableDeviceService,
+    WearableSiteConfigService,
+)
 
 _AT = datetime(2026, 11, 14, 9, 0, tzinfo=UTC)
 
@@ -286,3 +298,90 @@ async def test_recognizer_version_mismatch_blocks_artifact_step(db_factory, hous
     assert "adaface_ir50_webface4m" in artifact.detail
     assert "buffalo_l" in artifact.detail
     assert policy.next_action == "fit_and_deploy_artifact"
+
+
+async def test_wearables_readiness_merges_live_rf_ingress_health(db_factory, household) -> None:
+    with db_factory() as db:
+        db.add(
+            HouseholdSettings(
+                id=1,
+                floor_plan_key="floor-plans/home.png",
+                floor_plan_width=1000,
+                floor_plan_height=800,
+                floor_meters_per_pixel=0.01,
+            )
+        )
+        db.add(HouseholdMember(id="amma", name="Amma"))
+        db.commit()
+
+    repo = SqlAlchemyWearableRepository(db_factory)
+    dev_svc = WearableDeviceService(repo, clock=lambda: _AT)
+    bind_svc = WearableBindingService(repo, clock=lambda: _AT)
+    node_svc = RfNodeService(repo, clock=lambda: _AT)
+    site_svc = WearableSiteConfigService(repo, clock=lambda: _AT)
+
+    node_svc.create_node(
+        RfNodeCreate(
+            anchor_id="living-room",
+            label="Living Room",
+            adapter_id="ble-home",
+            node_role=RfNodeRole.RECEIVER,
+            technology=RangingTechnology.BLE_RSSI,
+            x_norm=0.2,
+            y_norm=0.2,
+            z_m=1.2,
+        ),
+        actor="Admin",
+    )
+    node_svc.create_node(
+        RfNodeCreate(
+            anchor_id="kitchen",
+            label="Kitchen",
+            adapter_id="ble-home",
+            node_role=RfNodeRole.RECEIVER,
+            technology=RangingTechnology.BLE_RSSI,
+            x_norm=0.8,
+            y_norm=0.2,
+            z_m=1.2,
+        ),
+        actor="Admin",
+    )
+    dev = dev_svc.create_device(
+        WearableDeviceCreate(
+            tag_id="senior-band",
+            device_kind=DeviceKind.BLE_BEACON,
+            label="Senior band",
+            adapter_id="ble-home",
+            hardware_key="iBeacon:abc-1-2",
+        ),
+        actor="Admin",
+    )
+    bind_svc.bind(dev.id, "amma", consent_recorded_by="Caregiver", created_by="Admin", at=_AT)
+
+    class _FakeRfIngress:
+        configured = True
+
+        async def get_health(self) -> RfIngressHealthInfo:
+            return RfIngressHealthInfo(
+                status="ok",
+                node_last_seen_age_s={"living-room": 15.0, "kitchen": 420.0},
+                tag_last_seen_age_s={"senior-band": 8.0},
+                tag_battery_fraction={"senior-band": 0.42},
+            )
+
+    svc = IdentityReadinessService(
+        roster=_Roster(),  # type: ignore[arg-type]
+        person_id=_PersonID(),  # type: ignore[arg-type]
+        session_factory=db_factory,
+        orchestrator=_Orchestrator(_CTS_BODY),  # type: ignore[arg-type]
+        ingress=_Ingress({"hall": 0.4, "kitchen": 0.9}),  # type: ignore[arg-type]
+        wearables=site_svc,
+        rf_ingress=_FakeRfIngress(),  # type: ignore[arg-type]
+        clock=lambda: _AT,
+    )
+    envelope = await svc.get_readiness()
+    step = next(s for s in envelope.steps if s.key == "wearables")
+    assert step.state == "ready"
+    assert "1 of 2 RF nodes heard in the last 5 minutes" in step.detail
+    assert "1 of 1 tag heard" in step.detail
+    assert "lowest beacon battery 42%" in step.detail

@@ -31,6 +31,11 @@ class WearablesReadinessSnapshot:
     active_binding_count: int
     low_battery_count: int
     last_heard_age_s: float | None
+    active_node_anchor_ids: tuple[str, ...] = ()
+    active_device_tag_ids: tuple[str, ...] = ()
+    device_heard_tag_ids: tuple[str, ...] = ()
+    device_battery_by_tag_id: tuple[tuple[str, float], ...] = ()
+    lowest_battery_fraction: float | None = None
 
 
 class WearableSiteConfigService:
@@ -137,12 +142,14 @@ class WearableSiteConfigService:
             active_bindings = self._repo.list_all_bindings(
                 db, active_only=True, non_null_member_only=True
             )
-            low_battery = sum(
-                1
+            batteries = [
+                (d.tag_id, float(d.last_battery_fraction))
                 for d in active_devices
                 if d.last_battery_fraction is not None
-                and d.last_battery_fraction < LOW_BATTERY_THRESHOLD
-            )
+            ]
+            low_battery = sum(1 for _, frac in batteries if frac < LOW_BATTERY_THRESHOLD)
+            lowest_battery = min((frac for _, frac in batteries), default=None)
+            heard_tags = tuple(d.tag_id for d in active_devices if d.last_heard_at is not None)
             heard_times = [
                 d.last_heard_at.astimezone(UTC)
                 for d in active_devices
@@ -158,4 +165,9 @@ class WearableSiteConfigService:
                 active_binding_count=len(active_bindings),
                 low_battery_count=low_battery,
                 last_heard_age_s=last_age_s,
+                active_node_anchor_ids=tuple(n.anchor_id for n in active_nodes),
+                active_device_tag_ids=tuple(d.tag_id for d in active_devices),
+                device_heard_tag_ids=heard_tags,
+                device_battery_by_tag_id=tuple(batteries),
+                lowest_battery_fraction=lowest_battery,
             )

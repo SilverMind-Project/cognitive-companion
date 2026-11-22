@@ -23,6 +23,7 @@ from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError
 from backend.integrations.ingress_admin_client import IngressAdminClient
 from backend.integrations.person_id_client import PersonIDClient, PersonIDUpstreamError
+from backend.integrations.rf_ingress_client import RfIngressClient, RfIngressHealthInfo
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.models.cts_camera import CtsCamera
 from backend.models.cts_dashboard import CtsCameraOverlapGroup
@@ -31,6 +32,7 @@ from backend.models.room import Room
 from backend.schemas.identity_readiness import CTSIdentityReadiness, IdentityReadinessEnvelope
 from backend.services.identity_readiness_rules import (
     ARTIFACT_READY,
+    RF_NODE_HEARD_WINDOW_S,
     CameraConfig,
     HouseholdFloorFrame,
     IngestHealth,
@@ -50,7 +52,10 @@ from backend.services.identity_readiness_rules import (
     wearables_step,
 )
 from backend.services.identity_roster import RosterHealthService
-from backend.services.wearables.site_config_service import WearableSiteConfigService
+from backend.services.wearables.site_config_service import (
+    LOW_BATTERY_THRESHOLD,
+    WearableSiteConfigService,
+)
 
 logger = get_logger(__name__)
 
@@ -73,6 +78,7 @@ class IdentityReadinessService:
         orchestrator: OrchestratorClient | None,
         ingress: IngressAdminClient | None,
         wearables: WearableSiteConfigService | None = None,
+        rf_ingress: RfIngressClient | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._roster = roster
@@ -81,18 +87,19 @@ class IdentityReadinessService:
         self._orchestrator = orchestrator
         self._ingress = ingress
         self._wearables = wearables
+        self._rf_ingress = rf_ingress
         self._clock = clock
 
     async def get_readiness(self) -> IdentityReadinessEnvelope:
         household = self._household_floor_frame()
-        wearables = self._wearables_health()
-        roster, summary, health, members, cts, ingest = await asyncio.gather(
+        roster, summary, health, members, cts, ingest, wearables = await asyncio.gather(
             _attempt("person identification", self._roster.get_roster_health()),
             _attempt("person identification", self._person_id.get_calibration_summary()),
             _attempt("person identification", self._person_id.get_calibration_health()),
             _attempt("person identification", self._person_id.list_members()),
             self._cts_readiness(),
             self._ingest_health([c.camera_id for c in household.cameras]),
+            self._wearables_health(),
         )
         recognizer_mismatch = (
             not isinstance(health, SourceFailure)
@@ -130,7 +137,7 @@ class IdentityReadinessService:
             checked_at=self._clock(),
         )
 
-    def _wearables_health(self) -> WearablesHealth | SourceFailure:
+    async def _wearables_health(self) -> WearablesHealth | SourceFailure:
         if self._wearables is None:
             return WearablesHealth(
                 active_node_count=0,
@@ -140,12 +147,54 @@ class IdentityReadinessService:
                 last_heard_age_s=None,
             )
         snap = self._wearables.readiness_snapshot()
+        nodes_heard_recent: int | None = None
+        rf_unreachable = False
+        heard_tags = set(snap.device_heard_tag_ids)
+        battery_by_tag: dict[str, float] = dict(snap.device_battery_by_tag_id)
+        last_heard_age_s = snap.last_heard_age_s
+
+        if (
+            self._rf_ingress is not None
+            and self._rf_ingress.configured
+            and (snap.active_node_count > 0 or snap.active_device_count > 0)
+        ):
+            live = await _attempt("rf ingress", self._rf_ingress.get_health())
+            if isinstance(live, RfIngressHealthInfo):
+                nodes_heard_recent = sum(
+                    1
+                    for anchor_id in snap.active_node_anchor_ids
+                    if (age := live.node_last_seen_age_s.get(anchor_id)) is not None
+                    and age <= RF_NODE_HEARD_WINDOW_S
+                )
+                active_tag_set = set(snap.active_device_tag_ids)
+                for tag_id, age in live.tag_last_seen_age_s.items():
+                    if tag_id in active_tag_set:
+                        heard_tags.add(tag_id)
+                        if last_heard_age_s is None or age < last_heard_age_s:
+                            last_heard_age_s = age
+                for tag_id, frac in live.tag_battery_fraction.items():
+                    if tag_id in active_tag_set:
+                        battery_by_tag[tag_id] = frac
+            else:
+                rf_unreachable = True
+
+        lowest_battery = min(battery_by_tag.values(), default=None)
+        low_battery_count = sum(
+            1 for frac in battery_by_tag.values() if frac < LOW_BATTERY_THRESHOLD
+        )
+        tags_heard_count: int | None = (
+            len(heard_tags) if (nodes_heard_recent is not None or heard_tags) else None
+        )
         return WearablesHealth(
             active_node_count=snap.active_node_count,
             active_device_count=snap.active_device_count,
             active_binding_count=snap.active_binding_count,
-            low_battery_count=snap.low_battery_count,
-            last_heard_age_s=snap.last_heard_age_s,
+            low_battery_count=low_battery_count,
+            last_heard_age_s=last_heard_age_s,
+            nodes_heard_recent_count=nodes_heard_recent,
+            tags_heard_count=tags_heard_count,
+            lowest_battery_fraction=lowest_battery,
+            rf_ingress_unreachable=rf_unreachable,
         )
 
     async def _cts_readiness(self) -> CTSIdentityReadiness | SourceFailure:

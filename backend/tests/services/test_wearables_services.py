@@ -8,12 +8,14 @@ import pytest
 from cts_contracts import DeviceKind, RangingTechnology, RfNodeRole
 
 from backend.core.exceptions import ConflictError, ValidationError
+from backend.integrations.rf_ingress_client import RfIngressHealthInfo
 from backend.models.household_settings import HouseholdSettings
 from backend.models.person import HouseholdMember
 from backend.models.room import Room
 from backend.schemas.wearables import (
     RfNodeCreate,
     RfNodeSurveyCheckRequest,
+    RfNodeUpdate,
     SurveyDistanceMeasurement,
     WearableDeviceCreate,
     WearableDeviceUpdate,
@@ -251,8 +253,12 @@ def test_rf_nodes_site_config_matches_room_polygon_conversion_and_survey_check(d
             y_norm=0.5,
             z_m=1.2,
             measurements=[
-                SurveyDistanceMeasurement(reference_kind="wall", reference_id="left", measured_m=2.55),
-                SurveyDistanceMeasurement(reference_kind="wall", reference_id="top", measured_m=3.95),
+                SurveyDistanceMeasurement(
+                    reference_kind="wall", reference_id="left", measured_m=2.55
+                ),
+                SurveyDistanceMeasurement(
+                    reference_kind="wall", reference_id="top", measured_m=3.95
+                ),
             ],
         )
     )
@@ -265,7 +271,9 @@ def test_rf_nodes_site_config_matches_room_polygon_conversion_and_survey_check(d
             y_norm=0.5,
             z_m=1.2,
             measurements=[
-                SurveyDistanceMeasurement(reference_kind="wall", reference_id="left", measured_m=3.1),
+                SurveyDistanceMeasurement(
+                    reference_kind="wall", reference_id="left", measured_m=3.1
+                ),
                 SurveyDistanceMeasurement(
                     reference_kind="node", reference_id="node-lr-uwb", measured_m=5.06
                 ),
@@ -326,9 +334,103 @@ def test_device_deactivation_and_wearables_readiness_rules(db_factory) -> None:
     assert empty_step.optional is True
 
     low_batt_step = wearables_step(
-        WearablesHealth(active_node_count=2, active_device_count=1, active_binding_count=1, low_battery_count=1, last_heard_age_s=12.0),
+        WearablesHealth(
+            active_node_count=2,
+            active_device_count=1,
+            active_binding_count=1,
+            low_battery_count=1,
+            last_heard_age_s=12.0,
+        ),
         has_floor_plan_and_scale=True,
     )
     assert low_batt_step.state == "attention"
     assert low_batt_step.next_action == "configure_wearables"
     assert low_batt_step.optional is True
+
+
+async def test_rf_node_firmware_version_and_live_last_heard(db_factory) -> None:
+    room_id = _seed_floor_plan_and_members(db_factory)
+    t0 = datetime(2026, 11, 21, 14, 0, tzinfo=UTC)
+
+    class _FakeRfIngress:
+        configured = True
+
+        async def get_health(self):
+            return RfIngressHealthInfo(
+                status="ok",
+                node_last_seen_age_s={"node-lr-ble": 12.5},
+                tag_last_seen_age_s={"band-1": 4.0},
+                tag_battery_fraction={"band-1": 0.72},
+            )
+
+    repo = SqlAlchemyWearableRepository(db_factory)
+    node_svc = RfNodeService(repo, rf_ingress=_FakeRfIngress(), clock=lambda: t0)  # type: ignore[arg-type]
+
+    created = node_svc.create_node(
+        RfNodeCreate(
+            anchor_id="node-lr-ble",
+            label="Living Room Receiver",
+            adapter_id="ble-home",
+            node_role=RfNodeRole.RECEIVER,
+            technology=RangingTechnology.BLE_RSSI,
+            room_id=room_id,
+            x_norm=0.25,
+            y_norm=0.5,
+            z_m=1.2,
+            firmware_version="ESPresense 3.3.2",
+        ),
+        actor="Admin",
+    )
+    assert created.firmware_version == "ESPresense 3.3.2"
+
+    live_list = await node_svc.list_nodes_live()
+    assert live_list.total == 1
+    assert live_list.items[0].firmware_version == "ESPresense 3.3.2"
+    assert live_list.items[0].last_heard_age_s == pytest.approx(12.5)
+    assert live_list.items[0].last_heard_at == t0 - timedelta(seconds=12.5)
+
+    live_one = await node_svc.get_node_live(created.id)
+    assert live_one.last_heard_at == t0 - timedelta(seconds=12.5)
+
+    patched = node_svc.update_node(
+        created.id,
+        RfNodeUpdate(firmware_version="ESPresense 3.3.3"),
+        actor="Admin",
+    )
+    assert patched.firmware_version == "ESPresense 3.3.3"
+
+
+def test_wearables_readiness_step_reports_nodes_heard_tags_and_lowest_battery() -> None:
+    healthy = wearables_step(
+        WearablesHealth(
+            active_node_count=4,
+            active_device_count=2,
+            active_binding_count=2,
+            low_battery_count=0,
+            last_heard_age_s=6.0,
+            nodes_heard_recent_count=3,
+            tags_heard_count=2,
+            lowest_battery_fraction=0.64,
+        ),
+        has_floor_plan_and_scale=True,
+    )
+    assert healthy.state == "ready"
+    assert "3 of 4 RF nodes heard in the last 5 minutes" in healthy.detail
+    assert "2 of 2 tags heard" in healthy.detail
+    assert "lowest beacon battery 64%" in healthy.detail
+
+    silent_nodes = wearables_step(
+        WearablesHealth(
+            active_node_count=3,
+            active_device_count=1,
+            active_binding_count=1,
+            low_battery_count=0,
+            last_heard_age_s=None,
+            nodes_heard_recent_count=0,
+            tags_heard_count=0,
+            lowest_battery_fraction=None,
+        ),
+        has_floor_plan_and_scale=True,
+    )
+    assert silent_nodes.state == "attention"
+    assert "0 of 3 RF nodes heard in the last 5 minutes" in silent_nodes.detail

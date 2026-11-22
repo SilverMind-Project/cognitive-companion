@@ -47,6 +47,7 @@ async def wire_cts(
     guided_camera_topology: SensorRoomCameraTopology,
 ) -> CTSRuntime:
     from backend.integrations.ingress_admin_client import IngressAdminClient
+    from backend.integrations.rf_ingress_client import RfIngressClient
     from backend.integrations.tracking_orchestrator_client import OrchestratorClient
     from backend.services.cts.event_bucketizer import BucketizerRateConfig
     from backend.services.cts.ph_enrichment import PHEnrichmentService
@@ -68,6 +69,7 @@ async def wire_cts(
     person_location_service = app.state.person_location_service
 
     app.state.ingress_admin_client = IngressAdminClient()
+    app.state.rf_ingress_client = RfIngressClient()
     app.state.orchestrator_client = OrchestratorClient()
     wire_identity_services(app)
     app.state.ph_enrichment_service = PHEnrichmentService(app.state.orchestrator_client)
@@ -218,7 +220,7 @@ def wire_identity_services(app: FastAPI) -> None:
     wearable_repo = SqlAlchemyWearableRepository(get_session)
     app.state.wearable_device_service = WearableDeviceService(wearable_repo)
     app.state.wearable_binding_service = WearableBindingService(wearable_repo)
-    app.state.rf_node_service = RfNodeService(wearable_repo)
+    app.state.rf_node_service = RfNodeService(wearable_repo, rf_ingress=app.state.rf_ingress_client)
     app.state.wearable_site_config_service = WearableSiteConfigService(wearable_repo)
     app.state.wearable_teaching_revocation_service = WearableTeachingRevocationService(
         wearable_repo, app.state.orchestrator_client
@@ -249,6 +251,7 @@ def wire_identity_services(app: FastAPI) -> None:
         orchestrator=app.state.orchestrator_client,
         ingress=app.state.ingress_admin_client,
         wearables=app.state.wearable_site_config_service,
+        rf_ingress=app.state.rf_ingress_client,
     )
     app.state.identity_readiness_service = service
     _mcp_svc.identity_readiness_service = service
@@ -256,6 +259,7 @@ def wire_identity_services(app: FastAPI) -> None:
 
 def wire_cts_disabled(app: FastAPI) -> None:
     app.state.ingress_admin_client = None
+    app.state.rf_ingress_client = None
     app.state.orchestrator_client = None
     wire_identity_services(app)
     app.state.ph_enrichment_service = None

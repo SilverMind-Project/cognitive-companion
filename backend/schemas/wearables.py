@@ -192,6 +192,7 @@ class RfNodeCreate(BaseModel):
     z_m: float = Field(ge=0.0, le=4.0)
     is_active: bool = True
     placement_residual_m: float | None = Field(default=None, ge=0.0)
+    firmware_version: str | None = Field(default=None, max_length=128)
     uwb_address_hex: str | None = Field(default=None, max_length=8)
     uwb_channel: int | None = None
     uwb_preamble_index: int | None = None
@@ -208,6 +209,14 @@ class RfNodeCreate(BaseModel):
     @classmethod
     def _check_label(cls, v: str) -> str:
         return _validate_non_empty(v, "label")
+
+    @field_validator("firmware_version")
+    @classmethod
+    def _check_firmware_version(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        stripped = v.strip()
+        return stripped or None
 
     @field_validator("uwb_address_hex")
     @classmethod
@@ -256,6 +265,7 @@ class RfNodeUpdate(BaseModel):
     z_m: float | None = Field(default=None, ge=0.0, le=4.0)
     is_active: bool | None = None
     placement_residual_m: float | None = Field(default=None, ge=0.0)
+    firmware_version: str | None = Field(default=None, max_length=128)
     uwb_address_hex: str | None = Field(default=None, max_length=8)
     uwb_channel: int | None = None
     uwb_preamble_index: int | None = None
@@ -276,6 +286,14 @@ class RfNodeUpdate(BaseModel):
         if v is None:
             return None
         return _validate_non_empty(v, "label")
+
+    @field_validator("firmware_version")
+    @classmethod
+    def _check_firmware_version(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        stripped = v.strip()
+        return stripped or None
 
     @field_validator("uwb_address_hex")
     @classmethod
@@ -320,6 +338,9 @@ class RfNodeOut(BaseModel):
     z_m: float
     is_active: bool
     placement_residual_m: float | None
+    firmware_version: str | None = None
+    last_heard_at: datetime | None = None
+    last_heard_age_s: float | None = None
     uwb_address_hex: str | None
     uwb_channel: int | None
     uwb_preamble_index: int | None

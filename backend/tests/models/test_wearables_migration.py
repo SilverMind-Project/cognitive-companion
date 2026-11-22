@@ -17,6 +17,7 @@ from backend.models.person import HouseholdMember
 from backend.models.wearable import RfNode, WearableBinding, WearableDevice
 
 migration = importlib.import_module("backend.alembic.versions.0006_wearables_registry")
+migration_0008 = importlib.import_module("backend.alembic.versions.0008_rf_node_firmware_version")
 
 
 def _run(connection: Connection, step) -> None:
@@ -30,6 +31,25 @@ def _tables(connection: Connection) -> set[str]:
 
 def test_it_follows_cts_camera_ir_capable() -> None:
     assert migration.down_revision == "0005_cts_camera_ir_capable"
+    assert migration_0008.down_revision == "0007_household_member_height_cm"
+
+
+def test_0008_firmware_version_downgrade_and_upgrade_round_trip(db_engine) -> None:
+    with db_engine.connect() as connection:
+        outer = connection.begin()
+        try:
+            cols_before = {c["name"] for c in inspect(connection).get_columns("rf_nodes")}
+            assert "firmware_version" in cols_before
+
+            _run(connection, migration_0008.downgrade)
+            cols_after_down = {c["name"] for c in inspect(connection).get_columns("rf_nodes")}
+            assert "firmware_version" not in cols_after_down
+
+            _run(connection, migration_0008.upgrade)
+            cols_after_up = {c["name"] for c in inspect(connection).get_columns("rf_nodes")}
+            assert "firmware_version" in cols_after_up
+        finally:
+            outer.rollback()
 
 
 def test_downgrade_and_upgrade_round_trip_wearables_registry(db_engine) -> None:
@@ -46,6 +66,7 @@ def test_downgrade_and_upgrade_round_trip_wearables_registry(db_engine) -> None:
 
             _run(connection, migration.upgrade)
             assert {"wearable_devices", "wearable_bindings", "rf_nodes"} <= _tables(connection)
+            _run(connection, migration_0008.upgrade)
 
             # Verify DOUBLE PRECISION columns on rf_nodes (not float4/REAL).
             col_types = {

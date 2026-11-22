@@ -1,6 +1,7 @@
 """Shared mTLS + JWT httpx base for BFF gateway calls.
 
-Only :mod:`backend.integrations.ingress_admin_client` and
+Only :mod:`backend.integrations.ingress_admin_client`,
+:mod:`backend.integrations.rf_ingress_client`, and
 :mod:`backend.integrations.tracking_orchestrator_client` may subclass this.
 All other CC modules that need HTTP must go through one of those clients.
 

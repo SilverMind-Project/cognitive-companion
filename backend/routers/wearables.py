@@ -163,8 +163,8 @@ async def list_rf_nodes(
     svc: RfNodeService = Depends(get_rf_node_service),
     _auth: AuthContext = Depends(require_token("wearables:read")),
 ) -> RfNodeListOut:
-    """List registered fixed RF nodes with floor-plan readiness and metre projections."""
-    return svc.list_nodes(active_only=active_only)
+    """List registered fixed RF nodes with floor-plan readiness, metre projections, and health."""
+    return await svc.list_nodes_live(active_only=active_only)
 
 
 @router.post("/nodes/survey-check", response_model=RfNodeSurveyCheckOut)
@@ -193,8 +193,8 @@ async def get_rf_node(
     svc: RfNodeService = Depends(get_rf_node_service),
     _auth: AuthContext = Depends(require_token("wearables:read")),
 ) -> RfNodeOut:
-    """Fetch a single fixed RF node."""
-    return svc.get_node(node_id)
+    """Fetch a single fixed RF node with live last-heard time when rf-ingress is reachable."""
+    return await svc.get_node_live(node_id)
 
 
 @router.patch("/nodes/{node_id}", response_model=RfNodeOut)

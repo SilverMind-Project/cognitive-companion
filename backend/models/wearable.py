@@ -92,7 +92,10 @@ class WearableBinding(Base):
         ),
         ExcludeConstraint(
             ("device_id", "="),
-            (text("tstzrange(valid_from, COALESCE(valid_to, 'infinity'::timestamptz), '[)')"), "&&"),
+            (
+                text("tstzrange(valid_from, COALESCE(valid_to, 'infinity'::timestamptz), '[)')"),
+                "&&",
+            ),
             name="excl_wearable_bindings_no_overlap",
             using="gist",
         ),
@@ -188,6 +191,7 @@ class RfNode(Base, TimestampMixin):
         Boolean, nullable=False, default=True, server_default=text("TRUE")
     )
     placement_residual_m: Mapped[float | None] = mapped_column(Double, nullable=True)
+    firmware_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
     uwb_address_hex: Mapped[str | None] = mapped_column(String(8), nullable=True)
     uwb_channel: Mapped[int | None] = mapped_column(Integer, nullable=True)
     uwb_preamble_index: Mapped[int | None] = mapped_column(Integer, nullable=True)

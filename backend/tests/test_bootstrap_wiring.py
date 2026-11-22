@@ -122,6 +122,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "realtime_provider",
         "recamera_location_ingest",
         "reid_review_service",
+        "rf_ingress_client",
         "rf_node_service",
         "roster_health_service",
         "scene_analysis_client",
@@ -374,6 +375,7 @@ def test_cts_enabled_registers_reid_review_as_the_third_review_surface() -> None
             person_id_client=MagicMock(),
             orchestrator_client=MagicMock(),
             ingress_admin_client=MagicMock(),
+            rf_ingress_client=None,
             roster_health_service=MagicMock(),
         )
     )

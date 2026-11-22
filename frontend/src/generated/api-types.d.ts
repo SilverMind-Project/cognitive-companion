@@ -5678,7 +5678,7 @@ export interface paths {
         };
         /**
          * List Rf Nodes
-         * @description List registered fixed RF nodes with floor-plan readiness and metre projections.
+         * @description List registered fixed RF nodes with floor-plan readiness, metre projections, and health.
          */
         get: operations["list_rf_nodes"];
         put?: never;
@@ -5722,7 +5722,7 @@ export interface paths {
         };
         /**
          * Get Rf Node
-         * @description Fetch a single fixed RF node.
+         * @description Fetch a single fixed RF node with live last-heard time when rf-ingress is reachable.
          */
         get: operations["get_rf_node"];
         put?: never;
@@ -11302,6 +11302,8 @@ export interface components {
             adapter_id: string;
             /** Anchor Id */
             anchor_id: string;
+            /** Firmware Version */
+            firmware_version?: string | null;
             /**
              * Is Active
              * @default true
@@ -11354,6 +11356,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Firmware Version */
+            firmware_version?: string | null;
             /**
              * Id
              * Format: uuid
@@ -11363,6 +11367,10 @@ export interface components {
             is_active: boolean;
             /** Label */
             label: string;
+            /** Last Heard Age S */
+            last_heard_age_s?: number | null;
+            /** Last Heard At */
+            last_heard_at?: string | null;
             node_role: components["schemas"]["RfNodeRole"];
             /** Placement Residual M */
             placement_residual_m: number | null;
@@ -11455,6 +11463,8 @@ export interface components {
         RfNodeUpdate: {
             /** Adapter Id */
             adapter_id?: string | null;
+            /** Firmware Version */
+            firmware_version?: string | null;
             /** Is Active */
             is_active?: boolean | null;
             /** Label */

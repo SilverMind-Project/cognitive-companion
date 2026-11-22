@@ -28,7 +28,7 @@ router = APIRouter(prefix="/cts", tags=["cts"])
 @router.get("/status")
 async def get_status(
     request: Request,
-    _auth: AuthContext = Depends(require_permission("cts.view")),
+    _auth: AuthContext = Depends(require_permission("cts:read")),
 ) -> dict:
     """Live CTS health snapshot: orchestrator reachability + subscriber states."""
     orch_client: OrchestratorClient | None = getattr(request.app.state, "orchestrator_client", None)
@@ -60,7 +60,7 @@ async def get_status(
 
 @router.get("/features")
 async def get_features(
-    _auth: AuthContext = Depends(require_permission("cts.view")),
+    _auth: AuthContext = Depends(require_permission("cts:read")),
 ) -> dict:
     """Return feature-flag toggles for the frontend to gate UI sections."""
     return {
@@ -74,7 +74,7 @@ async def get_features(
 async def get_frame(
     key: str,
     request: Request,
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:read")),
     minio: MinioClient = Depends(get_minio_client),
 ) -> Response:
     """Proxy a CTS frame JPEG from MinIO.

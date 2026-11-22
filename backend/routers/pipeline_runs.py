@@ -45,7 +45,7 @@ def list_pipeline_runs(
         description="Filter by status; 'active' returns running+waiting executions",
     ),
     limit: int = Query(default=20, ge=1, le=100),
-    _auth: AuthContext = Depends(require_permission("caregiver")),
+    _auth: AuthContext = Depends(require_permission("pipeline.runs:read")),
 ) -> list[PipelineRunEnvelope]:
     """Return pipeline run envelopes, newest first.
 
@@ -62,7 +62,7 @@ def list_pipeline_runs(
 def get_pipeline_run(
     execution_id: int,
     request: Request,
-    _auth: AuthContext = Depends(require_permission("caregiver")),
+    _auth: AuthContext = Depends(require_permission("pipeline.runs:read")),
 ) -> PipelineRunEnvelope:
     """Return the run envelope for a specific execution.
 
@@ -82,7 +82,7 @@ def get_pipeline_run(
 def list_ingest_activity(
     request: Request,
     limit: int = Query(default=50, ge=1, le=200),
-    _auth: AuthContext = Depends(require_permission("caregiver")),
+    _auth: AuthContext = Depends(require_permission("pipeline.runs:read")),
 ) -> list[IngestActivityEnvelope]:
     """Return recent ReCamera ingest + rule-triggered events.
 

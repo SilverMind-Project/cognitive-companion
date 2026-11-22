@@ -23,7 +23,7 @@ def get_media_buffer(
     limit: int = Query(20, ge=1, le=100, description="Maximum camera rows returned"),
     offset: int = Query(0, ge=0, description="Camera rows to skip"),
     service: MediaObservabilityService = Depends(get_media_observability),
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("media:read")),
 ) -> MediaBufferListEnvelope:
     """Return paginated reCamera buffers with retained media."""
     return service.media_buffer(sensor_id=sensor_id, limit=limit, offset=offset)
@@ -38,7 +38,7 @@ def get_aggregators(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     service: MediaObservabilityService = Depends(get_media_observability),
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("media:read")),
 ) -> AggregatorStateListEnvelope:
     """Return live state for both camera aggregators.
 

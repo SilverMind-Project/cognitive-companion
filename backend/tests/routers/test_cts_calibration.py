@@ -97,7 +97,7 @@ def _make_client(
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.state.orchestrator_client = orchestrator
     app.state.ingress_admin_client = ingress

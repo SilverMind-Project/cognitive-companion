@@ -52,7 +52,7 @@ async def get_timeline(
     request: Request,
     since: str | None = Query(default=None, description="ISO-8601 start (default: 24h ago)"),
     until: str | None = Query(default=None, description="ISO-8601 end (default: now)"),
-    _auth=Depends(require_permission("cts.presence.view")),
+    _auth=Depends(require_permission("cts.presence:read")),
 ) -> TimelineResponse:
     cts_enabled()
     svc = _person_location(request)
@@ -151,7 +151,7 @@ async def get_dwells(
     request: Request,
     since: str | None = Query(default=None),
     until: str | None = Query(default=None),
-    _auth=Depends(require_permission("cts.presence.view")),
+    _auth=Depends(require_permission("cts.presence:read")),
 ) -> DwellsResponse:
     cts_enabled()
     svc = _person_location(request)
@@ -190,7 +190,7 @@ async def get_dwells(
 @router.get("/presence/currently_in", response_model=CurrentlyInResponse)
 async def get_currently_in(
     request: Request,
-    _auth=Depends(require_permission("cts.presence.view")),
+    _auth=Depends(require_permission("cts.presence:read")),
 ) -> CurrentlyInResponse:
     cts_enabled()
     svc = _person_location(request)

@@ -1,4 +1,5 @@
 """Integration tests for knowledge document router."""
+
 from __future__ import annotations
 
 from unittest.mock import Mock
@@ -30,7 +31,7 @@ def client(db_factory):
     # Override auth with admin context
     async def override_auth():
         return AuthContext(
-            key="test", name="Test Admin", permissions=["*"], device_type=None, sensor_id=None
+            key="test", name="Test Admin", roles=["admin"], device_type=None, sensor_id=None
         )
 
     from backend.core.auth import get_auth_context

@@ -131,7 +131,7 @@ async def list_keyframes(
     pending_review_only: bool = Query(False, description="Only frames pending ReID review"),
     limit: int = Query(50, ge=1, le=200, description="Max physical-frame cards"),
     offset: int = Query(0, ge=0),
-    _auth: AuthContext = Depends(require_permission("cts.keyframes.view")),
+    _auth: AuthContext = Depends(require_permission("cts.keyframes:read")),
     svc: KeyframeReadService = Depends(get_keyframe_read_service),
 ) -> dict:
     """List keyframes grouped into one card per physical source frame (M07).
@@ -187,7 +187,7 @@ async def list_keyframes(
 async def get_keyframe(
     sample_id: str,
     request: Request,
-    _auth: AuthContext = Depends(require_permission("cts.keyframes.view")),
+    _auth: AuthContext = Depends(require_permission("cts.keyframes:read")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """Get a single tagged keyframe by sample ID."""
@@ -213,7 +213,7 @@ async def get_keyframe(
 @router.post("/{sample_id}/retain")
 async def retain_keyframe(
     sample_id: str,
-    _auth: AuthContext = Depends(require_permission("cts.keyframes.view")),
+    _auth: AuthContext = Depends(require_permission("cts.keyframes:write")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """Retain a keyframe past the normal retention window.

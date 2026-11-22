@@ -38,7 +38,7 @@ async def list_queries(
     q: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("GET /api/v1/knowledge-interactions")),
+    _auth: None = Depends(require_permission("knowledge.interactions:read")),
 ):
     stmt = select(SeniorKnowledgeQuery)
     if date_from:
@@ -82,7 +82,7 @@ async def list_quiz_sessions(
     status: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("GET /api/v1/knowledge-interactions")),
+    _auth: None = Depends(require_permission("knowledge.interactions:read")),
 ):
     stmt = select(QuizSession)
     if date_from:
@@ -132,7 +132,7 @@ async def list_quiz_sessions(
 async def get_quiz_session_detail(
     session_id: int,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("GET /api/v1/knowledge-interactions")),
+    _auth: None = Depends(require_permission("knowledge.interactions:read")),
 ):
     session = db.execute(
         select(QuizSession).where(QuizSession.id == session_id)
@@ -185,7 +185,7 @@ async def list_info_card_deliveries(
     date_to: date | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("GET /api/v1/knowledge-interactions")),
+    _auth: None = Depends(require_permission("knowledge.interactions:read")),
 ):
     stmt = select(InfoCardDelivery)
     if date_from:
@@ -224,7 +224,7 @@ analytics_router = APIRouter(prefix="/knowledge/analytics", tags=["knowledge-ana
 @analytics_router.get("/tags", response_model=TagAnalyticsOut)
 async def get_tag_analytics(
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("GET /api/v1/knowledge-interactions")),
+    _auth: None = Depends(require_permission("knowledge.interactions:read")),
 ):
     """Return per-tag document count, quiz count, and average quiz score."""
 

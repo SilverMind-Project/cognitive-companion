@@ -63,7 +63,7 @@ async def test_route_and_mcp_tool_return_the_same_envelope() -> None:
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="admin", permissions=["face_calibration.review"]
+        key="x", name="admin", tokens=frozenset({"face_calibration:review"})
     )
     app.dependency_overrides[get_face_calibration_service] = lambda: svc
     invalidate_lookup_cache()

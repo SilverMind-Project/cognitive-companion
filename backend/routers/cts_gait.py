@@ -30,7 +30,7 @@ def _get_service(request=None) -> GaitTrendService:
 async def get_gait_trend(
     person_id: str = Query(..., description="Resident person ID"),
     days: int = Query(56, ge=14, le=365, description="Window length in days"),
-    _auth: AuthContext = Depends(require_permission("cts.gait.trend.view")),
+    _auth: AuthContext = Depends(require_permission("cts.gait.trend:read")),
     svc: GaitTrendService = Depends(_get_service),
 ) -> GaitTrendEnvelope:
     """Return gait speed trend envelope for a resident."""

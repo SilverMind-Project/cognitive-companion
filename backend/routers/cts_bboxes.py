@@ -22,7 +22,7 @@ router = APIRouter(prefix="/cts/identity", tags=["cts-bboxes"])
 @router.get("/keyframes/{keyframe_id}/bboxes", response_model=list[BboxAnnotationResponse])
 async def get_keyframe_bboxes(
     keyframe_id: str,
-    _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    _auth: AuthContext = Depends(require_permission("cts.bboxes:read")),
     _cts: None = Depends(cts_enabled),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> list[BboxAnnotationResponse]:
@@ -40,7 +40,7 @@ async def get_keyframe_bboxes(
 async def override_bbox(
     annotation_id: str,
     body: BboxOverrideRequest,
-    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.bboxes:write")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> BboxAnnotationResponse:
     """Persist a user-drawn bounding box override."""
@@ -56,7 +56,7 @@ async def override_bbox(
 @router.delete("/bboxes/{annotation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_bbox(
     annotation_id: str,
-    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity:correct")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> None:
     """Delete a single bounding box annotation."""
@@ -83,7 +83,7 @@ class BboxBatchRequest(BaseModel):
 @router.post("/bboxes/batch")
 async def apply_bbox_batch(
     body: BboxBatchRequest,
-    auth: AuthContext = Depends(require_permission("cts.bboxes.write")),
+    auth: AuthContext = Depends(require_permission("cts.bboxes:write")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """Apply a batch of bbox create/update/delete operations atomically."""

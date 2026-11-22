@@ -87,7 +87,7 @@ async def recamera_upload(
     request: Request,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(
-        require_permission("device:recamera", resolver=get_auth_context_device)
+        require_permission("device.recamera:ingest", resolver=get_auth_context_device)
     ),
 ):
     """Accept a YOLO-annotated image payload from a reCamera device."""

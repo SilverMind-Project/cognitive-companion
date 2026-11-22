@@ -26,7 +26,7 @@ router = APIRouter(prefix="/cts", tags=["cts-calibration-health"])
 async def calibration_health(
     request: Request,
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("cts.calibration.view")),
+    _auth=Depends(require_permission("cts.calibration:read")),
 ) -> dict:
     """Return per-camera calibration health status."""
     cts_enabled()

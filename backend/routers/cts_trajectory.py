@@ -17,7 +17,7 @@ router = APIRouter(prefix="/cts", tags=["cts-trajectory"])
 
 @router.get(
     "/trajectory/recent",
-    dependencies=[Depends(cts_enabled), Depends(require_permission("cts.view"))],
+    dependencies=[Depends(cts_enabled), Depends(require_permission("cts:read"))],
     summary="Proxy recent trajectory points from the orchestrator",
 )
 async def list_recent_trajectory(

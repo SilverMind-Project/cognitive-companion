@@ -29,7 +29,7 @@ def client(db_factory, db_session) -> TestClient:
     app.include_router(medication_schedule.router, prefix="/api/v1")
     app.dependency_overrides[get_medication_schedule_service] = lambda: svc
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="admin", name="Admin", permissions=["admin"]
+        key="admin", name="Admin", roles=["admin"]
     )
     return TestClient(app, raise_server_exceptions=False)
 

@@ -47,7 +47,7 @@ def test_list_requires_permission(db_factory):
 
 def test_create_then_list_roundtrip(db_factory, db_session):
     room = _add_room(db_session, "Kitchen")
-    client = _client(db_factory, AuthContext(key="admin", name="Admin", permissions=["admin"]))
+    client = _client(db_factory, AuthContext(key="admin", name="Admin", roles=["admin"]))
 
     create = client.post(
         "/api/v1/companion-surfaces",
@@ -83,7 +83,7 @@ def test_patch_room_sets_caregiver_source(db_factory, db_session):
         )
     )
     db_session.commit()
-    client = _client(db_factory, AuthContext(key="admin", name="Admin", permissions=["admin"]))
+    client = _client(db_factory, AuthContext(key="admin", name="Admin", roles=["admin"]))
 
     response = client.patch("/api/v1/companion-surfaces/tablet", json={"room_id": living.id})
 
@@ -114,7 +114,7 @@ def test_heartbeat_with_device_key_ok(db_factory, db_session):
         AuthContext(
             key="RTRM0001",
             name="Terminal",
-            permissions=["device:reterminal"],
+            roles=["device_reterminal"],
             device_type="reterminal",
             sensor_id="reterminal_living",
         ),

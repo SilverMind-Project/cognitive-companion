@@ -49,7 +49,7 @@ router = APIRouter(prefix="/wearables", tags=["wearables"])
 @router.get("/site-config", response_model=WearableSiteConfigOut)
 async def get_wearable_site_config(
     svc: WearableSiteConfigService = Depends(get_wearable_site_config_service),
-    _auth: AuthContext = Depends(require_token("wearables:site_config")),
+    _auth: AuthContext = Depends(require_token("wearables.site_config:read")),
 ) -> WearableSiteConfigOut:
     """Serve RF nodes in metres, time-bounded bindings, and devices for CTS and rf-ingress."""
     return svc.build_site_config()
@@ -78,7 +78,7 @@ async def list_wearable_devices(
 async def create_wearable_device(
     body: WearableDeviceCreate,
     svc: WearableDeviceService = Depends(get_wearable_device_service),
-    auth: AuthContext = Depends(require_token("wearables:manage")),
+    auth: AuthContext = Depends(require_token("wearables:write")),
 ) -> WearableDeviceOut:
     """Register a new wearable device."""
     return svc.create_device(body, actor=actor_from_auth(auth))
@@ -99,7 +99,7 @@ async def update_wearable_device(
     device_id: uuid.UUID,
     body: WearableDeviceUpdate,
     svc: WearableDeviceService = Depends(get_wearable_device_service),
-    auth: AuthContext = Depends(require_token("wearables:manage")),
+    auth: AuthContext = Depends(require_token("wearables:write")),
 ) -> WearableDeviceOut:
     """Update a wearable device label, hardware key, or active status."""
     return svc.update_device(device_id, body, actor=actor_from_auth(auth))
@@ -130,7 +130,7 @@ async def bind_wearable_device(
     device_id: uuid.UUID,
     body: WearableBindingCreate,
     svc: WearableBindingService = Depends(get_wearable_binding_service),
-    auth: AuthContext = Depends(require_token("wearables:manage")),
+    auth: AuthContext = Depends(require_token("wearables:write")),
 ) -> WearableBindingOut:
     """Bind a wearable device to a household member after recording consent."""
     return svc.bind(
@@ -147,7 +147,7 @@ async def unbind_wearable_device(
     device_id: uuid.UUID,
     body: WearableUnbindRequest | None = None,
     svc: WearableBindingService = Depends(get_wearable_binding_service),
-    auth: AuthContext = Depends(require_token("wearables:manage")),
+    auth: AuthContext = Depends(require_token("wearables:write")),
 ) -> WearableBindingOut:
     """Close the active binding on a wearable device."""
     return svc.unbind(
@@ -181,7 +181,7 @@ async def check_rf_node_survey(
 async def create_rf_node(
     body: RfNodeCreate,
     svc: RfNodeService = Depends(get_rf_node_service),
-    auth: AuthContext = Depends(require_token("wearables:manage")),
+    auth: AuthContext = Depends(require_token("wearables:write")),
 ) -> RfNodeOut:
     """Place a new fixed RF node on the household floor plan."""
     return svc.create_node(body, actor=actor_from_auth(auth))
@@ -202,7 +202,7 @@ async def update_rf_node(
     node_id: uuid.UUID,
     body: RfNodeUpdate,
     svc: RfNodeService = Depends(get_rf_node_service),
-    auth: AuthContext = Depends(require_token("wearables:manage")),
+    auth: AuthContext = Depends(require_token("wearables:write")),
 ) -> RfNodeOut:
     """Update a fixed RF node's position, mount height, role, or UWB parameters."""
     return svc.update_node(node_id, body, actor=actor_from_auth(auth))
@@ -212,7 +212,7 @@ async def update_rf_node(
 async def delete_rf_node(
     node_id: uuid.UUID,
     svc: RfNodeService = Depends(get_rf_node_service),
-    auth: AuthContext = Depends(require_token("wearables:manage")),
+    auth: AuthContext = Depends(require_token("wearables:write")),
 ) -> Response:
     """Delete a fixed RF node."""
     svc.delete_node(node_id, actor=actor_from_auth(auth))
@@ -234,7 +234,7 @@ async def list_wearable_device_associations(
 async def revoke_wearable_association(
     segment_id: str,
     svc: WearableTeachingRevocationService = Depends(get_wearable_teaching_revocation_service),
-    auth: AuthContext = Depends(require_token("wearables:revoke_teaching")),
+    auth: AuthContext = Depends(require_token("wearables.teaching:write")),
 ) -> WearableRevokeResponse:
     """Undo everything one wearable association segment taught and hold further teaching on its tag."""
     return await svc.revoke_association(segment_id, actor=actor_from_auth(auth))
@@ -244,7 +244,7 @@ async def revoke_wearable_association(
 async def resume_wearable_tag_teaching(
     tag_id: str,
     svc: WearableTeachingRevocationService = Depends(get_wearable_teaching_revocation_service),
-    auth: AuthContext = Depends(require_token("wearables:revoke_teaching")),
+    auth: AuthContext = Depends(require_token("wearables.teaching:write")),
 ) -> WearableResumeTeachingResponse:
     """Clear an open teaching hold for a wearable tag so it can teach again."""
     return await svc.resume_tag_teaching(tag_id, actor=actor_from_auth(auth))

@@ -34,7 +34,7 @@ def _to_out(zone) -> TransitZoneOut:
 @router.get("", response_model=list[TransitZoneOut])
 async def list_transit_zones(
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.roster:read")),
 ) -> list[TransitZoneOut]:
     cts_enabled()
     svc = TransitZoneService(db)
@@ -45,7 +45,7 @@ async def list_transit_zones(
 async def get_transit_zone(
     zone_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:read")),
 ) -> TransitZoneOut:
     cts_enabled()
     svc = TransitZoneService(db)
@@ -59,7 +59,7 @@ async def get_transit_zone(
 async def create_transit_zone(
     body: TransitZoneIn,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    _auth: AuthContext = Depends(require_permission("cts.transit_zones:write")),
 ) -> TransitZoneOut:
     cts_enabled()
     svc = TransitZoneService(db)
@@ -99,7 +99,7 @@ async def update_transit_zone(
     zone_id: str,
     body: TransitZoneUpdate,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    _auth: AuthContext = Depends(require_permission("cts.transit_zones:write")),
 ) -> TransitZoneOut:
     cts_enabled()
     svc = TransitZoneService(db)
@@ -142,7 +142,7 @@ async def update_transit_zone(
 async def delete_transit_zone(
     zone_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    _auth: AuthContext = Depends(require_permission("cts.transit_zones:write")),
 ) -> None:
     cts_enabled()
     svc = TransitZoneService(db)

@@ -65,7 +65,7 @@ def _client(db_factory, auth: AuthContext | None = None) -> TestClient:
 
 
 def _admin() -> AuthContext:
-    return AuthContext(key="admin", name="Admin", permissions=["admin"])
+    return AuthContext(key="admin", name="Admin", roles=["admin"])
 
 
 def test_crud_roundtrip(db_factory, db_session) -> None:

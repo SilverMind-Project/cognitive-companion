@@ -48,7 +48,7 @@ async def get_signals(
     window_hours: int = Query(24, ge=1, le=720, description="Lookback window in hours"),
     signal_kind: str | None = Query(None, description="Filter by signal kind"),
     limit: int = Query(200, ge=1, le=1000),
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:read")),
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
     """Return recent dementia signals from the orchestrator."""
@@ -72,7 +72,7 @@ async def get_trajectory(
     start: str | None = Query(None, description="ISO-8601 start time"),
     end: str | None = Query(None, description="ISO-8601 end time"),
     limit: int = Query(500, ge=1, le=5000),
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:read")),
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
     """Return trajectory points for floor-plan overlay."""
@@ -94,7 +94,7 @@ async def get_trajectory(
 async def get_dwell_summary(
     person_id: str = Query(..., description="Person ID (required)"),
     date: str | None = Query(None, description="ISO-8601 date (YYYY-MM-DD); defaults to today"),
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:read")),
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
     """Return room dwell aggregation (time-in-room) for one day."""
@@ -119,7 +119,7 @@ class SuppressionIn(BaseModel):
 
 @router.get("/overview")
 async def get_overview(
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:read")),
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
     """Return aggregated data for the dashboard."""
@@ -161,7 +161,7 @@ async def get_overview(
 @router.post("/suppressions")
 async def create_suppression(
     body: SuppressionIn,
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals.suppressions:write")),
 ) -> dict:
     cts_enabled()
     db = get_session()
@@ -198,7 +198,7 @@ async def create_suppression(
 @router.delete("/suppressions/{suppression_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_suppression(
     suppression_id: int,
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals.suppressions:delete")),
 ) -> None:
     cts_enabled()
     db = get_session()
@@ -217,7 +217,7 @@ def delete_suppression(
 
 @router.get("/unacknowledged-count")
 async def unacknowledged_count(
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:read")),
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
     """Return count of unacknowledged signals for the alert ticker.

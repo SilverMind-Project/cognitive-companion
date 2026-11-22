@@ -69,7 +69,7 @@ async def list_signals(
     window_hours: int = Query(24, ge=1, le=720, description="Lookback window in hours"),
     limit: int = Query(50, ge=1, le=200, description="Page size"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:read")),
     store: SignalStore = Depends(_get_signal_store),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -106,7 +106,7 @@ class AckRequest(BaseModel):
 async def acknowledge_signal(
     signal_id: int,
     body: AckRequest = Body(default_factory=AckRequest),
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:acknowledge")),
     store: SignalStore = Depends(_get_signal_store),
 ) -> dict:
     """Mark a dementia signal as acknowledged by a caregiver.
@@ -141,7 +141,7 @@ async def acknowledge_signal(
 @router.delete("/batch", status_code=status.HTTP_200_OK)
 async def batch_delete_signals(
     signal_ids: list[int] = Body(..., embed=True, description="Row IDs to delete"),
-    _auth: AuthContext = Depends(require_permission("cts.signals.delete")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:delete")),
     store: SignalStore = Depends(_get_signal_store),
 ) -> dict:
     """Hard-delete multiple dementia signals.  Returns deleted count."""
@@ -158,7 +158,7 @@ async def batch_delete_signals(
 @router.delete("/{signal_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_signal(
     signal_id: int,
-    _auth: AuthContext = Depends(require_permission("cts.signals.delete")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:delete")),
     store: SignalStore = Depends(_get_signal_store),
 ) -> None:
     """Hard-delete a single dementia signal by row ID."""
@@ -182,7 +182,7 @@ async def list_unacknowledged(
     severity: str | None = Query(None, description="Filter by severity"),
     window_hours: int = Query(24, ge=1, le=720, description="Lookback window in hours"),
     limit: int = Query(50, ge=1, le=500, description="Max results"),
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:read")),
     store: SignalStore = Depends(_get_signal_store),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -206,7 +206,7 @@ async def list_unacknowledged(
 @router.get("/summary")
 async def get_summary(
     person_id: str | None = Query(None, description="Filter by person ID"),
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:read")),
     store: SignalStore = Depends(_get_signal_store),
 ) -> dict:
     """Return a 24-hour signal summary for the dashboard."""
@@ -224,7 +224,7 @@ async def get_summary(
 async def get_trend(
     person_id: str,
     days: int = Query(7, ge=1, le=90, description="Number of days for trend"),
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals:read")),
     store: SignalStore = Depends(_get_signal_store),
 ) -> dict:
     """Return per-day signal counts for trend charts."""

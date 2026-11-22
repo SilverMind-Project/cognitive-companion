@@ -1,4 +1,5 @@
 """API router for interactive responses."""
+
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -23,7 +24,7 @@ async def get_interactive_responses(
     date_to: date | None = Query(None, description="Filter to date (inclusive)"),
     limit: int = Query(100, ge=1, le=1000, description="Max results to return"),
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("GET /api/v1/interactive-responses")),
+    _auth: None = Depends(require_permission("interactive_responses:read")),
 ):
     """
     Get interactive responses with optional filtering.

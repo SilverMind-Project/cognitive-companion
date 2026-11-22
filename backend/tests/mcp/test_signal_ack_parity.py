@@ -47,7 +47,7 @@ def _build_router_client(db_factory):
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.dependency_overrides[_get_signal_store] = lambda: store
     patcher = patch("backend.routers.cts_deps.settings", cfg)

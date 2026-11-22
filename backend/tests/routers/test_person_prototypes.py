@@ -67,7 +67,7 @@ def _build(permissions: list[str], *, name: str = "ops"):
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="k", name=name, permissions=permissions
+        key="k", name=name, roles=permissions
     )
     app.dependency_overrides[get_face_calibration_service] = lambda: svc
     app.dependency_overrides[get_config_minio_client] = lambda: minio
@@ -95,7 +95,7 @@ def test_caregiver_can_read_prototypes_but_cannot_mutate() -> None:
     assert client.delete("/api/v1/persons/amma/prototypes/p1").status_code == 403
 
 
-@pytest.mark.parametrize("perms", [["caregiver_admin"], ["*"]])
+@pytest.mark.parametrize("perms", [["caregiver_admin"], ["admin"]])
 def test_caregiver_admin_and_admin_can_read_rebuild_and_delete(perms: list[str]) -> None:
     client, pid, _ = _build(perms)
     assert client.get("/api/v1/persons/amma/prototypes").status_code == 200

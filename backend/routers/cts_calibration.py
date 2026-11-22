@@ -251,7 +251,7 @@ def _upstream_to_http(exc: UpstreamError) -> HTTPException:
 @router.post("/homography/preview", response_model=HomographyPreviewResult)
 async def post_homography_preview(
     body: HomographyPreviewRequest,
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    _auth: AuthContext = Depends(require_permission("cts.calibration:calibrate")),
     orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> HomographyPreviewResult:
     """Fit a homography from calibration points and return the result without saving.
@@ -282,7 +282,7 @@ async def post_homography(
     body: HomographyRequest,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    _auth: AuthContext = Depends(require_permission("cts.calibration:calibrate")),
     orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
     ingress: IngressAdminClient = Depends(get_ingress_admin_client),
     minio: MinioClient = Depends(get_minio_client),
@@ -457,7 +457,7 @@ async def post_auto_calibrate(
     camera_id: str,
     body: AutoCalibrateRequest,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    _auth: AuthContext = Depends(require_permission("cts.calibration:calibrate")),
     orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
     ingress: IngressAdminClient = Depends(get_ingress_admin_client),
 ) -> AutoCalibrateResult:
@@ -585,7 +585,7 @@ def post_floor_region(
     camera_id: str,
     body: FloorRegionRequest,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    _auth: AuthContext = Depends(require_permission("cts.calibration:calibrate")),
 ) -> None:
     """Persist the floor-region polygon for a camera and recompute its visibility polygon.
 
@@ -622,7 +622,7 @@ def post_floor_region(
 def get_floor_region_default(
     camera_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    _auth: AuthContext = Depends(require_permission("cts.calibration:read")),
 ) -> FloorRegionDefaultResponse:
     cts_enabled()
     cam = db.get(CtsCamera, camera_id)
@@ -665,7 +665,7 @@ def get_floor_region_default(
 def get_homography(
     camera_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    _auth: AuthContext = Depends(require_permission("cts.calibration:read")),
 ) -> dict:
     cts_enabled()
     cam = db.get(CtsCamera, camera_id)
@@ -691,7 +691,7 @@ def get_homography(
 def delete_homography(
     camera_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    _auth: AuthContext = Depends(require_permission("cts.calibration:calibrate")),
 ) -> None:
     """Remove a camera's calibration so it tracks in its virtual room again.
 
@@ -734,7 +734,7 @@ def delete_homography(
 @router.get("/visibility_polygons", response_model=VisibilityPolygonsResponse)
 def get_visibility_polygons(
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    _auth: AuthContext = Depends(require_permission("cts.calibration:read")),
 ) -> VisibilityPolygonsResponse:
     """Return all enabled cameras with their floor-plan visibility polygons.
 
@@ -829,7 +829,7 @@ def get_visibility_polygons(
 @router.post("/visibility_polygons/recompute", status_code=status.HTTP_204_NO_CONTENT)
 def post_recompute_visibility_polygons(
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    _auth: AuthContext = Depends(require_permission("cts.calibration:calibrate")),
 ) -> None:
     """Recompute visibility polygons for all calibrated cameras.
 
@@ -868,7 +868,7 @@ async def post_privacy_zones(
     body: PrivacyZonesRequest,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    _auth: AuthContext = Depends(require_permission("cts.calibration:calibrate")),
     orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> None:
     """Replace all privacy zones for a camera, applying them to the tracker before saving.
@@ -926,7 +926,7 @@ async def post_privacy_zones(
 def get_privacy_zones(
     camera_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    _auth: AuthContext = Depends(require_permission("cts.calibration:read")),
 ) -> dict:
     cts_enabled()
     cam = db.get(CtsCamera, camera_id)

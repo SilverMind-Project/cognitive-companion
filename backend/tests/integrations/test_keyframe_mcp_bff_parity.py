@@ -77,7 +77,7 @@ async def test_mcp_and_bff_share_service_and_envelope() -> None:
     register_exception_handlers(app)
     app.include_router(keyframes_router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.dependency_overrides[get_keyframe_read_service] = lambda: svc_mock
     cfg = Settings.from_dict({"cts": {"enabled": True}})

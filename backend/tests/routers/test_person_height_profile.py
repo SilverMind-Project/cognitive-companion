@@ -31,12 +31,12 @@ def _headers(key: str) -> dict[str, str]:
 def height_client(db_factory, monkeypatch: pytest.MonkeyPatch):
     ks = KeyStore(
         api_keys=[
-            {"key": _ADMIN_KEY, "name": "Admin", "permissions": ["admin"]},
-            {"key": _CAREGIVER_KEY, "name": "Caregiver", "permissions": ["caregiver"]},
-            {"key": _INGRESS_KEY, "name": "CTS Ingress", "permissions": ["cts_ingress"]},
-            {"key": _READONLY_MCP_KEY, "name": "MCP Agent", "permissions": ["mcp_readonly"]},
+            {"key": _ADMIN_KEY, "name": "Admin", "roles": ["admin"]},
+            {"key": _CAREGIVER_KEY, "name": "Caregiver", "roles": ["caregiver"]},
+            {"key": _INGRESS_KEY, "name": "CTS Ingress", "roles": ["cts_ingress"]},
+            {"key": _READONLY_MCP_KEY, "name": "MCP Agent", "roles": ["mcp_readonly"]},
         ],
-        permission_map=settings.get("auth.permission_map", {}),
+        roles=settings.get("auth.roles", {}),
     )
     monkeypatch.setattr(auth_module, "_default_keystore", ks)
 

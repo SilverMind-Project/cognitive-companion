@@ -180,7 +180,7 @@ def _build_provider_summaries(
 @router.get(
     "/presence-config",
     response_model=PresenceConfigOut,
-    dependencies=[Depends(require_permission("cts.presence.view"))],
+    dependencies=[Depends(require_permission("cts.presence:read"))],
 )
 async def get_presence_config(request: Request) -> PresenceConfigOut:
     """Return the active presence fuser configuration (sanitized)."""
@@ -208,7 +208,7 @@ async def get_presence_config(request: Request) -> PresenceConfigOut:
 @router.post(
     "/presence-config/reload",
     response_model=PresenceConfigOut,
-    dependencies=[Depends(require_permission("cts.presence.view"))],
+    dependencies=[Depends(require_permission("cts.presence.config:write"))],
 )
 async def reload_presence_config(request: Request) -> PresenceConfigOut:
     """Reload presence.yaml from disk into the running fuser.
@@ -286,7 +286,7 @@ async def reload_presence_config(request: Request) -> PresenceConfigOut:
 @router.get(
     "/presence/{person_id}",
     response_model=PresenceSnapshotOut,
-    dependencies=[Depends(require_permission("cts.presence.view"))],
+    dependencies=[Depends(require_permission("cts.presence:read"))],
 )
 async def get_presence(
     person_id: str,

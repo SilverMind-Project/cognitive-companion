@@ -37,14 +37,18 @@ _RESULT = IdentityTargetsResult(
 )
 
 
-def _client(permissions: list[str]) -> TestClient:
+def _client(
+    roles: list[str] | None = None,
+    *,
+    tokens: frozenset[str] = frozenset(),
+) -> TestClient:
     svc = MagicMock()
     svc.list_targets = AsyncMock(return_value=_RESULT)
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="user", permissions=permissions
+        key="x", name="user", roles=list(roles or ()), tokens=tokens
     )
     app.dependency_overrides[get_identity_targets_service] = lambda: svc
     invalidate_lookup_cache()
@@ -63,7 +67,9 @@ def test_caregiver_roles_get_the_targets(role: str) -> None:
 
 
 def test_a_key_without_the_token_is_forbidden() -> None:
-    assert _client(["rooms:read"]).get("/api/v1/identity/targets").status_code == 403
+    assert (
+        _client(tokens=frozenset({"rooms:read"})).get("/api/v1/identity/targets").status_code == 403
+    )
 
 
 @pytest.mark.parametrize("role", ["caregiver", "caregiver_admin"])
@@ -79,6 +85,8 @@ def test_caregiver_roles_read_the_review_vocabulary(role: str) -> None:
 
 def test_review_vocabulary_needs_its_token() -> None:
     assert (
-        _client(["identity_targets:read"]).get("/api/v1/identity/review-vocabulary").status_code
+        _client(tokens=frozenset({"identity_targets:read"}))
+        .get("/api/v1/identity/review-vocabulary")
+        .status_code
         == 403
     )

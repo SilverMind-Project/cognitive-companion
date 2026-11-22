@@ -17,8 +17,8 @@ CTS_PRESENCE_AUTH = {"X-API-Key": "TESTKEY"}
 def cts_presence_keystore(monkeypatch: pytest.MonkeyPatch) -> KeyStore:
     """Install a keystore granting the CTS presence surface to ``TESTKEY``."""
     store = KeyStore(
-        api_keys=[{"key": "TESTKEY", "name": "test", "permissions": ["caregiver"]}],
-        permission_map={"caregiver": ["cts.presence.view", "* /api/v1/cts/presence*"]},
+        api_keys=[{"key": "TESTKEY", "name": "test", "roles": ["caregiver"]}],
+        roles={"caregiver": ["cts.presence:read", "cts.presence.config:write"]},
     )
     monkeypatch.setattr(auth_module, "_default_keystore", store)
     return store

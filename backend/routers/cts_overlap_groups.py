@@ -58,7 +58,7 @@ class OverlapGroupSuggestionsOut(BaseModel):
 @router.get("/suggested", response_model=OverlapGroupSuggestionsOut)
 def suggested_groups(
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:read")),
 ) -> OverlapGroupSuggestionsOut:
     """Suggest groups from calibrated cameras whose floor coverage overlaps (nothing is saved)."""
     cts_enabled()
@@ -86,7 +86,7 @@ def suggested_groups(
 @router.get("", response_model=list[OverlapGroupOut])
 def list_groups(
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.roster:read")),
 ) -> list[dict]:
     cts_enabled()
     rows = db.execute(
@@ -107,7 +107,7 @@ def list_groups(
 def create_group(
     body: OverlapGroupIn,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:write")),
 ) -> dict:
     cts_enabled()
     # A group naming a camera that does not exist is inert in tracking and would hide the typo.
@@ -139,7 +139,7 @@ def create_group(
 def delete_group(
     group_id: int,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:write")),
 ) -> None:
     cts_enabled()
     result = db.execute(

@@ -170,7 +170,7 @@ async def list_phs(
     offset: int = 0,
     client: OrchestratorClient = Depends(get_orchestrator_client),
     enricher: PHEnrichmentService = Depends(get_ph_enrichment_service),
-    _auth=Depends(require_permission("cts.identity.view")),
+    _auth=Depends(require_permission("cts.identity:read")),
 ) -> PaginatedPHList:
     cts_enabled()
     data = await client.list_phs(
@@ -205,7 +205,7 @@ async def list_revisions(
     limit: int = 50,
     before_id: str | None = None,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.view")),
+    _auth=Depends(require_permission("cts.identity:read")),
 ) -> RevisionsFeedResponse:
     cts_enabled()
     data = await client.list_ph_revisions(ph_id=ph_id, kind=kind, limit=limit, before_id=before_id)
@@ -218,7 +218,7 @@ async def get_ph(
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
     enricher: PHEnrichmentService = Depends(get_ph_enrichment_service),
-    _auth=Depends(require_permission("cts.identity.view")),
+    _auth=Depends(require_permission("cts.identity:read")),
 ) -> PHDetailResponse:
     cts_enabled()
     data = await _upstream_or_502(client.get_ph(ph_id), endpoint="get_ph")
@@ -231,7 +231,7 @@ async def list_ph_observations(
     ph_id: str,
     limit: int = 200,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.view")),
+    _auth=Depends(require_permission("cts.identity:read")),
 ) -> PHObservationsResponse:
     cts_enabled()
     data = await client.list_ph_observations(ph_id, limit=limit)
@@ -245,7 +245,7 @@ async def list_ph_keyframes(
     limit: int = 24,
     client: OrchestratorClient = Depends(get_orchestrator_client),
     enricher: PHEnrichmentService = Depends(get_ph_enrichment_service),
-    _auth=Depends(require_permission("cts.identity.view")),
+    _auth=Depends(require_permission("cts.identity:read")),
 ) -> PHKeyframesResponse:
     cts_enabled()
     data = await client.list_ph_keyframes(ph_id, limit=limit)
@@ -261,7 +261,7 @@ async def get_ph_trail(
     ph_id: str,
     since: str | None = None,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.view")),
+    _auth=Depends(require_permission("cts.identity:read")),
 ) -> PHTrailResponse:
     cts_enabled()
     data = await client.get_ph_trail(ph_id, since=since)
@@ -274,7 +274,7 @@ async def get_co_present(
     radius_m: float = 5.0,
     client: OrchestratorClient = Depends(get_orchestrator_client),
     enricher: PHEnrichmentService = Depends(get_ph_enrichment_service),
-    _auth=Depends(require_permission("cts.identity.view")),
+    _auth=Depends(require_permission("cts.identity:read")),
 ) -> PHCoPresentResponse:
     cts_enabled()
     data = await _upstream_or_502(
@@ -300,7 +300,7 @@ async def correct_identity(
     body: CorrectIdentityRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity:correct")),
 ) -> CorrectIdentityResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -319,7 +319,7 @@ async def merge_phs(
     body: MergeRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity:correct")),
 ) -> MergeResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -338,7 +338,7 @@ async def batch_merge_phs(
     body: BatchMergeRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity:correct")),
 ) -> BatchMergeResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -358,7 +358,7 @@ async def split_ph(
     body: SplitRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity:correct")),
 ) -> SplitResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -377,7 +377,7 @@ async def batch_correct(
     body: BatchCorrectRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity:correct")),
 ) -> BatchCorrectResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -395,7 +395,7 @@ async def batch_delete(
     body: BatchDeleteRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity:correct")),
 ) -> BatchDeleteResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -413,7 +413,7 @@ async def purge_unknown(
     body: PurgeUnknownRequest,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity:correct")),
 ) -> PurgeUnknownResponse:
     cts_enabled()
     idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -446,7 +446,7 @@ def _raise_for_correction(exc: CorrectionUpstreamError) -> HTTPException:
 async def propose_correction_segment(
     body: ProposeSegmentRequest,
     svc: IdentityCorrectionService = Depends(get_identity_correction_service),
-    _auth=Depends(require_permission("cts.identity.view")),
+    _auth=Depends(require_permission("cts.identity:propose")),
 ) -> SegmentProposalResponse:
     """Advisory observation-bounded segment proposal for caregiver review."""
     cts_enabled()
@@ -467,7 +467,7 @@ async def propose_correction_segment(
 async def apply_correction_segment(
     body: ApplySegmentRequest,
     svc: IdentityCorrectionService = Depends(get_identity_correction_service),
-    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity.corrections:correct")),
 ) -> CorrectionResultResponse:
     """Apply an explicit frame-only/bounded correction or Set-to-Unknown.
 
@@ -495,7 +495,7 @@ async def apply_correction_segment(
 async def compensate_correction(
     correction_id: str,
     svc: IdentityCorrectionService = Depends(get_identity_correction_service),
-    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    auth: AuthContext = Depends(require_permission("cts.identity.corrections:correct")),
 ) -> CorrectionResultResponse:
     """Undo a correction via a compensating revision (never deletes the original)."""
     cts_enabled()
@@ -514,7 +514,7 @@ async def compensate_correction(
 async def get_correction_job(
     revision_id: str,
     svc: IdentityCorrectionService = Depends(get_identity_correction_service),
-    _auth=Depends(require_permission("cts.identity.view")),
+    _auth=Depends(require_permission("cts.identity:read")),
 ) -> CorrectionJobResponse:
     """Projection-job status for a revision; polled until terminal."""
     cts_enabled()
@@ -537,7 +537,7 @@ async def get_correction_job(
 @router.get("/identity/identities")
 async def list_identities(
     client: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth=Depends(require_permission("cts.identity.view")),
+    _auth=Depends(require_permission("cts.identity:read")),
 ) -> dict:
     cts_enabled()
     identities = await client.get_identities()

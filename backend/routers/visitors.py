@@ -50,7 +50,7 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/visitors", tags=["visitors"])
 
-_VISITORS_REVIEW = "visitors.review"
+_VISITORS_REVIEW = "visitors:review"
 _PRESIGN_TTL = 3600  # 1 hour; sized for a caregiver review session
 
 

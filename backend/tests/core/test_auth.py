@@ -143,10 +143,20 @@ def stub_keystore(monkeypatch: pytest.MonkeyPatch) -> KeyStore:
     """Install a fresh KeyStore as the module-level default."""
     ks = KeyStore(
         api_keys=[
-            {"key": "ADMIN", "name": "admin", "permissions": ["*"]},
-            {"key": "READER", "name": "reader", "permissions": ["GET /rooms*"]},
+            {"key": "ADMIN", "name": "admin", "permissions": ["*"], "roles": ["admin"]},
+            {
+                "key": "READER",
+                "name": "reader",
+                "permissions": ["GET /rooms*"],
+                "roles": ["reader"],
+            },
         ],
-        device_keys=[{"key": "DEVICE01", "name": "cam", "sensor_id": "s1"}],
+        device_keys=[{"key": "DEVICE01", "name": "cam", "sensor_id": "s1", "roles": ["device"]}],
+        roles={
+            "admin": ["*"],
+            "reader": ["rooms:read"],
+            "device": ["device.recamera:ingest"],
+        },
     )
     monkeypatch.setattr(auth_module, "_default_keystore", ks)
     return ks

@@ -21,7 +21,7 @@ async def get_recent_turns(
     request: Request,
     session_id: int | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
-    auth: AuthContext = Depends(require_permission("caregiver")),
+    auth: AuthContext = Depends(require_permission("conversations:read")),
 ):
     """Get recent conversation turns."""
     conv_manager: ConversationManager | None = request.app.state.conversation_manager

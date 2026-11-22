@@ -452,13 +452,40 @@ permission_map:
   "persons:heights_sync":
     - "GET /api/v1/persons/heights"
 
-# EG-M14 D4 role token sets (loaded alongside permission_map during PR 1-2 shadow soak).
-# Reproduces today's exact access matrix except the four M14-T Table A consolidation cells
-# documented in docs/api/permissions-migration.md. Verified by
-# backend/tests/core/test_auth_shadow.py and test_permissions_migration_drift.py.
+# EG-M14 D4 role token sets (enforced live in PR 3; permission_map retained for inverse shadow).
+# Admin lists all admin-only D4 tokens alongside "*" so every declared token appears in at
+# least one role. Verified by test_permissions_migration_drift.py and test_auth_shadow.py.
 roles:
   admin:
     - "*"
+    - "activities.sessions:write"
+    - "admin.config:write"
+    - "cts.calibration:calibrate"
+    - "cts.cameras:write"
+    - "cts.identity:correct"
+    - "cts.keyframes:write"
+    - "cts.signals.suppressions:delete"
+    - "cts.signals.suppressions:write"
+    - "cts.signals:acknowledge"
+    - "cts.signals:delete"
+    - "gate_graphs:write"
+    - "guided_sessions:takeover"
+    - "ha:write"
+    - "household:write"
+    - "image:delete"
+    - "image:write"
+    - "medication:write"
+    - "persons.location:write"
+    - "persons:delete"
+    - "persons:write"
+    - "room_zones:write"
+    - "rooms:write"
+    - "routines:write"
+    - "rules:execute"
+    - "rules:write"
+    - "sensors:write"
+    - "wearables:write"
+    - "workflows:execute"
 
   operator:
     - "*"
@@ -594,20 +621,35 @@ roles:
 
   mcp_readonly:
     - "activities:read"
+    - "conversations:read"
+    - "cts.analytics.heatmap:read"
+    - "cts.gait.trend:read"
+    - "cts.identity:read"
+    - "cts.keyframes:read"
+    - "cts.signals:read"
+    - "cts:read"
     - "events:read"
+    - "guided_metrics:read"
+    - "guided_sessions:read"
     - "ha:read"
+    - "identity_readiness:read"
     - "image:read"
     - "interactive_responses:read"
+    - "knowledge.documents:read"
     - "mcp.tools:read"
+    - "media:read"
     - "medication:read"
     - "occupancy:read"
     - "persons.location:read"
     - "persons:read"
+    - "pipeline.meta:read"
+    - "quizzes:read"
     - "room_zones:read"
     - "rooms:read"
     - "rules:read"
     - "sensors:read"
     - "signals.feed:read"
+    - "wearables:read"
     - "workflows:read"
 
   mcp_rules_import:

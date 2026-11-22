@@ -56,7 +56,7 @@ def _build_app(cts_enabled: bool = True, orchestrator=None):
     app.include_router(cts_bboxes.router, prefix="/api/v1")
     app.state.orchestrator_client = orchestrator
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
 
     settings_patch = patch.object(cts_deps, "settings", cfg)

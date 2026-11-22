@@ -59,13 +59,9 @@ class DailyReportHandler(StepHandler):
                     "generate_summary_text": {
                         "type": "boolean",
                         "default": False,
-                        "description": ("When true, generates an LLM prose summary of the day."),
-                    },
-                    "summary_model_id": {
-                        "type": "string",
-                        "default": "",
                         "description": (
-                            "LLM model ID to use for summary generation. Defaults to gemma4_26b."
+                            "Reserved for an LLM prose summary of the day. Prose summaries are "
+                            "not generated yet, so summary_text stays empty."
                         ),
                     },
                     "notify_on_complete": {
@@ -87,7 +83,6 @@ class DailyReportHandler(StepHandler):
                 "person_ids": [],
                 "report_date_offset_days": 0,
                 "generate_summary_text": False,
-                "summary_model_id": "gemma4_26b",
                 "notify_on_complete": False,
                 "output_key": "daily_reports",
             },

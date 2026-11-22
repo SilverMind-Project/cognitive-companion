@@ -1,6 +1,6 @@
 import { mount, flushPromises } from "@vue/test-utils";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import KeyframeStrip from "../KeyframeStrip.vue";
+import KeyframeStrip from "@/components/cts/identity/KeyframeStrip.vue";
 
 const mockGetKeyframeBlob = vi.fn();
 

@@ -108,7 +108,7 @@ const chartOption = computed(() => {
       bottom: 0,
       textStyle: { color: th.textStyle.color },
       inRange: {
-        color: [th.color[6] ?? "#ccc", th.color[0] ?? "#0a84ff"],
+        color: [th.color[5] ?? th.color[th.color.length - 1] ?? "", th.color[0] ?? ""],
       },
     },
     series: [

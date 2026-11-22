@@ -44,7 +44,7 @@
               :width="imgContentRect.naturalWidth / 2"
               :height="imgContentRect.naturalHeight / 2"
               fill="none"
-              stroke="rgba(255,255,255,0.18)"
+              stroke="var(--cc-on-media-subtle)"
               stroke-width="2"
               stroke-dasharray="12 6"
             />
@@ -54,7 +54,7 @@
               :width="imgContentRect.naturalWidth / 2"
               :height="imgContentRect.naturalHeight / 2"
               fill="none"
-              stroke="rgba(255,255,255,0.18)"
+              stroke="var(--cc-on-media-subtle)"
               stroke-width="2"
               stroke-dasharray="12 6"
             />
@@ -64,7 +64,7 @@
               :width="imgContentRect.naturalWidth / 2"
               :height="imgContentRect.naturalHeight / 2"
               fill="none"
-              stroke="rgba(255,255,255,0.18)"
+              stroke="var(--cc-on-media-subtle)"
               stroke-width="2"
               stroke-dasharray="12 6"
             />
@@ -74,7 +74,7 @@
               :width="imgContentRect.naturalWidth / 2"
               :height="imgContentRect.naturalHeight / 2"
               fill="none"
-              stroke="rgba(255,255,255,0.18)"
+              stroke="var(--cc-on-media-subtle)"
               stroke-width="2"
               stroke-dasharray="12 6"
             />
@@ -83,7 +83,7 @@
               :y="imgContentRect.naturalHeight * 0.25"
               text-anchor="middle"
               dominant-baseline="middle"
-              fill="rgba(255,255,255,0.35)"
+              fill="var(--cc-on-media-muted)"
               font-size="36"
               :opacity="pointInQuadrant(0) ? 0 : 1"
             >
@@ -94,7 +94,7 @@
               :y="imgContentRect.naturalHeight * 0.25"
               text-anchor="middle"
               dominant-baseline="middle"
-              fill="rgba(255,255,255,0.35)"
+              fill="var(--cc-on-media-muted)"
               font-size="36"
               :opacity="pointInQuadrant(1) ? 0 : 1"
             >
@@ -105,7 +105,7 @@
               :y="imgContentRect.naturalHeight * 0.75"
               text-anchor="middle"
               dominant-baseline="middle"
-              fill="rgba(255,255,255,0.35)"
+              fill="var(--cc-on-media-muted)"
               font-size="36"
               :opacity="pointInQuadrant(2) ? 0 : 1"
             >
@@ -116,7 +116,7 @@
               :y="imgContentRect.naturalHeight * 0.75"
               text-anchor="middle"
               dominant-baseline="middle"
-              fill="rgba(255,255,255,0.35)"
+              fill="var(--cc-on-media-muted)"
               font-size="36"
               :opacity="pointInQuadrant(3) ? 0 : 1"
             >
@@ -164,18 +164,24 @@
               :cy="pt.pixel[1]"
               r="24"
               fill="none"
-              stroke="#38bdf8"
+              stroke="var(--cc-info)"
               stroke-width="3"
               stroke-dasharray="8 6"
             />
-            <circle :cx="pt.pixel[0]" :cy="pt.pixel[1]" r="7" fill="#38bdf8" opacity="0.85" />
+            <circle
+              :cx="pt.pixel[0]"
+              :cy="pt.pixel[1]"
+              r="7"
+              fill="var(--cc-info)"
+              opacity="0.85"
+            />
           </g>
           <!-- Floor-region polygon overlay (draggable vertices) -->
           <g v-if="floorRegionDraft && floorRegionSvgPoints">
             <polygon
               :points="floorRegionSvgPoints"
-              fill="rgba(16,185,129,0.12)"
-              stroke="#10b981"
+              fill="var(--cc-calibration-region-fill)"
+              stroke="var(--cc-success)"
               stroke-width="3"
               stroke-dasharray="10 5"
             />
@@ -188,7 +194,7 @@
               @click.stop
             >
               <circle r="32" fill="transparent" />
-              <circle r="14" fill="#10b981" opacity="0.85" />
+              <circle r="14" fill="var(--cc-success)" opacity="0.85" />
               <circle r="14" fill="none" stroke="white" stroke-width="2" />
             </g>
           </g>
@@ -199,16 +205,21 @@
               :cy="pendingPixel[1]"
               r="50"
               fill="none"
-              stroke="#f59e0b"
+              stroke="var(--cc-annotation-pending)"
               stroke-width="2.5"
               stroke-dasharray="4 3"
             />
-            <circle :cx="pendingPixel[0]" :cy="pendingPixel[1]" r="15" fill="#f59e0b" />
+            <circle
+              :cx="pendingPixel[0]"
+              :cy="pendingPixel[1]"
+              r="15"
+              fill="var(--cc-annotation-pending)"
+            />
             <text
               v-bind="haloLg"
               :x="pendingPixel[0] + 18"
               :y="pendingPixel[1] - 10"
-              fill="#f59e0b"
+              fill="var(--cc-annotation-pending)"
               font-size="48"
               font-weight="500"
             >

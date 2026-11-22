@@ -136,7 +136,7 @@ function formatElapsed(seconds) {
   font-family: monospace;
   font-size: 0.8rem;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .log-line {

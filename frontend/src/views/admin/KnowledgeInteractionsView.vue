@@ -58,8 +58,8 @@
             <template #no-data>
               <div class="pa-6 text-center">
                 <v-card flat>
-                  <v-card-text class="text-grey text-h6">No data yet</v-card-text>
-                  <v-card-text class="text-grey">
+                  <v-card-text class="text-medium-emphasis text-h6">No data yet</v-card-text>
+                  <v-card-text class="text-medium-emphasis">
                     Knowledge queries will appear here once seniors begin interacting with the
                     system (Phase 2-3).
                   </v-card-text>
@@ -124,25 +124,25 @@
                         <v-chip :color="resp.is_correct ? 'green' : 'red'" size="x-small">
                           {{ resp.is_correct ? "Correct" : "Incorrect" }}
                         </v-chip>
-                        <span class="ml-2 text-caption text-grey">
+                        <span class="ml-2 text-caption text-medium-emphasis">
                           {{ resp.timing_ms ? resp.timing_ms + "ms" : "" }}
                         </span>
                       </div>
                     </v-card>
                   </div>
-                  <div v-if="!item._details.responses?.length" class="text-grey">
+                  <div v-if="!item._details.responses?.length" class="text-medium-emphasis">
                     No responses recorded.
                   </div>
                 </div>
-                <div v-else class="text-grey">No detail loaded.</div>
+                <div v-else class="text-medium-emphasis">No detail loaded.</div>
               </td>
             </template>
 
             <template #no-data>
               <div class="pa-6 text-center">
                 <v-card flat>
-                  <v-card-text class="text-grey text-h6">No data yet</v-card-text>
-                  <v-card-text class="text-grey">
+                  <v-card-text class="text-medium-emphasis text-h6">No data yet</v-card-text>
+                  <v-card-text class="text-medium-emphasis">
                     Quiz sessions will appear here once seniors begin taking quizzes (Phase 2-3).
                   </v-card-text>
                 </v-card>
@@ -190,8 +190,8 @@
             <template #no-data>
               <div class="pa-6 text-center">
                 <v-card flat>
-                  <v-card-text class="text-grey text-h6">No data yet</v-card-text>
-                  <v-card-text class="text-grey">
+                  <v-card-text class="text-medium-emphasis text-h6">No data yet</v-card-text>
+                  <v-card-text class="text-medium-emphasis">
                     Info card deliveries will appear here once the delivery engine is active (Phase
                     2-3).
                   </v-card-text>

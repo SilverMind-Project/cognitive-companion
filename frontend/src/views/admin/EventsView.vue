@@ -45,8 +45,8 @@
         <template #no-data>
           <div class="pa-6 text-center">
             <v-card flat>
-              <v-card-text class="text-grey text-h6">No events yet</v-card-text>
-              <v-card-text class="text-grey"
+              <v-card-text class="text-medium-emphasis text-h6">No events yet</v-card-text>
+              <v-card-text class="text-medium-emphasis"
                 >System events will appear here as rules execute and actions are
                 triggered.</v-card-text
               >

@@ -24,7 +24,7 @@
         :aria-label="recording ? 'Stop listening' : 'Start talking'"
         @click="$emit('toggle-recording')"
       >
-        <v-icon size="40" color="#FBF8F3">
+        <v-icon size="40" color="background">
           {{ recording ? "mdi-stop" : "mdi-microphone" }}
         </v-icon>
       </button>

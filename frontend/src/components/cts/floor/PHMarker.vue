@@ -63,7 +63,7 @@ export default {
     ph: { type: Object, required: true },
     x: { type: Number, default: 0 },
     y: { type: Number, default: 0 },
-    color: { type: String, default: "#888" },
+    color: { type: String, default: "var(--cc-text-3)" },
     showTrail: { type: Boolean, default: false },
     trailPoints: { type: Array, default: () => [] },
   },

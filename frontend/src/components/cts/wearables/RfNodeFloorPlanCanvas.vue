@@ -601,7 +601,7 @@ function submitSurvey() {
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 3;
-  border: 1px solid var(--cc-border);
+  border: 1px solid var(--cc-divider);
   border-radius: var(--cc-radius-md);
   overflow: hidden;
   background: var(--cc-surface-2);
@@ -637,7 +637,7 @@ function submitSurvey() {
 
 .rf-node-marker circle {
   fill: var(--cc-chart-2);
-  stroke: var(--cc-surface-1);
+  stroke: var(--cc-surface);
   stroke-width: 3;
 }
 
@@ -661,7 +661,7 @@ function submitSurvey() {
   font-size: 24px;
   font-weight: 500;
   paint-order: stroke;
-  stroke: var(--cc-surface-1);
+  stroke: var(--cc-surface);
   stroke-width: 4px;
 }
 </style>

@@ -298,7 +298,7 @@ const formatTime = formatTimeOnly;
   line-height: 1.55;
   color: var(--cc-text-1);
   margin: 0 0 4px;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .bubble--user .bubble-text {

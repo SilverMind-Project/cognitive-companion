@@ -82,8 +82,8 @@
         <template #no-data>
           <div class="pa-6 text-center">
             <v-card flat>
-              <v-card-text class="text-grey text-h6">No rules yet</v-card-text>
-              <v-card-text class="text-grey"
+              <v-card-text class="text-medium-emphasis text-h6">No rules yet</v-card-text>
+              <v-card-text class="text-medium-emphasis"
                 >Create automation rules to detect events and trigger actions.</v-card-text
               >
             </v-card>

@@ -83,8 +83,8 @@
     </div>
 
     <v-card v-else-if="!state.clusters.length" flat class="pa-8 text-center glass-card">
-      <v-card-text class="text-grey text-h6">No visitors here yet</v-card-text>
-      <v-card-text class="text-grey">
+      <v-card-text class="text-medium-emphasis text-h6">No visitors here yet</v-card-text>
+      <v-card-text class="text-medium-emphasis">
         A visitor is surfaced for review once the same face has been seen on 3 distinct days within
         30 days. Unnamed clusters are purged automatically after 60 days without a sighting. If
         clustering has been turned off, no new visitors will be captured.

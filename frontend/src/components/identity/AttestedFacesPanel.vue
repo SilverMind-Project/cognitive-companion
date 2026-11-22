@@ -90,8 +90,10 @@
           </div>
         </v-card>
         <v-card v-else flat class="pa-8 text-center glass-card" data-test="audit-empty">
-          <v-card-text class="text-grey text-h6">Nothing waiting to be audited</v-card-text>
-          <v-card-text class="text-grey">
+          <v-card-text class="text-medium-emphasis text-h6"
+            >Nothing waiting to be audited</v-card-text
+          >
+          <v-card-text class="text-medium-emphasis">
             Attested faces appear while wearables are in use and face attestation is switched on.
           </v-card-text>
         </v-card>

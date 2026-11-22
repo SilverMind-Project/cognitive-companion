@@ -2,3 +2,4 @@ dist
 coverage
 src/generated
 package-lock.json
+tests/fixtures/lint_canary

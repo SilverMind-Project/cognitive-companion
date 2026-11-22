@@ -6,6 +6,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ccToken } from "@/composables/useChartTheme.js";
 
 const props = defineProps({
   audioState: { type: String, default: "idle" },
@@ -84,13 +85,30 @@ function resizeCanvas() {
 // ─── Animation ──────────────────────────────────────────────────────────────
 
 // Warm DS waveform palette (stone idle, sage listening, gold speaking, sage
-// system). Tints match the status-pill pairs in VoiceWidget.
-const COLOR_SETS = {
-  idle: ["rgba(135,121,96,0.18)", "rgba(135,121,96,0.10)", "rgba(135,121,96,0.05)"],
-  listening: ["rgba(63,107,82,0.85)", "rgba(90,137,110,0.55)", "rgba(130,178,146,0.30)"],
-  speaking: ["rgba(201,138,46,0.85)", "rgba(220,141,107,0.55)", "rgba(240,217,168,0.35)"],
-  system_speaking: ["rgba(48,83,64,0.85)", "rgba(63,107,82,0.55)", "rgba(130,178,146,0.32)"],
+// system). Tokens live in styles/theme.css and match VoiceWidget status pills.
+const COLOR_TOKEN_SETS = {
+  idle: ["--cc-visualizer-idle-1", "--cc-visualizer-idle-2", "--cc-visualizer-idle-3"],
+  listening: [
+    "--cc-visualizer-listening-1",
+    "--cc-visualizer-listening-2",
+    "--cc-visualizer-listening-3",
+  ],
+  speaking: [
+    "--cc-visualizer-speaking-1",
+    "--cc-visualizer-speaking-2",
+    "--cc-visualizer-speaking-3",
+  ],
+  system_speaking: [
+    "--cc-visualizer-system-1",
+    "--cc-visualizer-system-2",
+    "--cc-visualizer-system-3",
+  ],
 };
+
+function resolveColorSet(audioState) {
+  const tokens = COLOR_TOKEN_SETS[audioState] ?? COLOR_TOKEN_SETS.idle;
+  return tokens.map((name) => ccToken(name));
+}
 
 function draw() {
   const canvas = canvasRef.value;
@@ -131,7 +149,7 @@ function draw() {
 
   phase += speed;
 
-  const colors = COLOR_SETS[state] ?? COLOR_SETS.idle;
+  const colors = resolveColorSet(state);
 
   for (let c = 0; c < colors.length; c++) {
     ctx.beginPath();
@@ -262,15 +280,15 @@ onUnmounted(() => {
 }
 
 .state-listening {
-  filter: drop-shadow(0 0 12px rgba(63, 107, 82, 0.3));
+  filter: drop-shadow(0 0 12px var(--cc-brand-glow));
 }
 
 .state-speaking {
-  filter: drop-shadow(0 0 12px rgba(201, 138, 46, 0.3));
+  filter: drop-shadow(0 0 12px var(--cc-warning-glow));
 }
 
 .state-system_speaking {
-  filter: drop-shadow(0 0 14px rgba(63, 107, 82, 0.32));
+  filter: drop-shadow(0 0 14px var(--cc-brand-glow));
 }
 
 @media (prefers-reduced-motion: reduce) {

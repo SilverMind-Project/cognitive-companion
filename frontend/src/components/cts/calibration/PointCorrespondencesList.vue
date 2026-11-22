@@ -85,7 +85,7 @@ const points = defineModel("points", { type: Array, required: true });
 
 <style scoped>
 .point-row {
-  background: var(--cc-surface-2, rgba(0, 0, 0, 0.03));
+  background: var(--cc-surface-2);
   border-radius: 8px;
   padding: 8px 10px 10px;
 }

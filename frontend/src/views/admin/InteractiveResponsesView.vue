@@ -100,8 +100,8 @@
         <template #no-data>
           <div class="pa-6 text-center">
             <v-card flat>
-              <v-card-text class="text-grey text-h6">No responses yet</v-card-text>
-              <v-card-text class="text-grey"
+              <v-card-text class="text-medium-emphasis text-h6">No responses yet</v-card-text>
+              <v-card-text class="text-medium-emphasis"
                 >Interactive responses will appear here once seniors begin engaging with the
                 companion.</v-card-text
               >

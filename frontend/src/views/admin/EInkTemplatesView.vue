@@ -38,7 +38,7 @@
             }}
           </span>
         </v-chip>
-        <span v-if="!states.length" class="text-grey">No active displays</span>
+        <span v-if="!states.length" class="text-medium-emphasis">No active displays</span>
       </v-card-text>
     </v-card>
 
@@ -72,8 +72,8 @@
         <template #no-data>
           <div class="pa-6 text-center">
             <v-card flat>
-              <v-card-text class="text-grey text-h6">No templates yet</v-card-text>
-              <v-card-text class="text-grey"
+              <v-card-text class="text-medium-emphasis text-h6">No templates yet</v-card-text>
+              <v-card-text class="text-medium-emphasis"
                 >Create e-ink display templates to show custom content on connected
                 displays.</v-card-text
               >

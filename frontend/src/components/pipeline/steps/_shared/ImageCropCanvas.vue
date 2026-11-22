@@ -216,10 +216,10 @@ function draw() {
     const w = rect.x2 - rect.x1;
     const h = rect.y2 - rect.y1;
 
-    ctx.fillStyle = selected ? withAlpha(brand, 0.16) : "rgba(255, 255, 255, 0.06)";
+    ctx.fillStyle = selected ? withAlpha(brand, 0.16) : ccToken("--cc-on-media-tint");
     ctx.fillRect(rect.x1, rect.y1, w, h);
 
-    ctx.strokeStyle = selected ? brand : "rgba(255, 255, 255, 0.7)";
+    ctx.strokeStyle = selected ? brand : ccToken("--cc-on-media-border");
     ctx.lineWidth = selected ? 2.5 : 1.5;
     ctx.strokeRect(rect.x1, rect.y1, w, h);
 
@@ -231,7 +231,7 @@ function draw() {
       const labelY = rect.y1 - 6 > 16 ? rect.y1 - 6 : rect.y1 + 16;
       ctx.fillStyle = selected ? brand : neutral;
       ctx.fillRect(rect.x1, labelY - 12, textW + 8, 16);
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = ccToken("--cc-on-media");
       ctx.fillText(label, rect.x1 + 4, labelY);
     }
 
@@ -271,7 +271,7 @@ function withAlpha(color, alpha) {
     return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
   }
   // Theme-neutral fallback (only if a token failed to resolve to hex/rgb).
-  return `rgba(127, 127, 127, ${alpha})`;
+  return ccToken("--cc-brand-soft");
 }
 
 // ---- Hit testing ----

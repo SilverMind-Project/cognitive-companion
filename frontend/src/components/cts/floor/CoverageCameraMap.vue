@@ -29,7 +29,7 @@
           class="coverage-legend-swatch"
           :style="{
             borderColor: tokText3,
-            background: 'rgba(128,128,128,0.1)',
+            background: 'var(--cc-surface-2)',
             borderStyle: 'dotted',
           }"
         />
@@ -134,7 +134,7 @@
               font-family="system-ui, sans-serif"
               fill="white"
               paint-order="stroke"
-              stroke="rgba(0,0,0,0.7)"
+              stroke="var(--cc-annotation-halo)"
               stroke-width="3"
               style="pointer-events: none"
             >

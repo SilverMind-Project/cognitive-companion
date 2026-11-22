@@ -234,8 +234,8 @@ describe("CTSCalibrationView auto-calibration draft", () => {
     expect(wrapper.text()).toContain("No points yet");
     const markers = wrapper.findAll(".auto-suggestion-marker");
     expect(markers).toHaveLength(2);
-    expect(markers[0].find("circle[stroke='#38bdf8']").attributes("cx")).toBe("120");
-    expect(markers[0].find("circle[stroke='#38bdf8']").attributes("cy")).toBe("300");
+    expect(markers[0].find("circle[stroke='var(--cc-info)']").attributes("cx")).toBe("120");
+    expect(markers[0].find("circle[stroke='var(--cc-info)']").attributes("cy")).toBe("300");
   });
 
   it("manual calibration still posts only anchored point correspondences", async () => {

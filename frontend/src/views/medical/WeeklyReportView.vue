@@ -171,6 +171,7 @@
 
 <script>
 import { ref, computed } from "vue";
+import { useChartTheme } from "@/composables/useChartTheme.js";
 import { cts } from "@/services/cts.js";
 import {
   formatCalendarDate,
@@ -178,9 +179,14 @@ import {
   todayInAppTimezone,
 } from "@/services/timezone.js";
 
-// DS data-viz palette in salience order (mirrors --cc-chart-1..6). Hardcoded so
-// the print sheet renders the brand colours even without computed-style access.
-const PALETTE = ["#3F6B52", "#C8704F", "#4E7A8C", "#C98A2E", "#82B292", "#B3A286"];
+const CHART_FALLBACK_VARS = [
+  "var(--cc-chart-1)",
+  "var(--cc-chart-2)",
+  "var(--cc-chart-3)",
+  "var(--cc-chart-4)",
+  "var(--cc-chart-5)",
+  "var(--cc-chart-6)",
+];
 
 export default {
   name: "WeeklyReportView",
@@ -190,6 +196,7 @@ export default {
   },
 
   setup() {
+    const { chartTheme } = useChartTheme();
     const personId = ref("");
     const weekStart = ref(
       new Date(Date.now() - 7 * 86400000 * (new Date().getDay() || 7) + 86400000)
@@ -202,13 +209,14 @@ export default {
     const reportChartWidth = 600;
 
     const reportBars = computed(() => {
+      const palette = chartTheme.value.color;
       const counts = report.value?.signal_counts || {};
       return Object.entries(counts)
         .sort((a, b) => b[1] - a[1])
         .map(([kind, count], i) => ({
           kind,
           count,
-          color: PALETTE[i % PALETTE.length],
+          color: palette[i % palette.length] || CHART_FALLBACK_VARS[i % CHART_FALLBACK_VARS.length],
           height: Math.max((count / Math.max(...Object.values(counts), 1)) * 100, 4),
         }));
     });

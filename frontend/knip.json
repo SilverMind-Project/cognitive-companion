@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["index.html", "tests/**/*.{js,ts}"],
-  "project": ["src/**", "tests/**"]
+  "project": ["src/**", "tests/**"],
+  "ignore": ["tests/fixtures/lint_canary/**"]
 }

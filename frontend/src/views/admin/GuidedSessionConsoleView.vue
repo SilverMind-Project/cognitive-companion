@@ -281,7 +281,7 @@ async function sendSay() {
 }
 
 .turn-row--caregiver {
-  background: rgba(201, 138, 46, 0.06);
+  background: var(--cc-warning-softer);
 }
 
 .font-mono {

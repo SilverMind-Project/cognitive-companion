@@ -229,3 +229,65 @@ async def test_delete_document_survives_purge_failure(
     await ingestion.delete_document(doc.id)
 
     assert ingestion.get_document(doc.id) is None
+
+
+async def test_approved_document_without_chunks_is_retried(
+    db_factory, image_pipeline: Mock, embedder: _FakeEmbedder
+) -> None:
+    offline = _service(db_factory, image_pipeline, None)
+    doc = await _create(offline)
+    offline.approve_document(doc.id)  # approved while the embedding service was down
+    assert _persisted(db_factory, doc.id) == ("approved", 0)
+
+    online = _service(db_factory, image_pipeline, embedder)
+    assert await online.reembed_stuck_documents() == 1
+    status, chunks = _persisted(db_factory, doc.id)
+    assert status == "approved"
+    assert chunks >= 1
+    assert await online.reembed_stuck_documents() == 0
+
+
+async def test_whitespace_document_is_never_reselected(
+    ingestion: KnowledgeIngestionService, embedder: _FakeEmbedder, db_factory
+) -> None:
+    doc = await _create(ingestion, text="\n\n\t  \n")
+    ingestion.approve_document(doc.id)
+    assert _persisted(db_factory, doc.id) == ("approved", 0)
+
+    assert await ingestion.reembed_stuck_documents() == 0
+    assert embedder.calls == 0
+
+
+async def test_resaving_identical_text_keeps_approval(
+    ingestion: KnowledgeIngestionService, embedder: _FakeEmbedder
+) -> None:
+    doc = await _create(ingestion)
+    ingestion.approve_document(doc.id)
+    calls = embedder.calls
+
+    updated = await ingestion.update_document(doc.id, source_text=_TEXT, title="Family (edited)")
+
+    assert updated.status == "approved"
+    assert updated.title == "Family (edited)"
+    assert embedder.calls == calls
+
+
+async def test_editing_archived_document_keeps_it_archived_until_restored(
+    ingestion: KnowledgeIngestionService, embedder: _FakeEmbedder, db_factory
+) -> None:
+    doc = await _create(ingestion)
+    ingestion.archive_document(doc.id)
+    calls = embedder.calls
+
+    edited = await ingestion.update_document(doc.id, source_text="Priya moved to Seattle.")
+
+    assert edited.status == "archived"
+    assert edited.archived_at is not None
+    assert embedder.calls == calls
+
+    restored = ingestion.restore_document(doc.id)
+    assert restored.status == "uploaded"
+    assert restored.archived_at is None
+    assert await ingestion.reembed_stuck_documents() == 1
+    assert _persisted(db_factory, doc.id)[0] == "chunked"
+    assert [c.text for c in ingestion.get_document(doc.id).chunks] == ["Priya moved to Seattle."]

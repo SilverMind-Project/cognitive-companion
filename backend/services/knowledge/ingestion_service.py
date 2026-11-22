@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import UploadFile
-from sqlalchemy import delete, func, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
@@ -217,6 +217,12 @@ class KnowledgeIngestionService:
             db.close()
 
     async def update_document(self, doc_id: int, **kwargs) -> KnowledgeDocument:
+        """Apply field updates; changed text is re-embedded and goes back through review.
+
+        Only text that actually differs counts as a change, so re-saving the same text never
+        demotes an approved document. An archived document keeps its status: editing does not
+        resurrect it, and its text is embedded when a caregiver restores it.
+        """
         db: Session = self._db_factory()
         try:
             doc = db.execute(
@@ -225,14 +231,13 @@ class KnowledgeIngestionService:
             if doc is None:
                 raise NotFoundError("Knowledge document", doc_id)
 
+            new_text = kwargs.get("source_text")
+            source_changed = new_text is not None and new_text != doc.source_text
             for key, val in kwargs.items():
                 if val is not None and hasattr(doc, key):
                     setattr(doc, key, val)
 
-            source_changed = "source_text" in kwargs and kwargs["source_text"] is not None
-
-            # If source_text changed, reset to uploaded so re-chunk happens
-            if source_changed:
+            if source_changed and doc.status != "archived":
                 doc.status = "uploaded"
 
             doc.updated_at = datetime.now(UTC)
@@ -504,20 +509,36 @@ class KnowledgeIngestionService:
     # -- re-embed scheduler job ---------------------------------------------
 
     async def reembed_stuck_documents(self) -> int:
-        """Retry chunk + embed for documents still in 'uploaded'. Returns the success count.
+        """Retry chunk + embed for documents that lack their chunks. Returns the success count.
 
-        Called periodically by the scheduler. A successful embed moves the document to
-        'chunked', so each document is processed until it succeeds and then never again.
+        Called periodically by the scheduler. Two cases need work: documents still in
+        'uploaded', and chunked or approved documents with text but no chunks (a caregiver
+        can approve while the embedding service is down, which would otherwise leave the
+        document invisible to senior questions forever). A successful embed moves 'uploaded'
+        to 'chunked' and writes chunks, so each document is processed until it succeeds and
+        then never again.
         """
         if self._embedding_client is None:
             return 0
 
         db: Session = self._db_factory()
         try:
+            has_chunks = (
+                select(KnowledgeDocumentChunk.id)
+                .where(KnowledgeDocumentChunk.document_id == KnowledgeDocument.id)
+                .exists()
+            )
+            missing_chunks = and_(
+                KnowledgeDocument.status.in_(["chunked", "approved"]),
+                # Same notion of "has text" as _split_source_text (any non-whitespace), so a
+                # whitespace-only document is never selected again after chunking to nothing.
+                KnowledgeDocument.source_text.regexp_match(r"\S"),
+                ~has_chunks,
+            )
             doc_ids = list(
                 db.execute(
                     select(KnowledgeDocument.id)
-                    .where(KnowledgeDocument.status == "uploaded")
+                    .where(or_(KnowledgeDocument.status == "uploaded", missing_chunks))
                     .order_by(KnowledgeDocument.id.asc())
                     .limit(20)
                 ).scalars()

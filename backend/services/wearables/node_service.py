@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
-from datetime import UTC, datetime
+from collections.abc import Callable, Mapping
+from datetime import UTC, datetime, timedelta
 
 from cts_contracts import RangingTechnology, RfNodeRole
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
 
 from backend.core.exceptions import ConflictError, NotFoundError, ValidationError
 from backend.core.logging import get_logger
+from backend.core.upstream_errors import UpstreamError
+from backend.integrations.rf_ingress_client import RfIngressClient
 from backend.models.wearable import RfNode
 from backend.schemas.wearables import (
     RfNodeCreate,
@@ -38,6 +41,8 @@ def _node_out(
     *,
     scale: FloorPlanScale | None,
     room_names: dict[int, str],
+    last_heard_age_s: float | None = None,
+    now: datetime | None = None,
 ) -> RfNodeOut:
     x_m: float | None = None
     y_m: float | None = None
@@ -45,6 +50,11 @@ def _node_out(
         raw_x, raw_y = norm_to_floor_m(node.x_norm, node.y_norm, scale)
         x_m = round(raw_x, 4)
         y_m = round(raw_y, 4)
+    last_heard_at: datetime | None = None
+    rounded_age: float | None = None
+    if last_heard_age_s is not None and now is not None:
+        rounded_age = round(max(0.0, float(last_heard_age_s)), 1)
+        last_heard_at = now.astimezone(UTC) - timedelta(seconds=rounded_age)
     return RfNodeOut(
         id=node.id,
         anchor_id=node.anchor_id,
@@ -61,6 +71,9 @@ def _node_out(
         z_m=node.z_m,
         is_active=node.is_active,
         placement_residual_m=node.placement_residual_m,
+        firmware_version=node.firmware_version,
+        last_heard_at=last_heard_at,
+        last_heard_age_s=rounded_age,
         uwb_address_hex=node.uwb_address_hex,
         uwb_channel=node.uwb_channel,
         uwb_preamble_index=node.uwb_preamble_index,
@@ -76,18 +89,49 @@ class RfNodeService:
         self,
         repo: SqlAlchemyWearableRepository,
         *,
+        rf_ingress: RfIngressClient | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._repo = repo
+        self._rf_ingress = rf_ingress
         self._clock = clock
 
-    def list_nodes(self, *, active_only: bool = False) -> RfNodeListOut:
+    async def _fetch_live_node_ages(self) -> dict[str, float]:
+        if self._rf_ingress is None or not self._rf_ingress.configured:
+            return {}
+        try:
+            health = await self._rf_ingress.get_health()
+            return health.node_last_seen_age_s
+        except (UpstreamError, PydanticValidationError) as exc:
+            logger.warning(
+                "rf_node_health_fetch_failed",
+                error=type(exc).__name__,
+            )
+            return {}
+
+    def list_nodes(
+        self,
+        *,
+        active_only: bool = False,
+        node_last_seen_age_s: Mapping[str, float] | None = None,
+    ) -> RfNodeListOut:
+        now = self._clock()
+        ages = node_last_seen_age_s or {}
         with self._repo.session() as db:
             settings = self._repo.get_household_settings(db)
             scale = floor_plan_scale(settings)
             nodes = self._repo.list_nodes(db, active_only=active_only)
             room_names = {rid: r.name for rid, r in self._repo.list_rooms_map(db).items()}
-            items = [_node_out(n, scale=scale, room_names=room_names) for n in nodes]
+            items = [
+                _node_out(
+                    n,
+                    scale=scale,
+                    room_names=room_names,
+                    last_heard_age_s=ages.get(n.anchor_id),
+                    now=now,
+                )
+                for n in nodes
+            ]
             return RfNodeListOut(
                 items=items,
                 total=len(items),
@@ -97,14 +141,37 @@ class RfNodeService:
                 floor_height_m=round(scale.height_m, 4) if scale is not None else None,
             )
 
-    def get_node(self, node_id: uuid.UUID) -> RfNodeOut:
+    async def list_nodes_live(self, *, active_only: bool = False) -> RfNodeListOut:
+        """List RF nodes enriched with live ``last_heard_at`` from rf-ingress health."""
+        ages = await self._fetch_live_node_ages()
+        return self.list_nodes(active_only=active_only, node_last_seen_age_s=ages)
+
+    def get_node(
+        self,
+        node_id: uuid.UUID,
+        *,
+        node_last_seen_age_s: Mapping[str, float] | None = None,
+    ) -> RfNodeOut:
+        now = self._clock()
+        ages = node_last_seen_age_s or {}
         with self._repo.session() as db:
             node = self._repo.get_node(db, node_id)
             if node is None:
                 raise NotFoundError("RfNode", str(node_id))
             scale = floor_plan_scale(self._repo.get_household_settings(db))
             room_names = {rid: r.name for rid, r in self._repo.list_rooms_map(db).items()}
-            return _node_out(node, scale=scale, room_names=room_names)
+            return _node_out(
+                node,
+                scale=scale,
+                room_names=room_names,
+                last_heard_age_s=ages.get(node.anchor_id),
+                now=now,
+            )
+
+    async def get_node_live(self, node_id: uuid.UUID) -> RfNodeOut:
+        """Fetch one RF node enriched with live ``last_heard_at`` from rf-ingress health."""
+        ages = await self._fetch_live_node_ages()
+        return self.get_node(node_id, node_last_seen_age_s=ages)
 
     def create_node(self, payload: RfNodeCreate, *, actor: str) -> RfNodeOut:
         now = self._clock()
@@ -130,6 +197,7 @@ class RfNodeService:
                 z_m=payload.z_m,
                 is_active=payload.is_active,
                 placement_residual_m=payload.placement_residual_m,
+                firmware_version=payload.firmware_version,
                 uwb_address_hex=payload.uwb_address_hex,
                 uwb_channel=payload.uwb_channel,
                 uwb_preamble_index=payload.uwb_preamble_index,

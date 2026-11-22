@@ -260,7 +260,7 @@
         <v-text-field
           v-model="newDevice.hardware_key"
           label="Hardware key"
-          hint="Opaque radio identifier seen by the adapter (for example iBeacon UUID:major:minor)"
+          hint="Radio identifier reported by the receiver (for iBeacon: iBeacon:<uuid>-<major>-<minor>, found in the beacon companion app or receiver MQTT logs)"
           persistent-hint
           data-test="new-device-hw-key"
         />

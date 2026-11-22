@@ -180,6 +180,28 @@
               </span>
             </div>
 
+            <v-text-field
+              v-model="form.firmware_version"
+              label="Firmware version (optional)"
+              placeholder="e.g. ESPresense 3.3.2"
+              hint="Operator inventory note for the receiver firmware build"
+              persistent-hint
+              class="mb-3"
+              data-test="node-firmware-version"
+            />
+
+            <div
+              v-if="selectedNode"
+              class="text-caption text-medium-emphasis mb-3"
+              data-test="node-last-heard"
+            >
+              Last heard:
+              <strong v-if="selectedNode.last_heard_at">
+                {{ formatDateTime(selectedNode.last_heard_at) }}
+              </strong>
+              <span v-else>Never heard</span>
+            </div>
+
             <!-- Optional UWB FiRa parameters when technology is UWB -->
             <template v-if="form.technology === 'uwb'">
               <v-divider class="my-3" />
@@ -328,6 +350,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
 import { useChartTheme } from "@/composables/useChartTheme.js";
+import { formatDateTime } from "@/services/timezone.js";
 import type { RoomOut } from "@/services/modules/rooms";
 import type {
   RfNodeCreate,
@@ -362,6 +385,7 @@ useChartTheme();
 
 const svgRef = ref<SVGSVGElement | null>(null);
 const selectedNodeId = ref<string | null>(null);
+const selectedNode = computed(() => props.nodes.find((n) => n.id === selectedNodeId.value) ?? null);
 const draggingNodeId = ref<string | null>(null);
 
 const form = reactive({
@@ -374,6 +398,7 @@ const form = reactive({
   x_norm: 0.5,
   y_norm: 0.5,
   z_m: 1.5,
+  firmware_version: "",
   uwb_address_hex: null as string | null,
   uwb_channel: 9 as number | null,
   uwb_preamble_index: 10 as number | null,
@@ -443,6 +468,7 @@ function startNewNode() {
   form.x_norm = 0.5;
   form.y_norm = 0.5;
   form.z_m = 1.5;
+  form.firmware_version = "";
   form.uwb_address_hex = null;
   form.uwb_channel = 9;
   form.uwb_preamble_index = 10;
@@ -460,6 +486,7 @@ function selectNode(node: RfNodeOut) {
   form.x_norm = node.x_norm;
   form.y_norm = node.y_norm;
   form.z_m = node.z_m;
+  form.firmware_version = node.firmware_version ?? "";
   form.uwb_address_hex = node.uwb_address_hex ?? null;
   form.uwb_channel = node.uwb_channel ?? 9;
   form.uwb_preamble_index = node.uwb_preamble_index ?? 10;
@@ -518,6 +545,7 @@ function saveNode() {
           uwb_channel: null,
           uwb_preamble_index: null,
         };
+  const firmwareVersion = form.firmware_version.trim() || null;
   if (selectedNodeId.value) {
     emit("update-node", selectedNodeId.value, {
       label: form.label.trim(),
@@ -528,6 +556,7 @@ function saveNode() {
       x_norm: form.x_norm,
       y_norm: form.y_norm,
       z_m: form.z_m,
+      firmware_version: firmwareVersion,
       ...uwbFields,
     });
   } else {
@@ -542,6 +571,7 @@ function saveNode() {
       y_norm: form.y_norm,
       z_m: form.z_m,
       is_active: true,
+      firmware_version: firmwareVersion,
       ...uwbFields,
     });
   }

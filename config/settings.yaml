@@ -522,6 +522,13 @@ cts:
       client_cert: ""
       client_key: ""
 
+    rf_ingress:
+      url: "${CTS_RF_INGRESS_URL}"
+      timeout_s: 3.0
+      ca_file: ""
+      client_cert: ""
+      client_key: ""
+
 # CTS UI feature flags
 cts_ui:
   calibration_enabled: true

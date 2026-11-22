@@ -235,6 +235,7 @@ Also assigns `container.presence` and `container.ha_state_cache` (both via
 | Attribute | Enabled | Disabled |
 | --- | --- | --- |
 | `ingress_admin_client` | constructed | `None` |
+| `rf_ingress_client` | constructed | `None` |
 | `orchestrator_client` | constructed | `None` |
 | `identity_targets_service` | constructed (person-id and orchestrator clients) | constructed without the orchestrator: no gallery counts |
 | `visitor_admin_service` | constructed (person-id client) | same; visitor review never depends on tracking |

@@ -14586,6 +14586,18 @@
             "title": "Anchor Id",
             "type": "string"
           },
+          "firmware_version": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firmware Version"
+          },
           "is_active": {
             "default": true,
             "title": "Is Active",
@@ -14770,6 +14782,17 @@
             "title": "Created At",
             "type": "string"
           },
+          "firmware_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firmware Version"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -14782,6 +14805,29 @@
           "label": {
             "title": "Label",
             "type": "string"
+          },
+          "last_heard_age_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heard Age S"
+          },
+          "last_heard_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heard At"
           },
           "node_role": {
             "$ref": "#/components/schemas/RfNodeRole"
@@ -15069,6 +15115,18 @@
               }
             ],
             "title": "Adapter Id"
+          },
+          "firmware_version": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firmware Version"
           },
           "is_active": {
             "anyOf": [
@@ -40149,7 +40207,7 @@
     },
     "/api/v1/wearables/nodes": {
       "get": {
-        "description": "List registered fixed RF nodes with floor-plan readiness and metre projections.",
+        "description": "List registered fixed RF nodes with floor-plan readiness, metre projections, and health.",
         "operationId": "list_rf_nodes",
         "parameters": [
           {
@@ -40330,7 +40388,7 @@
         ]
       },
       "get": {
-        "description": "Fetch a single fixed RF node.",
+        "description": "Fetch a single fixed RF node with live last-heard time when rf-ingress is reachable.",
         "operationId": "get_rf_node",
         "parameters": [
           {

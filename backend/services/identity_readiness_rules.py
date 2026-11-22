@@ -25,6 +25,8 @@ from backend.schemas.identity_roster import RosterHealthEnvelope
 
 # A camera that has not delivered a frame for this long is not feeding identity at all.
 STALE_FRAME_S = 60.0
+# Fixed RF receivers must be heard within this window to count as active on readiness.
+RF_NODE_HEARD_WINDOW_S = 300.0
 # A camera with this role is an identification point, not a tracking camera: it needs no
 # floor homography for the floor frame to be complete.
 FACE_ONLY_ROLE = "face_capable"
@@ -75,13 +77,17 @@ class IngestHealth:
 
 @dataclass(frozen=True)
 class WearablesHealth:
-    """Wearable registry counts and last-heard age for the optional wearables step."""
+    """Wearable registry counts, live RF-node/tag freshness, and battery for the wearables step."""
 
     active_node_count: int
     active_device_count: int
     active_binding_count: int
     low_battery_count: int
     last_heard_age_s: float | None
+    nodes_heard_recent_count: int | None = None
+    tags_heard_count: int | None = None
+    lowest_battery_fraction: float | None = None
+    rf_ingress_unreachable: bool = False
 
 
 def _unknown(
@@ -556,6 +562,29 @@ def body_gallery_step(cts: CTSIdentityReadiness | SourceFailure) -> ReadinessSte
     return ReadinessStep(key="body_gallery", state="ready", detail=summary, next_action="none")
 
 
+def _wearables_telemetry_detail(wearables: WearablesHealth) -> str:
+    parts: list[str] = []
+    if wearables.nodes_heard_recent_count is not None:
+        parts.append(
+            f"{wearables.nodes_heard_recent_count} of {wearables.active_node_count} "
+            "RF nodes heard in the last 5 minutes"
+        )
+    elif wearables.rf_ingress_unreachable:
+        parts.append("rf-ingress health unavailable")
+    if wearables.tags_heard_count is not None:
+        parts.append(
+            f"{wearables.tags_heard_count} of {wearables.active_device_count} "
+            f"{'tag' if wearables.active_device_count == 1 else 'tags'} heard"
+        )
+    if wearables.lowest_battery_fraction is not None:
+        parts.append(f"lowest beacon battery {round(wearables.lowest_battery_fraction * 100)}%")
+    if wearables.last_heard_age_s is not None:
+        parts.append(f"last fix heard {wearables.last_heard_age_s:.0f} s ago")
+    elif not parts:
+        return " No RF fixes heard yet."
+    return " " + "; ".join(parts) + "."
+
+
 def wearables_step(
     wearables: WearablesHealth | SourceFailure,
     *,
@@ -593,12 +622,14 @@ def wearables_step(
             next_action="upload_floor_plan",
             optional=True,
         )
+    telemetry = _wearables_telemetry_detail(wearables)
     if wearables.low_battery_count > 0:
         return ReadinessStep(
             key="wearables",
             state="attention",
             detail=(
                 f"{counts} {_count(wearables.low_battery_count, 'wearable')} reported low battery."
+                + telemetry
             ),
             next_action="configure_wearables",
             optional=True,
@@ -613,15 +644,18 @@ def wearables_step(
             next_action="configure_wearables",
             optional=True,
         )
-    heard = (
-        f" Last fix heard {wearables.last_heard_age_s:.0f} s ago."
-        if wearables.last_heard_age_s is not None
-        else " No RF fixes heard yet."
-    )
+    if wearables.nodes_heard_recent_count == 0 and wearables.active_node_count > 0:
+        return ReadinessStep(
+            key="wearables",
+            state="attention",
+            detail=counts + telemetry,
+            next_action="configure_wearables",
+            optional=True,
+        )
     return ReadinessStep(
         key="wearables",
         state="ready",
-        detail=counts + heard,
+        detail=counts + telemetry,
         next_action="none",
         optional=True,
     )

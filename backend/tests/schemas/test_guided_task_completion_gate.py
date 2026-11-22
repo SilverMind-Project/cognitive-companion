@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from backend.schemas.guided_task import RoutineStepIn
+from backend.services.guided_task.routine_admin import sanitize_completion_gate
 
 
 def _normalize(completion_gate: dict) -> dict:
@@ -59,3 +60,40 @@ def test_legacy_vision_keys_are_stripped() -> None:
     assert "camera_ids" not in out["vision"]
     assert "description" not in out["vision"]
     assert out["vision"]["gate_graph_rule_id"] == 7
+
+
+def test_routine_admin_sanitize_completion_gate_matches_schema_validator() -> None:
+    gate = {
+        "kinds": ["response", "vision_confirm"],
+        "vision": {
+            "gate_graph_rule_id": 11,
+            "confirm": {
+                "window_s": 20,
+                "max_frames": 4,
+                "max_cameras": 2,
+                "min_confidence": 0.75,
+                "min_interval_s": 5,
+                "model_id": "gemma-4-26B-A4B-it",
+                "max_disagreements": 3,
+                "on_max_disagreements": "escalate",
+            },
+            "watch": {
+                "enabled": True,
+                "tick_s": 10,
+                "window_s": 15,
+                "max_frames": 3,
+                "max_cameras": 1,
+                "min_confidence": 0.85,
+                "model_id": None,
+                "auto_advance": True,
+                "auto_advance_k": 2,
+            },
+        },
+    }
+    via_schema = _normalize(gate)
+    via_service = sanitize_completion_gate(gate)
+    assert via_schema == via_service
+    assert via_service["vision"]["confirm"]["max_disagreements"] == 3
+    assert via_service["vision"]["confirm"]["max_cameras"] == 2
+    assert via_service["vision"]["watch"]["max_cameras"] == 1
+    assert via_service["vision"]["watch"]["min_confidence"] == 0.85

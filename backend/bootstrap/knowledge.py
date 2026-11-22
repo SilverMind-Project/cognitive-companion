@@ -39,9 +39,12 @@ def wire_knowledge(app: FastAPI, settings: Settings) -> None:
     from backend.services.knowledge.content_generation import ContentGenerationService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
     from backend.services.knowledge.image_pipeline import ImagePipeline
+    from backend.services.knowledge.info_card_service import InfoCardService
     from backend.services.knowledge.ingestion_service import KnowledgeIngestionService
+    from backend.services.knowledge.interaction_service import KnowledgeInteractionService
     from backend.services.knowledge.layout_registry import LayoutRegistry
     from backend.services.knowledge.query_service import KnowledgeQueryService
+    from backend.services.knowledge.quiz_service import QuizService
     from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
 
     layouts_file = settings.as_str("knowledge.layouts_file")
@@ -62,6 +65,22 @@ def wire_knowledge(app: FastAPI, settings: Settings) -> None:
         embedding_client=embedding_client,
     )
     app.state.knowledge_ingestion = knowledge_ingestion
+
+    app.state.info_card_service = InfoCardService(
+        db_factory=get_session,
+        minio_client=minio_client,
+        image_pipeline=image_pipeline,
+        layout_registry=layout_registry,
+    )
+    app.state.quiz_service = QuizService(
+        db_factory=get_session,
+        minio_client=minio_client,
+        image_pipeline=image_pipeline,
+        layout_registry=layout_registry,
+    )
+    app.state.knowledge_interaction_service = KnowledgeInteractionService(
+        db_factory=get_session,
+    )
 
     knowledge_query = KnowledgeQueryService(
         db_factory=get_session,

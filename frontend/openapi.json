@@ -32514,6 +32514,22 @@
         "parameters": [
           {
             "in": "query",
+            "name": "info_card_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Info Card Id"
+            }
+          },
+          {
+            "in": "query",
             "name": "date_from",
             "required": false,
             "schema": {
@@ -32555,6 +32571,17 @@
               "maximum": 1000,
               "minimum": 1,
               "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
               "type": "integer"
             }
           }
@@ -32600,6 +32627,22 @@
       "get": {
         "operationId": "list_queries",
         "parameters": [
+          {
+            "in": "query",
+            "name": "senior_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Senior Id"
+            }
+          },
           {
             "in": "query",
             "name": "date_from",
@@ -32652,6 +32695,38 @@
           },
           {
             "in": "query",
+            "name": "min_similarity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Similarity"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_similarity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Similarity"
+            }
+          },
+          {
+            "in": "query",
             "name": "q",
             "required": false,
             "schema": {
@@ -32675,6 +32750,17 @@
               "maximum": 1000,
               "minimum": 1,
               "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
               "type": "integer"
             }
           }
@@ -32720,6 +32806,38 @@
       "get": {
         "operationId": "list_quiz_sessions",
         "parameters": [
+          {
+            "in": "query",
+            "name": "quiz_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Quiz Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "senior_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Senior Id"
+            }
+          },
           {
             "in": "query",
             "name": "date_from",
@@ -32779,6 +32897,17 @@
               "maximum": 1000,
               "minimum": 1,
               "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
               "type": "integer"
             }
           }
@@ -35700,6 +35829,22 @@
                 }
               ],
               "title": "Tag"
+            }
+          },
+          {
+            "in": "query",
+            "name": "document_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Id"
             }
           },
           {

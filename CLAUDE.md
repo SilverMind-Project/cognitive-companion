@@ -21,6 +21,7 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 | `.claude/skills/daily-living/SKILL.md` | Daily-living detection, the activity ledger, hygiene/intent signals, semantic-memory writes, rule bundles, and inference load governance |
 | `.claude/skills/cts-identity-admin/SKILL.md` | CTS keyframe identity displays, Person Hypothesis correction workflows, ReID review surfaces, visitor and identity provenance APIs |
 | `.claude/skills/guided-companion/SKILL.md` | Guided routines, the guided-task state machine, interactive sessions, completion evaluators, the safety watch, escalation, and guided-task MCP tools |
+| `.claude/skills/knowledge-and-cognitive-care/SKILL.md` | Knowledge Repository, Info Cards, Quizzes, Senior RAG Q&A, knowledge pipeline steps (`info_card`, `quiz_start`, `knowledge_query`), and senior-facing dementia-care UX |
 | `/home/sriram/code/nanai/.claude/skills/nanai-workspace/SKILL.md` | Any change spanning more than one repository: repo map, gates, proto two-repo rule, milestone workflow |
 
 Each `SKILL.md` lists its rules as one-liners; `engineering-standards` and `front-end` keep the

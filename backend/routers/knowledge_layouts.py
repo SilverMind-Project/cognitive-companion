@@ -4,18 +4,21 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 
 from backend.core.auth import require_permission
 from backend.core.exceptions import NotFoundError
+from backend.routers.dependencies import get_layout_registry, get_voice_instructions
 from backend.schemas.knowledge_layouts import LayoutListResponse, LayoutOut, VoiceDefaultsOut
+from backend.services.knowledge.layout_registry import LayoutRegistry
+from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
 
 router = APIRouter(prefix="/knowledge/layouts", tags=["knowledge-layouts"])
 
 voice_defaults_router = APIRouter(prefix="/knowledge", tags=["knowledge-layouts"])
 
 
-def _variant_out(v) -> dict[str, Any]:
+def _variant_out(v: Any) -> dict[str, Any]:
     return {
         "target_width": v.target_width,
         "target_height": v.target_height,
@@ -26,14 +29,14 @@ def _variant_out(v) -> dict[str, Any]:
     }
 
 
-def _slot_out(s) -> dict[str, Any]:
+def _slot_out(s: Any) -> dict[str, Any]:
     return {
         "slot_id": s.slot_id,
         "variants": {surface: _variant_out(v) for surface, v in s.variants.items()},
     }
 
 
-def _layout_out(lo) -> dict[str, Any]:
+def _layout_out(lo: Any) -> dict[str, Any]:
     return {
         "id": lo.id,
         "display_name": lo.display_name,
@@ -47,11 +50,10 @@ def _layout_out(lo) -> dict[str, Any]:
 
 @router.get("", response_model=LayoutListResponse)
 async def list_layouts(
-    request: Request,
     applies_to: str | None = None,
+    registry: LayoutRegistry = Depends(get_layout_registry),
     _auth: None = Depends(require_permission("knowledge.layouts:read")),
-):
-    registry = request.app.state.layout_registry
+) -> dict[str, Any]:
     layouts = registry.get_for(applies_to) if applies_to else registry.all_layouts()
     return {"layouts": [_layout_out(lo) for lo in layouts]}
 
@@ -59,10 +61,9 @@ async def list_layouts(
 @router.get("/{layout_id}", response_model=LayoutOut)
 async def get_layout(
     layout_id: str,
-    request: Request,
+    registry: LayoutRegistry = Depends(get_layout_registry),
     _auth: None = Depends(require_permission("knowledge.layouts:read")),
-):
-    registry = request.app.state.layout_registry
+) -> dict[str, Any]:
     layout = registry.get(layout_id)
     if layout is None:
         raise NotFoundError("Layout", layout_id)
@@ -71,11 +72,10 @@ async def get_layout(
 
 @voice_defaults_router.get("/voice-defaults", response_model=VoiceDefaultsOut)
 async def get_voice_defaults(
-    request: Request,
+    vc: VoiceInstructionConfig = Depends(get_voice_instructions),
     _auth: None = Depends(require_permission("knowledge.layouts:read")),
-):
+) -> dict[str, str]:
     """Return the default voice instructions for each delivery type."""
-    vc = request.app.state.voice_instructions
     return {
         "interactive_prompt_default": vc.interactive_prompt_default,
         "info_card_default": vc.info_card_default,

@@ -123,6 +123,9 @@ No `container` parameter -- runs before `ServiceContainer` exists.
 | `embedding_client` | -- (DL-M05: shared Triton text-embedding client, also read by the guided-task bridge) |
 | `image_pipeline` | `minio_client`, `layout_registry` |
 | `knowledge_ingestion` | `minio_client`, `image_pipeline` |
+| `info_card_service` | `minio_client`, `image_pipeline`, `layout_registry` |
+| `quiz_service` | `minio_client`, `image_pipeline`, `layout_registry` |
+| `knowledge_interaction_service` | -- |
 | `knowledge_query` | `llm_model_registry` |
 | `knowledge_content_gen` | `llm_model_registry` |
 | `knowledge_delivery` | `ws_manager`, `minio_client`, `eink_renderer`, `voice_instructions`, `knowledge_content_gen` |

@@ -43,7 +43,7 @@ def _infer_sensor_type(entity_id: str) -> str:
 async def sync_rooms(
     request: Request,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("admin")),
+    auth: AuthContext = Depends(require_permission("ha:write")),
 ):
     """Import rooms (areas) from Home Assistant into the local database.
 
@@ -80,7 +80,7 @@ async def sync_sensors(
     request: Request,
     room_name: str | None = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("admin")),
+    auth: AuthContext = Depends(require_permission("ha:write")),
 ):
     """Import sensors from Home Assistant for a room (or all rooms).
 
@@ -144,7 +144,7 @@ async def sync_sensors(
 @router.get("/media-players", response_model=list[HaEntityOut])
 async def list_media_players(
     request: Request,
-    auth: AuthContext = Depends(require_permission("admin")),
+    auth: AuthContext = Depends(require_permission("ha:read")),
 ):
     """Return all media_player entity IDs from Home Assistant.
 
@@ -169,7 +169,7 @@ async def list_media_players(
 async def list_entities(
     request: Request,
     domain: str | None = None,
-    auth: AuthContext = Depends(require_permission("admin")),
+    auth: AuthContext = Depends(require_permission("ha:read")),
 ):
     """Return HA entity IDs, optionally filtered by domain.
 

@@ -558,7 +558,7 @@ def delete_step(
 def validate_rule(
     rule_id: int,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("rules:read")),
+    _auth: AuthContext = Depends(require_permission("rules:write")),
 ):
     """Lint all template expressions across every step in a rule.
 
@@ -613,7 +613,7 @@ async def execute_rule(
     rule_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("rules:write")),
+    _auth: AuthContext = Depends(require_permission("rules:execute")),
 ):
     """Manually trigger a rule for testing. Works for any rule regardless of trigger_type."""
     from backend.steps.base import TriggerContext
@@ -846,7 +846,7 @@ def export_rule(
 def preview_import(
     bundle: RuleBundle,
     request: Request,
-    _auth: AuthContext = Depends(require_permission("rules:write")),
+    _auth: AuthContext = Depends(require_permission("rules:import")),
 ):
     """Validate an import bundle without committing."""
     return validate_bundle(bundle, _app_version())
@@ -857,7 +857,7 @@ def import_rule(
     bundle: RuleBundle,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("rules:write")),
+    _auth: AuthContext = Depends(require_permission("rules:import")),
 ):
     """Import a rule from a portable bundle. All-or-nothing within a transaction."""
     report = bundle_to_rule(bundle, db, app_version=_app_version())

@@ -27,7 +27,7 @@ async def get_signals_feed(
     window_hours: int = Query(24, ge=1, le=720),
     limit: int = Query(50, ge=1, le=200),
     svc: SignalsFeedService = Depends(get_signals_feed),
-    _auth: AuthContext = Depends(require_permission("caregiver")),
+    _auth: AuthContext = Depends(require_permission("signals.feed:read")),
 ) -> list[SignalEnvelope]:
     return await svc.list_feed(
         source=source,

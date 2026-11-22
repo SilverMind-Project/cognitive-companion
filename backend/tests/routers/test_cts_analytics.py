@@ -29,7 +29,7 @@ def _make_client(svc_mock: AsyncMock) -> TestClient:
     register_exception_handlers(app)
     app.include_router(analytics_router)
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.dependency_overrides[get_person_location_service] = lambda: svc_mock
     return TestClient(app)

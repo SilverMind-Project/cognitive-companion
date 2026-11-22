@@ -92,7 +92,7 @@ async def test_mcp_bff_person_locations_same_person_ids():
     register_exception_handlers(app)
     app.include_router(loc_router)
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.dependency_overrides[get_db] = _mock_db
     app.dependency_overrides[_get_service] = lambda: svc_mock
@@ -128,7 +128,7 @@ async def test_mcp_bff_person_locations_same_room_ids():
     register_exception_handlers(app)
     app.include_router(loc_router)
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.dependency_overrides[get_db] = _mock_db
     app.dependency_overrides[_get_service] = lambda: svc_mock
@@ -204,7 +204,7 @@ async def test_heatmap_mcp_bff_same_person_id():
     register_exception_handlers(app)
     app.include_router(analytics_router)
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     svc_mock.get_heatmap.reset_mock(return_value=True)
     svc_mock.get_heatmap = AsyncMock(return_value=_HEATMAP_ENVELOPE)
@@ -244,7 +244,7 @@ async def test_heatmap_mcp_bff_same_bin_count():
     register_exception_handlers(app)
     app.include_router(analytics_router)
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     svc_mock.get_heatmap.reset_mock(return_value=True)
     svc_mock.get_heatmap = AsyncMock(return_value=_HEATMAP_ENVELOPE)

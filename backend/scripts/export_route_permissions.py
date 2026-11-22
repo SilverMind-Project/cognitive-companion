@@ -33,8 +33,10 @@ if str(REPO_ROOT) not in sys.path:
 
 from backend.core.auth import AuthContext, KeyStore  # noqa: E402
 from backend.core.permission_migration import (  # noqa: E402
+    D4_TO_LEGACY_REQUIRE_TOKEN,
     M14T_CONSOLIDATION_DELTAS,
     M14T_RECOMMENDED_REVIEW_ITEMS,
+    MCP_READONLY_TWIN_TOKENS,
     ROLE_TO_LEGACY_PERMISSIONS,
     WS_ROUTE_TOKENS,
     resolve_proposed_token,
@@ -95,7 +97,8 @@ def _legacy_reaches(
     legacy_perms = list(ROLE_TO_LEGACY_PERMISSIONS[role_name])
     auth = AuthContext(key="inventory", name=role_name, permissions=legacy_perms, roles=[role_name])
     if auth_kind == "token":
-        return ks.has_token(auth, declared_token)
+        legacy_token = D4_TO_LEGACY_REQUIRE_TOKEN.get(declared_token, declared_token)
+        return ks.has_token(auth, legacy_token)
     return ks.has_permission(auth, method, _concrete_path(path))
 
 
@@ -118,16 +121,17 @@ def collect_route_inventory(auth_yaml: Path = AUTH_YAML_PATH) -> list[RoutePermi
             declared_tokens = tuple(getattr(checker, "__cc_auth_tokens__", ()))
             declared = declared_tokens[0] if declared_tokens else ""
             method = _primary_method(ctx.methods)
-            proposed = resolve_proposed_token(method, ctx.path, declared)
+            route_path = ctx.path or ""
+            proposed = resolve_proposed_token(method, route_path, declared)
             reaching = tuple(
                 role
                 for role in role_order
-                if _legacy_reaches(ks, role, method, ctx.path, auth_kind, declared)
+                if _legacy_reaches(ks, role, method, route_path, auth_kind, declared)
             )
             rows.append(
                 RoutePermissionRow(
                     method=method,
-                    path=ctx.path,
+                    path=route_path,
                     declared_token=declared,
                     auth_kind=auth_kind,
                     proposed_token=proposed,
@@ -198,13 +202,26 @@ def derive_roles_map(rows: list[RoutePermissionRow]) -> dict[str, list[str]]:
                     f"allowed={present}, denied={missing}. Split the token or add an M14-T delta."
                 )
 
-        # Preserve MCP endpoint/tool grants that do not live on FastAPI APIRoutes.
+        # Preserve MCP endpoint/tool grants that do not live on FastAPI APIRoutes,
+        # plus the pure `:read` router-twin tokens for MCP read tools (PR 3).
         if role == "mcp_readonly":
             tokens.add("mcp.tools:read")
+            tokens.update(MCP_READONLY_TWIN_TOKENS)
         if role == "mcp_rules_import":
             tokens.add("rules:import")
 
         roles_map[role] = sorted(tokens)
+
+    # List admin-only tokens explicitly alongside ``*`` so every declared D4 token
+    # appears in at least one role (enforced by assert_declared_tokens_known).
+    non_admin_tokens = {
+        tok
+        for role_name, toks in roles_map.items()
+        if role_name not in ("admin", "operator")
+        for tok in toks
+    }
+    admin_only_tokens = sorted(set(token_routes) - non_admin_tokens)
+    roles_map["admin"] = ["*"] + admin_only_tokens
 
     return roles_map
 

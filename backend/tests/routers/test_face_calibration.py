@@ -54,7 +54,12 @@ _SUMMARY = FaceCalibrationSummaryEnvelope(
 )
 
 
-def _build(permissions: list[str], *, name: str = "caregiver-ops"):
+def _build(
+    roles: list[str] | None = None,
+    *,
+    tokens: frozenset[str] = frozenset(),
+    name: str = "caregiver-ops",
+):
     svc = MagicMock()
     svc.list_candidates = AsyncMock(
         return_value=CalibrationCandidateListResponse(candidates=[_VIEW], next_cursor="k")
@@ -109,7 +114,7 @@ def _build(permissions: list[str], *, name: str = "caregiver-ops"):
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name=name, permissions=permissions
+        key="x", name=name, roles=list(roles or ()), tokens=tokens
     )
     app.dependency_overrides[get_face_calibration_service] = lambda: svc
     app.dependency_overrides[get_identity_review_registry] = lambda: svc.registry
@@ -147,23 +152,35 @@ def _call(client: TestClient, method: str, path: str, body):
 
 
 @pytest.mark.parametrize(
-    "perms", [["caregiver"], ["visitors.review"], ["cts.identity.gallery_review"]]
+    ("roles", "tokens"),
+    [
+        (["caregiver"], frozenset()),
+        ([], frozenset({"visitors:review"})),
+        ([], frozenset({"cts.identity.gallery:review"})),
+    ],
 )
-def test_other_grants_cannot_reach_any_route(perms: list[str]) -> None:
-    client, _, _ = _build(perms)
+def test_other_grants_cannot_reach_any_route(roles: list[str], tokens: frozenset[str]) -> None:
+    client, _, _ = _build(roles, tokens=tokens)
     for method, path, body, _ok in _ROUTES:
         assert _call(client, method, path, body).status_code == 403, f"{method} {path} leaked"
 
 
-@pytest.mark.parametrize("perms", [["face_calibration.review"], ["caregiver_admin"], ["*"]])
-def test_review_grant_reaches_every_route(perms: list[str]) -> None:
-    client, _, _ = _build(perms)
+@pytest.mark.parametrize(
+    ("roles", "tokens"),
+    [
+        ([], frozenset({"face_calibration:review"})),
+        (["caregiver_admin"], frozenset()),
+        (["admin"], frozenset()),
+    ],
+)
+def test_review_grant_reaches_every_route(roles: list[str], tokens: frozenset[str]) -> None:
+    client, _, _ = _build(roles, tokens=tokens)
     for method, path, body, ok in _ROUTES:
         assert _call(client, method, path, body).status_code == ok, f"{method} {path} denied"
 
 
 def test_list_defaults_to_unlabeled_and_presigns() -> None:
-    client, svc, _ = _build(["*"])
+    client, svc, _ = _build(["admin"])
     body = client.get("/api/v1/face-calibration/candidates", params={"limit": 20}).json()
     assert body["candidates"][0]["crop_url"] == "https://minio/presigned"
     kwargs = svc.list_candidates.await_args.kwargs
@@ -173,7 +190,7 @@ def test_list_defaults_to_unlabeled_and_presigns() -> None:
 
 
 def test_label_records_the_authenticated_caller_not_the_browser() -> None:
-    client, svc, _ = _build(["*"], name="admin-tablet")
+    client, svc, _ = _build(["admin"], name="admin-tablet")
     resp = client.post(
         "/api/v1/face-calibration/candidates/c1/label",
         json={"label_kind": "member", "label_identity_id": "amma"},
@@ -188,7 +205,7 @@ def test_label_records_the_authenticated_caller_not_the_browser() -> None:
 
 
 def test_batch_review_records_the_caller_and_refuses_member_labels() -> None:
-    client, svc, _ = _build(["*"], name="admin-tablet")
+    client, svc, _ = _build(["admin"], name="admin-tablet")
     ok = client.post(
         "/api/v1/face-calibration/candidates/review",
         json={"candidate_ids": ["c1", "c2"], "verdict": "not_usable"},
@@ -216,21 +233,21 @@ def test_batch_review_records_the_caller_and_refuses_member_labels() -> None:
     ],
 )
 def test_invalid_label_bodies_are_rejected(body: dict) -> None:
-    client, svc, _ = _build(["*"])
+    client, svc, _ = _build(["admin"])
     assert client.post("/api/v1/face-calibration/candidates/c1/label", json=body).status_code == 422
     svc.label.assert_not_awaited()
 
 
 @pytest.mark.parametrize(("upstream", "expected"), [(404, 404), (422, 422), (503, 502), (500, 502)])
 def test_upstream_errors_map_distinctly(upstream: int, expected: int) -> None:
-    client, svc, _ = _build(["*"])
+    client, svc, _ = _build(["admin"])
     svc.reject.side_effect = PersonIDUpstreamError(upstream, "upstream said no")
     resp = client.post("/api/v1/face-calibration/candidates/c1/reject")
     assert resp.status_code == expected
 
 
 def test_promote_passes_authenticated_actor_and_maps_conflict() -> None:
-    client, svc, _ = _build(["face_calibration.review"], name="caregiver-admin")
+    client, svc, _ = _build(tokens=frozenset({"face_calibration:review"}), name="caregiver-admin")
     resp = client.post("/api/v1/face-calibration/candidates/c1/promote")
     assert resp.status_code == 200
     assert resp.json()["gallery_revision"] == 2
@@ -242,7 +259,7 @@ def test_promote_passes_authenticated_actor_and_maps_conflict() -> None:
 
 
 def test_attested_faces_are_presigned_and_filtered() -> None:
-    client, svc, _ = _build(["*"])
+    client, svc, _ = _build(["admin"])
     body = client.get(
         "/api/v1/face-calibration/attestations",
         params={"identity_id": "amma", "audited": "false", "limit": 30},
@@ -255,7 +272,7 @@ def test_attested_faces_are_presigned_and_filtered() -> None:
 
 
 def test_audit_records_the_authenticated_caller_not_the_browser() -> None:
-    client, svc, _ = _build(["*"], name="admin-tablet")
+    client, svc, _ = _build(["admin"], name="admin-tablet")
     resp = client.post("/api/v1/face-calibration/attestations/c1/audit", json={"verdict": "wrong"})
     assert resp.status_code == 200
     args, kwargs = svc.audit_attested_face.await_args
@@ -274,7 +291,7 @@ def test_audit_records_the_authenticated_caller_not_the_browser() -> None:
 
 
 def test_audit_sample_size_is_bounded() -> None:
-    client, svc, _ = _build(["*"])
+    client, svc, _ = _build(["admin"])
     assert (
         client.get(
             "/api/v1/face-calibration/attestations/audit-sample", params={"n": 500}

@@ -62,11 +62,11 @@ def _client(
 
 
 def _admin() -> AuthContext:
-    return AuthContext(key="admin", name="Admin", permissions=["admin"])
+    return AuthContext(key="admin", name="Admin", roles=["admin"])
 
 
 def _reader() -> AuthContext:
-    return AuthContext(key="r", name="Reader", permissions=["gate_graphs:read"])
+    return AuthContext(key="r", name="Reader", tokens=frozenset({"gate_graphs:read"}))
 
 
 def _seed_normal_rule(db_session, name: str = "Normal Rule") -> Rule:

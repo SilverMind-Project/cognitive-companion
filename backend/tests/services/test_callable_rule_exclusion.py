@@ -47,7 +47,7 @@ def test_callable_rule_not_in_default_rules_list(db_session: Session):
         yield db_session
 
     async def override_auth():
-        return AuthContext(key="test", name="Test", permissions=["*"])
+        return AuthContext(key="test", name="Test", roles=["admin"])
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_auth_context] = override_auth

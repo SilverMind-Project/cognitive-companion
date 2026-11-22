@@ -7,13 +7,21 @@ from __future__ import annotations
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.core.auth import _resolve_key, evaluate_ws_shadow, has_permission
+from backend.core.auth import (
+    _resolve_key,
+    declare_tokens,
+    evaluate_ws_inverse_shadow,
+    has_role_token,
+)
 from backend.core.exceptions import AuthenticationError
 from backend.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/ws", tags=["websocket"])
+
+_PIPELINE_EVENTS_TOKEN = "pipeline.events:read"
+declare_tokens(_PIPELINE_EVENTS_TOKEN)
 
 
 @router.websocket("/audio")
@@ -98,8 +106,10 @@ async def websocket_pipeline(websocket: WebSocket) -> None:
         await websocket.close(code=1008, reason="auth_failed")
         return
 
-    live_allowed = has_permission(auth, "GET", "/ws/pipeline")
-    evaluate_ws_shadow(auth, "/ws/pipeline", live_allowed=live_allowed)
+    live_allowed = has_role_token(auth, _PIPELINE_EVENTS_TOKEN)
+    evaluate_ws_inverse_shadow(
+        auth, "/ws/pipeline", _PIPELINE_EVENTS_TOKEN, live_allowed=live_allowed
+    )
     if not live_allowed:
         logger.warning(
             "pipeline_ws_rejected_permission_denied",

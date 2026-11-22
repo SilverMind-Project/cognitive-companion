@@ -84,7 +84,11 @@ def _mock_registry():
     return registry
 
 
-def _build_app(permissions: list[str]):
+def _build_app(
+    roles: list[str] | None = None,
+    *,
+    tokens: frozenset[str] = frozenset(),
+):
     svc = _mock_service()
     svc.registry = _mock_registry()
     minio = MagicMock(spec=MinioClient)
@@ -93,7 +97,7 @@ def _build_app(permissions: list[str]):
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="user", permissions=permissions
+        key="x", name="user", roles=list(roles or ()), tokens=tokens
     )
     app.dependency_overrides[get_visitor_admin_service] = lambda: svc
     app.dependency_overrides[get_identity_review_registry] = lambda: svc.registry
@@ -120,28 +124,42 @@ _ROUTES = [
 ]
 
 
-@pytest.mark.parametrize("perms", [["caregiver"], ["cts.identity.gallery_review"]])
-def test_caregiver_alone_cannot_access_any_route(perms):
-    client, _ = _build_app(perms)
+@pytest.mark.parametrize(
+    ("roles", "tokens"),
+    [(["caregiver"], frozenset()), ([], frozenset({"cts.identity.gallery:review"}))],
+)
+def test_caregiver_alone_cannot_access_any_route(roles, tokens):
+    client, _ = _build_app(roles, tokens=tokens)
     for method, path, body in _ROUTES:
         resp = (
             getattr(client, method)(path, json=body)
             if body is not None
             else getattr(client, method)(path)
         )
-        assert resp.status_code == 403, f"{method} {path} leaked to {perms}: {resp.status_code}"
+        assert resp.status_code == 403, (
+            f"{method} {path} leaked to {roles}/{tokens}: {resp.status_code}"
+        )
 
 
-@pytest.mark.parametrize("perms", [["visitors.review"], ["caregiver_admin"], ["*"]])
-def test_visitors_review_token_grants_access(perms):
-    client, _ = _build_app(perms)
+@pytest.mark.parametrize(
+    ("roles", "tokens"),
+    [
+        ([], frozenset({"visitors:review"})),
+        (["caregiver_admin"], frozenset()),
+        (["admin"], frozenset()),
+    ],
+)
+def test_visitors_review_token_grants_access(roles, tokens):
+    client, _ = _build_app(roles, tokens=tokens)
     for method, path, body in _ROUTES:
         resp = (
             getattr(client, method)(path, json=body)
             if body is not None
             else getattr(client, method)(path)
         )
-        assert resp.status_code == 200, f"{method} {path} denied for {perms}: {resp.status_code}"
+        assert resp.status_code == 200, (
+            f"{method} {path} denied for {roles}/{tokens}: {resp.status_code}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +169,7 @@ def test_visitors_review_token_grants_access(perms):
 
 class TestListAndGet:
     def test_list_clusters_returns_envelope(self):
-        client, svc = _build_app(["*"])
+        client, svc = _build_app(["admin"])
         resp = client.get("/api/v1/visitors/clusters?status=surfaced")
         assert resp.status_code == 200
         body = resp.json()
@@ -160,20 +178,20 @@ class TestListAndGet:
         svc.list_clusters.assert_awaited_once()
 
     def test_get_cluster_returns_detail(self):
-        client, _ = _build_app(["*"])
+        client, _ = _build_app(["admin"])
         resp = client.get("/api/v1/visitors/clusters/c1")
         assert resp.status_code == 200
         assert resp.json()["cluster"]["cluster_id"] == "c1"
 
     def test_upstream_error_maps_to_status(self):
-        client, svc = _build_app(["*"])
+        client, svc = _build_app(["admin"])
         svc.list_clusters.side_effect = PersonIDUpstreamError(409, "Visitor clustering is disabled")
         resp = client.get("/api/v1/visitors/clusters")
         assert resp.status_code == 409
         assert resp.json()["detail"] == "Visitor clustering is disabled"
 
     def test_upstream_5xx_maps_to_502(self):
-        client, svc = _build_app(["*"])
+        client, svc = _build_app(["admin"])
         svc.list_clusters.side_effect = PersonIDUpstreamError(500, "boom")
         resp = client.get("/api/v1/visitors/clusters")
         assert resp.status_code == 502
@@ -181,7 +199,7 @@ class TestListAndGet:
 
 class TestNaming:
     def test_name_cluster_happy_path(self):
-        client, svc = _build_app(["*"])
+        client, svc = _build_app(["admin"])
         resp = client.post(
             "/api/v1/visitors/clusters/c1/name",
             json={"person_id": "nurse-priya", "name": "Nurse Priya"},
@@ -193,7 +211,7 @@ class TestNaming:
         svc.name_cluster.assert_awaited_once()
 
     def test_name_cluster_rejects_unknown_field(self):
-        client, _ = _build_app(["*"])
+        client, _ = _build_app(["admin"])
         resp = client.post(
             "/api/v1/visitors/clusters/c1/name",
             json={"person_id": "nurse-priya", "name": "Nurse Priya", "actor": "sneaky"},
@@ -201,7 +219,7 @@ class TestNaming:
         assert resp.status_code == 422
 
     def test_name_cluster_partial_failure_returns_502_with_recovery_detail(self):
-        client, svc = _build_app(["*"])
+        client, svc = _build_app(["admin"])
         svc.name_cluster.side_effect = VisitorPartialFailureError("nurse-priya", "Nurse Priya")
         resp = client.post(
             "/api/v1/visitors/clusters/c1/name",
@@ -215,7 +233,7 @@ class TestNaming:
 
 class TestReviewAndMerge:
     def test_review_passes_the_decision_and_the_key_name(self):
-        client, svc = _build_app(["*"])
+        client, svc = _build_app(["admin"])
         body = {"cluster_ids": ["c1"], "verdict": "is_member", "target_identity_id": "resident"}
         resp = client.post("/api/v1/visitors/clusters/review", json=body)
         assert resp.status_code == 200
@@ -225,17 +243,17 @@ class TestReviewAndMerge:
         assert (kwargs["target_identity_id"], kwargs["actor"]) == ("resident", "user")
 
     def test_review_rejects_a_client_supplied_actor(self):
-        client, _ = _build_app(["*"])
+        client, _ = _build_app(["admin"])
         body = {"cluster_ids": ["c1"], "verdict": "not_usable", "actor": "someone else"}
         assert client.post("/api/v1/visitors/clusters/review", json=body).status_code == 422
 
     def test_review_rejects_new_person_which_only_naming_does(self):
-        client, _ = _build_app(["*"])
+        client, _ = _build_app(["admin"])
         body = {"cluster_ids": ["c1"], "verdict": "new_person"}
         assert client.post("/api/v1/visitors/clusters/review", json=body).status_code == 422
 
     def test_merge_clusters(self):
-        client, svc = _build_app(["*"])
+        client, svc = _build_app(["admin"])
         resp = client.post("/api/v1/visitors/clusters/c1/merge/c2")
         assert resp.status_code == 200
         svc.merge_clusters.assert_awaited_once()

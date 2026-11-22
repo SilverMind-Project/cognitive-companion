@@ -66,7 +66,7 @@ async def test_mcp_bff_same_person_id():
     register_exception_handlers(app)
     app.include_router(gait_router)
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.dependency_overrides[_get_service] = lambda: svc_mock
 
@@ -95,7 +95,7 @@ async def test_mcp_bff_same_trend_classification():
     register_exception_handlers(app)
     app.include_router(gait_router)
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.dependency_overrides[_get_service] = lambda: svc_mock
 

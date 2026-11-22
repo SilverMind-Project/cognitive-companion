@@ -38,13 +38,13 @@ _TELEMETRY = InferenceTelemetryOut(
 )
 
 
-def _build_app(*, service=None, permissions: list[str] = ("*",)):
+def _build_app(*, service=None, permissions: list[str] = ("admin",)):
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(router)
 
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=list(permissions)
+        key="x", name="tester", roles=list(permissions)
     )
     if service is not None:
         app.dependency_overrides[get_inference_telemetry] = lambda: service

@@ -40,7 +40,7 @@ def _app(router, *, authenticated: bool = True) -> FastAPI:
     app.include_router(router, prefix="/api/v1")
     if authenticated:
         app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-            key="x", name=_KEY_NAME, permissions=["*"]
+            key="x", name=_KEY_NAME, roles=["admin"]
         )
     return app
 

@@ -48,7 +48,7 @@ def _client(svc: MagicMock, permissions: list[str]) -> TestClient:
     register_exception_handlers(app)
     app.include_router(persons_router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="user", permissions=permissions
+        key="x", name="user", roles=permissions
     )
     app.dependency_overrides[get_roster_health_service] = lambda: svc
     invalidate_lookup_cache()

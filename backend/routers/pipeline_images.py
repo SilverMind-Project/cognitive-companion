@@ -28,7 +28,7 @@ _SAMPLE_EXPIRY_MINUTES = 5
 
 @router.get(
     "/sample",
-    dependencies=[Depends(require_permission("rules:read"))],
+    dependencies=[Depends(require_permission("pipeline.meta:read"))],
     response_model=SampleImageOut,
 )
 async def get_sample_image(

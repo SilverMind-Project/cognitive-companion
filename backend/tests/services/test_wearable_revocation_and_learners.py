@@ -285,10 +285,10 @@ def test_revoke_and_resume_routes_reject_caregiver_403_and_allow_caregiver_admin
     )
 
     ks = _ensure_keystore()
-    caregiver_auth = AuthContext(key="k-caregiver", name="Caregiver", permissions=["caregiver"])
-    admin_auth = AuthContext(key="k-admin", name="Caregiver Admin", permissions=["caregiver_admin"])
-    assert ks.has_token(caregiver_auth, "wearables:revoke_teaching") is False
-    assert ks.has_token(admin_auth, "wearables:revoke_teaching") is True
+    caregiver_auth = AuthContext(key="k-caregiver", name="Caregiver", roles=["caregiver"])
+    admin_auth = AuthContext(key="k-admin", name="Caregiver Admin", roles=["caregiver_admin"])
+    assert ks.has_role_token(caregiver_auth, "wearables.teaching:write") is False
+    assert ks.has_role_token(admin_auth, "wearables.teaching:write") is True
 
     fake_reid_svc = MagicMock()
     fake_reid_svc.list_candidates = AsyncMock(

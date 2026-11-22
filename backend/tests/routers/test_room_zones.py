@@ -60,7 +60,7 @@ def _client(
 
 
 def _admin() -> AuthContext:
-    return AuthContext(key="admin", name="Admin", permissions=["admin"])
+    return AuthContext(key="admin", name="Admin", roles=["admin"])
 
 
 def test_crud_roundtrip_pagination_shape(db_factory, db_session) -> None:

@@ -38,7 +38,7 @@ def list_activities(
     room_name: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("activities:read")),
 ):
     """List detected activities with optional filters."""
     from sqlalchemy import desc
@@ -72,7 +72,7 @@ def open_activity_session(
     ),
     timeout_minutes: int | None = Query(default=None, description="Override timeout in minutes"),
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("activities.sessions:write")),
 ):
     """Open (or reuse) an activity session for a person.
 
@@ -113,7 +113,7 @@ def close_activity_session(
     ended_at: datetime = Query(..., description="When the activity ended (UTC)"),
     closed_via: str = Query(default="explicit", description="One of: explicit, timeout, manual"),
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("activities.sessions:write")),
 ):
     """Close an open activity session.
 
@@ -161,7 +161,7 @@ def close_activity_session(
 def list_open_sessions(
     person_id: str | None = Query(default=None, description="Filter by person ID"),
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("activities:read")),
 ):
     """Get all open activity sessions."""
     from backend.main import app
@@ -183,7 +183,7 @@ async def get_activity_timeline(
         description="Filter by source: activity, session, location, sighting",
     ),
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("activities:read")),
 ):
     """Get unified timeline events for a person.
 
@@ -217,7 +217,7 @@ async def get_daily_report(
     date: str,
     params: DailyReportQueryParams = Depends(),
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("activities:read")),
 ):
     """Get or generate a daily report for a person on a specific date.
 
@@ -247,7 +247,7 @@ async def regenerate_daily_report(
     date: str,
     params: DailyReportQueryParams = Depends(),
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("activities:read")),
 ):
     """Force regeneration of a daily report.
 

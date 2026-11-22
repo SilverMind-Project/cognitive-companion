@@ -68,6 +68,55 @@ WS_ROUTE_TOKENS: dict[str, str] = {
     "/ws/pipeline": "pipeline.events:read",
 }
 
+# Reverse map for ``require_token`` call sites renamed in PR 3, so inverse shadow
+# evaluation can still evaluate legacy ``permission_map`` membership during PR 3.
+D4_TO_LEGACY_REQUIRE_TOKEN: dict[str, str] = {
+    "cts.identity.gallery:review": "cts.identity.gallery_review",
+    "face_calibration:review": "face_calibration.review",
+    "visitors:review": "visitors.review",
+    "persons.heights:read": "persons:heights_sync",
+    "wearables:write": "wearables:manage",
+    "wearables.teaching:write": "wearables:revoke_teaching",
+    "wearables.site_config:read": "wearables:site_config",
+}
+
+# Pure ``:read`` router-twin tokens for MCP read tools (EG-M14 PR 3).
+# Granted to ``mcp_readonly`` so OpenClaw Agent keeps calling all 53 read tools once
+# MCP read tools adopt their router twins' D4 tokens. Note: ``get_face_calibration_summary``
+# intentionally stays on ``mcp.tools:read`` because its HTTP twin shares the biometric-admin
+# write token ``face_calibration:review``; ``mcp_readonly`` must never hold that token.
+MCP_READONLY_TWIN_TOKENS: frozenset[str] = frozenset(
+    {
+        "activities:read",
+        "conversations:read",
+        "cts.analytics.heatmap:read",
+        "cts.gait.trend:read",
+        "cts.identity:read",
+        "cts.keyframes:read",
+        "cts.signals:read",
+        "cts:read",
+        "events:read",
+        "guided_metrics:read",
+        "guided_sessions:read",
+        "identity_readiness:read",
+        "image:read",
+        "knowledge.documents:read",
+        "media:read",
+        "medication:read",
+        "occupancy:read",
+        "persons.location:read",
+        "persons:read",
+        "pipeline.meta:read",
+        "quizzes:read",
+        "rooms:read",
+        "rules:read",
+        "sensors:read",
+        "signals.feed:read",
+        "wearables:read",
+        "workflows:read",
+    }
+)
+
 # Exact (method, route_template) overrides for legacy overloaded tokens where
 # distinct routes share one legacy name (e.g. ``admin``, ``caregiver``,
 # ``cts.signals.view`` on POST /ack, ``cts.identity.view`` on POST /propose,

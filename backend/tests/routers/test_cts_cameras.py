@@ -38,7 +38,7 @@ def _make_client(db_engine: Engine, cts_enabled: bool = True) -> TestClient:
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
 
     ingress = MagicMock()

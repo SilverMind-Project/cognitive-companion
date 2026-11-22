@@ -36,7 +36,7 @@ async def create_info_card(
     body: InfoCardCreate,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:write")),
 ):
     layout_registry = request.app.state.layout_registry
     layout = layout_registry.get_required(body.layout_id)
@@ -66,7 +66,7 @@ async def list_info_cards(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("GET /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:read")),
 ):
     stmt = select(InfoCard)
     count_stmt = select(func.count(InfoCard.id))
@@ -114,7 +114,7 @@ async def get_info_card(
     card_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("GET /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:read")),
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
@@ -128,7 +128,7 @@ async def update_info_card(
     body: InfoCardUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("PATCH /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:write")),
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
@@ -157,7 +157,7 @@ async def approve_info_card(
     card_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:write")),
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
@@ -190,7 +190,7 @@ async def archive_info_card(
     card_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:write")),
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
@@ -205,7 +205,7 @@ async def restore_info_card(
     card_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:write")),
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
@@ -220,7 +220,7 @@ async def delete_info_card(
     card_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("DELETE /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:delete")),
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
@@ -236,7 +236,7 @@ async def suggest_info_card(
     request: Request,
     document_id: int | None = None,
     model_id: str | None = None,
-    _auth: None = Depends(require_permission("POST /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:write")),
 ):
     """Generate a paraphrased info card draft via LLM."""
     if document_id is None:
@@ -266,7 +266,7 @@ async def set_info_card_slot(
     alt_text: str = Form(""),
     crop_hints: str | None = Form(None),
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:write")),
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
@@ -362,7 +362,7 @@ async def patch_info_card_slot(
     body: InfoCardSlotPatch,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("PATCH /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:write")),
 ):
     slot = db.execute(
         select(InfoCardImageSlot).where(
@@ -384,7 +384,7 @@ async def delete_info_card_slot(
     slot_index: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("DELETE /api/v1/info-cards")),
+    _auth: None = Depends(require_permission("info_cards:delete")),
 ):
     slot = db.execute(
         select(InfoCardImageSlot).where(

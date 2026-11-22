@@ -269,7 +269,7 @@ async def llm_models_health() -> list[dict]:
 
 @router.post("/config/reload", response_model=ConfigReloadOut)
 def reload_config(
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("admin.config:write")),
 ):
     """Reload YAML configuration files."""
     settings.reload()
@@ -279,7 +279,7 @@ def reload_config(
 
 @router.get("/config/current", response_model=CurrentConfigOut)
 def current_config(
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("admin.config:read")),
 ):
     """Return the current configuration with sensitive values masked."""
     raw = copy.deepcopy(settings.raw())
@@ -288,7 +288,7 @@ def current_config(
 
 @router.get("/telegram/trigger-defaults", response_model=TelegramTriggerDefaultsOut)
 def telegram_trigger_defaults(
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("admin.config:read")),
 ):
     """Return the system-configured default whitelist for Telegram trigger rules.
 
@@ -306,7 +306,7 @@ def telegram_trigger_defaults(
 @router.get("/notification-channels/audit", response_model=ChannelAuditOut)
 async def channel_audit(
     request: Request,
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("admin.channels:read")),
 ):
     """Audit pipeline steps for unknown notification channel names.
 

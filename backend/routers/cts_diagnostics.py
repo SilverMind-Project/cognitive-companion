@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 @router.get("/calibration", response_model=CalibrationDiagnosticsResponse)
 async def get_calibration_diagnostics(
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:read")),
 ) -> CalibrationDiagnosticsResponse:
     """Return per-camera calibration health for the calibration health panel."""
     cts_enabled()

@@ -82,7 +82,7 @@ def _build_app(svc_mock):
     register_exception_handlers(app)
     app.include_router(loc_router)
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.dependency_overrides[get_db] = _mock_db
     app.dependency_overrides[_get_service] = lambda: svc_mock

@@ -35,7 +35,7 @@ def test_keyframe_card_exposes_every_bbox_identity() -> None:
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
         key="synthetic",
         name="characterization",
-        permissions=["*"],
+        roles=["admin"],
     )
     app.dependency_overrides[get_keyframe_read_service] = lambda: service
     settings = Settings.from_dict({"cts": {"enabled": True}})

@@ -61,7 +61,7 @@ def _pid_upstream(exc: PersonIDUpstreamError) -> HTTPException:
 async def list_members(
     request: Request,
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("persons:read")),
 ):
     """List all household members, enriched with face enrollment status."""
     members = db.query(HouseholdMember).order_by(HouseholdMember.name).all()
@@ -87,7 +87,7 @@ async def list_members(
 async def create_member(
     body: HouseholdMemberCreate,
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("admin")),
+    _auth=Depends(require_permission("persons:write")),
 ):
     """Register a new household member."""
     existing = db.query(HouseholdMember).filter(HouseholdMember.id == body.id).first()
@@ -115,7 +115,7 @@ async def create_member(
 @router.get("/enrolled", response_model=list[PersonEnrollmentOut])
 async def list_enrolled(
     request: Request,
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("persons:read")),
 ):
     """List all people with face enrollment data in the person-id service."""
     pid_client = request.app.state.person_id_client
@@ -134,7 +134,7 @@ async def list_enrolled(
 @router.get("/heights", response_model=list[PersonHeightSyncItem])
 async def list_member_heights(
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_token("persons:heights_sync")),
+    _auth: AuthContext = Depends(require_token("persons.heights:read")),
 ) -> list[PersonHeightSyncItem]:
     """Minimal member height roster for CTS operator-height sync (reads local DB only)."""
     members = db.query(HouseholdMember).order_by(HouseholdMember.id).all()
@@ -146,7 +146,7 @@ async def list_member_heights(
 @router.get("/roster-health", response_model=RosterHealthEnvelope)
 async def get_roster_health(
     svc: RosterHealthService = Depends(get_roster_health_service),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("persons:read")),
 ) -> RosterHealthEnvelope:
     """Members still needing face enrollment and recurring visitors awaiting review."""
     try:
@@ -162,7 +162,7 @@ async def enroll_person(
     request: Request,
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("admin")),
+    _auth=Depends(require_permission("persons.enrollment:write")),
 ):
     """Enroll a person's face by uploading one or more images.
 
@@ -219,7 +219,7 @@ async def enroll_person(
 async def get_enrollment(
     person_id: str,
     request: Request,
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("persons:read")),
 ):
     """Get face enrollment details for a specific person."""
     pid_client = request.app.state.person_id_client
@@ -241,7 +241,7 @@ async def get_enrollment(
 async def delete_enrollment(
     person_id: str,
     request: Request,
-    _auth=Depends(require_permission("admin")),
+    _auth=Depends(require_permission("persons.enrollment:delete")),
 ):
     """Remove face enrollment data for a person."""
     pid_client = request.app.state.person_id_client
@@ -322,7 +322,7 @@ async def get_person_height_profile(
     person_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("persons:read")),
 ) -> PersonHeightProfileOut:
     """Return the operator-entered height and effective CTS standing height profile."""
     member = db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()
@@ -371,7 +371,7 @@ async def get_person_height_profile(
 async def get_member(
     person_id: str,
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("persons:read")),
 ):
     """Get a specific household member."""
     member = db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()
@@ -385,7 +385,7 @@ async def update_member(
     person_id: str,
     body: HouseholdMemberUpdate,
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("admin")),
+    _auth=Depends(require_permission("persons:write")),
 ):
     """Update a household member."""
     member = db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()
@@ -404,7 +404,7 @@ async def delete_member(
     person_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("admin")),
+    _auth=Depends(require_permission("persons:delete")),
 ):
     """Remove a household member and purge associated enrollment/tracking anchors."""
     member = db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()

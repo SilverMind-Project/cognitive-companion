@@ -45,7 +45,7 @@ _LOC_BOB = CurrentLocation(
 )
 
 
-def _build_app(svc_mock, *, permissions: list[str] = ("*",)):
+def _build_app(svc_mock, *, permissions: list[str] = ("admin",)):
     """Return a TestClient with a mocked PersonLocationService.
 
     get_db is mocked via a MagicMock session because _lookup_display_name and
@@ -60,7 +60,7 @@ def _build_app(svc_mock, *, permissions: list[str] = ("*",)):
     app.include_router(router)
 
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=list(permissions)
+        key="x", name="tester", roles=list(permissions)
     )
     app.dependency_overrides[get_db] = _mock_db
     app.dependency_overrides[_get_service] = lambda: svc_mock

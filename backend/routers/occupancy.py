@@ -20,7 +20,7 @@ router = APIRouter(prefix="/occupancy", tags=["occupancy"])
 @router.get("/", response_model=OccupancyResponse)
 async def get_occupancy(
     room_name: str | None = Query(None),
-    auth: AuthContext = Depends(require_permission("caregiver")),
+    auth: AuthContext = Depends(require_permission("occupancy:read")),
     model: OccupancyReadModel = Depends(get_occupancy_read_model),
 ):
     """Get current occupancy status for all occupied rooms (or a specific room).
@@ -54,7 +54,7 @@ async def get_occupancy_history(
     request: Request,
     room_name: str = Query(..., description="Room name"),
     hours: float = Query(2.0, description="Hours of history to fetch"),
-    auth: AuthContext = Depends(require_permission("caregiver")),
+    auth: AuthContext = Depends(require_permission("occupancy:read")),
 ):
     """Get smoothed occupancy time-series for a room from Home Assistant."""
     polling_service = getattr(request.app.state, "sensor_polling", None)

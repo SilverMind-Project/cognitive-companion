@@ -40,7 +40,7 @@ async def create_quiz(
     body: QuizCreate,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:write")),
 ):
     layout_registry = request.app.state.layout_registry
     if body.question_layout_id:
@@ -72,7 +72,7 @@ async def list_quizzes(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("GET /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:read")),
 ):
     stmt = select(Quiz)
     count_stmt = select(func.count(Quiz.id))
@@ -116,7 +116,7 @@ async def get_quiz(
     quiz_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("GET /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:read")),
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
@@ -130,7 +130,7 @@ async def update_quiz(
     body: QuizUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("PATCH /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:write")),
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
@@ -160,7 +160,7 @@ async def approve_quiz(
     quiz_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("POST /api/v1/quizzes")),
+    auth: AuthContext = Depends(require_permission("quizzes:write")),
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
@@ -181,7 +181,7 @@ async def archive_quiz(
     quiz_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:write")),
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
@@ -196,7 +196,7 @@ async def restore_quiz(
     quiz_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:write")),
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
@@ -211,7 +211,7 @@ async def delete_quiz(
     quiz_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("DELETE /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:delete")),
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
@@ -231,7 +231,7 @@ async def create_question(
     body: QuizQuestionCreate,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:write")),
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
@@ -271,7 +271,7 @@ async def update_question(
     body: QuizQuestionUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("PATCH /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:write")),
 ):
     q = db.execute(
         select(QuizQuestion).where(QuizQuestion.id == qid, QuizQuestion.quiz_id == quiz_id)
@@ -296,7 +296,7 @@ async def delete_question(
     qid: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("DELETE /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:delete")),
 ):
     q = db.execute(
         select(QuizQuestion).where(QuizQuestion.id == qid, QuizQuestion.quiz_id == quiz_id)
@@ -313,7 +313,7 @@ async def reorder_questions(
     body: QuizQuestionReorder,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:write")),
 ):
     for item in body.items:
         q = db.execute(
@@ -334,7 +334,7 @@ async def suggest_quiz(
     num_questions: int = 5,
     mix: str = "mixed",
     model_id: str | None = None,
-    _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:write")),
 ):
     """Generate a quiz draft via LLM from a knowledge document."""
     if document_id is None:
@@ -372,7 +372,7 @@ async def suggest_voice_instruction(
     document_id: int | None = None,
     resource_type: str = "quiz",
     model_id: str | None = None,
-    _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:write")),
 ):
     """Generate a voice instruction suggestion via LLM."""
     if document_id is None:
@@ -394,7 +394,7 @@ async def regenerate_question(
     request: Request,
     db: Session = Depends(get_db),
     model_id: str | None = None,
-    _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:write")),
 ):
     """Regenerate a single quiz question via LLM."""
     q = db.execute(
@@ -435,7 +435,7 @@ async def set_question_image(
     source_image_id: int | None = Form(None),
     alt_text: str = Form(""),
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:write")),
 ):
     q = db.execute(
         select(QuizQuestion).where(QuizQuestion.id == qid, QuizQuestion.quiz_id == quiz_id)
@@ -495,7 +495,7 @@ async def delete_question_image(
     qid: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("DELETE /api/v1/quizzes")),
+    _auth: None = Depends(require_permission("quizzes:delete")),
 ):
     q = db.execute(
         select(QuizQuestion).where(QuizQuestion.id == qid, QuizQuestion.quiz_id == quiz_id)

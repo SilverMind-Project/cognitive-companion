@@ -91,14 +91,18 @@ def _mock_service() -> MagicMock:
     return svc
 
 
-def _build_app(permissions: list[str]):
+def _build_app(
+    roles: list[str] | None = None,
+    *,
+    tokens: frozenset[str] = frozenset(),
+):
     cfg = Settings.from_dict({"cts": {"enabled": True}})
     svc = _mock_service()
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="user", permissions=permissions
+        key="x", name="user", roles=list(roles or ()), tokens=tokens
     )
     app.dependency_overrides[get_reid_review_service] = lambda: svc
     app.dependency_overrides[get_identity_review_registry] = lambda: svc.registry
@@ -143,9 +147,16 @@ _ROUTES = [
 ]
 
 
-@pytest.mark.parametrize("perms", [["cts.identity.view"], ["cts.identity.correct"], ["caregiver"]])
-def test_view_or_correct_alone_cannot_access_any_route(perms):
-    client, _, patcher = _build_app(perms)
+@pytest.mark.parametrize(
+    ("roles", "tokens"),
+    [
+        ([], frozenset({"cts.identity:read"})),
+        ([], frozenset({"cts.identity:correct"})),
+        (["caregiver"], frozenset()),
+    ],
+)
+def test_view_or_correct_alone_cannot_access_any_route(roles, tokens):
+    client, _, patcher = _build_app(roles, tokens=tokens)
     try:
         for method, path, body in _ROUTES:
             resp = (
@@ -153,14 +164,23 @@ def test_view_or_correct_alone_cannot_access_any_route(perms):
                 if body is not None
                 else getattr(client, method)(path)
             )
-            assert resp.status_code == 403, f"{method} {path} leaked to {perms}: {resp.status_code}"
+            assert resp.status_code == 403, (
+                f"{method} {path} leaked to {roles}/{tokens}: {resp.status_code}"
+            )
     finally:
         patcher.stop()
 
 
-@pytest.mark.parametrize("perms", [["cts.identity.gallery_review"], ["caregiver_admin"], ["*"]])
-def test_gallery_review_token_grants_access(perms):
-    client, _, patcher = _build_app(perms)
+@pytest.mark.parametrize(
+    ("roles", "tokens"),
+    [
+        ([], frozenset({"cts.identity.gallery:review"})),
+        (["caregiver_admin"], frozenset()),
+        (["admin"], frozenset()),
+    ],
+)
+def test_gallery_review_token_grants_access(roles, tokens):
+    client, _, patcher = _build_app(roles, tokens=tokens)
     try:
         for method, path, body in _ROUTES:
             resp = (
@@ -169,7 +189,7 @@ def test_gallery_review_token_grants_access(perms):
                 else getattr(client, method)(path)
             )
             assert resp.status_code == 200, (
-                f"{method} {path} denied for {perms}: {resp.status_code}"
+                f"{method} {path} denied for {roles}/{tokens}: {resp.status_code}"
             )
     finally:
         patcher.stop()
@@ -182,7 +202,7 @@ def test_gallery_review_token_grants_access(perms):
 
 @pytest.fixture
 def client_authorized():
-    c, svc, p = _build_app(["cts.identity.gallery_review"])
+    c, svc, p = _build_app(tokens=frozenset({"cts.identity.gallery:review"}))
     yield c, svc
     p.stop()
 
@@ -346,7 +366,5 @@ def test_seed_source_filter_is_forwarded_and_validated(client_authorized):
     assert svc.list_candidates.await_args.kwargs["params"]["seed_source"] == (
         "wearable_room_attested"
     )
-    bad = client.get(
-        "/api/v1/cts/identity/reid-review/candidates", params={"seed_source": "guess"}
-    )
+    bad = client.get("/api/v1/cts/identity/reid-review/candidates", params={"seed_source": "guess"})
     assert bad.status_code == 422

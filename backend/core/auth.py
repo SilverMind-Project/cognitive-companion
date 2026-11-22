@@ -41,10 +41,9 @@ from backend.core.exceptions import AuthenticationError, PermissionDeniedError
 from backend.core.logging import get_logger
 from backend.core.permission_migration import (
     ALLOWED_ACTIONS,
+    D4_TO_LEGACY_REQUIRE_TOKEN,
     D4_TOKEN_RE,
-    WS_ROUTE_TOKENS,
     is_valid_d4_token,
-    resolve_proposed_token,
 )
 
 __all__ = [
@@ -57,9 +56,10 @@ __all__ = [
     "cc_auth_shadow_mismatch_total",
     "declare_internal_tokens",
     "declare_tokens",
-    "evaluate_ws_shadow",
+    "evaluate_ws_inverse_shadow",
     "get_auth_context",
     "get_auth_context_device",
+    "has_role_token",
     "has_token",
     "invalidate_lookup_cache",
     "is_valid_d4_token",
@@ -69,12 +69,12 @@ __all__ = [
 
 logger = get_logger(__name__)
 
-# EG-M14 PR 2 shadow-evaluation mismatch counter.
+# EG-M14 PR 3 inverse-shadow mismatch counter.
 # Labels are bounded: token name, sorted role names (never key material), and
-# decision ("would_allow" or "would_deny").
+# decision ("legacy_would_allow" or "legacy_would_deny").
 cc_auth_shadow_mismatch_total = Counter(
     "cc_auth_shadow_mismatch_total",
-    "Disagreements between live path-glob auth and EG-M14 shadow D4 token auth",
+    "Disagreements between live EG-M14 D4 token auth and legacy path-glob shadow",
     ["token", "role", "decision"],
 )
 
@@ -89,6 +89,9 @@ class AuthContext:
     name: str
     permissions: list[str] = field(default_factory=list)
     roles: list[str] = field(default_factory=list)
+    # Direct token grants used only by synthetic unit tests; KeyStore.resolve()
+    # never populates this field from config/auth.yaml.
+    tokens: frozenset[str] = field(default_factory=frozenset)
     device_type: str | None = None
     sensor_id: str | None = None
 
@@ -190,6 +193,11 @@ class KeyStore:
         """Return True when the EG-M14 ``roles:`` mapping is loaded."""
         return bool(self._roles)
 
+    @property
+    def has_legacy_permission_map(self) -> bool:
+        """Return True when the legacy ``permission_map:`` mapping is loaded."""
+        return bool(self._permission_map)
+
     def expand_role_tokens(self, roles: list[str]) -> set[str]:
         """Expand EG-M14 role names into their union of D4 tokens (pure membership)."""
         granted: set[str] = set()
@@ -198,20 +206,20 @@ class KeyStore:
         return granted
 
     def has_role_token(self, auth: AuthContext, *tokens: str) -> bool:
-        """Return True if *auth*'s EG-M14 roles carry one of *tokens* (or ``*``)."""
-        granted = self.expand_role_tokens(auth.roles)
+        """Return True if *auth*'s EG-M14 roles (or direct test tokens) carry one of *tokens*."""
+        granted = self.expand_role_tokens(auth.roles) | auth.tokens
         if "*" in granted:
             return True
         return any(token in granted for token in tokens)
 
-    def known_tokens(self) -> set[str]:
-        """Return every token the permission map gives meaning to.
+    def known_role_tokens(self) -> set[str]:
+        """Return every explicit D4 token listed in ``roles:`` (excluding ``*``)."""
+        return {tok for toks in self._roles.values() for tok in toks if tok != "*"}
 
-        Two shapes count, because ``auth.yaml`` uses both: a *key* defines a
-        token as a set of patterns (``rooms:read``), and a *value* is a token a
-        role carries directly (``cts.view``, checked by :meth:`has_token`).
-        A name in neither is one no caller can ever hold.
-        """
+    def known_tokens(self) -> set[str]:
+        """Return every token known to ``roles:`` (when configured) or legacy ``permission_map``."""
+        if self._roles:
+            return self.known_role_tokens()
         return set(self._permission_map) | {
             perm for perms in self._permission_map.values() for perm in perms
         }
@@ -288,8 +296,13 @@ def has_permission(auth: AuthContext, method: str, path: str) -> bool:
 
 
 def has_token(auth: AuthContext, *tokens: str) -> bool:
-    """Check if *auth* explicitly carries one of *tokens* (see :meth:`KeyStore.has_token`)."""
+    """Check if *auth* explicitly carries one of *tokens* (legacy ``permission_map`` check)."""
     return _ensure_keystore().has_token(auth, *tokens)
+
+
+def has_role_token(auth: AuthContext, *tokens: str) -> bool:
+    """Check if *auth*'s EG-M14 roles (or direct test tokens) carry one of *tokens*."""
+    return _ensure_keystore().has_role_token(auth, *tokens)
 
 
 def _deny(request: Request, reason: str) -> None:
@@ -376,17 +389,47 @@ def declare_internal_tokens(*tokens: str) -> None:
 
 
 def assert_declared_tokens_known(keystore: KeyStore | None = None) -> None:
-    """Verify every declared permission token exists in the permission map.
+    """Verify every declared permission token is valid and listed in ``config/auth.yaml``.
 
-    ``require_permission("rooms:read")`` reads as if the named token were
-    enforced; the check is actually method+path against the caller's expanded
-    patterns. This turns the names into a checked contract: a token that no
-    role can ever grant is a typo or a missing ``auth.yaml`` entry.
+    When ``roles:`` is loaded (EG-M14 PR 3+), every declared non-internal token
+    must conform to the closed D4 grammar and appear in at least one role in
+    ``config/auth.yaml`` (excluding ``*``), and no internal-only token may appear
+    in any role. Every key's configured role names must also exist under ``roles:``.
     """
     ks = keystore or _ensure_keystore()
-    # A declared name containing a space is a literal "METHOD /path" pattern,
-    # which expand_permissions passes through by design; only symbolic names
-    # need a definition.
+    if ks.has_roles_config:
+        declared_names = _DECLARED_TOKENS - _INTERNAL_TOKENS
+        invalid = sorted(t for t in declared_names if not is_valid_d4_token(t))
+        if invalid:
+            logger.error("auth_declared_tokens_invalid_d4", tokens=invalid)
+            raise RuntimeError(
+                "Permission tokens declared at call sites fail EG-M14 D4 grammar: "
+                f"{', '.join(invalid)}"
+            )
+        known = ks.known_role_tokens()
+        unknown = sorted(declared_names - known)
+        if unknown:
+            logger.error("auth_declared_tokens_unknown", tokens=unknown)
+            raise RuntimeError(
+                "Permission tokens declared at call sites but absent from "
+                f"config/auth.yaml roles: {', '.join(unknown)}"
+            )
+        granted_internal = sorted(_INTERNAL_TOKENS & known)
+        if granted_internal:
+            logger.error("auth_internal_tokens_granted", tokens=granted_internal)
+            raise RuntimeError(
+                "Internal-only tokens must not appear in config/auth.yaml: "
+                f"{', '.join(granted_internal)}"
+            )
+        for entry in list(ks._api_keys.values()) + list(ks._device_keys.values()):
+            for role_name in entry.get("roles", []):
+                if role_name not in ks._roles:
+                    logger.error("auth_key_unknown_role", role=role_name)
+                    raise RuntimeError(
+                        f"Key {entry.get('name', '?')!r} references undefined role {role_name!r}"
+                    )
+        return
+
     declared_names = {t for t in _DECLARED_TOKENS if " " not in t} - _INTERNAL_TOKENS
     known = ks.known_tokens()
     unknown = sorted(declared_names - known)
@@ -425,17 +468,17 @@ def _role_label(auth: AuthContext) -> str:
     return ",".join(sorted(auth.roles)) if auth.roles else "none"
 
 
-def _record_shadow_mismatch(
+def _record_inverse_shadow_mismatch(
     token: str,
     auth: AuthContext,
     method: str,
     route: str,
     *,
     live_allowed: bool,
-    shadow_allowed: bool,
+    legacy_allowed: bool,
 ) -> None:
-    """Record a disagreement between live enforcement and EG-M14 shadow roles."""
-    decision = "would_allow" if shadow_allowed else "would_deny"
+    """Record a disagreement between live D4 token enforcement and legacy glob shadow."""
+    decision = "legacy_would_allow" if legacy_allowed else "legacy_would_deny"
     role = _role_label(auth)
     cc_auth_shadow_mismatch_total.labels(token=token, role=role, decision=decision).inc()
     logger.warning(
@@ -446,64 +489,61 @@ def _record_shadow_mismatch(
         role=role,
         decision=decision,
         live_allowed=live_allowed,
-        shadow_allowed=shadow_allowed,
+        legacy_allowed=legacy_allowed,
     )
 
 
-def _evaluate_http_shadow(
+def _evaluate_http_inverse_shadow(
     ks: KeyStore,
     request: Request,
     auth: AuthContext,
     declared_tokens: tuple[str, ...],
     *,
+    kind: str,
     live_allowed: bool,
 ) -> None:
-    """Evaluate EG-M14 D4 token membership in shadow mode without affecting enforcement."""
-    if not ks.has_roles_config or not auth.roles or not declared_tokens:
+    """Evaluate legacy path-glob / require_token auth in shadow mode after PR 3 switch."""
+    if not ks.has_legacy_permission_map or not auth.permissions or not declared_tokens:
         return
-    route_obj = request.scope.get("route")
-    route_template = str(getattr(route_obj, "path", request.url.path))
-    proposed: list[str] = []
-    for tok in declared_tokens:
-        try:
-            proposed.append(resolve_proposed_token(request.method, route_template, tok))
-        except ValueError:
-            proposed.append(tok)
-    shadow_allowed = ks.has_role_token(auth, *proposed)
-    if shadow_allowed != live_allowed:
-        _record_shadow_mismatch(
-            proposed[0],
+    if kind == "token":
+        legacy_tokens = tuple(D4_TO_LEGACY_REQUIRE_TOKEN.get(t, t) for t in declared_tokens)
+        legacy_allowed = ks.has_token(auth, *legacy_tokens)
+    else:
+        legacy_allowed = ks.has_permission(auth, request.method, request.url.path)
+    if legacy_allowed != live_allowed:
+        route_obj = request.scope.get("route")
+        route_template = str(getattr(route_obj, "path", request.url.path))
+        _record_inverse_shadow_mismatch(
+            declared_tokens[0],
             auth,
             request.method,
             route_template,
             live_allowed=live_allowed,
-            shadow_allowed=shadow_allowed,
+            legacy_allowed=legacy_allowed,
         )
 
 
-def evaluate_ws_shadow(
+def evaluate_ws_inverse_shadow(
     auth: AuthContext,
     path: str,
+    token: str,
     *,
     live_allowed: bool,
     keystore: KeyStore | None = None,
 ) -> None:
-    """Evaluate EG-M14 D4 token membership in shadow mode for WebSocket handshakes."""
+    """Evaluate legacy WebSocket path-glob auth in inverse shadow mode after PR 3 switch."""
     ks = keystore or _ensure_keystore()
-    if not ks.has_roles_config or not auth.roles:
+    if not ks.has_legacy_permission_map or not auth.permissions:
         return
-    token = WS_ROUTE_TOKENS.get(path)
-    if token is None:
-        return
-    shadow_allowed = ks.has_role_token(auth, token)
-    if shadow_allowed != live_allowed:
-        _record_shadow_mismatch(
+    legacy_allowed = ks.has_permission(auth, "GET", path)
+    if legacy_allowed != live_allowed:
+        _record_inverse_shadow_mismatch(
             token,
             auth,
             "WS",
             path,
             live_allowed=live_allowed,
-            shadow_allowed=shadow_allowed,
+            legacy_allowed=legacy_allowed,
         )
 
 
@@ -511,18 +551,12 @@ def require_permission(
     *permissions: str,
     resolver: Callable[..., Awaitable[AuthContext]] = get_auth_context,
 ) -> Callable[..., Awaitable[AuthContext]]:
-    """
-    FastAPI dependency factory that checks AuthContext against endpoint permissions.
+    """FastAPI dependency factory enforcing EG-M14 D4 token membership.
 
-    The check is performed against the resolved request method/path: permission
-    strings in config are endpoint patterns as well as role names. The
-    ``*permissions`` names are call-site documentation, but not decorative --
-    each is registered in ``_DECLARED_TOKENS`` and must be defined by
-    ``auth.yaml`` or startup fails (:func:`assert_declared_tokens_known`).
-
-    During EG-M14 PR 2, shadow evaluation also checks ``has_role_token`` against
-    ``config/auth.yaml`` ``roles:`` and records disagreements without changing
-    enforcement.
+    Each route declares one ``<resource>:<action>`` token. Enforcement checks
+    :meth:`KeyStore.has_role_token` against the caller's roles defined in
+    ``config/auth.yaml``. During PR 3, legacy path-glob evaluation runs as an
+    inverse shadow and records disagreements without affecting enforcement.
 
     Pass ``resolver=get_auth_context_device`` on device endpoints only.
 
@@ -537,8 +571,10 @@ def require_permission(
         auth: AuthContext = Depends(resolver),
     ) -> AuthContext:
         ks = _ensure_keystore()
-        live_allowed = ks.has_permission(auth, request.method, request.url.path)
-        _evaluate_http_shadow(ks, request, auth, permissions, live_allowed=live_allowed)
+        live_allowed = ks.has_role_token(auth, *permissions)
+        _evaluate_http_inverse_shadow(
+            ks, request, auth, permissions, kind="permission", live_allowed=live_allowed
+        )
         if not live_allowed:
             _deny(request, "permission")
             raise PermissionDeniedError()
@@ -552,12 +588,11 @@ def require_token(
     *tokens: str,
     resolver: Callable[..., Awaitable[AuthContext]] = get_auth_context,
 ) -> Callable[..., Awaitable[AuthContext]]:
-    """Dependency factory enforcing strict token membership, not path globs.
+    """Dependency factory enforcing EG-M14 D4 token membership.
 
-    Use for a surface that must stay separate from broad role grants: a caller
-    holding only ``GET /api/v1/*`` or ``cts.identity.correct`` is rejected unless
-    it also carries one of *tokens* (or the ``*`` superuser grant). This is the
-    enforcement seam for the M09 ``cts.identity.gallery_review`` permission.
+    Retained during PR 3 so inverse-shadow telemetry can still distinguish
+    legacy ``require_token`` routes from legacy ``require_permission`` globs;
+    unified into :func:`require_permission` in PR 4.
     """
     _DECLARED_TOKENS.update(tokens)
 
@@ -566,8 +601,10 @@ def require_token(
         auth: AuthContext = Depends(resolver),
     ) -> AuthContext:
         ks = _ensure_keystore()
-        live_allowed = ks.has_token(auth, *tokens)
-        _evaluate_http_shadow(ks, request, auth, tokens, live_allowed=live_allowed)
+        live_allowed = ks.has_role_token(auth, *tokens)
+        _evaluate_http_inverse_shadow(
+            ks, request, auth, tokens, kind="token", live_allowed=live_allowed
+        )
         if not live_allowed:
             _deny(request, "permission")
             raise PermissionDeniedError()

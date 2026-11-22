@@ -153,8 +153,9 @@ mcp_server = FastMCP("cognitive-companion")
 _tool_handlers: dict[str, Any] = {}
 
 # The permission token each tool requires, enforced per call by MCPAuthMiddleware (HTTP)
-# and GeminiToolAdapter (voice). Read tools share one token; every tool that changes state
-# names its own, so a read-only key can never reach a mutation.
+# and GeminiToolAdapter (voice). Read tools with an HTTP router twin declare that twin's D4
+# token; read tools with no HTTP twin declare ``mcp.tools:read``. Every tool that changes
+# state names its own token, so a read-only key can never reach a mutation.
 _tool_tokens: dict[str, str] = {}
 
 _ToolFn = TypeVar("_ToolFn", bound=Callable[..., Awaitable[Any]])
@@ -175,6 +176,8 @@ declare_internal_tokens(RESIDENT_SESSION_ACT)
 
 def _register(*, token: str) -> Callable[[_ToolFn], _ToolFn]:
     """Register a tool for MCP and direct calls; *token* is the permission it requires."""
+    if token != RESIDENT_SESSION_ACT:
+        declare_tokens(token)
 
     def decorator(fn: _ToolFn) -> _ToolFn:
         _tool_handlers[fn.__name__] = fn
@@ -212,7 +215,7 @@ def get_tool_registry() -> tuple[dict[str, Any], list[dict[str, Any]]]:
 # ---------------------------------------------------------------------------
 
 
-@_register(token=TOOLS_READ)
+@_register(token="rooms:read")
 async def get_rooms() -> list[dict]:
     """Get all rooms configured in the system."""
     from backend.models.room import Room
@@ -233,7 +236,7 @@ async def get_rooms() -> list[dict]:
         db.close()
 
 
-@_register(token=TOOLS_READ)
+@_register(token="sensors:read")
 async def get_sensors(room_name: str | None = None, sensor_type: str | None = None) -> list[dict]:
     """Get sensors, optionally filtered by room name or sensor type."""
     from backend.models.sensor import Sensor
@@ -265,7 +268,7 @@ async def get_sensors(room_name: str | None = None, sensor_type: str | None = No
         db.close()
 
 
-@_register(token=TOOLS_READ)
+@_register(token="occupancy:read")
 async def get_room_occupancy(room_name: str | None = None) -> list[dict]:
     """Get current room occupancy from the unified OccupancyReadModel (SSOT).
 
@@ -287,7 +290,7 @@ async def get_room_occupancy(room_name: str | None = None) -> list[dict]:
     return [rec.to_mcp() for rec in records]
 
 
-@_register(token=TOOLS_READ)
+@_register(token="cts.keyframes:read")
 async def list_keyframe_frames(
     person_id: str | None = None,
     camera_id: str | None = None,
@@ -349,7 +352,7 @@ async def propose_identity_correction(
     return proposal.model_dump(mode="json")
 
 
-@_register(token=TOOLS_READ)
+@_register(token="cts.identity:read")
 async def get_identity_correction_job(revision_id: str) -> dict:
     """Projection-job status for a correction revision (M08).
 
@@ -363,7 +366,7 @@ async def get_identity_correction_job(revision_id: str) -> dict:
     return job.model_dump(mode="json")
 
 
-@_register(token=TOOLS_READ)
+@_register(token="media:read")
 async def get_recent_images(sensor_id: str, limit: int = 5) -> list[str]:
     """Get recent images from a camera sensor."""
     if _svc.event_aggregator:
@@ -380,7 +383,7 @@ async def get_light_level(entity_id: str) -> dict:
     return {"error": "Home Assistant not configured"}
 
 
-@_register(token=TOOLS_READ)
+@_register(token="signals.feed:read")
 async def get_signals_feed(
     source: str | None = None,
     severity_min: str = "info",
@@ -403,7 +406,7 @@ async def get_signals_feed(
     return [e.to_mcp() for e in envelopes]
 
 
-@_register(token=TOOLS_READ)
+@_register(token="events:read")
 async def get_event_logs(
     rule_name: str | None = None,
     status: str | None = None,
@@ -437,7 +440,7 @@ async def get_event_logs(
         db.close()
 
 
-@_register(token=TOOLS_READ)
+@_register(token="rules:read")
 async def get_rules(enabled_only: bool = True) -> list[dict]:
     """Get configured automation rules."""
     from backend.models.rule import Rule
@@ -464,13 +467,13 @@ async def get_rules(enabled_only: bool = True) -> list[dict]:
         db.close()
 
 
-@_register(token=TOOLS_READ)
+@_register(token="conversations:read")
 async def get_conversation_history(session_id: int | None = None, limit: int = 20) -> list[dict]:
     """Get recent conversation turns (placeholder)."""
     return [{"message": "Use /api/v1/conversations endpoint for history"}]
 
 
-@_register(token=TOOLS_READ)
+@_register(token="persons.location:read")
 async def get_person_locations() -> list[dict]:
     """Get current location of all tracked household members.
 
@@ -498,7 +501,7 @@ async def get_person_locations() -> list[dict]:
     ]
 
 
-@_register(token=TOOLS_READ)
+@_register(token="persons:read")
 async def get_enrolled_persons() -> list[dict]:
     """Get list of household members with face identification enrollment data."""
     from backend.models.person import HouseholdMember
@@ -518,7 +521,7 @@ async def get_enrolled_persons() -> list[dict]:
         db.close()
 
 
-@_register(token=TOOLS_READ)
+@_register(token="activities:read")
 async def get_person_activities(
     person_id: str,
     activity_type: str | None = None,
@@ -537,7 +540,7 @@ async def get_person_activities(
     )
 
 
-@_register(token=TOOLS_READ)
+@_register(token="workflows:read")
 async def get_workflow_executions(
     rule_name: str | None = None,
     status: str | None = None,
@@ -576,7 +579,7 @@ async def get_workflow_executions(
         db.close()
 
 
-@_register(token=TOOLS_READ)
+@_register(token="rules:read")
 async def get_rule_pipeline(rule_id: int) -> list[dict]:
     """Get pipeline step definitions for a specific rule."""
     from backend.models.pipeline import PipelineStep
@@ -634,7 +637,7 @@ async def trigger_rule(rule_id: int) -> dict:
         return {"error": str(exc)}
 
 
-@_register(token=TOOLS_READ)
+@_register(token="image:read")
 async def get_eink_display_status(sensor_id: str | None = None) -> list[dict]:
     """Get current e-ink display status (active image, expiry) for one or all displays."""
     from backend.models.image_state import ActiveImageState
@@ -931,7 +934,7 @@ async def search_similar_scenes(
 # ---------------------------------------------------------------------------
 
 
-@_register(token=TOOLS_READ)
+@_register(token="activities:read")
 async def get_person_timeline(
     person_id: str,
     minutes: int = 60,
@@ -953,7 +956,7 @@ async def get_person_timeline(
     return events
 
 
-@_register(token=TOOLS_READ)
+@_register(token="medication:read")
 async def get_medication_schedule(person_id: str) -> dict:
     """Get a person's current medication schedule.
 
@@ -978,7 +981,7 @@ async def get_medication_schedule(person_id: str) -> dict:
     }
 
 
-@_register(token=TOOLS_READ)
+@_register(token="activities:read")
 async def get_daily_report(
     person_id: str,
     date: str,
@@ -1011,7 +1014,7 @@ async def get_daily_report(
     )
 
 
-@_register(token=TOOLS_READ)
+@_register(token="activities:read")
 async def get_open_sessions(
     person_id: str | None = None,
 ) -> list[dict]:
@@ -1143,7 +1146,7 @@ async def submit_user_response(
 # ---------------------------------------------------------------------------
 
 
-@_register(token=TOOLS_READ)
+@_register(token="cts.analytics.heatmap:read")
 async def get_heatmap(
     person_id: str,
     start_time: str,
@@ -1196,7 +1199,7 @@ async def get_heatmap(
 # ---------------------------------------------------------------------------
 
 
-@_register(token=TOOLS_READ)
+@_register(token="cts:read")
 async def get_tracking_status() -> dict:
     """Return a summary of the continuous-tracking runtime.
 
@@ -1214,7 +1217,7 @@ async def get_tracking_status() -> dict:
     return {"enabled": True, **runtime.status()}
 
 
-@_register(token=TOOLS_READ)
+@_register(token="persons.location:read")
 async def get_person_location(person_id: str) -> dict:
     """Return the currently inferred room for ``person_id``.
 
@@ -1244,7 +1247,7 @@ async def get_person_location(person_id: str) -> dict:
     return result
 
 
-@_register(token=TOOLS_READ)
+@_register(token="cts.signals:read")
 async def get_recent_dementia_signals(
     person_id: str | None = None,
     window_hours: int = 24,
@@ -1322,7 +1325,7 @@ async def acknowledge_dementia_signal(
     return {"acknowledged": True, "signal_id": signal_id}
 
 
-@_register(token=TOOLS_READ)
+@_register(token="knowledge.documents:read")
 async def query_knowledge_base(query: str) -> dict:
     """Answer factual questions about the senior's life, family, biography,
     medications, preferences, routines, and other STABLE facts that the
@@ -1376,7 +1379,7 @@ async def query_knowledge_base(query: str) -> dict:
     }
 
 
-@_register(token=TOOLS_READ)
+@_register(token="quizzes:read")
 async def get_current_quiz_question(session_id: int) -> dict:
     """Return the question the senior should answer next in this quiz
     session: its ord, text, type, and choices. Call this before asking
@@ -1430,7 +1433,7 @@ async def complete_quiz_session(session_id: int) -> dict:
     return result
 
 
-@_register(token=TOOLS_READ)
+@_register(token="guided_sessions:read")
 async def get_active_guided_step(session_id: int) -> dict:
     """Agent-facing: return the current guided-task step descriptor."""
     if _svc.guided_task_service is None:
@@ -1518,7 +1521,7 @@ async def record_resident_preference(
     return {"document_id": doc.id, "recorded": True}
 
 
-@_register(token=TOOLS_READ)
+@_register(token="guided_metrics:read")
 async def get_guided_completion_summary(
     person_id: str,
     routine_id: int | None = None,
@@ -1537,7 +1540,7 @@ async def get_guided_completion_summary(
     return result.model_dump(mode="json")
 
 
-@_register(token=TOOLS_READ)
+@_register(token="guided_metrics:read")
 async def get_guided_attempts_per_step(
     person_id: str,
     routine_id: int | None = None,
@@ -1556,7 +1559,7 @@ async def get_guided_attempts_per_step(
     return result.model_dump(mode="json")
 
 
-@_register(token=TOOLS_READ)
+@_register(token="guided_metrics:read")
 async def get_guided_time_to_complete(
     person_id: str,
     routine_id: int | None = None,
@@ -1575,7 +1578,7 @@ async def get_guided_time_to_complete(
     return result.model_dump(mode="json")
 
 
-@_register(token=TOOLS_READ)
+@_register(token="guided_metrics:read")
 async def get_guided_abandonment(
     person_id: str,
     routine_id: int | None = None,
@@ -1594,7 +1597,7 @@ async def get_guided_abandonment(
     return result.model_dump(mode="json")
 
 
-@_register(token=TOOLS_READ)
+@_register(token="guided_metrics:read")
 async def get_guided_escalation_breakdown(
     person_id: str,
     routine_id: int | None = None,
@@ -1613,7 +1616,7 @@ async def get_guided_escalation_breakdown(
     return result.model_dump(mode="json")
 
 
-@_register(token=TOOLS_READ)
+@_register(token="guided_metrics:read")
 async def get_guided_vision_agreement(
     person_id: str,
     routine_id: int | None = None,
@@ -1632,7 +1635,7 @@ async def get_guided_vision_agreement(
     return result.model_dump(mode="json")
 
 
-@_register(token=TOOLS_READ)
+@_register(token="guided_metrics:read")
 async def get_guided_time_of_day(
     person_id: str,
     routine_id: int | None = None,
@@ -1651,7 +1654,7 @@ async def get_guided_time_of_day(
     return result.model_dump(mode="json")
 
 
-@_register(token=TOOLS_READ)
+@_register(token="guided_metrics:read")
 async def get_guided_watch_summary(
     person_id: str,
     routine_id: int | None = None,
@@ -1670,7 +1673,7 @@ async def get_guided_watch_summary(
     return result.model_dump(mode="json")
 
 
-@_register(token=TOOLS_READ)
+@_register(token="guided_metrics:read")
 async def get_guided_gate_cost_summary(
     person_id: str,
     routine_id: int | None = None,
@@ -1703,7 +1706,7 @@ def _parse_optional_datetime(value: str | None) -> datetime | None:
 # ---------------------------------------------------------------------------
 
 
-@_register(token=TOOLS_READ)
+@_register(token="rules:read")
 async def list_rules() -> list[dict]:
     """List all rules with summary info (name, description, enabled, trigger_types)."""
     from backend.models.rule import Rule
@@ -1726,7 +1729,7 @@ async def list_rules() -> list[dict]:
         db.close()
 
 
-@_register(token=TOOLS_READ)
+@_register(token="pipeline.meta:read")
 async def list_plugin_metadata(
     kind: str | None = None,
 ) -> list[dict]:
@@ -1792,7 +1795,7 @@ async def list_plugin_metadata(
     return results
 
 
-@_register(token=TOOLS_READ)
+@_register(token="rules:read")
 async def get_rule_bundle(rule_id: int) -> dict:
     """Export a rule as a portable bundle that can be shared or imported into another install."""
     from importlib.metadata import version as _pkg_version
@@ -1868,7 +1871,7 @@ async def import_rule_bundle(
         db.close()
 
 
-@_register(token=TOOLS_READ)
+@_register(token="persons:read")
 async def get_roster_health() -> dict:
     """Get household roster health for face identification.
 
@@ -1907,7 +1910,7 @@ async def get_face_calibration_summary() -> dict:
         return {"error": exc.message}
 
 
-@_register(token=TOOLS_READ)
+@_register(token="identity_readiness:read")
 async def get_identity_readiness() -> dict:
     """Get identity setup readiness: which step of the identity chain is broken and what to do.
 
@@ -1924,7 +1927,7 @@ async def get_identity_readiness() -> dict:
     return envelope.model_dump(mode="json")
 
 
-@_register(token=TOOLS_READ)
+@_register(token="cts.gait.trend:read")
 async def get_gait_trend(
     person_id: str,
     days: int = 56,
@@ -1949,7 +1952,7 @@ async def get_gait_trend(
         return {"error": str(exc)}
 
 
-@_register(token=TOOLS_READ)
+@_register(token="wearables:read")
 async def get_wearable_assignments() -> dict:
     """List which household members wear which active wearable devices, with battery and freshness.
 
@@ -1968,7 +1971,7 @@ async def get_wearable_assignments() -> dict:
         return {"error": str(exc)}
 
 
-@_register(token=TOOLS_READ)
+@_register(token="wearables:read")
 async def get_wearable_device_status(tag_id: str) -> dict:
     """Check whether a registered wearable device is reporting, who wears it, and its battery.
 

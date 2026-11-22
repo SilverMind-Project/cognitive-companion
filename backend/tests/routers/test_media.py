@@ -48,7 +48,7 @@ def _build_client(service: MagicMock | None, permissions: list[str]) -> TestClie
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
         key="test",
         name="test",
-        permissions=permissions,
+        tokens=frozenset(permissions),
     )
     app.state.media_observability = service
     return TestClient(app, raise_server_exceptions=False)

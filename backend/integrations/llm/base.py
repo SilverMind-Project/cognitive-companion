@@ -4,6 +4,7 @@ Abstract base classes and shared utilities for LLM providers.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import mimetypes
 import re
@@ -18,6 +19,11 @@ import httpx
 # ---------------------------------------------------------------------------
 # Shared image helper
 # ---------------------------------------------------------------------------
+
+
+def _read_bytes_sync(path: str) -> bytes:
+    """Read raw file bytes off the event loop (called via ``asyncio.to_thread``)."""
+    return Path(path).read_bytes()
 
 
 async def encode_image_data_uri(path: str) -> str:
@@ -39,7 +45,7 @@ async def encode_image_data_uri(path: str) -> str:
     else:
         mime, _ = mimetypes.guess_type(path)
         mime = mime or "image/jpeg"
-        raw = Path(path).read_bytes()
+        raw = await asyncio.to_thread(_read_bytes_sync, path)
     return f"data:{mime};base64,{base64.b64encode(raw).decode()}"
 
 

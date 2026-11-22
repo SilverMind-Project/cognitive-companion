@@ -22,9 +22,11 @@ into ``PersonLocationService`` (the unified SSOT).
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import httpx
 from sqlalchemy.orm import Session
@@ -42,6 +44,12 @@ from backend.services.camera_topology import RoomTransition, infer_room_transiti
 from backend.services.person_location.face_sighting_ingest import FaceSightingIngest
 from backend.services.person_location.service import PersonLocationService
 from backend.services.person_location.types import is_unknown_bucket
+
+
+def _read_bytes_sync(path: str) -> bytes:
+    """Read raw file bytes off the event loop (called via ``asyncio.to_thread``)."""
+    return Path(path).read_bytes()
+
 
 logger = get_logger(__name__)
 
@@ -602,8 +610,8 @@ class PersonTrackingService:
                         resp.raise_for_status()
                         images.append(base64.b64encode(resp.content).decode("utf-8"))
                 else:
-                    with open(path, "rb") as f:
-                        images.append(base64.b64encode(f.read()).decode("utf-8"))
+                    raw = await asyncio.to_thread(_read_bytes_sync, path)
+                    images.append(base64.b64encode(raw).decode("utf-8"))
             except Exception:  # noqa: BLE001
                 logger.warning("failed_to_load_image", path=path[:100])
         return images

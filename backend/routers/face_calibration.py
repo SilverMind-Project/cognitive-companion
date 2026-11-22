@@ -40,7 +40,7 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/face-calibration", tags=["face-calibration"])
 
-_REVIEW = "face_calibration.review"
+_REVIEW = "face_calibration:review"
 _PRESIGN_TTL = 3600  # 1 hour; sized for one labeling session
 
 

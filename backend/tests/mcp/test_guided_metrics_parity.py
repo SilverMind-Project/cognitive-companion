@@ -50,7 +50,7 @@ async def test_completion_summary_mcp_bff_parity() -> None:
         app.include_router(guided_metrics.router, prefix="/api/v1")
         app.dependency_overrides[get_guided_metrics_service] = lambda: service
         app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-            key="x", name="tester", permissions=["*"]
+            key="x", name="tester", roles=["admin"]
         )
         response = TestClient(app).get(
             "/api/v1/guided-metrics/completion",

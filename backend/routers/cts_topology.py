@@ -38,7 +38,7 @@ class LearnedTransitionsOut(BaseModel):
 @router.get("/transitions", response_model=LearnedTransitionsOut)
 async def learned_transitions(
     orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:read")),
 ) -> LearnedTransitionsOut:
     """Return the handoffs CTS has learned between cameras, most observed first."""
     cts_enabled()

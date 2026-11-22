@@ -59,7 +59,7 @@ def _build_app() -> TestClient:
     register_exception_handlers(app)
     app.include_router(router)
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="admin", permissions=["*"]
+        key="x", name="admin", roles=["admin"]
     )
     return TestClient(app, raise_server_exceptions=False)
 

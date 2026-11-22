@@ -30,7 +30,7 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 @router.get("/step-types", response_model=list[StepTypeOut])
 def list_step_types(
-    _auth: AuthContext = Depends(require_permission("rules:read")),
+    _auth: AuthContext = Depends(require_permission("pipeline.meta:read")),
 ):
     """Return metadata for all registered pipeline step types."""
     StepRegistry.discover()
@@ -58,7 +58,7 @@ def list_step_types(
 
 @router.get("/channel-types", response_model=list[ChannelTypeOut])
 def list_channel_types(
-    _auth: AuthContext = Depends(require_permission("rules:read")),
+    _auth: AuthContext = Depends(require_permission("pipeline.meta:read")),
 ):
     """Return metadata for all registered notification channels."""
     ChannelRegistry.discover()
@@ -76,7 +76,7 @@ def list_channel_types(
 
 @router.get("/filter-types", response_model=list[FilterTypeOut])
 def list_filter_types(
-    _auth: AuthContext = Depends(require_permission("rules:read")),
+    _auth: AuthContext = Depends(require_permission("pipeline.meta:read")),
 ):
     """Return metadata for all registered context filter types."""
     FilterRegistry.discover()
@@ -95,7 +95,7 @@ def list_filter_types(
 @router.get("/llm-models", response_model=list[LLMModelOut])
 def list_llm_models(
     request: Request,
-    _auth: AuthContext = Depends(require_permission("rules:read")),
+    _auth: AuthContext = Depends(require_permission("pipeline.meta:read")),
 ):
     """Return all named LLM models from the registry (for the llm_call step UI)."""
     registry: LLMModelRegistry | None = request.app.state.llm_model_registry
@@ -241,7 +241,7 @@ _SYSTEM_VARS: list[VariableEntry] = [
 
 @router.get("/data-keys", response_model=DataKeysResponse)
 def get_data_keys(
-    _auth: AuthContext = Depends(require_permission("rules:read")),
+    _auth: AuthContext = Depends(require_permission("pipeline.meta:read")),
 ):
     """Return the complete variable reference for template autocomplete.
 
@@ -268,7 +268,7 @@ def get_data_keys(
 @router.post("/cron/preview", response_model=CronPreviewResponse)
 def preview_cron(
     payload: CronPreviewRequest,
-    _auth: AuthContext = Depends(require_permission("rules:read")),
+    _auth: AuthContext = Depends(require_permission("rules:write")),
 ):
     """Validate a cron expression and return next N run times."""
     from datetime import UTC, datetime

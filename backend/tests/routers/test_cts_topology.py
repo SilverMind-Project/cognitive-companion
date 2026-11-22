@@ -42,7 +42,7 @@ def client(orchestrator: MagicMock) -> Iterator[TestClient]:
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.state.orchestrator_client = orchestrator
     with patch("backend.routers.cts_deps.settings", Settings.from_dict({"cts": {"enabled": True}})):

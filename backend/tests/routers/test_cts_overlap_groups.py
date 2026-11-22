@@ -41,7 +41,7 @@ def client(db_engine: Engine) -> Iterator[TestClient]:
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     cfg = Settings.from_dict({"cts": {"enabled": True}})
     with patch("backend.routers.cts_deps.settings", cfg):

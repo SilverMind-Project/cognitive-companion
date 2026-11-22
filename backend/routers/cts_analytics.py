@@ -23,7 +23,7 @@ async def get_heatmap(
     start_minute: int | None = Query(None, ge=0, le=1439),
     end_minute: int | None = Query(None, ge=0, le=1439),
     svc: PersonLocationService = Depends(get_person_location_service),
-    _auth: AuthContext = Depends(require_permission("cts.analytics.heatmap.view")),
+    _auth: AuthContext = Depends(require_permission("cts.analytics.heatmap:read")),
 ) -> HeatmapEnvelope:
     """Return aggregated floor-plan heatmap bins for a person over a time range.
 

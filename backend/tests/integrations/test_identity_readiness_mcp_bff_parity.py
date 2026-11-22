@@ -52,12 +52,17 @@ def _service() -> MagicMock:
     return svc
 
 
-def _client(svc: MagicMock, permissions: list[str]) -> TestClient:
+def _client(
+    svc: MagicMock,
+    roles: list[str] | None = None,
+    *,
+    tokens: frozenset[str] = frozenset(),
+) -> TestClient:
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="user", permissions=permissions
+        key="x", name="user", roles=list(roles or ()), tokens=tokens
     )
     app.dependency_overrides[get_identity_readiness_service] = lambda: svc
     invalidate_lookup_cache()
@@ -76,7 +81,11 @@ async def test_route_and_mcp_tool_return_the_same_envelope() -> None:
     svc = _service()
     _svc.identity_readiness_service = svc
 
-    route_body = _client(svc, ["identity_readiness:read"]).get("/api/v1/identity/readiness").json()
+    route_body = (
+        _client(svc, tokens=frozenset({"identity_readiness:read"}))
+        .get("/api/v1/identity/readiness")
+        .json()
+    )
     mcp_body = await mcp_get_identity_readiness()
 
     assert route_body == mcp_body == _ENVELOPE.model_dump(mode="json")
@@ -91,7 +100,9 @@ def test_caregiver_roles_may_read(role: str) -> None:
 
 def test_route_without_the_token_is_forbidden() -> None:
     # A key that may read rooms but not identity readiness.
-    response = _client(_service(), ["rooms:read"]).get("/api/v1/identity/readiness")
+    response = _client(_service(), tokens=frozenset({"rooms:read"})).get(
+        "/api/v1/identity/readiness"
+    )
     assert response.status_code == 403
 
 

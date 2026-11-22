@@ -81,7 +81,7 @@ def _build_app(cts_enabled: bool = True, orchestrator: OrchestratorClient | None
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.dependency_overrides[get_orchestrator_client] = lambda: orchestrator
     app.dependency_overrides[get_keyframe_read_service] = lambda: read_service

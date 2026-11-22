@@ -67,7 +67,7 @@ def _get_store(request: Request) -> SignalStore:
 async def signal_evidence(
     signal_id: int,
     request: Request,
-    _auth: AuthContext = Depends(require_permission("cts.signals.evidence.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals.evidence:read")),
     store: SignalStore = Depends(_get_store),
 ) -> dict[str, Any]:
     """Return the full evidence backing a fired dementia signal."""
@@ -171,7 +171,7 @@ async def signal_explorer(
     until: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    _auth: AuthContext = Depends(require_permission("cts.signals.evidence.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals.evidence:read")),
     store: SignalStore = Depends(_get_store),
 ) -> dict[str, Any]:
     """Rich signal explorer with multi-value filters and aggregates."""
@@ -228,7 +228,7 @@ class WeeklyReportRequest(BaseModel):
 async def weekly_report(
     body: WeeklyReportRequest,
     request: Request,
-    _auth: AuthContext = Depends(require_permission("cts.reports.weekly.view")),
+    _auth: AuthContext = Depends(require_permission("cts.reports.weekly:read")),
     store: SignalStore = Depends(_get_store),
 ) -> dict[str, Any]:
     """Generate a weekly trend report for a person."""

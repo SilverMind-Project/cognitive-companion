@@ -85,7 +85,10 @@ _api_routes = api_route_contexts
 
 def _keystore() -> KeyStore:
     data = yaml.safe_load(Path("config/auth.yaml").read_text())
-    return KeyStore(permission_map=data.get("permission_map", {}))
+    return KeyStore(
+        permission_map=data.get("permission_map", {}),
+        roles=data.get("roles", {}),
+    )
 
 
 # ─── 1. Every route is guarded ────────────────────────────────────────────
@@ -158,40 +161,31 @@ def test_non_api_routes_are_framework_or_mounts() -> None:
 # ─── 2. Every guarded route is reachable by some role ─────────────────────
 
 
-def _roles_reaching(ks: KeyStore, method: str, path: str, *, superuser: bool) -> list[str]:
-    """Roles whose patterns reach ``METHOD path``.
+def _roles_reaching_token(ks: KeyStore, token: str, *, superuser: bool) -> list[str]:
+    """Roles in ``config/auth.yaml`` ``roles:`` carrying *token*.
 
-    With ``superuser=False`` the bare ``*`` grant is dropped before matching,
-    which is what makes this check meaningful: ``admin`` holds ``*``, and
-    ``has_permission`` short-circuits True on it for every conceivable path,
-    so a plain "is anyone able to reach this?" question is always yes.
+    With ``superuser=False``, bare ``*`` grants are dropped before matching so
+    a typo or unlisted token reads as unreachable.
     """
     hits = []
-    for role in sorted(ks.known_tokens()):
-        patterns = ks.expand_permissions([role])
-        if not superuser:
-            patterns = [p for p in patterns if p != "*"]
-        target = f"{method.upper()} {path}"
-        if any(fnmatch.fnmatch(target, p) for p in patterns):
+    for role, toks in sorted(ks.roles.items()):
+        effective = [t for t in toks if superuser or t != "*"]
+        if "*" in effective or token in effective:
             hits.append(role)
     return hits
 
 
 def test_every_guarded_route_is_reachable_by_a_role() -> None:
-    """No route is unreachable even counting the superuser grant.
-
-    Weak by construction (``admin: "*"`` reaches everything), so it only
-    catches a route no key could ever hold. The load-bearing audit is
-    test_routes_reachable_only_by_superuser below.
-    """
+    """Every guarded route's D4 token is explicitly listed on at least one role."""
     ks = _keystore()
-    unreachable = [
-        _key(r)
-        for r in _api_routes()
-        if _auth_checkers(r)
-        and _key(r) not in ALLOWLISTED_ROUTES
-        and not _roles_reaching(ks, _method(r), r.path, superuser=True)
-    ]
+    unreachable = []
+    for r in _api_routes():
+        checkers = _auth_checkers(r)
+        if not checkers or _key(r) in ALLOWLISTED_ROUTES:
+            continue
+        tokens = getattr(checkers[0], "__cc_auth_tokens__", ())
+        if not tokens or not any(_roles_reaching_token(ks, t, superuser=False) for t in tokens):
+            unreachable.append(_key(r))
     assert not unreachable, (
         "Routes no configured role in config/auth.yaml can reach (dead or "
         "misconfigured):\n  " + "\n  ".join(sorted(unreachable))
@@ -199,46 +193,32 @@ def test_every_guarded_route_is_reachable_by_a_role() -> None:
 
 
 def test_reachability_check_is_not_vacuous() -> None:
-    """Guard the guard: a path no pattern matches must read as unreachable.
-
-    Without dropping the ``*`` grant this assertion fails, which is exactly
-    how the first version of this test could never go red.
-    """
+    """Guard the guard: an unknown token must read as unreachable without ``*``."""
     ks = _keystore()
-    assert not _roles_reaching(ks, "GET", "/zzz/definitely-not-a-route", superuser=False)
-    assert _roles_reaching(ks, "GET", "/zzz/definitely-not-a-route", superuser=True) == [
-        "*",
+    assert not _roles_reaching_token(ks, "nonexistent:read", superuser=False)
+    assert _roles_reaching_token(ks, "nonexistent:read", superuser=True) == [
         "admin",
         "operator",
     ]
 
 
 def test_routes_reachable_only_by_superuser() -> None:
-    """Report-only: routes no *named* role can reach (M16 task 5 audit).
-
-    56 of 322 guarded routes land here. Reported rather than failed because
-    the admin key (`*`) is what the SPA itself carries, so a hard gate would
-    fail on every new admin route and would encode "admin-only is wrong",
-    which is not this product's posture.
-
-    Not all 51 are intentional, though. `caregiver_admin` is provisioned with
-    `cts.cameras.write` / `cts.calibrate` / `cts.bboxes.write`, and every one
-    is inert: `require_permission` matches METHOD+path and a bare token
-    matches no path, so the config reads as if caregiver_admin manages
-    cameras and calibration while only admin/operator actually can. Only
-    `require_token` consults token membership. See the M16 dated corrections;
-    wiring it means granting real access, a product decision.
-    """
+    """Report-only: routes whose token is granted only to ``admin``/``operator``."""
     ks = _keystore()
-    only_star = sorted(
+    only_super = sorted(
         _key(r)
         for r in _api_routes()
         if _auth_checkers(r)
         and _key(r) not in ALLOWLISTED_ROUTES
-        and not _roles_reaching(ks, _method(r), r.path, superuser=False)
+        and set(
+            _roles_reaching_token(
+                ks, getattr(_auth_checkers(r)[0], "__cc_auth_tokens__", ("",))[0], superuser=False
+            )
+        )
+        <= {"admin", "operator"}
     )
-    if only_star:
-        pytest.skip(f"reachable only via the '*' grant ({len(only_star)}): {only_star}")
+    if only_super:
+        pytest.skip(f"reachable only by admin/operator ({len(only_super)}): {only_super}")
 
 
 def test_permission_map_patterns_match_a_live_route() -> None:

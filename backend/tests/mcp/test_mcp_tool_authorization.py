@@ -38,7 +38,112 @@ _MUTATING_TOOL_TOKENS = {
     "request_caregiver_help": "resident_session:act",
     "record_resident_preference": "resident_session:act",
 }
-_READ_TOOL_COUNT = 53
+
+# Every MCP read tool with a FastAPI router twin -> (method, route_path, expected_d4_token).
+# Asserted against both the MCP registry AND the live FastAPI route's declared token so
+# MCP and BFF authorization can never drift apart.
+_READ_TOOL_ROUTER_TWINS: dict[str, tuple[str, str, str]] = {
+    "get_rooms": ("GET", "/api/v1/rooms", "rooms:read"),
+    "get_sensors": ("GET", "/api/v1/sensors", "sensors:read"),
+    "get_room_occupancy": ("GET", "/api/v1/occupancy/", "occupancy:read"),
+    "list_keyframe_frames": ("GET", "/api/v1/cts/keyframes", "cts.keyframes:read"),
+    "get_identity_correction_job": (
+        "GET",
+        "/api/v1/cts/identity/corrections/jobs/{revision_id}",
+        "cts.identity:read",
+    ),
+    "get_recent_images": ("GET", "/api/v1/media/buffer", "media:read"),
+    "get_signals_feed": ("GET", "/api/v1/signals/feed", "signals.feed:read"),
+    "get_event_logs": ("GET", "/api/v1/events", "events:read"),
+    "get_rules": ("GET", "/api/v1/rules", "rules:read"),
+    "list_rules": ("GET", "/api/v1/rules", "rules:read"),
+    "get_rule_pipeline": ("GET", "/api/v1/rules/{rule_id}/steps", "rules:read"),
+    "get_rule_bundle": ("GET", "/api/v1/rules/{rule_id}/export", "rules:read"),
+    "get_conversation_history": ("GET", "/api/v1/conversations/recent", "conversations:read"),
+    "get_person_locations": ("GET", "/api/v1/persons/locations", "persons.location:read"),
+    "get_person_location": ("GET", "/api/v1/persons/{person_id}/location", "persons.location:read"),
+    "get_enrolled_persons": ("GET", "/api/v1/persons/enrolled", "persons:read"),
+    "get_roster_health": ("GET", "/api/v1/persons/roster-health", "persons:read"),
+    "get_person_activities": ("GET", "/api/v1/activities", "activities:read"),
+    "get_person_timeline": ("GET", "/api/v1/activities/timeline", "activities:read"),
+    "get_daily_report": ("GET", "/api/v1/activities/reports/{person_id}/{date}", "activities:read"),
+    "get_open_sessions": ("GET", "/api/v1/activities/sessions/open", "activities:read"),
+    "get_workflow_executions": ("GET", "/api/v1/workflows", "workflows:read"),
+    "get_eink_display_status": ("GET", "/api/v1/image/states", "image:read"),
+    "get_medication_schedule": (
+        "GET",
+        "/api/v1/persons/{person_id}/medication-schedule",
+        "medication:read",
+    ),
+    "get_heatmap": ("GET", "/api/v1/cts/analytics/heatmap", "cts.analytics.heatmap:read"),
+    "get_tracking_status": ("GET", "/api/v1/cts/status", "cts:read"),
+    "get_recent_dementia_signals": ("GET", "/api/v1/cts/signals", "cts.signals:read"),
+    "get_gait_trend": ("GET", "/api/v1/cts/gait/trend", "cts.gait.trend:read"),
+    "get_identity_readiness": ("GET", "/api/v1/identity/readiness", "identity_readiness:read"),
+    "get_wearable_assignments": ("GET", "/api/v1/wearables/assignments", "wearables:read"),
+    "get_wearable_device_status": (
+        "GET",
+        "/api/v1/wearables/devices/{device_id}/status",
+        "wearables:read",
+    ),
+    "get_guided_completion_summary": (
+        "GET",
+        "/api/v1/guided-metrics/completion",
+        "guided_metrics:read",
+    ),
+    "get_guided_attempts_per_step": (
+        "GET",
+        "/api/v1/guided-metrics/attempts-per-step",
+        "guided_metrics:read",
+    ),
+    "get_guided_time_to_complete": (
+        "GET",
+        "/api/v1/guided-metrics/time-to-complete",
+        "guided_metrics:read",
+    ),
+    "get_guided_abandonment": ("GET", "/api/v1/guided-metrics/abandonment", "guided_metrics:read"),
+    "get_guided_escalation_breakdown": (
+        "GET",
+        "/api/v1/guided-metrics/escalation-breakdown",
+        "guided_metrics:read",
+    ),
+    "get_guided_vision_agreement": (
+        "GET",
+        "/api/v1/guided-metrics/vision-agreement",
+        "guided_metrics:read",
+    ),
+    "get_guided_time_of_day": ("GET", "/api/v1/guided-metrics/time-of-day", "guided_metrics:read"),
+    "get_guided_watch_summary": (
+        "GET",
+        "/api/v1/guided-metrics/watch-summary",
+        "guided_metrics:read",
+    ),
+    "get_guided_gate_cost_summary": (
+        "GET",
+        "/api/v1/guided-metrics/gate-cost-summary",
+        "guided_metrics:read",
+    ),
+    "get_active_guided_step": ("GET", "/api/v1/guided-sessions", "guided_sessions:read"),
+    "query_knowledge_base": ("GET", "/api/v1/knowledge/documents", "knowledge.documents:read"),
+    "get_current_quiz_question": ("GET", "/api/v1/quizzes", "quizzes:read"),
+    "list_plugin_metadata": ("GET", "/api/v1/pipeline/step-types", "pipeline.meta:read"),
+}
+
+# Read tools explicitly listed as having no safe HTTP router twin (stay on ``mcp.tools:read``).
+_READ_TOOLS_WITHOUT_ROUTER_TWIN: dict[str, str] = {
+    "get_weather": "Home Assistant weather integration, no REST route",
+    "get_light_level": "Home Assistant illuminance integration, no REST route",
+    "get_local_datetime": "Household timezone clock, no REST route",
+    "get_recent_scene_objects": "Qdrant semantic memory query, no REST route",
+    "get_scene_observations": "Qdrant semantic memory query, no REST route",
+    "get_person_movements": "Qdrant semantic memory query, no REST route",
+    "get_room_trend": "Qdrant semantic memory query, no REST route",
+    "search_similar_scenes": "Qdrant semantic memory query, no REST route",
+    "get_face_calibration_summary": (
+        "HTTP twin shares biometric-admin write token face_calibration:review; "
+        "kept on mcp.tools:read so mcp_readonly cannot mutate calibration labels"
+    ),
+}
 
 _READ_KEY = "read-key"
 _AGENT_KEY = "agent-key"
@@ -48,19 +153,19 @@ _CAREGIVER_KEY = "caregiver-key"
 
 @pytest.fixture
 def keystore(monkeypatch: pytest.MonkeyPatch) -> KeyStore:
-    """Test keys over the real config/auth.yaml permission map, so real grants are tested."""
+    """Test keys over the real config/auth.yaml roles, so real grants are tested."""
     ks = KeyStore(
         api_keys=[
-            {"key": _READ_KEY, "name": "Read", "permissions": ["mcp_readonly"]},
+            {"key": _READ_KEY, "name": "Read", "roles": ["mcp_readonly"]},
             {
                 "key": _AGENT_KEY,
                 "name": "Agent",
-                "permissions": ["mcp_readonly", "rules:write_via_mcp"],
+                "roles": ["mcp_readonly", "mcp_rules_import"],
             },
-            {"key": _ADMIN_KEY, "name": "Admin", "permissions": ["admin"]},
-            {"key": _CAREGIVER_KEY, "name": "Caregiver", "permissions": ["caregiver"]},
+            {"key": _ADMIN_KEY, "name": "Admin", "roles": ["admin"]},
+            {"key": _CAREGIVER_KEY, "name": "Caregiver", "roles": ["caregiver"]},
         ],
-        permission_map=settings.get("auth.permission_map", {}),
+        roles=settings.get("auth.roles", {}),
     )
     monkeypatch.setattr(auth_module, "_default_keystore", ks)
     return ks
@@ -72,14 +177,34 @@ def keystore(monkeypatch: pytest.MonkeyPatch) -> KeyStore:
 
 
 def test_every_tool_declares_the_expected_token() -> None:
+    from backend.scripts.export_route_permissions import collect_route_inventory
+
     tokens = mcp_module._tool_tokens
+    route_tokens = {
+        (row.method, row.path): row.declared_token
+        for row in collect_route_inventory()
+        if row.auth_kind != "ws"
+    }
 
     assert set(tokens) == set(mcp_module._tool_handlers)
+    expected_all = (
+        set(_MUTATING_TOOL_TOKENS)
+        | set(_READ_TOOL_ROUTER_TWINS)
+        | set(_READ_TOOLS_WITHOUT_ROUTER_TWIN)
+    )
+    assert set(tokens) == expected_all
+
     for name, token in _MUTATING_TOOL_TOKENS.items():
         assert tokens[name] == token, name
-    read_tools = {name for name, token in tokens.items() if token == mcp_module.TOOLS_READ}
-    assert len(read_tools) == _READ_TOOL_COUNT
-    assert not read_tools & set(_MUTATING_TOOL_TOKENS)
+
+    for name, (method, path, expected_token) in _READ_TOOL_ROUTER_TWINS.items():
+        assert tokens[name] == expected_token, name
+        assert route_tokens[(method, path)] == expected_token, (
+            f"MCP tool {name!r} token {tokens[name]!r} drifted from twin {method} {path}"
+        )
+
+    for name in _READ_TOOLS_WITHOUT_ROUTER_TWIN:
+        assert tokens[name] == mcp_module.TOOLS_READ, name
 
 
 def test_registration_without_a_token_is_a_type_error() -> None:

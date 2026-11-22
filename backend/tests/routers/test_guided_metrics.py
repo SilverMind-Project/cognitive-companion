@@ -47,7 +47,7 @@ def _client(auth: AuthContext | None = None) -> TestClient:
 
 
 def _caregiver() -> AuthContext:
-    return AuthContext(key="caregiver", name="Caregiver", permissions=["guided_metrics:read"])
+    return AuthContext(key="caregiver", name="Caregiver", tokens=frozenset({"guided_metrics:read"}))
 
 
 def test_completion_route_returns_envelope() -> None:

@@ -35,7 +35,7 @@ def list_executions(
     status: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("workflows:read")),
 ):
     """List workflow executions with optional filters."""
     query = db.query(WorkflowExecution).join(Rule)
@@ -59,7 +59,7 @@ def list_executions(
 def get_execution(
     execution_id: int,
     db: Session = Depends(get_db),
-    _auth=Depends(require_permission("caregiver")),
+    _auth=Depends(require_permission("workflows:read")),
 ):
     """Get detailed workflow execution with pipeline data."""
     execution = db.query(WorkflowExecution).get(execution_id)
@@ -76,7 +76,7 @@ async def cancel_execution(
     execution_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("workflows:execute")),
 ):
     """Cancel a running or waiting workflow execution."""
     execution = (
@@ -115,7 +115,7 @@ async def cancel_execution(
 def get_execution_detail(
     execution_id: int,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("caregiver")),
+    _auth: AuthContext = Depends(require_permission("workflows:read")),
 ):
     """Return a rich, UI-ready execution detail view model."""
     from backend.steps import StepRegistry
@@ -170,7 +170,7 @@ async def rerun_execution(
     payload: RerunRequest,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("workflows:execute")),
 ):
     """Rerun a workflow execution from the beginning (v1).
 

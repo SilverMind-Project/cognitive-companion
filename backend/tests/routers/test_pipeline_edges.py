@@ -28,7 +28,7 @@ def client(db_session, monkeypatch):
         return AuthContext(
             key="test",
             name="Test Admin",
-            permissions=["*"],
+            roles=["admin"],
             device_type=None,
             sensor_id=None,
         )

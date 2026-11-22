@@ -1,4 +1,5 @@
 """Integration tests for rules router endpoints."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock
@@ -43,7 +44,7 @@ def client(db_session, mock_pipeline_executor):
     # Override auth with admin context
     async def override_auth():
         return AuthContext(
-            key="test", name="Test Admin", permissions=["*"], device_type=None, sensor_id=None
+            key="test", name="Test Admin", roles=["admin"], device_type=None, sensor_id=None
         )
 
     app.dependency_overrides[get_auth_context] = override_auth

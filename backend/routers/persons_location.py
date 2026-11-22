@@ -75,7 +75,7 @@ def _loc_to_envelope(
 @router.get("/persons/{person_id}/location", response_model=PersonLocationEnvelope)
 async def get_person_location(
     person_id: str,
-    _auth: AuthContext = Depends(require_permission("persons.read")),
+    _auth: AuthContext = Depends(require_permission("persons.location:read")),
     db: Session = Depends(get_db),
     svc: PersonLocationService = Depends(_get_service),
 ) -> PersonLocationEnvelope:
@@ -102,7 +102,7 @@ async def get_person_location(
 
 @router.get("/persons/locations", response_model=list[PersonLocationEnvelope])
 async def get_all_person_locations(
-    _auth: AuthContext = Depends(require_permission("persons.read")),
+    _auth: AuthContext = Depends(require_permission("persons.location:read")),
     db: Session = Depends(get_db),
     svc: PersonLocationService = Depends(_get_service),
 ) -> list[PersonLocationEnvelope]:
@@ -133,7 +133,7 @@ async def get_presence_history(
     person_id: str,
     since: datetime | None = None,
     until: datetime | None = None,
-    _auth: AuthContext = Depends(require_permission("persons.read")),
+    _auth: AuthContext = Depends(require_permission("persons.location:read")),
     svc: PersonLocationService = Depends(_get_service),
 ) -> PresenceHistoryResponse:
     """Return presence segments for a person in a time window."""
@@ -173,7 +173,7 @@ async def get_presence_history(
 @router.get("/rooms/{room_id}/occupants", response_model=RoomOccupancyEnvelope)
 async def get_room_occupants(
     room_id: int,
-    _auth: AuthContext = Depends(require_permission("persons.read")),
+    _auth: AuthContext = Depends(require_permission("persons.location:read")),
     db: Session = Depends(get_db),
     svc: PersonLocationService = Depends(_get_service),
 ) -> RoomOccupancyEnvelope:
@@ -207,7 +207,7 @@ async def get_room_occupants(
 @router.get("/persons/{person_id}/dwell", response_model=dict)
 async def get_person_dwell(
     person_id: str,
-    _auth: AuthContext = Depends(require_permission("persons.read")),
+    _auth: AuthContext = Depends(require_permission("persons.location:read")),
     svc: PersonLocationService = Depends(_get_service),
 ) -> dict:
     """Return the currently-open segment for a person."""
@@ -239,7 +239,7 @@ async def get_person_dwell(
 async def override_person_location(
     person_id: str,
     body: LocationOverrideRequest,
-    _auth: AuthContext = Depends(require_permission("persons.write_overrides")),
+    _auth: AuthContext = Depends(require_permission("persons.location:write")),
     db: Session = Depends(get_db),
     svc: PersonLocationService = Depends(_get_service),
 ) -> dict:

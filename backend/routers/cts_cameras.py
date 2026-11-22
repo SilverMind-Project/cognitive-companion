@@ -166,7 +166,7 @@ def _to_out(cam: CtsCamera, db: Session | None = None) -> CtsCameraOut:
 @router.get("", response_model=list[CtsCameraOut])
 def list_cameras(
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.roster:read")),
 ) -> list[CtsCameraOut]:
     cts_enabled()
     return [_to_out(c, db) for c in db.query(CtsCamera).order_by(CtsCamera.name).all()]
@@ -176,7 +176,7 @@ def list_cameras(
 def create_camera(
     payload: CtsCameraCreate,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:write")),
 ) -> CtsCameraOut:
     cts_enabled()
     if db.get(CtsCamera, payload.id):
@@ -198,7 +198,7 @@ def create_camera(
 @router.post("/optics-preview", response_model=CameraOpticsOut)
 def preview_camera_optics(
     payload: OpticsPreviewRequest,
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:write")),
 ) -> CameraOpticsOut:
     """Stateless placement calculator preview for unsaved camera profile values."""
     cts_enabled()
@@ -214,7 +214,7 @@ async def get_camera_optics(
     camera_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:read")),
 ) -> CameraOpticsOut:
     """Return derived pinhole optics for a stored camera, syncing CTS stream size if available."""
     cts_enabled()
@@ -238,7 +238,7 @@ async def get_camera_optics(
 def get_camera(
     camera_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:read")),
 ) -> CtsCameraOut:
     cts_enabled()
     cam = db.get(CtsCamera, camera_id)
@@ -252,7 +252,7 @@ def update_camera(
     camera_id: str,
     payload: CtsCameraUpdate,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:write")),
 ) -> CtsCameraOut:
     cts_enabled()
     cam = db.get(CtsCamera, camera_id)
@@ -277,7 +277,7 @@ def update_camera(
 def delete_camera(
     camera_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:write")),
 ) -> None:
     cts_enabled()
     cam = db.get(CtsCamera, camera_id)
@@ -293,7 +293,7 @@ def put_camera_marker(
     camera_id: str,
     payload: CameraMarkerIn,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:write")),
 ) -> None:
     cts_enabled()
     cam = db.get(CtsCamera, camera_id)
@@ -311,7 +311,7 @@ def put_camera_marker(
 def delete_camera_marker(
     camera_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:write")),
 ) -> None:
     cts_enabled()
     cam = db.get(CtsCamera, camera_id)
@@ -333,7 +333,7 @@ def delete_camera_marker(
 @router.post("/test-connect")
 async def rtsp_test_connect(
     body: dict,
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:write")),
     ingress: IngressAdminClient = Depends(get_ingress_admin_client),
 ) -> dict:
     cts_enabled()
@@ -358,7 +358,7 @@ async def rtsp_test_connect(
 async def get_snapshot(
     camera_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:read")),
     ingress: IngressAdminClient = Depends(get_ingress_admin_client),
 ) -> Response:
     cts_enabled()
@@ -381,7 +381,7 @@ async def get_snapshot(
 async def get_health(
     camera_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:read")),
     ingress: IngressAdminClient = Depends(get_ingress_admin_client),
 ) -> dict:
     cts_enabled()
@@ -415,7 +415,7 @@ async def get_health(
 async def reload_camera(
     camera_id: str,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    _auth: AuthContext = Depends(require_permission("cts.cameras:write")),
     ingress: IngressAdminClient = Depends(get_ingress_admin_client),
 ) -> None:
     cts_enabled()

@@ -54,7 +54,7 @@ async def create_document(
     source_text: str = Form(...),
     tags: str = Form(""),
     images: list[UploadFile] = File(default_factory=list),
-    _auth: None = Depends(require_permission("POST /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:write")),
 ):
     ingestion = _get_ingestion(request)
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
@@ -80,7 +80,7 @@ async def list_documents(
     q: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    _auth: None = Depends(require_permission("GET /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:read")),
 ):
     ingestion = _get_ingestion(request)
     docs, total = ingestion.list_documents(status=status, tag=tag, q=q, limit=limit, offset=offset)
@@ -99,7 +99,7 @@ async def list_documents(
 async def get_document(
     doc_id: int,
     request: Request,
-    _auth: None = Depends(require_permission("GET /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:read")),
 ):
     ingestion = _get_ingestion(request)
     doc = ingestion.get_document(doc_id)
@@ -113,7 +113,7 @@ async def update_document(
     doc_id: int,
     body: KnowledgeDocumentUpdate,
     request: Request,
-    _auth: None = Depends(require_permission("PATCH /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:write")),
 ):
     ingestion = _get_ingestion(request)
     doc = await ingestion.update_document(doc_id, **body.model_dump(exclude_none=True))
@@ -127,7 +127,7 @@ async def update_document(
 async def approve_document(
     doc_id: int,
     request: Request,
-    _auth: None = Depends(require_permission("POST /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:write")),
 ):
     ingestion = _get_ingestion(request)
     doc = ingestion.approve_document(doc_id)
@@ -138,7 +138,7 @@ async def approve_document(
 async def archive_document(
     doc_id: int,
     request: Request,
-    _auth: None = Depends(require_permission("POST /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:write")),
 ):
     ingestion = _get_ingestion(request)
     doc = ingestion.archive_document(doc_id)
@@ -149,7 +149,7 @@ async def archive_document(
 async def restore_document(
     doc_id: int,
     request: Request,
-    _auth: None = Depends(require_permission("POST /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:write")),
 ):
     ingestion = _get_ingestion(request)
     doc = ingestion.restore_document(doc_id)
@@ -160,7 +160,7 @@ async def restore_document(
 async def delete_document(
     doc_id: int,
     request: Request,
-    _auth: None = Depends(require_permission("DELETE /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:delete")),
 ):
     ingestion = _get_ingestion(request)
     _ = request.app.state.minio_client  # ensure MinIO is available
@@ -177,7 +177,7 @@ async def delete_document(
 async def reembed_document(
     doc_id: int,
     request: Request,
-    _auth: None = Depends(require_permission("POST /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:write")),
 ):
     """Force re-chunk and re-embed a document. Resets status to uploaded first."""
     ingestion = _get_ingestion(request)
@@ -200,7 +200,7 @@ async def add_document_image(
     file: UploadFile = File(...),
     alt_text: str = Form(""),
     ord: int | None = Form(None),
-    _auth: None = Depends(require_permission("POST /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:write")),
 ):
     ingestion = _get_ingestion(request)
     img_row = await ingestion.add_image(doc_id, file, alt_text=alt_text, ord=ord)
@@ -213,7 +213,7 @@ async def update_document_image(
     img_id: int,
     body: KnowledgeDocumentImageUpdate,
     request: Request,
-    _auth: None = Depends(require_permission("PATCH /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:write")),
 ):
     ingestion = _get_ingestion(request)
     img_row = ingestion.update_image(img_id, **body.model_dump(exclude_none=True))
@@ -225,7 +225,7 @@ async def delete_document_image(
     doc_id: int,
     img_id: int,
     request: Request,
-    _auth: None = Depends(require_permission("DELETE /api/v1/knowledge/documents")),
+    _auth: None = Depends(require_permission("knowledge.documents:delete")),
 ):
     ingestion = _get_ingestion(request)
     await ingestion.delete_image(img_id)

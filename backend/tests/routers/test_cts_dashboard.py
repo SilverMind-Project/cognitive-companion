@@ -25,7 +25,7 @@ def _build_app(client_mock: AsyncMock, cts_on: bool = True) -> TestClient:
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
     app.dependency_overrides[_get_orchestrator_client] = lambda: client_mock
 

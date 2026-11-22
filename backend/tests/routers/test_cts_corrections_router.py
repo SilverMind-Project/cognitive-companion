@@ -73,7 +73,7 @@ def _build_app(permissions: list[str]):
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="caregiver@home", permissions=permissions
+        key="x", name="caregiver@home", tokens=frozenset(permissions)
     )
     app.dependency_overrides[get_identity_correction_service] = lambda: svc
     patcher = patch("backend.routers.cts_deps.settings", cfg)
@@ -81,12 +81,9 @@ def _build_app(permissions: list[str]):
     return TestClient(app), svc, patcher
 
 
-# Permissions resolve to endpoint patterns (the keystore matches METHOD /path).
-# caregiver_admin/operator grant "POST /api/v1/cts/identity/*" in auth.yaml, which
-# covers propose/apply/compensate; "GET /api/v1/*" covers the job read.
 _FULL = ["*"]
 # A principal allowed to propose (and read jobs) but NOT to apply/compensate.
-_VIEW_ONLY = ["GET /api/v1/*", "POST /api/v1/cts/identity/corrections/propose"]
+_VIEW_ONLY = ["cts.identity:read", "cts.identity:propose"]
 
 
 @pytest.fixture

@@ -92,7 +92,7 @@ def _caregiver() -> AuthContext:
     return AuthContext(
         key="caregiver",
         name="Caregiver",
-        permissions=["guided_sessions:read", "guided_sessions:takeover"],
+        tokens=frozenset({"guided_sessions:read", "guided_sessions:takeover"}),
     )
 
 

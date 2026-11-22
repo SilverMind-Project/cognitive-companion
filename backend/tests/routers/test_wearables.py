@@ -45,12 +45,12 @@ _READONLY_MCP_KEY = "wear-mcp-key"
 def wearable_client(db_factory, monkeypatch: pytest.MonkeyPatch):
     ks = KeyStore(
         api_keys=[
-            {"key": _ADMIN_KEY, "name": "Admin Alice", "permissions": ["admin"]},
-            {"key": _CAREGIVER_KEY, "name": "Caregiver Bob", "permissions": ["caregiver"]},
-            {"key": _INGRESS_KEY, "name": "Ingress Service", "permissions": ["cts_ingress"]},
-            {"key": _READONLY_MCP_KEY, "name": "MCP Agent", "permissions": ["mcp_readonly"]},
+            {"key": _ADMIN_KEY, "name": "Admin Alice", "roles": ["admin"]},
+            {"key": _CAREGIVER_KEY, "name": "Caregiver Bob", "roles": ["caregiver"]},
+            {"key": _INGRESS_KEY, "name": "Ingress Service", "roles": ["cts_ingress"]},
+            {"key": _READONLY_MCP_KEY, "name": "MCP Agent", "roles": ["mcp_readonly"]},
         ],
-        permission_map=settings.get("auth.permission_map", {}),
+        roles=settings.get("auth.roles", {}),
     )
     monkeypatch.setattr(auth_module, "_default_keystore", ks)
 
@@ -134,13 +134,29 @@ def test_wearable_auth_403_and_role_boundaries(wearable_client: TestClient, db_f
         ).status_code
         == 403
     )
-    # MCP readonly key cannot call wearable BFF read routes directly.
+    # MCP readonly key cannot mutate wearable devices or read site-config,
+    # while sharing wearables:read with its MCP read-tool twins.
+    assert (
+        wearable_client.post(
+            "/api/v1/wearables/devices",
+            json=dev_body,
+            headers={"X-API-Key": _READONLY_MCP_KEY},
+        ).status_code
+        == 403
+    )
+    assert (
+        wearable_client.get(
+            "/api/v1/wearables/site-config",
+            headers={"X-API-Key": _READONLY_MCP_KEY},
+        ).status_code
+        == 403
+    )
     assert (
         wearable_client.get(
             "/api/v1/wearables/devices",
             headers={"X-API-Key": _READONLY_MCP_KEY},
         ).status_code
-        == 403
+        == 200
     )
 
     # Admin can create; caregiver can read; cts_ingress can read site-config.

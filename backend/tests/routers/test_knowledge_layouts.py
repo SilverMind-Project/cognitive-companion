@@ -1,4 +1,5 @@
 """Integration tests for knowledge layouts router."""
+
 from __future__ import annotations
 
 import pytest
@@ -25,7 +26,7 @@ def client(layout_registry):
         from backend.core.auth import AuthContext
 
         return AuthContext(
-            key="test", name="Test", permissions=["*"], device_type=None, sensor_id=None
+            key="test", name="Test", roles=["admin"], device_type=None, sensor_id=None
         )
 
     from backend.core.auth import get_auth_context

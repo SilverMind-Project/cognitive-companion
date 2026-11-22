@@ -147,7 +147,7 @@ def serve_active_image(
 async def render_image(
     payload: RenderPayload,
     request: Request,
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("image:write")),
 ):
     """Render text onto a template and set as active image for target device(s)."""
     eink_renderer = request.app.state.eink_renderer
@@ -165,7 +165,7 @@ async def render_image(
 async def reset_image(
     request: Request,
     sensor_ids: list[str] | None = None,
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("image:write")),
 ):
     """Reset active images to default template for given sensors (or all)."""
     eink_renderer = request.app.state.eink_renderer
@@ -177,7 +177,7 @@ async def reset_image(
 def preview_render(
     payload: RenderPreviewPayload,
     request: Request,
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("image:write")),
 ):
     """Preview a rendered image without saving. Returns PNG."""
     eink_renderer = request.app.state.eink_renderer
@@ -198,7 +198,7 @@ async def preview_render_form(
     font_filename: str = Form("NotoSansTamil-Regular.ttf"),
     template_id: int | None = Form(None),
     image: UploadFile | None = File(None),
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("image:write")),
 ):
     """Preview rendered image using an uploaded image or an existing template.
 
@@ -241,7 +241,7 @@ async def preview_render_form(
 @router.get("/states", response_model=list[ActiveImageStateOut])
 def list_image_states(
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("image:read")),
 ):
     """List all active image states across devices."""
     return db.execute(select(ActiveImageState)).scalars().all()
@@ -271,7 +271,7 @@ async def create_template(
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
     minio: MinioClient = Depends(get_config_minio_client),
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("image:write")),
 ):
     """Upload a new image template with bounding box regions.
 
@@ -312,7 +312,7 @@ def update_template(
     template_id: int,
     payload: ImageTemplateUpdate,
     db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("image:write")),
 ):
     """Update template metadata/regions (not the image file)."""
     tmpl = db.execute(
@@ -340,7 +340,7 @@ async def update_template_image(
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
     minio: MinioClient = Depends(get_config_minio_client),
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("image:write")),
 ):
     """Replace the template background image. Resizes to template dimensions."""
     tmpl = db.execute(
@@ -368,7 +368,7 @@ def delete_template(
     template_id: int,
     db: Session = Depends(get_db),
     minio: MinioClient = Depends(get_config_minio_client),
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("image:delete")),
 ):
     """Delete a template and its image from MinIO."""
     tmpl = db.execute(
@@ -411,7 +411,7 @@ def preview_template(
 
 @router.get("/fonts", response_model=FontListOut)
 def list_fonts(
-    _auth: AuthContext = Depends(require_permission("admin")),
+    _auth: AuthContext = Depends(require_permission("image:read")),
 ):
     """List available font files."""
     if not _FONTS_DIR.exists():

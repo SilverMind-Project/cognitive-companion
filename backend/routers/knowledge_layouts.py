@@ -49,7 +49,7 @@ def _layout_out(lo) -> dict[str, Any]:
 async def list_layouts(
     request: Request,
     applies_to: str | None = None,
-    _auth: None = Depends(require_permission("GET /api/v1/knowledge/layouts")),
+    _auth: None = Depends(require_permission("knowledge.layouts:read")),
 ):
     registry = request.app.state.layout_registry
     layouts = registry.get_for(applies_to) if applies_to else registry.all_layouts()
@@ -60,7 +60,7 @@ async def list_layouts(
 async def get_layout(
     layout_id: str,
     request: Request,
-    _auth: None = Depends(require_permission("GET /api/v1/knowledge/layouts")),
+    _auth: None = Depends(require_permission("knowledge.layouts:read")),
 ):
     registry = request.app.state.layout_registry
     layout = registry.get(layout_id)
@@ -72,7 +72,7 @@ async def get_layout(
 @voice_defaults_router.get("/voice-defaults", response_model=VoiceDefaultsOut)
 async def get_voice_defaults(
     request: Request,
-    _auth: None = Depends(require_permission("GET /api/v1/knowledge/layouts")),
+    _auth: None = Depends(require_permission("knowledge.layouts:read")),
 ):
     """Return the default voice instructions for each delivery type."""
     vc = request.app.state.voice_instructions

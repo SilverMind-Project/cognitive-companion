@@ -66,7 +66,7 @@ def client_on():
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
 
     with patch("backend.routers.cts.settings", cfg), TestClient(app) as c:
@@ -92,7 +92,7 @@ def client_off():
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
-        key="x", name="tester", permissions=["*"]
+        key="x", name="tester", roles=["admin"]
     )
 
     with patch("backend.routers.cts.settings", cfg), TestClient(app) as c:

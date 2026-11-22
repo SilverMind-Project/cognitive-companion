@@ -49,7 +49,7 @@ from backend.services.identity_review.registry import IdentityReviewRegistry, Re
 
 router = APIRouter(prefix="/cts", tags=["cts-reid-review"])
 
-_GALLERY_REVIEW = "cts.identity.gallery_review"
+_GALLERY_REVIEW = "cts.identity.gallery:review"
 
 
 def _presigner(request: Request):

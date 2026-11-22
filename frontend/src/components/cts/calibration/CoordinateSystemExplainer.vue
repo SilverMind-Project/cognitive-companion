@@ -15,7 +15,7 @@
           width="280"
           height="160"
           rx="4"
-          fill="rgba(99,102,241,0.07)"
+          fill="var(--cc-brand-softer)"
           stroke="var(--cc-brand)"
           stroke-width="1.5"
           stroke-dasharray="6 3"
@@ -76,29 +76,33 @@
         </text>
 
         <!-- Example point -->
-        <circle cx="180" cy="134" r="5" fill="#10b981" />
+        <circle cx="180" cy="134" r="5" fill="var(--cc-success)" />
         <!-- X dashed measurement line -->
         <line
           x1="20"
           y1="134"
           x2="180"
           y2="134"
-          stroke="#10b981"
+          stroke="var(--cc-success)"
           stroke-width="1"
           stroke-dasharray="4 3"
         />
-        <text x="100" y="129" text-anchor="middle" fill="#10b981" font-size="10">X = 3.2 m</text>
+        <text x="100" y="129" text-anchor="middle" fill="var(--cc-success)" font-size="10">
+          X = 3.2 m
+        </text>
         <!-- Y dashed measurement line -->
         <line
           x1="180"
           y1="34"
           x2="180"
           y2="134"
-          stroke="#10b981"
+          stroke="var(--cc-success)"
           stroke-width="1"
           stroke-dasharray="4 3"
         />
-        <text x="215" y="84" text-anchor="middle" fill="#10b981" font-size="10">Y = 2.5 m</text>
+        <text x="215" y="84" text-anchor="middle" fill="var(--cc-success)" font-size="10">
+          Y = 2.5 m
+        </text>
 
         <!-- Arrow markers -->
         <defs>

@@ -33,7 +33,7 @@
           density="compact"
           hide-details
           class="v-text-field--flush-label"
-          :class="item.isOverride ? '' : 'text-grey'"
+          :class="item.isOverride ? '' : 'text-medium-emphasis'"
           @update:model-value="emitSensorFrameLimit(item.sensor_id, Number($event))"
         />
       </template>

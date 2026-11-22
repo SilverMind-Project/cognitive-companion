@@ -19,7 +19,7 @@ All frontend tests live under `frontend/tests/`. The directory structure mirrors
 | `src/services/api.js` (bundle check) | `tests/bundle.test.js` |
 | `src/services/http.ts`, `src/services/modules/` | `tests/services/http.spec.ts`, `tests/services/modules/*.spec.ts`, `tests/services/one_request_core.spec.js`, `tests/services/api_barrel.spec.ts` |
 
-**Never place test files inside `frontend/src/`** (e.g. `src/composables/__tests__/`). Tests are not part of the application bundle and must stay in `frontend/tests/`.
+**Never place test files inside `frontend/src/`** (e.g. `src/composables/__tests__/`). Tests are not part of the application bundle and must stay in `frontend/tests/`. `frontend/vite.config.js` pins `test.include: ["tests/**/*.{spec,test}.{js,ts}"]` so specs under `src/` never run, and `tests/architecture/test_location.spec.ts` fails CI if any spec or `__tests__/` directory appears under `src/`.
 
 Imports from test files use the `@/` alias to reference source modules:
 
@@ -124,40 +124,35 @@ frontend/
 
 ## Deterministic gates
 
-Before marking frontend work complete run: `npm run lint` (ESLint enforces the
-no-raw-fetch / no-localStorage-key / echarts-subpath architecture rules -- never disable
-one inline without a reason comment), `npm run format:check`, `npm run typecheck`
-(vue-tsc), `npx vitest run`, `npm run build`, `npm run knip` (dead exports/files/deps --
-delete findings, don't ignore them). CI runs all six; a rule that must be relaxed is
-relaxed in `eslint.config.js` with a comment, never by sprinkling disables.
+Before marking frontend work complete run:
+
+- `npm run lint` runs ESLint (`eslint src tests --max-warnings 0`) and Stylelint (`npm run lint:style` -> `stylelint "src/**/*.vue"`):
+  - **ESLint**: `no-alert`, `no-restricted-properties` (timezone discipline outside `services/timezone.js`), `vue/no-restricted-class` (`text-grey`, `text-grey-*`), `vue/no-restricted-static-attribute` (material `color` values `green|orange|purple|deep-purple|blue|red|grey|amber`), `vue/no-restricted-syntax` (`<v-snackbar>` outside `CcSnackbarHost.vue`, `<v-btn-toggle>` outside sanctioned `RegionEditor.vue`, hardcoded hex and numeric `rgb()`/`rgba()` in templates), `no-restricted-syntax` (hardcoded hex and numeric `rgb()`/`rgba()` outside `styles/**`, `src/main.js`, `useAnnotationStyle.js`, `useIdentityColor.js`, `components/marauders/**`; plus no raw `fetch()` in CTS surfaces, no `cc_api_key` `localStorage` access outside `stores/auth.ts`/`services/http.ts`, no `useNotify()` in composables, no `require('echarts')`), and `no-restricted-imports` (no full `echarts` bundle).
+  - **Stylelint**: `color-no-hex`, `declaration-property-value-disallowed-list` (hardcoded numeric `rgb()`/`rgba()`, permitting Vuetify `rgb(var(--v-theme-*))` / `rgba(var(--v-theme-*), a)`), and `stylelint-config-standard-vue` CSS correctness checks.
+- `npm run format:check` (Prettier), `npm run typecheck` (`vue-tsc`), `npm run build`, `npm run knip` (dead exports/files/deps -- delete findings, don't ignore them), `npm audit --audit-level=high`.
+- `npx vitest run` includes architecture/guard checks:
+  - `tests/architecture/test_location.spec.ts` (zero specs under `src/`, vitest `test.include` pinned)
+  - `tests/architecture/lint_canary.spec.ts` (non-vacuity canary over `tests/fixtures/lint_canary/CanaryViolations.vue` for every ESLint and Stylelint rule)
+  - `tests/styles/token_existence.spec.ts` (every `var(--cc-*)` and `ccToken('--cc-*')` under `src/` resolves to a defined token)
+  - `tests/composables/composable_shape.spec.ts` (enforces `{ state, actions }` + read-only `ComputedRef` on server-state composables and freezes the legacy flat-return allowlist)
+
+CI runs these gates; a rule that must be relaxed is relaxed in `eslint.config.js` or `stylelint.config.mjs` with a comment, never by sprinkling inline disables.
 
 ## Verification checklist
 
-Before marking frontend work complete:
-- `cd frontend && npm run build` passes
-- `npm audit --audit-level=high` reports no vulnerabilities
-- No hardcoded `rgba(255,255,255,…)` or hex colors in new code
-- No scoped `<style>` blocks with custom colors (utility-only scoped styles are OK)
-- Data tables use server-side pagination
-- Dialogs use `<v-card>` without custom classes
-- Form resets in close dialogs
+Judgment checks not covered by the deterministic gates above:
+- No scoped `<style>` blocks overriding global surface/text colors owned by `theme.css` (utility-only scoped styles are OK)
+- Data tables use server-side pagination and reset page to 1 on filter changes
+- Dialogs use `AppDialog` (or plain persistent `<v-dialog>` + `<v-card>` only for `useConfirm()`) and reset forms on close
 - `tracking-tight` on page titles
 - Status chips use `statusColor()` helper
-- No `v-btn-toggle` for mode/period/source pickers (use `CcSegmentedToggle`); no Vuetify material color names (`color="green|orange|purple|grey"`) -- use DS semantic colors or remove for the warm tonal default
-- No undefined `--cc-*` token names (e.g. `--cc-primary`, `--cc-text-secondary`); they fall back silently
-- Filter changes reset page to 1
-- No `getHours()`, `getMinutes()`, `getSeconds()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()` anywhere; use `services/timezone.js`
-- Inspector drawers: `useNotify()` imported and used (zero `console.log` / `console.error` stubs)
-- No `<v-snackbar>` outside `CcSnackbarHost.vue`; no module-level `ref`/`reactive` shared across components (that is a store)
-- Inspector drawers: `useConfirm()` called before every destructive action
-- Inspector drawers: `@click:row` wired on data tables (not only the Inspect button)
-- Composables return `{ state, actions }` shape (never flat named refs)
-- Shared composables expose one canonical key per value; mocks do not invent
-  aliases absent from production
+- Inspector drawers: `useNotify()` imported and used (zero `console.log` / `console.error` stubs), `useConfirm()` called before every destructive action, and `@click:row` wired on data tables (not only the Inspect button)
+- No module-level `ref`/`reactive` shared across components (that belongs in a Pinia store)
+- Shared composables expose one canonical key per value; test mocks do not invent aliases absent from production
 - When tests are touched: affected specs and `npm run test -- --reporter=dot` pass with no Vue, Vue Router, unresolved component, missing injection, or console warnings
 - New full-app theme registered in `main.js` AND token block in a dedicated stylesheet; no body-class theming
 - Mode flag owned by one composable; no direct `localStorage` reads of `cc_marauders` elsewhere
 - rough.js and procedural sketches: seeded and memoized; no per-frame reseed
 - Theme animations have a static reduced-motion fallback driven by `state.reducedMotion` from `useMaraudersMode()`
 - Alternate theme passes WCAG AA text contrast; verify ink text on parchment background, not just visual appearance
-- Toggling a theme restores the user's prior light/dark theme
+- Toggling a theme restores the user's prior theme

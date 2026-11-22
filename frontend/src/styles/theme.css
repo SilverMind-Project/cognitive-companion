@@ -149,6 +149,39 @@
   --cc-posture-sitting: #fbbf24;
   --cc-posture-walking: #60a5fa;
   --cc-posture-lying: #c084fc;
+
+  /* Media / photo overlays and Canvas 2D annotation controls */
+  --cc-scrim-light: rgba(0, 0, 0, 0.25);
+  --cc-scrim: rgba(0, 0, 0, 0.45);
+  --cc-scrim-strong: rgba(0, 0, 0, 0.72);
+  --cc-media-bg: #1d1a14;
+  --cc-on-media: #fbf8f3;
+  --cc-on-media-muted: rgba(255, 255, 255, 0.35);
+  --cc-on-media-subtle: rgba(255, 255, 255, 0.18);
+  --cc-on-media-border: rgba(255, 255, 255, 0.7);
+  --cc-on-media-tint: rgba(255, 255, 255, 0.06);
+  --cc-calibration-region-fill: rgba(47, 143, 91, 0.12);
+  --cc-pose-skeleton: rgba(251, 191, 36, 0.85);
+  --cc-pose-keypoint: #fbbf24;
+  --cc-bbox-selected: #f59e0b;
+  --cc-bbox-new: #4e7a8c;
+  --cc-bbox-committed: #2f8f5b;
+
+  /* Audio visualizer wave layers (warm DS stone / sage / gold) */
+  --cc-visualizer-idle-1: rgba(135, 121, 96, 0.18);
+  --cc-visualizer-idle-2: rgba(135, 121, 96, 0.1);
+  --cc-visualizer-idle-3: rgba(135, 121, 96, 0.05);
+  --cc-visualizer-listening-1: rgba(63, 107, 82, 0.85);
+  --cc-visualizer-listening-2: rgba(90, 137, 110, 0.55);
+  --cc-visualizer-listening-3: rgba(130, 178, 146, 0.3);
+  --cc-visualizer-speaking-1: rgba(201, 138, 46, 0.85);
+  --cc-visualizer-speaking-2: rgba(220, 141, 107, 0.55);
+  --cc-visualizer-speaking-3: rgba(240, 217, 168, 0.35);
+  --cc-visualizer-system-1: rgba(48, 83, 64, 0.85);
+  --cc-visualizer-system-2: rgba(63, 107, 82, 0.55);
+  --cc-visualizer-system-3: rgba(130, 178, 146, 0.32);
+  --cc-brand-glow: rgba(63, 107, 82, 0.3);
+  --cc-warning-glow: rgba(201, 138, 46, 0.3);
 }
 
 /* ── Warm theme token block ──────────────────────────────────────────────── */
@@ -179,8 +212,10 @@
   /* Semantic */
   --cc-success: #2f8f5b;
   --cc-warning: #c98a2e;
+  --cc-warning-softer: rgba(201, 138, 46, 0.06);
   --cc-error: #bc5740;
   --cc-info: #4e7a8c;
+  --cc-surface-hover: rgba(45, 38, 26, 0.04);
 
   /* Borders */
   --cc-divider: #e8ddcc;

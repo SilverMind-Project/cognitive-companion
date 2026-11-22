@@ -41,7 +41,7 @@
           </template>
         </v-list-item>
       </v-list>
-      <div v-else class="text-center text-grey py-4">
+      <div v-else class="text-center text-medium-emphasis py-4">
         No context filters. This rule applies everywhere.
       </div>
     </v-card-text>

@@ -71,7 +71,7 @@
               <div
                 v-if="heatmapState.loading"
                 class="d-flex justify-center align-center"
-                style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.25)"
+                style="position: absolute; inset: 0; background: var(--cc-scrim-light)"
               >
                 <v-progress-circular indeterminate color="primary" />
               </div>

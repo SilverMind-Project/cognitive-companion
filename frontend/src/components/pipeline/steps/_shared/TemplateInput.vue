@@ -35,8 +35,8 @@ const tooltipBaseTheme = EditorView.baseTheme({
   ".cm-tooltip-autocomplete": {
     background: "rgb(var(--v-theme-surface-bright)) !important",
     border: "1px solid rgba(var(--v-theme-on-surface), 0.12) !important",
-    borderRadius: "var(--cc-radius-md, 10px) !important",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.3) !important",
+    borderRadius: "var(--cc-radius-md) !important",
+    boxShadow: "var(--cc-shadow-lg) !important",
     padding: "4px !important",
     zIndex: "2400 !important",
     color: "rgb(var(--v-theme-on-surface)) !important",
@@ -51,7 +51,7 @@ const tooltipBaseTheme = EditorView.baseTheme({
     color: "rgba(var(--v-theme-on-surface), 0.6) !important",
   },
   ".cm-tooltip-autocomplete ul li[aria-selected]": {
-    background: "rgba(var(--v-theme-primary, 10 132 255), 0.18) !important",
+    background: "rgba(var(--v-theme-primary), 0.18) !important",
     color: "rgb(var(--v-theme-on-surface)) !important",
   },
 });

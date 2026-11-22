@@ -240,15 +240,19 @@
           </v-card>
 
           <v-card v-else flat class="pa-8 text-center glass-card" data-test="empty-queue">
-            <v-card-text class="text-grey text-h6">{{
+            <v-card-text class="text-medium-emphasis text-h6">{{
               queueState === "labeled" ? "No labeled captures yet" : "Nothing waiting to be labeled"
             }}</v-card-text>
-            <v-card-text v-if="captureOffNextAction" class="text-grey" data-test="capture-next">
+            <v-card-text
+              v-if="captureOffNextAction"
+              class="text-medium-emphasis"
+              data-test="capture-next"
+            >
               Capture is off, so there is nothing to label. Next:
               {{ captureOffNextAction }}.
               <router-link to="/admin/identity-setup">See identity setup</router-link>
             </v-card-text>
-            <v-card-text v-else class="text-grey">
+            <v-card-text v-else class="text-medium-emphasis">
               Captures appear here while calibration capture is switched on in the person
               identification service settings.
             </v-card-text>

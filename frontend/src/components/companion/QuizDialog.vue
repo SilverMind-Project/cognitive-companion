@@ -409,7 +409,7 @@ defineExpose({ show: handleQuizStart });
 
 /* ── Question ──────────────────────────────────────────────────────────── */
 .question-title {
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .question-image {

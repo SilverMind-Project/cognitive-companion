@@ -98,12 +98,12 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
   transition: background 0.15s ease;
   border-radius: var(--cc-radius-sm);
 }
 
 .keyframe-btn:hover .keyframe-overlay {
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--cc-scrim);
 }
 </style>

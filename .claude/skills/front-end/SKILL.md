@@ -23,13 +23,16 @@ applies:
 
 ## Gates (check these first)
 
-1. Before declaring done: `npm run lint`, `npm run format:check`, `npm run typecheck`,
-   `npx vitest run`, `npm run build`, `npm run knip`, and `npm audit --audit-level=high`, on the
-   Node version in `frontend/.nvmrc`. `make check-all` runs them. A rule that must be relaxed is
-   relaxed in `eslint.config.js` with a comment, never by inline disables.
+1. Before declaring done: `npm run lint` (ESLint + `npm run lint:style` Stylelint),
+   `npm run format:check`, `npm run typecheck`, `npx vitest run`, `npm run build`, `npm run knip`,
+   and `npm audit --audit-level=high`, on the Node version in `frontend/.nvmrc`. `make check-all`
+   runs them. A rule that must be relaxed is relaxed in `eslint.config.js` or
+   `stylelint.config.mjs` with a comment, never by inline disables.
 2. The test suite is warning-clean: a `[Vue warn]` or `[Vue Router warn]` is a defect. Fix the
    harness (mount the real plugin or stub the exact boundary); never silence it.
-3. Tests live under `frontend/tests/`, mirroring `src/`, importing with `@/`; never in `src/`.
+3. Tests live under `frontend/tests/`, mirroring `src/`, importing with `@/`; never in `src/`
+   (pinned by `vite.config.js` `test.include: ["tests/**/*.{spec,test}.{js,ts}"]` and guarded by
+   `tests/architecture/test_location.spec.ts`).
 
 ## Styling
 

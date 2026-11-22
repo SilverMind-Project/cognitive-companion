@@ -38,7 +38,7 @@
           </template>
         </v-list-item>
       </v-list>
-      <div v-else class="text-center text-grey py-4">No dependencies</div>
+      <div v-else class="text-center text-medium-emphasis py-4">No dependencies</div>
     </v-card-text>
   </v-card>
 

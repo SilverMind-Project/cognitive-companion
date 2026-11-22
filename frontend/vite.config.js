@@ -30,6 +30,7 @@ export default defineConfig({
     },
   },
   test: {
+    include: ["tests/**/*.{spec,test}.{js,ts}"],
     environment: "happy-dom",
     globals: true,
     setupFiles: ["./vitest.setup.js"],

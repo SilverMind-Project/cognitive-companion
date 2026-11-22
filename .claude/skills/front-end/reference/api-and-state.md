@@ -19,7 +19,7 @@ Extract duplicated view logic into composables under `frontend/src/composables/`
 
 ### Required composable shape: `{ state, actions }`
 
-**All composables that manage server state must return a `{ state, actions }` object.** This is the project standard, modelled on `useCtsWebSocket.js`.
+**All composables that manage server state must return a `{ state, actions }` object.** This is the project standard, modelled on `useAggregatorState.js` and `useWearables.ts` and enforced by `tests/composables/composable_shape.spec.ts` (which validates all compliant server-state composables and freezes the pre-EG-M13 flat-return allowlist so no new flat-return server-state composable can land).
 
 ```js
 export function useMyResource() {

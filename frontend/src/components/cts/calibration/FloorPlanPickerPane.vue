@@ -31,7 +31,7 @@
           <polygon
             v-if="previewCoveragePolygon"
             :points="previewCoveragePolygon"
-            fill="rgba(99,102,241,0.12)"
+            fill="var(--cc-brand-soft)"
             :stroke="
               qualityColor(previewStatus === 'ok' ? 0 : previewStatus === 'warning' ? 0.1 : 0.3)
             "
@@ -97,7 +97,7 @@
               :y1="fpImgRect.height / 2"
               :x2="fpImgRect.width"
               :y2="fpImgRect.height / 2"
-              stroke="#f59e0b"
+              stroke="var(--cc-annotation-pending)"
               stroke-width="0.5"
               stroke-dasharray="6 4"
               opacity="0.4"
@@ -107,7 +107,7 @@
               y1="0"
               :x2="fpImgRect.width / 2"
               :y2="fpImgRect.height"
-              stroke="#f59e0b"
+              stroke="var(--cc-annotation-pending)"
               stroke-width="0.5"
               stroke-dasharray="6 4"
               opacity="0.4"
@@ -117,7 +117,7 @@
               y="50%"
               text-anchor="middle"
               dominant-baseline="middle"
-              fill="#f59e0b"
+              fill="var(--cc-annotation-pending)"
               font-size="13"
               font-weight="600"
               opacity="0.8"
@@ -241,7 +241,7 @@ defineExpose({ stopFloorDrag });
 }
 
 .fp-awaiting {
-  outline: 2px solid #f59e0b;
+  outline: 2px solid var(--cc-annotation-pending);
   outline-offset: -2px;
   border-radius: 4px;
 }

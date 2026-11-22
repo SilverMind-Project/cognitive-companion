@@ -175,7 +175,7 @@ const iconColor = computed(() => config.value.iconColor);
 
 .action-btn--assist {
   background: var(--terra-400);
-  color: #fff8f3;
+  color: var(--cc-on-media);
   border: 1.5px solid transparent;
   box-shadow: var(--cc-shadow-sm);
 }

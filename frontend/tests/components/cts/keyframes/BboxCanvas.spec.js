@@ -35,7 +35,7 @@ Object.defineProperty(HTMLCanvasElement.prototype, "height", {
 });
 
 // Mock BboxTagPopover
-vi.mock("../BboxTagPopover.vue", () => ({
+vi.mock("@/components/cts/keyframes/BboxTagPopover.vue", () => ({
   default: {
     name: "BboxTagPopover",
     template: '<div class="mock-popover"><slot /></div>',
@@ -44,7 +44,7 @@ vi.mock("../BboxTagPopover.vue", () => ({
   },
 }));
 
-import BboxCanvas from "../BboxCanvas.vue";
+import BboxCanvas from "@/components/cts/keyframes/BboxCanvas.vue";
 
 function makeWrapper(props = {}) {
   return mount(BboxCanvas, {

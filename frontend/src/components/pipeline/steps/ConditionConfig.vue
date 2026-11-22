@@ -137,7 +137,7 @@ const conditionExamples = [
 }
 
 .condition-example-row:hover {
-  background-color: rgba(10, 132, 255, 0.07);
+  background-color: var(--cc-brand-softer);
 }
 
 .condition-example-code {
@@ -145,7 +145,7 @@ const conditionExamples = [
   font-family: var(--cc-font-mono);
   font-size: 11.5px;
   color: var(--cc-brand);
-  background: rgba(10, 132, 255, 0.06);
+  background: var(--cc-brand-softer);
   border-radius: 4px;
   padding: 4px 8px;
   white-space: pre-wrap;

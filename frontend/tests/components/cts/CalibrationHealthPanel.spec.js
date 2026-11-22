@@ -1,6 +1,6 @@
 import { mount, flushPromises } from "@vue/test-utils";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import CalibrationHealthPanel from "../CalibrationHealthPanel.vue";
+import CalibrationHealthPanel from "@/components/cts/CalibrationHealthPanel.vue";
 
 const mockGetCalibrationHealth = vi.fn();
 

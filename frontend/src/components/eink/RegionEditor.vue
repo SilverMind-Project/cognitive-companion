@@ -213,12 +213,12 @@ function update(key, value) {
 
 // ── Color helpers ────────────────────────────────────────────────────────────
 
-/** [r, g, b, …] → '#rrggbb' */
+/** [r, g, b, ...] -> '#rrggbb' */
 function toHex(arr) {
-  if (!arr || arr.length < 3) return "#000000";
+  const channels = arr && arr.length >= 3 ? arr : [0, 0, 0];
   return (
     "#" +
-    arr
+    channels
       .slice(0, 3)
       .map((v) =>
         Math.round(Math.max(0, Math.min(255, v)))
@@ -229,17 +229,17 @@ function toHex(arr) {
   );
 }
 
-/** '#rrggbb' → [r, g, b] */
+/** '#rrggbb' -> [r, g, b] */
 function fromHex(hex) {
   const h = hex.replace("#", "");
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
-/** [r, g, b, a] → 'rgba(r,g,b,a/255)' */
+/** [r, g, b, a] -> 'rgba(r,g,b,a/255)' */
 function toCss(arr) {
-  if (!arr || arr.length < 3) return "rgba(0,0,0,1)";
-  const a = arr.length >= 4 ? arr[3] / 255 : 1;
-  return `rgba(${arr[0]},${arr[1]},${arr[2]},${a.toFixed(3)})`;
+  const channels = arr && arr.length >= 3 ? arr : [0, 0, 0, 255];
+  const a = channels.length >= 4 ? channels[3] / 255 : 1;
+  return `rgba(${channels[0]},${channels[1]},${channels[2]},${a.toFixed(3)})`;
 }
 
 // ── Computed colour state ────────────────────────────────────────────────────
@@ -289,20 +289,20 @@ function onBgTransparent(transparent) {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  border: 1px solid rgba(128, 128, 128, 0.25);
+  border: 1px solid var(--cc-divider-strong);
   flex-shrink: 0;
   background-image:
-    linear-gradient(45deg, #bbb 25%, transparent 25%),
-    linear-gradient(-45deg, #bbb 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #bbb 75%),
-    linear-gradient(-45deg, transparent 75%, #bbb 75%);
+    linear-gradient(45deg, var(--cc-divider-strong) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--cc-divider-strong) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--cc-divider-strong) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--cc-divider-strong) 75%);
   background-size: 8px 8px;
   background-position:
     0 0,
     0 4px,
     4px -4px,
     -4px 0;
-  background-color: #fff;
+  background-color: var(--cc-surface);
   position: relative;
   overflow: hidden;
 }
@@ -320,7 +320,7 @@ function onBgTransparent(transparent) {
   width: 32px;
   height: 28px;
   padding: 2px;
-  border: 1px solid rgba(128, 128, 128, 0.25);
+  border: 1px solid var(--cc-divider-strong);
   border-radius: 4px;
   cursor: pointer;
   flex-shrink: 0;

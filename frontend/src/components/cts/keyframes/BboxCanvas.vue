@@ -45,6 +45,7 @@ import BboxTagPopover from "./BboxTagPopover.vue";
 import MaraudersInkBox from "@/components/marauders/MaraudersInkBox.vue";
 import { hitTestRect } from "@/composables/bboxGeometry.js";
 import { HALO } from "@/composables/useAnnotationStyle.js";
+import { ccToken } from "@/composables/useChartTheme.js";
 
 const LABEL_FONT_PX = 14;
 const LABEL_CHIP_PX = 22;
@@ -197,11 +198,11 @@ function render() {
 
     // Stroke color
     if (box === selectedBox.value) {
-      ctx.strokeStyle = "#FFD700";
+      ctx.strokeStyle = ccToken("--cc-bbox-selected");
     } else if (box.isNew) {
-      ctx.strokeStyle = "#00E5FF";
+      ctx.strokeStyle = ccToken("--cc-bbox-new");
     } else {
-      ctx.strokeStyle = "#4CAF50";
+      ctx.strokeStyle = ccToken("--cc-bbox-committed");
     }
     ctx.lineWidth = 2;
     ctx.strokeRect(cx1, cy1, w, h);
@@ -237,7 +238,7 @@ function render() {
     const y = Math.min(startY, currentY);
     const w = Math.abs(currentX - startX);
     const h = Math.abs(currentY - startY);
-    ctx.strokeStyle = "#00E5FF";
+    ctx.strokeStyle = ccToken("--cc-bbox-new");
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 3]);
     ctx.strokeRect(x, y, w, h);
@@ -246,9 +247,9 @@ function render() {
 }
 
 function drawHandle(ctx, x, y) {
-  ctx.fillStyle = "#FFD700";
+  ctx.fillStyle = ccToken("--cc-bbox-selected");
   ctx.fillRect(x, y, HANDLE_SIZE, HANDLE_SIZE);
-  ctx.strokeStyle = "#000";
+  ctx.strokeStyle = ccToken("--cc-annotation-ink");
   ctx.lineWidth = 1;
   ctx.strokeRect(x, y, HANDLE_SIZE, HANDLE_SIZE);
 }
@@ -485,7 +486,7 @@ watch(
   position: relative;
   display: inline-block;
   width: 100%;
-  background: #000;
+  background: var(--cc-media-bg);
   border-radius: 8px;
   overflow: hidden;
 }

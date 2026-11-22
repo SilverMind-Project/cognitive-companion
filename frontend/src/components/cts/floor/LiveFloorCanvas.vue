@@ -144,7 +144,14 @@
               stroke-width="2"
               stroke-linecap="round"
             />
-            <circle cx="14" cy="7" r="5" fill="currentColor" stroke="#fff" stroke-width="1.5" />
+            <circle
+              cx="14"
+              cy="7"
+              r="5"
+              fill="currentColor"
+              stroke="var(--cc-marker-ring)"
+              stroke-width="1.5"
+            />
           </svg>
           Floor-mapped
         </div>

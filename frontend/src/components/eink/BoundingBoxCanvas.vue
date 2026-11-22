@@ -4,7 +4,12 @@
       ref="canvas"
       :width="canvasWidth"
       :height="canvasHeight"
-      style="border: 1px solid #ccc; cursor: crosshair; display: block; max-width: 100%"
+      style="
+        border: 1px solid var(--cc-divider);
+        cursor: crosshair;
+        display: block;
+        max-width: 100%;
+      "
       @mousedown="onMouseDown"
       @mousemove="onMouseMove"
       @mouseup="onMouseUp"
@@ -14,6 +19,7 @@
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { ccToken } from "@/composables/useChartTheme.js";
 
 const props = defineProps({
   imageUrl: { type: String, default: "" },
@@ -56,7 +62,7 @@ function draw() {
   if (bgImage) {
     ctx.drawImage(bgImage, 0, 0, canvasWidth.value, canvasHeight.value);
   } else {
-    ctx.fillStyle = "#1e1e1e";
+    ctx.fillStyle = ccToken("--cc-media-bg");
     ctx.fillRect(0, 0, canvasWidth.value, canvasHeight.value);
   }
 
@@ -77,7 +83,8 @@ function draw() {
     }
 
     // Draw border
-    ctx.strokeStyle = isSelected ? "#2196F3" : "#4CAF50";
+    const borderColor = isSelected ? ccToken("--cc-info") : ccToken("--cc-success");
+    ctx.strokeStyle = borderColor;
     ctx.lineWidth = isSelected ? 3 : 2;
     ctx.setLineDash(isSelected ? [] : [6, 3]);
     ctx.strokeRect(x, y, w, h);
@@ -86,17 +93,16 @@ function draw() {
     // Label badge
     const label = r.name || `Region ${i}`;
     ctx.font = "12px sans-serif";
-    const badgeColor = isSelected ? "#2196F3" : "#4CAF50";
-    ctx.fillStyle = badgeColor;
+    ctx.fillStyle = borderColor;
     const textWidth = ctx.measureText(label).width;
     ctx.fillRect(x, y - 18, textWidth + 8, 18);
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = ccToken("--cc-on-media");
     ctx.fillText(label, x + 4, y - 5);
   });
 
   // Draw new rect being drawn
   if (newRect) {
-    ctx.strokeStyle = "#FF9800";
+    ctx.strokeStyle = ccToken("--cc-warning");
     ctx.lineWidth = 2;
     ctx.setLineDash([4, 4]);
     ctx.strokeRect(newRect.x, newRect.y, newRect.w, newRect.h);

@@ -152,7 +152,7 @@
                 :y1="poseY(det, a)"
                 :x2="poseX(det, b)"
                 :y2="poseY(det, b)"
-                stroke="rgba(255,200,50,0.85)"
+                stroke="var(--cc-pose-skeleton)"
                 :stroke-width="overlayStroke(camera, 0.5)"
                 stroke-linecap="round"
               />
@@ -163,7 +163,7 @@
               :cx="poseX(det, ki)"
               :cy="poseY(det, ki)"
               :r="overlayStroke(camera, 1.5)"
-              :fill="kp.score > 0.4 ? 'rgba(255,200,50,1)' : 'transparent'"
+              :fill="kp.score > 0.4 ? 'var(--cc-pose-keypoint)' : 'transparent'"
             />
           </g>
 
@@ -177,7 +177,7 @@
               :width="evidencePillWidth(camera)"
               :height="evidencePillHeight(camera)"
               :rx="Math.round(evidencePillHeight(camera) * 0.18)"
-              fill="rgba(0,0,0,0.72)"
+              fill="var(--cc-scrim-strong)"
             />
             <text
               :x="evidencePillX(det, camera) + evidencePad(camera)"
@@ -197,7 +197,7 @@
               :width="evidenceBarWidth(det, camera, 'top_prob')"
               :height="evidenceBarHeight(camera)"
               :rx="Math.round(evidenceBarHeight(camera) * 0.5)"
-              :fill="det.evidence.face_anchor_used ? '#a78bfa' : '#34d399'"
+              :fill="det.evidence.face_anchor_used ? 'var(--cc-chart-2)' : 'var(--cc-success)'"
             />
             <!-- Top-2 bar -->
             <rect
@@ -206,7 +206,7 @@
               :width="evidenceBarWidth(det, camera, 'top2_prob')"
               :height="Math.max(1, Math.round(evidenceBarHeight(camera) * 0.72))"
               :rx="Math.round(evidenceBarHeight(camera) * 0.36)"
-              fill="#94a3b8"
+              fill="var(--cc-text-3)"
             />
           </g>
 
@@ -374,8 +374,8 @@ const {
   bottom: 6px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.65);
-  color: var(--cc-warning, #fb8c00);
+  background: var(--cc-scrim-strong);
+  color: var(--cc-warning);
   font-size: 12px;
   font-weight: 600;
   padding: 2px 8px;
@@ -395,7 +395,7 @@ const {
   pointer-events: none;
 }
 .live-tile-link-badge {
-  background: rgba(0, 0, 0, 0.72);
+  background: var(--cc-scrim-strong);
   border: 1px solid;
   border-radius: 10px;
   padding: 2px 7px 2px 5px;
@@ -412,7 +412,7 @@ const {
   text-overflow: ellipsis;
 }
 .live-tile-link-cams {
-  color: rgba(0, 0, 0, 0.85);
+  color: var(--cc-text-1);
   border-radius: 8px;
   padding: 0 4px;
   font-size: 10px;

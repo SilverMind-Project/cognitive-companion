@@ -131,7 +131,7 @@
                       y="0"
                       :width="cropImgRect.width"
                       :height="cropImgRect.height"
-                      fill="rgba(0,0,0,0.4)"
+                      fill="var(--cc-scrim)"
                       mask="url(#crop-mask)"
                     />
                     <rect
@@ -652,7 +652,7 @@ onBeforeUnmount(dispose);
 .scale-picker-outer {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--cc-divider-strong, rgba(0, 0, 0, 0.12));
+  border: 1px solid var(--cc-divider-strong);
   border-radius: 6px;
   background: var(--cc-surface-2);
   min-height: 240px;
@@ -680,7 +680,7 @@ onBeforeUnmount(dispose);
 
 .scale-picker-empty {
   height: 240px;
-  background: var(--cc-surface-2, rgba(0, 0, 0, 0.03));
+  background: var(--cc-surface-2);
 }
 
 .scale-picker-overlay {
@@ -692,7 +692,7 @@ onBeforeUnmount(dispose);
 .crop-outer {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--cc-divider-strong, rgba(0, 0, 0, 0.12));
+  border: 1px solid var(--cc-divider-strong);
   border-radius: 6px;
   background: var(--cc-surface-2);
   min-height: 240px;

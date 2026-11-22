@@ -172,7 +172,7 @@ defineExpose({ load });
 }
 
 .compact-event:hover {
-  background-color: rgba(0, 0, 0, 0.04);
+  background-color: var(--cc-surface-hover);
 }
 
 .v-timeline {

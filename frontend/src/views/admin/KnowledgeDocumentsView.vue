@@ -75,7 +75,11 @@
           <v-chip v-for="tag in item.tags || []" :key="tag" size="x-small" class="mr-1">
             {{ tag }}
           </v-chip>
-          <span v-if="!item.tags || item.tags.length === 0" class="text-caption text-grey">—</span>
+          <span
+            v-if="!item.tags || item.tags.length === 0"
+            class="text-caption text-medium-emphasis"
+            >—</span
+          >
         </template>
 
         <template #[`item.image_count`]="{ item }">

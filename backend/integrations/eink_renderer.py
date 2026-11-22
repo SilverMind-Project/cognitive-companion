@@ -7,6 +7,7 @@ directly by the image router or pipeline executor.
 
 from __future__ import annotations
 
+import asyncio
 import textwrap
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -101,8 +102,31 @@ class EInkRenderer:
     ) -> list[str]:
         """Render text onto a template and upload as active image for target devices.
 
-        Returns list of sensor_ids that were rendered to.
+        Returns list of sensor_ids that were rendered to. The template read, PIL rendering,
+        MinIO uploads, and state rows are all blocking work, so they run on a worker thread
+        rather than stalling every other coroutine (voice, WebSockets) on the event loop.
         """
+        return await asyncio.to_thread(
+            self._render_blocking,
+            text,
+            template,
+            template_id,
+            sensor_ids,
+            expires_in_minutes,
+            region_name,
+            overlay_image,
+        )
+
+    def _render_blocking(
+        self,
+        text: str,
+        template: str | None,
+        template_id: int | None,
+        sensor_ids: list[str] | None,
+        expires_in_minutes: int,
+        region_name: str | None,
+        overlay_image: bytes | None,
+    ) -> list[str]:
         db = self._db_factory()
         try:
             template_bytes, regions, font_path = self._resolve_template(template, template_id, db)
@@ -203,7 +227,13 @@ class EInkRenderer:
             db.close()
 
     async def reset(self, sensor_ids: list[str] | None = None) -> list[str]:
-        """Reset active images to default template for given sensors (or all)."""
+        """Reset active images to default template for given sensors (or all).
+
+        Runs on a worker thread for the same reason as :meth:`render`.
+        """
+        return await asyncio.to_thread(self._reset_blocking, sensor_ids)
+
+    def _reset_blocking(self, sensor_ids: list[str] | None) -> list[str]:
         db = self._db_factory()
         try:
             targets = self._resolve_sensor_ids(sensor_ids, db)

@@ -58,3 +58,46 @@ class TestValidateUpload:
         img.save(buf, "PNG")
         w, h = pipeline.validate_upload("image/png", buf.getvalue())
         assert (w, h) == (200, 150)
+
+
+class TestRenderVariants:
+    async def test_renders_every_surface_off_the_event_loop(self, monkeypatch):
+        import threading
+        from unittest.mock import AsyncMock, Mock
+
+        from backend.services.knowledge.layout_registry import LayoutRegistry
+
+        layouts = LayoutRegistry.load("config/knowledge_layouts.yaml")
+        source = BytesIO()
+        Image.new("RGB", (1200, 900), "white").save(source, "JPEG")
+        minio = Mock()
+        minio.async_get_object = AsyncMock(return_value=source.getvalue())
+        minio.async_upload_bytes = AsyncMock()
+        pipeline = ImagePipeline(minio_client=minio, layouts=layouts)
+
+        loop_thread = threading.get_ident()
+        encode_threads: list[int] = []
+        original_encode = ImagePipeline._encode_variants
+
+        def spy(self, *args, **kwargs):
+            encode_threads.append(threading.get_ident())
+            return original_encode(self, *args, **kwargs)
+
+        monkeypatch.setattr(ImagePipeline, "_encode_variants", spy)
+
+        variants = await pipeline.render_variants(
+            original_object_name="info_cards/1/slot0__original.jpg",
+            layout_id="single_hero",
+            slot_id="hero",
+            target_key_prefix="info_cards/1/slot0",
+        )
+
+        spec = layouts.get_required("single_hero").image_slots[0].variants
+        assert set(variants) == set(spec)
+        for surface, rendered in variants.items():
+            assert rendered.object_name == f"info_cards/1/slot0__{surface}.{spec[surface].format}"
+            assert 0 < rendered.width <= spec[surface].target_width
+            assert 0 < rendered.height <= spec[surface].target_height
+        assert minio.async_upload_bytes.await_count == len(spec)
+        assert encode_threads
+        assert loop_thread not in encode_threads

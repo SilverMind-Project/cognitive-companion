@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.core.auth import _resolve_key, has_permission
+from backend.core.auth import _resolve_key, evaluate_ws_shadow, has_permission
 from backend.core.config import settings
 from backend.core.exceptions import AuthenticationError
 from backend.core.logging import get_logger
@@ -58,7 +58,9 @@ async def cts_live_websocket(websocket: WebSocket) -> None:
         await websocket.close(code=1008, reason="auth_failed")
         return
 
-    if not has_permission(auth, "GET", "/ws/cts"):
+    live_allowed = has_permission(auth, "GET", "/ws/cts")
+    evaluate_ws_shadow(auth, "/ws/cts", live_allowed=live_allowed)
+    if not live_allowed:
         logger.warning(
             "cts_live_ws_rejected_permission_denied",
             client=client_ip,

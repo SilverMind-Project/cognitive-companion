@@ -2,7 +2,7 @@
 
 All HTTP endpoints are served under `/api/v1`. Endpoints require authentication unless a router explicitly documents a device or webhook auth path.
 
-Authentication is resolved from API keys, device keys, or route-specific secrets. Authorization is enforced through `config/auth.yaml` permission patterns.
+Authentication is resolved from API keys, device keys, or route-specific secrets. Authorization is enforced through `config/auth.yaml` permission patterns, with EG-M14 D4 named-token shadow evaluation active alongside it. See the generated [Permission Token Migration Matrix](permissions-migration.md) for the full route-by-role access matrix, proposed D4 tokens, and `M14-T` approval table.
 
 ## Execution observability
 

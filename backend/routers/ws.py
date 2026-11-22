@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.core.auth import _resolve_key, has_permission
+from backend.core.auth import _resolve_key, evaluate_ws_shadow, has_permission
 from backend.core.exceptions import AuthenticationError
 from backend.core.logging import get_logger
 
@@ -98,7 +98,9 @@ async def websocket_pipeline(websocket: WebSocket) -> None:
         await websocket.close(code=1008, reason="auth_failed")
         return
 
-    if not has_permission(auth, "GET", "/ws/pipeline"):
+    live_allowed = has_permission(auth, "GET", "/ws/pipeline")
+    evaluate_ws_shadow(auth, "/ws/pipeline", live_allowed=live_allowed)
+    if not live_allowed:
         logger.warning(
             "pipeline_ws_rejected_permission_denied",
             client=client_ip,

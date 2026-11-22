@@ -34,27 +34,49 @@ from typing import Any
 
 from fastapi import Depends, Query, Request
 from fastapi.security import APIKeyHeader
+from prometheus_client import Counter
 
 from backend.core.config import Settings, settings
 from backend.core.exceptions import AuthenticationError, PermissionDeniedError
 from backend.core.logging import get_logger
+from backend.core.permission_migration import (
+    ALLOWED_ACTIONS,
+    D4_TOKEN_RE,
+    WS_ROUTE_TOKENS,
+    is_valid_d4_token,
+    resolve_proposed_token,
+)
 
 __all__ = [
+    "ALLOWED_ACTIONS",
+    "D4_TOKEN_RE",
     "AuthContext",
     "KeyStore",
     "actor_from_auth",
     "assert_declared_tokens_known",
+    "cc_auth_shadow_mismatch_total",
     "declare_internal_tokens",
     "declare_tokens",
+    "evaluate_ws_shadow",
     "get_auth_context",
     "get_auth_context_device",
     "has_token",
     "invalidate_lookup_cache",
+    "is_valid_d4_token",
     "require_permission",
     "require_token",
 ]
 
 logger = get_logger(__name__)
+
+# EG-M14 PR 2 shadow-evaluation mismatch counter.
+# Labels are bounded: token name, sorted role names (never key material), and
+# decision ("would_allow" or "would_deny").
+cc_auth_shadow_mismatch_total = Counter(
+    "cc_auth_shadow_mismatch_total",
+    "Disagreements between live path-glob auth and EG-M14 shadow D4 token auth",
+    ["token", "role", "decision"],
+)
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -66,6 +88,7 @@ class AuthContext:
     key: str
     name: str
     permissions: list[str] = field(default_factory=list)
+    roles: list[str] = field(default_factory=list)
     device_type: str | None = None
     sensor_id: str | None = None
 
@@ -95,6 +118,7 @@ class KeyStore:
         api_keys: list[Mapping[str, Any]] | None = None,
         device_keys: list[Mapping[str, Any]] | None = None,
         permission_map: Mapping[str, list[str]] | None = None,
+        roles: Mapping[str, list[str]] | None = None,
     ) -> None:
         self._api_keys: dict[str, Mapping[str, Any]] = {
             entry["key"]: entry for entry in (api_keys or [])
@@ -103,6 +127,7 @@ class KeyStore:
             entry["key"]: entry for entry in (device_keys or [])
         }
         self._permission_map: dict[str, list[str]] = dict(permission_map or {})
+        self._roles: dict[str, list[str]] = dict(roles or {})
 
     # -- construction --------------------------------------------------------
 
@@ -114,6 +139,7 @@ class KeyStore:
             api_keys=auth_cfg.get("api_keys", []),
             device_keys=auth_cfg.get("device_keys", []),
             permission_map=s.get("auth.permission_map", {}) or {},
+            roles=s.get("auth.roles", {}) or {},
         )
 
     # -- resolution ----------------------------------------------------------
@@ -130,6 +156,7 @@ class KeyStore:
                 key=raw_key,
                 name=entry.get("name", f"Device {raw_key}"),
                 permissions=list(entry.get("permissions", [])),
+                roles=list(entry.get("roles", [])),
                 device_type=entry.get("device_type"),
                 sensor_id=entry.get("sensor_id"),
             )
@@ -141,6 +168,7 @@ class KeyStore:
                 key=raw_key,
                 name=entry.get("name", "API Key"),
                 permissions=list(entry.get("permissions", [])),
+                roles=list(entry.get("roles", [])),
             )
 
         raise AuthenticationError()
@@ -149,8 +177,32 @@ class KeyStore:
 
     @property
     def permission_map(self) -> dict[str, list[str]]:
-        """Read-only view of the configured role/permission definitions."""
+        """Read-only view of the configured legacy role/permission definitions."""
         return dict(self._permission_map)
+
+    @property
+    def roles(self) -> dict[str, list[str]]:
+        """Read-only view of the EG-M14 ``roles:`` token sets."""
+        return dict(self._roles)
+
+    @property
+    def has_roles_config(self) -> bool:
+        """Return True when the EG-M14 ``roles:`` mapping is loaded."""
+        return bool(self._roles)
+
+    def expand_role_tokens(self, roles: list[str]) -> set[str]:
+        """Expand EG-M14 role names into their union of D4 tokens (pure membership)."""
+        granted: set[str] = set()
+        for role in roles:
+            granted.update(self._roles.get(role, ()))
+        return granted
+
+    def has_role_token(self, auth: AuthContext, *tokens: str) -> bool:
+        """Return True if *auth*'s EG-M14 roles carry one of *tokens* (or ``*``)."""
+        granted = self.expand_role_tokens(auth.roles)
+        if "*" in granted:
+            return True
+        return any(token in granted for token in tokens)
 
     def known_tokens(self) -> set[str]:
         """Return every token the permission map gives meaning to.
@@ -368,6 +420,93 @@ def _mark_checker(
     checker.__cc_auth_kind__ = kind  # type: ignore[attr-defined]
 
 
+def _role_label(auth: AuthContext) -> str:
+    """Bounded role label for shadow metrics/logs. Never includes key material."""
+    return ",".join(sorted(auth.roles)) if auth.roles else "none"
+
+
+def _record_shadow_mismatch(
+    token: str,
+    auth: AuthContext,
+    method: str,
+    route: str,
+    *,
+    live_allowed: bool,
+    shadow_allowed: bool,
+) -> None:
+    """Record a disagreement between live enforcement and EG-M14 shadow roles."""
+    decision = "would_allow" if shadow_allowed else "would_deny"
+    role = _role_label(auth)
+    cc_auth_shadow_mismatch_total.labels(token=token, role=role, decision=decision).inc()
+    logger.warning(
+        "auth_shadow_mismatch",
+        method=method,
+        route=route,
+        token=token,
+        role=role,
+        decision=decision,
+        live_allowed=live_allowed,
+        shadow_allowed=shadow_allowed,
+    )
+
+
+def _evaluate_http_shadow(
+    ks: KeyStore,
+    request: Request,
+    auth: AuthContext,
+    declared_tokens: tuple[str, ...],
+    *,
+    live_allowed: bool,
+) -> None:
+    """Evaluate EG-M14 D4 token membership in shadow mode without affecting enforcement."""
+    if not ks.has_roles_config or not auth.roles or not declared_tokens:
+        return
+    route_obj = request.scope.get("route")
+    route_template = str(getattr(route_obj, "path", request.url.path))
+    proposed: list[str] = []
+    for tok in declared_tokens:
+        try:
+            proposed.append(resolve_proposed_token(request.method, route_template, tok))
+        except ValueError:
+            proposed.append(tok)
+    shadow_allowed = ks.has_role_token(auth, *proposed)
+    if shadow_allowed != live_allowed:
+        _record_shadow_mismatch(
+            proposed[0],
+            auth,
+            request.method,
+            route_template,
+            live_allowed=live_allowed,
+            shadow_allowed=shadow_allowed,
+        )
+
+
+def evaluate_ws_shadow(
+    auth: AuthContext,
+    path: str,
+    *,
+    live_allowed: bool,
+    keystore: KeyStore | None = None,
+) -> None:
+    """Evaluate EG-M14 D4 token membership in shadow mode for WebSocket handshakes."""
+    ks = keystore or _ensure_keystore()
+    if not ks.has_roles_config or not auth.roles:
+        return
+    token = WS_ROUTE_TOKENS.get(path)
+    if token is None:
+        return
+    shadow_allowed = ks.has_role_token(auth, token)
+    if shadow_allowed != live_allowed:
+        _record_shadow_mismatch(
+            token,
+            auth,
+            "WS",
+            path,
+            live_allowed=live_allowed,
+            shadow_allowed=shadow_allowed,
+        )
+
+
 def require_permission(
     *permissions: str,
     resolver: Callable[..., Awaitable[AuthContext]] = get_auth_context,
@@ -381,6 +520,10 @@ def require_permission(
     each is registered in ``_DECLARED_TOKENS`` and must be defined by
     ``auth.yaml`` or startup fails (:func:`assert_declared_tokens_known`).
 
+    During EG-M14 PR 2, shadow evaluation also checks ``has_role_token`` against
+    ``config/auth.yaml`` ``roles:`` and records disagreements without changing
+    enforcement.
+
     Pass ``resolver=get_auth_context_device`` on device endpoints only.
 
     Usage::
@@ -393,7 +536,10 @@ def require_permission(
         request: Request,
         auth: AuthContext = Depends(resolver),
     ) -> AuthContext:
-        if not _ensure_keystore().has_permission(auth, request.method, request.url.path):
+        ks = _ensure_keystore()
+        live_allowed = ks.has_permission(auth, request.method, request.url.path)
+        _evaluate_http_shadow(ks, request, auth, permissions, live_allowed=live_allowed)
+        if not live_allowed:
             _deny(request, "permission")
             raise PermissionDeniedError()
         return auth
@@ -419,7 +565,10 @@ def require_token(
         request: Request,
         auth: AuthContext = Depends(resolver),
     ) -> AuthContext:
-        if not _ensure_keystore().has_token(auth, *tokens):
+        ks = _ensure_keystore()
+        live_allowed = ks.has_token(auth, *tokens)
+        _evaluate_http_shadow(ks, request, auth, tokens, live_allowed=live_allowed)
+        if not live_allowed:
             _deny(request, "permission")
             raise PermissionDeniedError()
         return auth

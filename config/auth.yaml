@@ -9,10 +9,14 @@ api_keys:
     name: "Admin"
     permissions:
       - "admin"
+    roles:
+      - "admin"
 
   - key: "${CC_CAREGIVER_API_KEY}"
     name: "Caregiver"
     permissions:
+      - "caregiver"
+    roles:
       - "caregiver"
 
   - key: "${CC_MCP_API_KEY}"
@@ -20,11 +24,16 @@ api_keys:
     permissions:
       - "mcp_readonly"
       - "rules:write_via_mcp"
+    roles:
+      - "mcp_readonly"
+      - "mcp_rules_import"
 
   # CTS operator key: full camera-management and calibration access.
   - key: "${CC_OPERATOR_API_KEY}"
     name: "CTS Operator"
     permissions:
+      - "operator"
+    roles:
       - "operator"
 
   # CTS caregiver-admin key: read + calibrate, no write.
@@ -32,11 +41,15 @@ api_keys:
     name: "Caregiver Admin"
     permissions:
       - "caregiver_admin"
+    roles:
+      - "caregiver_admin"
 
   # rtsp-ingress service key: read camera roster for reconciliation only.
   - key: "${CC_INGRESS_API_KEY}"
     name: "RTSP Ingress Service"
     permissions:
+      - "cts_ingress"
+    roles:
       - "cts_ingress"
 
 device_keys:
@@ -46,18 +59,24 @@ device_keys:
     sensor_id: "recamera_kitchen1"
     permissions:
       - "device:recamera"
+    roles:
+      - "device_recamera"
   - key: "RCAM0002"
     name: "Kitchen reCamera2"
     device_type: "recamera"
     sensor_id: "recamera_kitchen2"
     permissions:
       - "device:recamera"
+    roles:
+      - "device_recamera"
   - key: "RCAM0003"
     name: "Living Room reCamera"
     device_type: "recamera"
     sensor_id: "recamera_livingroom"
     permissions:
       - "device:recamera"
+    roles:
+      - "device_recamera"
   - key: "RTRM0001"
     name: "Living Room reTerminal"
     device_type: "reterminal"
@@ -65,6 +84,8 @@ device_keys:
     permissions:
       - "device:reterminal"
       - "image:read"
+    roles:
+      - "device_reterminal"
   - key: "RTRM0002"
     name: "Guest Bedroom reTerminal"
     device_type: "reterminal"
@@ -72,6 +93,8 @@ device_keys:
     permissions:
       - "device:reterminal"
       - "image:read"
+    roles:
+      - "device_reterminal"
 # Permission map - abstract names to endpoint patterns (fnmatch syntax).
 permission_map:
   admin:
@@ -428,3 +451,178 @@ permission_map:
   # Operator-entered standing heights synced to CTS.
   "persons:heights_sync":
     - "GET /api/v1/persons/heights"
+
+# EG-M14 D4 role token sets (loaded alongside permission_map during PR 1-2 shadow soak).
+# Reproduces today's exact access matrix except the four M14-T Table A consolidation cells
+# documented in docs/api/permissions-migration.md. Verified by
+# backend/tests/core/test_auth_shadow.py and test_permissions_migration_drift.py.
+roles:
+  admin:
+    - "*"
+
+  operator:
+    - "*"
+
+  caregiver_admin:
+    - "activities:read"
+    - "admin.channels:read"
+    - "admin.config:read"
+    - "admin:read"
+    - "companion_surfaces:read"
+    - "companion_surfaces:write"
+    - "conversations:read"
+    - "cts.analytics.heatmap:read"
+    - "cts.bboxes:read"
+    - "cts.bboxes:write"
+    - "cts.calibration:read"
+    - "cts.cameras.roster:read"
+    - "cts.cameras:read"
+    - "cts.gait.trend:read"
+    - "cts.identity.corrections:correct"
+    - "cts.identity.gallery:review"
+    - "cts.identity:propose"
+    - "cts.identity:read"
+    - "cts.keyframes:read"
+    - "cts.live:read"
+    - "cts.presence:read"
+    - "cts.reports.weekly:read"
+    - "cts.signals.evidence:read"
+    - "cts.signals:read"
+    - "cts.transit_zones:write"
+    - "cts:read"
+    - "events:read"
+    - "face_calibration:review"
+    - "face_prototypes:read"
+    - "face_prototypes:write"
+    - "gate_graphs:read"
+    - "guided_metrics:read"
+    - "guided_sessions:read"
+    - "ha:read"
+    - "household:read"
+    - "identity_readiness:read"
+    - "identity_review:read"
+    - "identity_targets:read"
+    - "image:read"
+    - "info_cards:read"
+    - "interactive_responses:read"
+    - "knowledge.documents:read"
+    - "knowledge.interactions:read"
+    - "knowledge.layouts:read"
+    - "media:read"
+    - "medication:read"
+    - "occupancy:read"
+    - "persons.location:read"
+    - "persons:read"
+    - "pipeline.events:read"
+    - "pipeline.meta:read"
+    - "pipeline.runs:read"
+    - "quizzes:read"
+    - "room_zones:read"
+    - "rooms:read"
+    - "routines:read"
+    - "rules:read"
+    - "sensors:read"
+    - "signals.feed:read"
+    - "visitors:review"
+    - "wearables.teaching:write"
+    - "wearables:read"
+    - "workflows:read"
+
+  caregiver:
+    - "activities:read"
+    - "admin.channels:read"
+    - "admin.config:read"
+    - "admin:read"
+    - "companion_surfaces:read"
+    - "companion_surfaces:write"
+    - "conversations:read"
+    - "cts.analytics.heatmap:read"
+    - "cts.bboxes:read"
+    - "cts.calibration:read"
+    - "cts.cameras.roster:read"
+    - "cts.cameras:read"
+    - "cts.gait.trend:read"
+    - "cts.identity:read"
+    - "cts.keyframes:read"
+    - "cts.live:read"
+    - "cts.presence.config:write"
+    - "cts.presence:read"
+    - "cts.signals.evidence:read"
+    - "cts.signals:read"
+    - "cts:read"
+    - "events:read"
+    - "face_prototypes:read"
+    - "gate_graphs:read"
+    - "guided_metrics:read"
+    - "guided_sessions:read"
+    - "ha:read"
+    - "household:read"
+    - "identity_readiness:read"
+    - "identity_review:read"
+    - "identity_targets:read"
+    - "image:read"
+    - "info_cards:delete"
+    - "info_cards:read"
+    - "info_cards:write"
+    - "interactive_responses:read"
+    - "knowledge.documents:delete"
+    - "knowledge.documents:read"
+    - "knowledge.documents:write"
+    - "knowledge.interactions:read"
+    - "knowledge.layouts:read"
+    - "media:read"
+    - "medication:read"
+    - "occupancy:read"
+    - "persons.enrollment:delete"
+    - "persons.enrollment:write"
+    - "persons.location:read"
+    - "persons:read"
+    - "pipeline.events:read"
+    - "pipeline.meta:read"
+    - "pipeline.runs:read"
+    - "quizzes:delete"
+    - "quizzes:read"
+    - "quizzes:write"
+    - "room_zones:read"
+    - "rooms:read"
+    - "routines:read"
+    - "rules:read"
+    - "sensors:read"
+    - "signals.feed:read"
+    - "wearables:read"
+    - "workflows:read"
+
+  mcp_readonly:
+    - "activities:read"
+    - "events:read"
+    - "ha:read"
+    - "image:read"
+    - "interactive_responses:read"
+    - "mcp.tools:read"
+    - "medication:read"
+    - "occupancy:read"
+    - "persons.location:read"
+    - "persons:read"
+    - "room_zones:read"
+    - "rooms:read"
+    - "rules:read"
+    - "sensors:read"
+    - "signals.feed:read"
+    - "workflows:read"
+
+  mcp_rules_import:
+    - "rules:import"
+
+  cts_ingress:
+    - "cts.cameras.roster:read"
+    - "household:read"
+    - "persons.heights:read"
+    - "rooms:read"
+    - "wearables.site_config:read"
+
+  device_recamera:
+    - "device.recamera:ingest"
+
+  device_reterminal:
+    - "companion_surfaces:heartbeat"
+    - "image:read"

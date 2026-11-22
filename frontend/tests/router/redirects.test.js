@@ -4,7 +4,7 @@
  * Verifies that each superseded route redirects to the correct workspace panel
  * and that no superseded route resolves to a 404 (missing component).
  */
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { routes } from "../../src/router/index.js";
 
@@ -13,7 +13,27 @@ function makeRouter() {
   return createRouter({ history: createMemoryHistory(), routes });
 }
 
+// Every redirect target is a lazily imported view, and navigation waits for it. Importing a
+// large view graph cold (CompanionView) takes about 5 s under full-suite load, which made
+// whichever test reached it first time out. Load the targets once up front so each test
+// measures only redirect resolution.
+const REDIRECT_TARGETS = ["/companion", "/admin/executions", "/admin/tracking"];
+
+async function preloadViews(paths) {
+  const router = makeRouter();
+  const loaders = paths.flatMap((path) =>
+    router
+      .resolve(path)
+      .matched.flatMap((record) => Object.values(record.components ?? {}))
+      .filter((component) => typeof component === "function"),
+  );
+  expect(loaders.length).toBeGreaterThan(0);
+  await Promise.all(loaders.map((load) => load()));
+}
+
 describe("Router redirects (U4)", () => {
+  beforeAll(() => preloadViews(REDIRECT_TARGETS), 60_000);
+
   it("/ redirects to /companion", async () => {
     const router = makeRouter();
     await router.push("/");

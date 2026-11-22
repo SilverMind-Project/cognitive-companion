@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from backend.core.database import Base
 from backend.core.time import (
     UTCDateTime,
+    app_day_bounds_utc,
     from_app_timezone,
     normalize_utc_datetime,
     to_app_timezone,
@@ -166,3 +167,18 @@ class TestDSTTransitions:
 
         assert normalize_utc_datetime(summer_dt).hour == 16  # EDT = UTC-4
         assert normalize_utc_datetime(winter_dt).hour == 17  # EST = UTC-5
+
+
+def test_app_day_bounds_cover_whole_household_days() -> None:
+    """Dates are household (America/New_York) days: EST midnight is 05:00 UTC, exclusive end."""
+    start, end = app_day_bounds_utc(date(2026, 11, 22), date(2026, 11, 23))
+
+    assert start == datetime(2026, 11, 22, 5, 0, tzinfo=UTC)
+    assert end == datetime(2026, 11, 24, 5, 0, tzinfo=UTC)
+
+
+def test_app_day_bounds_leave_open_ends_open() -> None:
+    assert app_day_bounds_utc(None, None) == (None, None)
+    start, end = app_day_bounds_utc(None, date(2026, 7, 4))
+    assert start is None
+    assert end == datetime(2026, 7, 5, 4, 0, tzinfo=UTC)  # EDT

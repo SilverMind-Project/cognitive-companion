@@ -1,4 +1,5 @@
 """Tests for ImagePipeline."""
+
 from __future__ import annotations
 
 from io import BytesIO
@@ -6,6 +7,7 @@ from io import BytesIO
 import pytest
 from PIL import Image
 
+from backend.core.exceptions import ValidationError
 from backend.services.knowledge.image_pipeline import (
     MAX_UPLOAD_BYTES,
     ImagePipeline,
@@ -15,13 +17,13 @@ from backend.services.knowledge.image_pipeline import (
 class TestValidateUpload:
     def test_rejects_unsupported_mime_type(self):
         pipeline = ImagePipeline.__new__(ImagePipeline)  # instance without init
-        with pytest.raises(ValueError, match="Unsupported MIME"):
+        with pytest.raises(ValidationError, match="Unsupported MIME"):
             pipeline.validate_upload("image/gif", b"fake")
 
     def test_rejects_oversize_file(self):
         pipeline = ImagePipeline.__new__(ImagePipeline)
         big_data = b"x" * (MAX_UPLOAD_BYTES + 1)
-        with pytest.raises(ValueError, match="exceeds maximum"):
+        with pytest.raises(ValidationError, match="exceeds maximum"):
             pipeline.validate_upload("image/jpeg", big_data)
 
     def test_rejects_over_pixel_image(self):
@@ -32,8 +34,13 @@ class TestValidateUpload:
         huge.save(buf, "JPEG")
         data = buf.getvalue()
         if len(data) <= MAX_UPLOAD_BYTES:
-            with pytest.raises(ValueError, match="exceed maximum"):
+            with pytest.raises(ValidationError, match="exceed maximum"):
                 pipeline.validate_upload("image/jpeg", data)
+
+    def test_rejects_undecodable_bytes_as_validation_error(self):
+        pipeline = ImagePipeline.__new__(ImagePipeline)
+        with pytest.raises(ValidationError, match="not a readable image"):
+            pipeline.validate_upload("image/jpeg", b"definitely not a jpeg")
 
     def test_accepts_valid_jpeg(self):
         pipeline = ImagePipeline.__new__(ImagePipeline)

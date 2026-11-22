@@ -255,6 +255,7 @@ roles:
     - "image:read"
     - "interactive_responses:read"
     - "knowledge.documents:read"
+    - "knowledge.interactions:read"
     - "mcp.tools:read"
     - "media:read"
     - "medication:read"

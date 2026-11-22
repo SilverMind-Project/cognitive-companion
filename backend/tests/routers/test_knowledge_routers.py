@@ -206,15 +206,18 @@ def test_quizzes_router_crud_questions_and_suggest(client: TestClient) -> None:
 def test_knowledge_interactions_router_endpoints(client: TestClient) -> None:
     queries = client.get("/api/v1/knowledge-interactions/queries")
     assert queries.status_code == 200
-    assert isinstance(queries.json(), list)
+    assert set(queries.json()) == {"items", "total"}
+    assert isinstance(queries.json()["items"], list)
 
     sessions = client.get("/api/v1/knowledge-interactions/quiz-sessions")
     assert sessions.status_code == 200
-    assert isinstance(sessions.json(), list)
+    assert set(sessions.json()) == {"items", "total"}
+    assert isinstance(sessions.json()["items"], list)
 
     deliveries = client.get("/api/v1/knowledge-interactions/info-card-deliveries")
     assert deliveries.status_code == 200
-    assert isinstance(deliveries.json(), list)
+    assert set(deliveries.json()) == {"items", "total"}
+    assert isinstance(deliveries.json()["items"], list)
 
     tags = client.get("/api/v1/knowledge/analytics/tags")
     assert tags.status_code == 200

@@ -47,6 +47,9 @@ EXPECTED_TOOLS = {
     "get_person_location",
     "get_recent_dementia_signals",
     "query_knowledge_base",
+    "list_senior_knowledge_queries",
+    "list_quiz_sessions_history",
+    "get_quiz_tag_analytics",
     "get_current_quiz_question",
     "submit_quiz_answer",
     "complete_quiz_session",
@@ -82,7 +85,7 @@ EXPECTED_TOOLS = {
     "get_wearable_device_status",
 }
 
-EXPECTED_COUNT = 65
+EXPECTED_COUNT = 68
 
 
 # ---------------------------------------------------------------------------

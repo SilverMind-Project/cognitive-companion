@@ -125,6 +125,21 @@ _READ_TOOL_ROUTER_TWINS: dict[str, tuple[str, str, str]] = {
     ),
     "get_active_guided_step": ("GET", "/api/v1/guided-sessions", "guided_sessions:read"),
     "query_knowledge_base": ("GET", "/api/v1/knowledge/documents", "knowledge.documents:read"),
+    "list_senior_knowledge_queries": (
+        "GET",
+        "/api/v1/knowledge-interactions/queries",
+        "knowledge.interactions:read",
+    ),
+    "list_quiz_sessions_history": (
+        "GET",
+        "/api/v1/knowledge-interactions/quiz-sessions",
+        "knowledge.interactions:read",
+    ),
+    "get_quiz_tag_analytics": (
+        "GET",
+        "/api/v1/knowledge/analytics/tags",
+        "knowledge.interactions:read",
+    ),
     "get_current_quiz_question": ("GET", "/api/v1/quizzes", "quizzes:read"),
     "list_plugin_metadata": ("GET", "/api/v1/pipeline/step-types", "pipeline.meta:read"),
 }

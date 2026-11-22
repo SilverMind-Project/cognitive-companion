@@ -42,6 +42,7 @@ def wire_mcp(app: FastAPI) -> None:
         knowledge_query=app.state.knowledge_query,
         knowledge_delivery=app.state.knowledge_delivery,
         knowledge_ingestion=app.state.knowledge_ingestion,
+        knowledge_interaction_service=app.state.knowledge_interaction_service,
     )
 
     # Build the Gemini tool adapter for voice tool calling

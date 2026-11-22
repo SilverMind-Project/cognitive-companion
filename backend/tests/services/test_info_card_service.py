@@ -42,6 +42,7 @@ def image_pipeline() -> Mock:
         }
     )
     pipeline.purge_prefix = AsyncMock()
+    pipeline.purge_objects = AsyncMock()
     return pipeline
 
 
@@ -57,7 +58,7 @@ def info_card_service(
     )
 
 
-def test_create_get_list_update_info_card(info_card_service: InfoCardService) -> None:
+async def test_create_get_list_update_info_card(info_card_service: InfoCardService) -> None:
     created = info_card_service.create_card(
         title="Morning Hydration",
         body_text="Drink a full glass of water after waking up.",
@@ -85,7 +86,7 @@ def test_create_get_list_update_info_card(info_card_service: InfoCardService) ->
     assert approved["version"] == 2
     assert approved["approved_by"] == "Caregiver Admin"
 
-    updated = info_card_service.update_card(
+    updated = await info_card_service.update_card(
         card_id, updates={"body_text": "Drink a warm glass of water after waking up."}
     )
     assert updated["version"] == 3
@@ -157,3 +158,82 @@ def test_create_info_card_rejects_invalid_layout(
             body_text="Quiz layout on info card",
             layout_id="quiz_with_optional_image",
         )
+
+
+def _add_rule_step(db_session, *, step_type: str, config: dict, enabled: bool = True) -> int:
+    from backend.models.pipeline import PipelineStep
+    from backend.models.rule import Rule
+
+    rule = Rule(name=f"rule-{step_type}-{len(config)}-{enabled}", enabled=enabled)
+    db_session.add(rule)
+    db_session.flush()
+    db_session.add(PipelineStep(rule_id=rule.id, step_type=step_type, config_json=config))
+    db_session.commit()
+    return rule.id
+
+
+async def test_delete_info_card_raises_409_when_referenced_by_active_rule_or_delivery(
+    info_card_service: InfoCardService, image_pipeline: Mock, db_session
+) -> None:
+    from backend.models.knowledge import InfoCardDelivery
+
+    used = info_card_service.create_card(title="Tea", body_text="Chai at four.")
+    rule_id = _add_rule_step(
+        db_session, step_type="info_card", config={"info_card_id": used["id"]}, enabled=False
+    )
+    # A step whose id is a template must not break the lookup for everyone else.
+    _add_rule_step(db_session, step_type="info_card", config={"info_card_id": "{{ card }}"})
+
+    with pytest.raises(ConflictError, match=f"rule\\(s\\) \\[{rule_id}\\]"):
+        await info_card_service.delete_card(used["id"])
+
+    delivered = info_card_service.create_card(title="Walk", body_text="Walk at five.")
+    db_session.add(InfoCardDelivery(info_card_id=delivered["id"], channels=["pwa"]))
+    db_session.commit()
+    with pytest.raises(ConflictError, match="1 delivery record"):
+        await info_card_service.delete_card(delivered["id"])
+
+    image_pipeline.purge_prefix.assert_not_awaited()
+    assert info_card_service.get_card(used["id"])["id"] == used["id"]
+    assert info_card_service.get_card(delivered["id"])["id"] == delivered["id"]
+
+
+async def test_layout_change_on_approved_card_without_enough_images_is_rejected(
+    info_card_service: InfoCardService,
+) -> None:
+    card = info_card_service.create_card(title="Note", body_text="Hello", layout_id="text_only")
+    info_card_service.approve_card(card["id"], approved_by="Caregiver")
+
+    with pytest.raises(ConflictError, match="needs at least 1 image"):
+        await info_card_service.update_card(card["id"], updates={"layout_id": "single_hero"})
+
+    assert info_card_service.get_card(card["id"])["layout_id"] == "text_only"
+
+
+async def test_layout_change_prunes_unplaceable_slots_and_rerenders(
+    info_card_service: InfoCardService, image_pipeline: Mock
+) -> None:
+    card = info_card_service.create_card(
+        title="Family", body_text="Grandchildren", layout_id="gallery_grid_2x2"
+    )
+    for idx in range(3):
+        await info_card_service.set_slot(
+            card["id"],
+            idx,
+            file_bytes=b"img",
+            content_type="image/jpeg",
+            source_image_id=None,
+            alt_text=f"photo {idx}",
+        )
+    image_pipeline.render_variants.reset_mock()
+
+    updated = await info_card_service.update_card(card["id"], updates={"layout_id": "single_hero"})
+
+    assert updated["layout_id"] == "single_hero"
+    assert [s["slot_index"] for s in updated["image_slots"]] == [0]
+    purged = {c.args[0] for c in image_pipeline.purge_prefix.await_args_list}
+    assert purged == {f"info_cards/{card['id']}/slot1__", f"info_cards/{card['id']}/slot2__"}
+    rerender = image_pipeline.render_variants.await_args.kwargs
+    assert rerender["layout_id"] == "single_hero"
+    assert rerender["slot_id"] == "hero"
+    assert rerender["target_key_prefix"] == f"info_cards/{card['id']}/slot0"

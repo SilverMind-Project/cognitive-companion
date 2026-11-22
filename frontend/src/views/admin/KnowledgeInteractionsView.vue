@@ -272,7 +272,7 @@ async function fetchQueries() {
   try {
     const params = buildDateParams(queryDateRange);
     const res = await api.getSeniorKnowledgeQueries(params);
-    queries.value = res;
+    queries.value = res.items;
   } catch (err) {
     notify.error("Failed to load queries: " + (err.message || err));
   } finally {
@@ -286,7 +286,7 @@ async function fetchSessions() {
   try {
     const params = buildDateParams(sessionDateRange);
     const res = await api.getQuizSessions(params);
-    sessions.value = res;
+    sessions.value = res.items;
   } catch (err) {
     notify.error("Failed to load sessions: " + (err.message || err));
   } finally {
@@ -316,7 +316,7 @@ async function fetchDeliveries() {
   try {
     const params = buildDateParams(deliveryDateRange);
     const res = await api.getInfoCardDeliveries(params);
-    deliveries.value = res;
+    deliveries.value = res.items;
   } catch (err) {
     notify.error("Failed to load deliveries: " + (err.message || err));
   } finally {

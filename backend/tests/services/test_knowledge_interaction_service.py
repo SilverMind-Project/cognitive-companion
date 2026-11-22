@@ -100,14 +100,15 @@ def test_list_queries_and_quiz_sessions_and_deliveries(
     queries = interaction_service.list_queries(
         senior_id="senior-1", answered_via="rag", date_from=now.date(), date_to=now.date()
     )
-    assert len(queries) == 1
-    assert queries[0]["query_text"] == "When does Priya visit?"
+    assert queries["total"] == 1
+    assert len(queries["items"]) == 1
+    assert queries["items"][0]["query_text"] == "When does Priya visit?"
 
     sessions = interaction_service.list_quiz_sessions(
         quiz_id=quiz.id, senior_id="senior-1", status="completed"
     )
-    assert len(sessions) == 1
-    assert sessions[0]["response_count"] == 1
+    assert sessions["total"] == 1
+    assert sessions["items"][0]["response_count"] == 1
 
     detail = interaction_service.get_quiz_session(session.id)
     assert detail["id"] == session.id
@@ -115,8 +116,8 @@ def test_list_queries_and_quiz_sessions_and_deliveries(
     assert detail["responses"][0]["chosen_choice_text"] == "Sunday"
 
     deliveries = interaction_service.list_info_card_deliveries(info_card_id=card.id)
-    assert len(deliveries) == 1
-    assert deliveries[0]["info_card_id"] == card.id
+    assert deliveries["total"] == 1
+    assert deliveries["items"][0]["info_card_id"] == card.id
 
 
 def test_tag_analytics_aggregates_documents_quizzes_and_scores(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import DateTime
@@ -12,7 +12,13 @@ from sqlalchemy.types import TypeDecorator
 
 from backend.core.config import settings
 
-__all__ = ["UTCDateTime", "from_app_timezone", "normalize_utc_datetime", "to_app_timezone"]
+__all__ = [
+    "UTCDateTime",
+    "app_day_bounds_utc",
+    "from_app_timezone",
+    "normalize_utc_datetime",
+    "to_app_timezone",
+]
 
 
 def normalize_utc_datetime(value: datetime | None) -> datetime | None:
@@ -89,3 +95,27 @@ def from_app_timezone(app_dt: datetime) -> datetime:
         The same instant expressed as UTC.
     """
     return app_dt.astimezone(UTC)
+
+
+def app_day_bounds_utc(
+    date_from: date | None, date_to: date | None
+) -> tuple[datetime | None, datetime | None]:
+    """UTC ``[start, end)`` bounds for an inclusive range of household calendar days.
+
+    A caregiver's "from" and "to" dates are wall-clock days in ``app.timezone``, not UTC days:
+    an evening event belongs to the local day it happened on. ``end`` is the local midnight
+    after ``date_to``, so callers filter with ``>= start`` and ``< end`` and lose no instant.
+    Either bound is ``None`` when its date is.
+    """
+    app_tz = ZoneInfo(settings.as_str("app.timezone"))
+    start = (
+        datetime.combine(date_from, time.min, tzinfo=app_tz).astimezone(UTC)
+        if date_from is not None
+        else None
+    )
+    end = (
+        datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=app_tz).astimezone(UTC)
+        if date_to is not None
+        else None
+    )
+    return start, end

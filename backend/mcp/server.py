@@ -69,6 +69,7 @@ class MCPServices:
     knowledge_query: Any = None
     knowledge_delivery: Any = None
     knowledge_ingestion: Any = None
+    knowledge_interaction_service: Any = None  # senior query, quiz session, delivery history
     gait_trend_service: Any = None
     guided_task_service: Any = None
     guided_metrics_service: Any = None
@@ -104,6 +105,7 @@ def init_services(
     knowledge_query=None,
     knowledge_delivery=None,
     knowledge_ingestion=None,
+    knowledge_interaction_service=None,
     gait_trend_service=None,
     guided_task_service=None,
     guided_metrics_service=None,
@@ -128,6 +130,7 @@ def init_services(
     _svc.knowledge_query = knowledge_query
     _svc.knowledge_delivery = knowledge_delivery
     _svc.knowledge_ingestion = knowledge_ingestion
+    _svc.knowledge_interaction_service = knowledge_interaction_service
     _svc.gait_trend_service = gait_trend_service
     _svc.guided_task_service = guided_task_service
     _svc.guided_metrics_service = guided_metrics_service
@@ -1352,8 +1355,7 @@ async def query_knowledge_base(query: str) -> dict:
     result = await _svc.knowledge_query.answer(query)
     latency_ms = int((time.monotonic() - t0) * 1000)
 
-    # Log the query
-    _svc.knowledge_query.log_query(
+    query_id = _svc.knowledge_query.log_query(
         result,
         channel="voice",
         latency_ms=latency_ms,
@@ -1364,7 +1366,7 @@ async def query_knowledge_base(query: str) -> dict:
         await _svc.ws_manager.broadcast(
             {
                 "type": "knowledge_answer",
-                "query_id": -1,  # filled by log_query return; -1 is ok for ws
+                "query_id": query_id,
                 "query_text": result.query_text,
                 "answer_text": result.answer_text,
                 "source_document_ids": list(result.source_document_ids),
@@ -1377,6 +1379,63 @@ async def query_knowledge_base(query: str) -> dict:
         "source_documents": list(result.source_document_ids),
         "found": result.answered_via == "rag",
     }
+
+
+@_register(token="knowledge.interactions:read")
+async def list_senior_knowledge_queries(
+    senior_id: str | None = None,
+    answered_via: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict:
+    """Caregiver review: the questions the resident asked the knowledge base, newest first.
+
+    Returns {items, total}. answered_via is "rag" (answered from caregiver documents) or
+    "no_answer" (nothing relevant was documented). Same data as
+    GET /api/v1/knowledge-interactions/queries.
+    """
+    if _svc.knowledge_interaction_service is None:
+        return {"error": "Knowledge interaction service not available"}
+    return _svc.knowledge_interaction_service.list_queries(
+        senior_id=senior_id,
+        answered_via=answered_via,
+        limit=max(1, min(limit, 200)),
+        offset=max(0, offset),
+    )
+
+
+@_register(token="knowledge.interactions:read")
+async def list_quiz_sessions_history(
+    quiz_id: int | None = None,
+    senior_id: str | None = None,
+    status: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict:
+    """Caregiver review: past quiz sessions with their status and answer counts, newest first.
+
+    Returns {items, total}. Same data as GET /api/v1/knowledge-interactions/quiz-sessions.
+    """
+    if _svc.knowledge_interaction_service is None:
+        return {"error": "Knowledge interaction service not available"}
+    return _svc.knowledge_interaction_service.list_quiz_sessions(
+        quiz_id=quiz_id,
+        senior_id=senior_id,
+        status=status,
+        limit=max(1, min(limit, 200)),
+        offset=max(0, offset),
+    )
+
+
+@_register(token="knowledge.interactions:read")
+async def get_quiz_tag_analytics() -> dict:
+    """Caregiver review: per-tag document count, quiz count, and average quiz score.
+
+    Same data as GET /api/v1/knowledge/analytics/tags.
+    """
+    if _svc.knowledge_interaction_service is None:
+        return {"error": "Knowledge interaction service not available"}
+    return _svc.knowledge_interaction_service.tag_analytics()
 
 
 @_register(token="quizzes:read")

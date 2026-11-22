@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, date, datetime, time
+from datetime import date
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from backend.core.exceptions import NotFoundError
+from backend.core.time import app_day_bounds_utc
 from backend.models.knowledge import (
     InfoCardDelivery,
     KnowledgeDocument,
@@ -38,21 +39,21 @@ class KnowledgeInteractionService:
         q: str | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
+        """One page of senior RAG queries, newest first, as ``{items, total}``.
+
+        ``date_from``/``date_to`` are inclusive household calendar days (``app.timezone``).
+        """
+        start, end = app_day_bounds_utc(date_from, date_to)
         db: Session = self._db_factory()
         try:
             stmt = select(SeniorKnowledgeQuery)
             if senior_id:
                 stmt = stmt.where(SeniorKnowledgeQuery.senior_id == senior_id)
-            if date_from:
-                stmt = stmt.where(
-                    SeniorKnowledgeQuery.asked_at
-                    >= datetime.combine(date_from, time.min, tzinfo=UTC)
-                )
-            if date_to:
-                stmt = stmt.where(
-                    SeniorKnowledgeQuery.asked_at < datetime.combine(date_to, time.max, tzinfo=UTC)
-                )
+            if start is not None:
+                stmt = stmt.where(SeniorKnowledgeQuery.asked_at >= start)
+            if end is not None:
+                stmt = stmt.where(SeniorKnowledgeQuery.asked_at < end)
             if answered_via:
                 stmt = stmt.where(SeniorKnowledgeQuery.answered_via == answered_via)
             if min_similarity is not None:
@@ -62,6 +63,7 @@ class KnowledgeInteractionService:
             if q:
                 stmt = stmt.where(SeniorKnowledgeQuery.query_text.ilike(f"%{q}%"))
 
+            total = _count(db, stmt)
             rows = (
                 db.execute(
                     stmt.order_by(SeniorKnowledgeQuery.asked_at.desc()).offset(offset).limit(limit)
@@ -69,7 +71,7 @@ class KnowledgeInteractionService:
                 .scalars()
                 .all()
             )
-            return [
+            items = [
                 {
                     "id": r.id,
                     "asked_at": r.asked_at.isoformat() if r.asked_at else None,
@@ -85,6 +87,7 @@ class KnowledgeInteractionService:
                 }
                 for r in rows
             ]
+            return {"items": items, "total": total}
         finally:
             db.close()
 
@@ -98,7 +101,12 @@ class KnowledgeInteractionService:
         date_to: date | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
+        """One page of quiz sessions, newest first, as ``{items, total}``.
+
+        ``date_from``/``date_to`` are inclusive household calendar days (``app.timezone``).
+        """
+        start, end = app_day_bounds_utc(date_from, date_to)
         db: Session = self._db_factory()
         try:
             stmt = select(QuizSession)
@@ -106,17 +114,14 @@ class KnowledgeInteractionService:
                 stmt = stmt.where(QuizSession.quiz_id == quiz_id)
             if senior_id:
                 stmt = stmt.where(QuizSession.senior_id == senior_id)
-            if date_from:
-                stmt = stmt.where(
-                    QuizSession.started_at >= datetime.combine(date_from, time.min, tzinfo=UTC)
-                )
-            if date_to:
-                stmt = stmt.where(
-                    QuizSession.started_at < datetime.combine(date_to, time.max, tzinfo=UTC)
-                )
+            if start is not None:
+                stmt = stmt.where(QuizSession.started_at >= start)
+            if end is not None:
+                stmt = stmt.where(QuizSession.started_at < end)
             if status:
                 stmt = stmt.where(QuizSession.status == status)
 
+            total = _count(db, stmt)
             rows = (
                 db.execute(stmt.order_by(QuizSession.started_at.desc()).offset(offset).limit(limit))
                 .scalars()
@@ -136,7 +141,7 @@ class KnowledgeInteractionService:
                 ).all()
                 response_counts = {row.session_id: row.count for row in count_rows}
 
-            return [
+            items = [
                 {
                     "id": s.id,
                     "quiz_id": s.quiz_id,
@@ -154,6 +159,7 @@ class KnowledgeInteractionService:
                 }
                 for s in rows
             ]
+            return {"items": items, "total": total}
         finally:
             db.close()
 
@@ -220,22 +226,23 @@ class KnowledgeInteractionService:
         date_to: date | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
+        """One page of info card deliveries, newest first, as ``{items, total}``.
+
+        ``date_from``/``date_to`` are inclusive household calendar days (``app.timezone``).
+        """
+        start, end = app_day_bounds_utc(date_from, date_to)
         db: Session = self._db_factory()
         try:
             stmt = select(InfoCardDelivery)
             if info_card_id is not None:
                 stmt = stmt.where(InfoCardDelivery.info_card_id == info_card_id)
-            if date_from:
-                stmt = stmt.where(
-                    InfoCardDelivery.delivered_at
-                    >= datetime.combine(date_from, time.min, tzinfo=UTC)
-                )
-            if date_to:
-                stmt = stmt.where(
-                    InfoCardDelivery.delivered_at < datetime.combine(date_to, time.max, tzinfo=UTC)
-                )
+            if start is not None:
+                stmt = stmt.where(InfoCardDelivery.delivered_at >= start)
+            if end is not None:
+                stmt = stmt.where(InfoCardDelivery.delivered_at < end)
 
+            total = _count(db, stmt)
             rows = (
                 db.execute(
                     stmt.order_by(InfoCardDelivery.delivered_at.desc()).offset(offset).limit(limit)
@@ -243,7 +250,7 @@ class KnowledgeInteractionService:
                 .scalars()
                 .all()
             )
-            return [
+            items = [
                 {
                     "id": d.id,
                     "info_card_id": d.info_card_id,
@@ -257,6 +264,7 @@ class KnowledgeInteractionService:
                 }
                 for d in rows
             ]
+            return {"items": items, "total": total}
         finally:
             db.close()
 
@@ -346,3 +354,8 @@ class KnowledgeInteractionService:
             }
         finally:
             db.close()
+
+
+def _count(db: Session, stmt: Select[Any]) -> int:
+    """Total rows matching ``stmt``'s filters, ignoring any ordering or paging."""
+    return db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()

@@ -14,7 +14,7 @@ Usage::
     # Registry: look up a named model configured in llm.models
     registry = LLMModelRegistry()
     registry.load_from_settings()
-    provider = registry.get_provider("gemma4_26b")
+    provider = registry.get_provider("gemma-4-26B-A4B-it")
 """
 
 from __future__ import annotations
@@ -235,7 +235,7 @@ class LLMModelRegistry:
               timeout: 120
               guided_decoding: true
 
-            - id: gemma4_26b
+            - id: gemma-4-26B-A4B-it
               name: "Gemma 4 26B (General)"
               api_type: openai
               base_url: "http://192.168.1.31:8100"

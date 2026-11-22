@@ -6,13 +6,16 @@ colour convert, resize/fit per layout spec, encode, upload to MinIO.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from io import BytesIO
+from typing import Any
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from backend.core.config import settings
+from backend.core.exceptions import ValidationError
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
 from backend.services.knowledge.layout_registry import (
@@ -101,6 +104,21 @@ class ImagePipeline:
 
     # -- purge -------------------------------------------------------------
 
+    async def purge_objects(self, object_names: Iterable[str]) -> PurgeResult:
+        """Delete exactly ``object_names``. Idempotent; a missing object is not a failure."""
+        keys = sorted(set(object_names))
+        if not keys:
+            return PurgeResult(deleted_count=0, failed_keys=[])
+        failed = await self._minio.async_delete_objects(keys)
+        if failed:
+            logger.warning(
+                "image_purge_objects_partial",
+                deleted=len(keys) - len(failed),
+                failed=len(failed),
+                failed_keys=failed,
+            )
+        return PurgeResult(deleted_count=len(keys) - len(failed), failed_keys=failed)
+
     async def purge_prefix(self, prefix: str) -> PurgeResult:
         """List every object under *prefix* and delete them. Idempotent."""
         keys = await self._minio.async_list_objects(prefix)
@@ -122,18 +140,25 @@ class ImagePipeline:
 
     @staticmethod
     def validate_upload(content_type: str, data: bytes) -> tuple[int, int]:
-        """Raise ValueError if the upload fails validation. Returns (width, height)."""
+        """Return ``(width, height)`` or raise ``ValidationError`` (HTTP 422).
+
+        A rejected upload is the caregiver's input problem, never a server fault, so every
+        failure (type, size, undecodable bytes, pixel count) maps to the same 422.
+        """
         if content_type not in ALLOWED_MIME_TYPES:
-            raise ValueError(
+            raise ValidationError(
                 f"Unsupported MIME type '{content_type}'. "
                 f"Allowed: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
             )
         if len(data) > MAX_UPLOAD_BYTES:
-            raise ValueError(f"File size {len(data)} exceeds maximum {MAX_UPLOAD_BYTES} bytes")
-        img = Image.open(BytesIO(data))
+            raise ValidationError(f"File size {len(data)} exceeds maximum {MAX_UPLOAD_BYTES} bytes")
+        try:
+            img = Image.open(BytesIO(data))
+        except (UnidentifiedImageError, OSError) as exc:
+            raise ValidationError("The uploaded file is not a readable image") from exc
         w, h = img.size
         if w * h > MAX_PIXELS:
-            raise ValueError(
+            raise ValidationError(
                 f"Image dimensions {w}x{h} ({w * h} px) exceed maximum {MAX_PIXELS} px"
             )
         return w, h
@@ -165,6 +190,20 @@ class ImagePipeline:
 
 
 # -- helpers ---------------------------------------------------------------
+
+
+def variants_as_json(variants: Mapping[str, RenderedVariant]) -> dict[str, dict[str, Any]]:
+    """The persisted form of rendered variants, as stored in slot and question JSON columns."""
+    return {
+        surface: {
+            "object_name": v.object_name,
+            "width": v.width,
+            "height": v.height,
+            "format": v.format,
+            "generated_at": v.generated_at,
+        }
+        for surface, v in variants.items()
+    }
 
 
 def _find_slot(layout, slot_id: str):

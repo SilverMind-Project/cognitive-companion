@@ -78,17 +78,20 @@ class KnowledgeQueryService:
         db: Session = self._db_factory()
         try:
             vec_str = "[" + ",".join(str(v) for v in query_vec) + "]"
+            # CAST(... AS vector), not ``:vec::vector``: SQLAlchemy's text() does not bind a
+            # parameter followed by ``::``, so that form reaches PostgreSQL verbatim and every
+            # search fails with a syntax error.
             rows = db.execute(
                 text("""
                     SELECT
                         kdc.id AS chunk_id,
                         kdc.document_id,
                         kdc.text AS chunk_text,
-                        1 - (kdc.embedding <=> :vec::vector) AS similarity
+                        1 - (kdc.embedding <=> CAST(:vec AS vector)) AS similarity
                     FROM knowledge_document_chunks kdc
                     JOIN knowledge_documents kd ON kd.id = kdc.document_id
                     WHERE kd.status = 'approved'
-                    ORDER BY kdc.embedding <=> :vec::vector
+                    ORDER BY kdc.embedding <=> CAST(:vec AS vector)
                     LIMIT :topk
                 """),
                 {"vec": vec_str, "topk": top_k},
@@ -131,13 +134,17 @@ class KnowledgeQueryService:
             if self._llm_registry is not None:
                 answer_text = await self._synthesize(query, context)
 
+            # Retrieval succeeded but synthesis produced nothing (model unreachable or
+            # misconfigured). Reporting that as a RAG answer would tell the voice agent the
+            # knowledge base answered with silence; report no_answer so it says it does not
+            # know, while the retrieved sources stay on the audit row for the caregiver.
             return KnowledgeAnswer(
                 query_text=query,
                 answer_text=answer_text,
                 source_document_ids=tuple(sorted(doc_ids)),
                 source_chunk_ids=tuple(chunk_ids),
                 top_similarity=top_similarity,
-                answered_via="rag",
+                answered_via="rag" if answer_text else "no_answer",
             )
         except Exception:
             logger.exception("query_search_failed")

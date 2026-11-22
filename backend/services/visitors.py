@@ -18,13 +18,13 @@ review registry, which validates it and hands it to ``VisitorReviewAdapter``.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from backend.core.exceptions import ValidationError
+from backend.core.logging import get_logger
 from backend.integrations.person_id_client import (
     PersonIDClient,
     PersonIDUpstreamError,
@@ -43,7 +43,7 @@ from backend.schemas.visitors import (
 from backend.services.identity_review.registry import ReviewDecision
 from backend.services.persons import insert_household_member
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # person-id's per-cluster error codes; an unrecognized one is reported as an upstream error.
 _ERROR_CODES: dict[str, ReviewErrorCode] = {
@@ -130,7 +130,8 @@ class VisitorAdminService:
             except SQLAlchemyError as exc:
                 logger.exception(
                     "visitor_household_member_creation_failed",
-                    extra={"person_id": person_id, "cluster_id": cluster_id},
+                    person_id=person_id,
+                    cluster_id=cluster_id,
                 )
                 raise VisitorPartialFailureError(person_id, result.member_name) from exc
 

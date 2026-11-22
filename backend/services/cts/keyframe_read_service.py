@@ -9,10 +9,9 @@ are server-owned upstream.
 
 from __future__ import annotations
 
-import logging
-
 from pydantic import ValidationError
 
+from backend.core.logging import get_logger
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.schemas.cts_keyframe import (
     IdentitySummaryItem,
@@ -25,7 +24,7 @@ from backend.schemas.cts_keyframe import (
     UpstreamKeyframePage,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _UPSTREAM = "tracking_orchestrator"
 _GROUPED_PATH = "/internal/keyframes/grouped"
@@ -187,10 +186,10 @@ class KeyframeReadService:
             page = UpstreamKeyframePage.model_validate(raw)
         except ValidationError as exc:
             logger.error(
-                "keyframe read model contract violation from %s%s: %s",
-                _UPSTREAM,
-                _GROUPED_PATH,
-                exc,
+                "keyframe_read_contract_violation",
+                upstream=_UPSTREAM,
+                path=_GROUPED_PATH,
+                error=str(exc),
             )
             raise KeyframeReadContractError(
                 "orchestrator returned a malformed keyframe envelope"

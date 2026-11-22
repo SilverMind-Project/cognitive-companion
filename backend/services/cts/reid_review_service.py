@@ -17,7 +17,6 @@ re-fetch and disable a stale approval rather than show a generic error.
 from __future__ import annotations
 
 import json
-import logging
 import time
 from collections.abc import Callable, Sequence
 from typing import cast, get_args
@@ -25,6 +24,7 @@ from typing import cast, get_args
 from pydantic import ValidationError
 
 from backend.core.exceptions import ValidationError as AppValidationError
+from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.schemas.cts_reid_review import (
@@ -47,7 +47,7 @@ from backend.services.cts.metrics import (
 )
 from backend.services.identity_review.registry import ReviewDecision, ReviewSubject
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _UPSTREAM = "tracking_orchestrator"
 
@@ -116,7 +116,7 @@ class ReIDReviewService:
                 offset=raw["offset"],
             )
         except (KeyError, TypeError, ValidationError) as exc:
-            logger.error("reid review list contract violation from %s: %s", _UPSTREAM, exc)
+            logger.error("reid_review_list_contract_violation", upstream=_UPSTREAM, error=str(exc))
             raise ReviewContractError("malformed candidate list envelope") from exc
 
     async def get_detail(
@@ -133,7 +133,7 @@ class ReIDReviewService:
                 eligibility=self._eligibility(raw["eligibility"]),
             )
         except (KeyError, TypeError, ValidationError) as exc:
-            logger.error("reid review detail contract violation from %s: %s", _UPSTREAM, exc)
+            logger.error("reid_review_detail_contract_violation", upstream=_UPSTREAM, error=str(exc))
             raise ReviewContractError("malformed candidate detail envelope") from exc
 
     async def list_events(self, candidate_id: str) -> ReviewEventsResponse:
@@ -311,7 +311,9 @@ class ReIDReviewService:
             try:
                 view = self._candidate(raw, presign)
             except (KeyError, TypeError, ValidationError) as exc:
-                logger.error("reid review mutate contract violation from %s: %s", _UPSTREAM, exc)
+                logger.error(
+                    "reid_review_mutate_contract_violation", upstream=_UPSTREAM, error=str(exc)
+                )
                 raise ReviewContractError("malformed candidate envelope") from exc
         except Exception:
             cts_reid_review_failures_total.labels(action=action).inc()

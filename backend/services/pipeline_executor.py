@@ -883,11 +883,10 @@ class PipelineExecutor:
                     )
                 )
 
-            logger.error(
+            logger.exception(
                 "pipeline_error",
                 rule=execution.rule.name,
                 error=str(e),
-                exc_info=True,
             )
             pipeline_data["_step_timings"] = step_timings
             pipeline_data["error"] = str(e)

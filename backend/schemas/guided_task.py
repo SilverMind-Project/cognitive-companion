@@ -44,10 +44,11 @@ class RoutineStepIn(BaseModel):
                 legacy_keys.append("description")
 
             if legacy_keys:
-                import logging
+                from backend.core.logging import get_logger
 
-                logging.getLogger("backend.schemas.guided_task").warning(
-                    f"legacy_vision_gate_keys_ignored: {legacy_keys}"
+                get_logger("backend.schemas.guided_task").warning(
+                    "legacy_vision_gate_keys_ignored",
+                    legacy_keys=legacy_keys,
                 )
                 for k in legacy_keys:
                     vision.pop(k, None)

@@ -23,7 +23,6 @@ Schema isolation
 from __future__ import annotations
 
 import atexit
-import logging
 import os
 import uuid
 
@@ -33,8 +32,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from testcontainers.postgres import PostgresContainer
 
 from backend.core.database import Base
+from backend.core.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants and helpers -- defined first so atexit can reference them.
@@ -68,13 +68,13 @@ def _force_kill_container(name: str) -> None:
             c = client.containers.get(name)
             c.kill()
             c.remove(force=True, v=True)
-            logger.info("force-killed container %s", name)
+            logger.info("force_killed_container", container=name)
         except docker.errors.NotFound:
             pass  # already gone
         finally:
             client.close()
     except Exception as exc:
-        logger.warning("error force-killing container %s: %s", name, exc)
+        logger.warning("force_kill_container_failed", container=name, error=str(exc))
 
 
 def _stop_container_atexit() -> None:
@@ -109,7 +109,7 @@ def _postgres_container():
     try:
         container.start()
         _container_ref = container
-        logger.info("postgres testcontainer started: %s", container.get_container_host_ip())
+        logger.info("postgres_testcontainer_started", host=container.get_container_host_ip())
         yield container
     finally:
         if _container_name is not None:
@@ -188,7 +188,7 @@ def db_engine(postgres_url):
             conn.execute(text("CREATE SCHEMA public"))
             conn.commit()
     except Exception as exc:
-        logger.warning("error dropping test schema: %s", exc)
+        logger.warning("drop_test_schema_failed", error=str(exc))
     finally:
         engine.dispose()
 
@@ -227,7 +227,7 @@ def _truncate_tables(request, db_engine):
             conn.execute(text(f"TRUNCATE {quoted} RESTART IDENTITY CASCADE"))
             conn.commit()
     except Exception as exc:
-        logger.warning("error truncating tables after test %s: %s", request.node.nodeid, exc)
+        logger.warning("truncate_tables_failed", nodeid=request.node.nodeid, error=str(exc))
 
 
 @pytest.fixture

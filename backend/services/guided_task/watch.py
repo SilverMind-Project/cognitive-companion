@@ -62,12 +62,11 @@ class Watch:
                 try:
                     advanced = await self._evaluate_watch(session, routine, steps, step, tick_at)
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         "watch_tick_failed",
                         session_id=session.id,
                         step_ord=step.ord,
                         error=str(e),
-                        exc_info=True,
                     )
             if advanced:
                 continue

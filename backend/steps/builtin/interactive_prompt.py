@@ -264,13 +264,12 @@ class InteractivePromptHandler(StepHandler):
                         countdown_seconds=countdown_seconds,
                     )
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         "interactive_prompt_send_error",
                         execution_id=execution.id,
                         step_id=step.id,
                         channel="pwa_popup_text",
                         error=str(e),
-                        exc_info=True,
                     )
             else:
                 logger.error(
@@ -326,13 +325,12 @@ class InteractivePromptHandler(StepHandler):
                             error=str(broadcast_error),
                         )
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         "interactive_prompt_send_error",
                         execution_id=execution.id,
                         step_id=step.id,
                         channel="pwa_realtime_ai",
                         error=str(e),
-                        exc_info=True,
                     )
             else:
                 logger.error(

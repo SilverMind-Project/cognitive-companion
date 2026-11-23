@@ -69,14 +69,16 @@ async def create_document(
 async def list_documents(
     request: Request,
     status: str | None = Query(None),
-    tag: str | None = Query(None),
+    tag: list[str] | None = Query(
+        None, description="Matches items carrying any of these tags (repeat the parameter)."
+    ),
     q: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:read")),
 ) -> dict[str, Any]:
-    docs, total = ingestion.list_documents(status=status, tag=tag, q=q, limit=limit, offset=offset)
+    docs, total = ingestion.list_documents(status=status, tags=tag, q=q, limit=limit, offset=offset)
     return {
         "items": [
             KnowledgeDocumentListOut.model_validate(

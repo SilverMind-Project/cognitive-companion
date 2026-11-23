@@ -199,31 +199,37 @@ class QuizQuestionsMixin:
             q.ord = ord_val
 
     def reorder_questions(self, quiz_id: int, items: list[dict[str, int]]) -> list[dict[str, Any]]:
-        """Atomically reorder questions using a two-phase negative-ordinal flush."""
+        """Atomically apply a complete new order (two-phase negative-ordinal flush).
+
+        ``items`` must name every question of the quiz exactly once with ords ``0..N-1``.
+        A partial list used to be accepted: unknown ids were skipped silently, and an ord
+        left to an unlisted question collided on ``uq_qq_quiz_ord`` as a 500.
+        """
         db: Session = self._db_factory()
         try:
-            quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
+            quiz = db.execute(
+                select(Quiz).where(Quiz.id == quiz_id).with_for_update()
+            ).scalar_one_or_none()
             if quiz is None:
                 raise NotFoundError("Quiz", quiz_id)
 
-            questions_by_id: dict[int, QuizQuestion] = {}
-            for idx, item in enumerate(items):
-                q = db.execute(
-                    select(QuizQuestion).where(
-                        QuizQuestion.id == item["id"], QuizQuestion.quiz_id == quiz_id
-                    )
-                ).scalar_one_or_none()
-                if q is not None:
-                    q.ord = -(idx + 1000)
-                    questions_by_id[q.id] = q
-
-            db.flush()
-
-            for item in items:
-                q = questions_by_id.get(item["id"])
-                if q is not None:
-                    q.ord = item["ord"]
-
+            current = {q.id: q for q in self._load_questions(db, quiz_id)}
+            ids = [item["id"] for item in items]
+            ords = sorted(item["ord"] for item in items)
+            if sorted(ids) != sorted(current) or ords != list(range(len(current))):
+                raise ValidationError(
+                    "Reorder must list every question of the quiz once, with ords 0..N-1"
+                )
+            ordered_items = sorted(items, key=lambda item: item["ord"])
+            self._renumber(
+                db,
+                [current[item["id"]] for item in ordered_items],
+                [item["ord"] for item in ordered_items],
+            )
+            # Question order is what the senior is asked, so it is a content change.
+            if quiz.status == "approved":
+                quiz.version += 1
+            quiz.updated_at = datetime.now(UTC)
             db.commit()
             ordered = (
                 db.execute(

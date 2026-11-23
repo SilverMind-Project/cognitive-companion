@@ -16,7 +16,7 @@ Closed D4 actions (14): `acknowledge`, `act`, `calibrate`, `correct`, `delete`, 
 
 | Metric | Value |
 | --- | --- |
-| Guarded HTTP routes | 361 |
+| Guarded HTTP routes | 362 |
 | Authenticated WebSocket routes | 2 |
 | Distinct route and WebSocket D4 tokens | 105 |
 | Configured roles (`roles:`) | 9 |
@@ -313,6 +313,7 @@ reachability across the remaining configured roles.
 | `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/approve` | . | Y | . | . | . | . | . |
 | `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/archive` | . | Y | . | . | . | . | . |
 | `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions` | . | Y | . | . | . | . | . |
+| `quizzes:write` | `PUT` | `/api/v1/quizzes/{quiz_id}/questions` | . | Y | . | . | . | . | . |
 | `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions/reorder` | . | Y | . | . | . | . | . |
 | `quizzes:write` | `PATCH` | `/api/v1/quizzes/{quiz_id}/questions/{qid}` | . | Y | . | . | . | . | . |
 | `quizzes:write` | `PUT` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/image` | . | Y | . | . | . | . | . |

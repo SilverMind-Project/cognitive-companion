@@ -349,8 +349,12 @@ There is no operator-edited adjacency graph: cameras that overlap are declared a
 | Knowledge documents | `POST /knowledge/documents`, `GET /knowledge/documents`, `GET /knowledge/documents/{doc_id}`, `PATCH /knowledge/documents/{doc_id}`, approval, archive, restore, delete, re-embed |
 | Knowledge images | `POST /knowledge/documents/{doc_id}/images`, `PATCH /knowledge/documents/{doc_id}/images/{img_id}`, `DELETE /knowledge/documents/{doc_id}/images/{img_id}` |
 | Info cards | CRUD, approve, archive, restore, suggest, and slot update endpoints under `/info-cards` |
-| Quizzes | CRUD, approve, archive, restore, question CRUD, reorder, and question image endpoints under `/quizzes` |
+| Quizzes | CRUD, approve, archive, restore, question CRUD, reorder, whole-list replace (`PUT /quizzes/{quiz_id}/questions`), and question image endpoints under `/quizzes` |
 | Interactions | `GET /knowledge-interactions/queries`, `/quiz-sessions`, and `/info-card-deliveries` return `{items, total}`; `GET /knowledge/analytics/tags` |
+
+- List filters: `GET /knowledge/documents`, `/info-cards`, and `/quizzes` take a repeatable `tag` parameter; an item matches when it carries any of the given tags.
+- `POST /quizzes` accepts `questions` and creates them with the quiz in one transaction. `PUT /quizzes/{quiz_id}/questions` replaces the ordered question list atomically: listed ids are updated, items without an id are created, unlisted questions are deleted (409, nothing changed, if one has recorded answers; 403 without `quizzes:delete`). `POST /quizzes/{quiz_id}/questions/reorder` takes the complete order (every question once, ords `0..N-1`; 422 otherwise).
+- A multiple-choice choice id must be non-blank and unique within its question (422 otherwise); drafted choices are given ids server-side.
 
 Lifecycle rules the endpoints enforce:
 

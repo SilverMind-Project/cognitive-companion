@@ -8,7 +8,7 @@ from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
-from backend.core.auth import AuthContext, actor_from_auth, require_permission
+from backend.core.auth import AuthContext, actor_from_auth, has_token, require_permission
 from backend.core.exceptions import NotFoundError, ValidationError
 from backend.routers.dependencies import get_content_generation, get_quiz_service
 from backend.schemas.quizzes import (
@@ -18,6 +18,7 @@ from backend.schemas.quizzes import (
     QuizQuestionCreate,
     QuizQuestionOut,
     QuizQuestionReorder,
+    QuizQuestionsReplace,
     QuizQuestionSuggestionOut,
     QuizQuestionUpdate,
     QuizStatusOut,
@@ -46,7 +47,9 @@ async def create_quiz(
 @router.get("", response_model=QuizListResponse)
 async def list_quizzes(
     status: str | None = Query(None),
-    tag: str | None = Query(None),
+    tag: list[str] | None = Query(
+        None, description="Matches items carrying any of these tags (repeat the parameter)."
+    ),
     document_id: int | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -55,7 +58,7 @@ async def list_quizzes(
 ) -> dict[str, Any]:
     return svc.list_quizzes(
         status=status,
-        tag=tag,
+        tags=tag,
         document_id=document_id,
         limit=limit,
         offset=offset,
@@ -161,8 +164,27 @@ async def reorder_questions(
     svc: QuizService = Depends(get_quiz_service),
     _auth: None = Depends(require_permission("quizzes:write")),
 ) -> dict[str, str]:
-    svc.reorder_questions(quiz_id, body.items)
+    svc.reorder_questions(quiz_id, [item.model_dump() for item in body.items])
     return {"status": "reordered"}
+
+
+@router.put("/{quiz_id}/questions", response_model=QuizOut)
+async def replace_questions(
+    quiz_id: int,
+    body: QuizQuestionsReplace,
+    svc: QuizService = Depends(get_quiz_service),
+    auth: AuthContext = Depends(require_permission("quizzes:write")),
+) -> dict[str, Any]:
+    """Replace the quiz's ordered question list in one transaction (the quiz editor's save).
+
+    Leaving a question out deletes it, which also needs ``quizzes:delete``: write access
+    alone must not reach what the delete route guards.
+    """
+    return await svc.replace_questions(
+        quiz_id,
+        [q.model_dump(exclude_none=True) for q in body.questions],
+        allow_delete=has_token(auth, "quizzes:delete"),
+    )
 
 
 @router.post("/suggest", response_model=QuizSuggestionOut)

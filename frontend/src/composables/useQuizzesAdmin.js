@@ -1,26 +1,33 @@
 import { reactive } from "vue";
-import { getKnowledgeDocuments } from "@/services/modules/knowledge";
-import { getKnowledgeLayouts } from "@/services/modules/layouts";
-import { getLLMModels } from "@/services/modules/pipeline";
 import {
   approveQuiz as approveQuizApi,
   archiveQuiz as archiveQuizApi,
   createQuizQuestion,
   deleteQuiz as deleteQuizApi,
   deleteQuizQuestion,
+  deleteQuizQuestionImage,
   getQuiz,
   getQuizzes,
   regenerateQuizQuestion,
   reorderQuizQuestions,
   restoreQuiz as restoreQuizApi,
+  setQuizQuestionImage,
   updateQuizQuestion,
 } from "@/services/modules/quizzes";
+import { getKnowledgeDocument, getKnowledgeDocuments } from "@/services/modules/knowledge";
+import { getKnowledgeLayouts } from "@/services/modules/layouts";
+import { getLLMModels } from "@/services/modules/pipeline";
 import { requireNotify } from "@/composables/useNotify.js";
+import { normalizeChoices, questionPayload } from "@/components/knowledge/quizChoices.js";
+
+// The list endpoints cap limit at 200.
+const PICKER_LIMIT = 200;
 
 /**
  * State + actions for the Quizzes admin view.
  * Manages server-paginated quiz list, filters, expanded row details,
- * quiz lifecycle transitions, and question operations.
+ * quiz lifecycle transitions, and question operations. Adding, deleting, moving, and
+ * picture changes re-read the expanded quiz; an in-place field save does not.
  */
 export function useQuizzesAdmin({ notify } = {}) {
   requireNotify("useQuizzesAdmin", notify);
@@ -41,6 +48,8 @@ export function useQuizzesAdmin({ notify } = {}) {
     llmModelItems: [],
     expandedRows: new Set(),
     expandedQuizzes: {},
+    // quiz id -> [{ id, label }] images of that quiz's source document.
+    documentImages: {},
   });
 
   async function fetchQuizzes() {
@@ -52,9 +61,8 @@ export function useQuizzesAdmin({ notify } = {}) {
         offset: (state.page - 1) * state.itemsPerPage,
       };
       if (state.filters.status) params.status = state.filters.status;
-      if (state.filters.tags && state.filters.tags.length > 0) {
-        params.tags = state.filters.tags.join(",");
-      }
+      // Repeated tag=... parameters: a quiz matches when it carries any selected tag.
+      if (state.filters.tags?.length) params.tag = [...state.filters.tags];
       const res = await getQuizzes(params);
       state.quizzes = res?.items ?? [];
       state.totalQuizzes = res?.total ?? 0;
@@ -95,36 +103,58 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function fetchDocuments() {
     try {
-      const res = await getKnowledgeDocuments({ limit: 200 });
+      const res = await getKnowledgeDocuments({ limit: PICKER_LIMIT });
       state.documents = res?.items ?? [];
-    } catch (_err) {
-      // non-critical
+    } catch (err) {
+      notify.warning("Could not load documents: " + (err.message || err));
     }
   }
 
   async function fetchLLMModels() {
     try {
       state.llmModelItems = (await getLLMModels()) ?? [];
-    } catch (_err) {
-      // non-critical
+    } catch (err) {
+      notify.warning("Could not load models: " + (err.message || err));
+    }
+  }
+
+  function layoutTakesImage(quiz) {
+    const layout = state.layouts.find((l) => l.id === quiz?.question_layout_id);
+    return Boolean(layout?.max_images);
+  }
+
+  async function fetchDocumentImages(quiz) {
+    if (!quiz?.document_id || state.documentImages[quiz.id]) return;
+    try {
+      const doc = await getKnowledgeDocument(quiz.document_id);
+      state.documentImages = {
+        ...state.documentImages,
+        [quiz.id]: (doc?.images ?? []).map((img, i) => ({
+          id: img.id,
+          label: img.alt_text || `Image ${i + 1}`,
+        })),
+      };
+    } catch (err) {
+      notify.warning("Could not load the document's images: " + (err.message || err));
     }
   }
 
   async function fetchExpandedQuiz(quizId) {
     try {
       const detail = await getQuiz(quizId);
-      state.expandedQuizzes = {
-        ...state.expandedQuizzes,
-        [quizId]: detail,
-      };
+      state.expandedQuizzes = { ...state.expandedQuizzes, [quizId]: detail };
       return detail;
-    } catch (_err) {
-      state.expandedQuizzes = {
-        ...state.expandedQuizzes,
-        [quizId]: null,
-      };
+    } catch (err) {
+      notify.error("Failed to load quiz: " + (err.message || err));
+      state.expandedQuizzes = { ...state.expandedQuizzes, [quizId]: null };
       return null;
     }
+  }
+
+  // After a question change: the row shows the stored questions, and the list's question
+  // count stays right.
+  async function refreshQuiz(quizId) {
+    await Promise.all([fetchExpandedQuiz(quizId), fetchQuizzes()]);
   }
 
   async function toggleExpand(_event, { item }) {
@@ -138,7 +168,8 @@ export function useQuizzesAdmin({ notify } = {}) {
     } else {
       nextRows.add(item.id);
       state.expandedRows = nextRows;
-      await fetchExpandedQuiz(item.id);
+      const detail = await fetchExpandedQuiz(item.id);
+      if (detail) await fetchDocumentImages(detail);
     }
   }
 
@@ -185,28 +216,24 @@ export function useQuizzesAdmin({ notify } = {}) {
   async function addQuestion(quiz) {
     try {
       await createQuizQuestion(quiz.id, {
-        question_text: "",
         question_type: "multiple_choice",
-        choices: [],
+        question_text: "",
+        choices: normalizeChoices([{ text: "" }, { text: "" }]),
         expected_answer: "",
         explanation: "",
       });
       notify.success("Question added.");
-      await fetchQuizzes();
+      await refreshQuiz(quiz.id);
     } catch (err) {
       notify.error("Failed to add question: " + (err.message || err));
     }
   }
 
+  // No re-read here: the card's draft already holds what was saved, and a refetch landing
+  // while the caregiver types in another field would overwrite that field.
   async function saveQuestion(quiz, question) {
     try {
-      await updateQuizQuestion(quiz.id, question.id, {
-        question_text: question.question_text,
-        question_type: question.question_type,
-        choices: question.choices,
-        expected_answer: question.expected_answer,
-        explanation: question.explanation,
-      });
+      await updateQuizQuestion(quiz.id, question.id, questionPayload(question));
     } catch (err) {
       notify.error("Failed to update question: " + (err.message || err));
     }
@@ -216,24 +243,60 @@ export function useQuizzesAdmin({ notify } = {}) {
     try {
       await deleteQuizQuestion(quiz.id, question.id);
       notify.success("Question deleted.");
-      await fetchQuizzes();
+      await refreshQuiz(quiz.id);
     } catch (err) {
       notify.error("Failed to delete question: " + (err.message || err));
     }
   }
 
-  async function moveQuestion(quiz, question, direction) {
+  /** Move the question at ``index`` one step (``direction`` -1 up, 1 down). */
+  async function moveQuestion(quiz, index, direction) {
+    const questions = [...(state.expandedQuizzes[quiz.id]?.questions ?? [])].sort(
+      (a, b) => a.ord - b.ord,
+    );
+    const target = index + direction;
+    if (index < 0 || index >= questions.length || target < 0 || target >= questions.length) {
+      return;
+    }
+    const [moved] = questions.splice(index, 1);
+    questions.splice(target, 0, moved);
     try {
-      await reorderQuizQuestions(quiz.id, {
-        question_id: question?.id,
-        direction,
-      });
-      await fetchQuizzes();
+      await reorderQuizQuestions(
+        quiz.id,
+        questions.map((q, ord) => ({ id: q.id, ord })),
+      );
+      await fetchExpandedQuiz(quiz.id);
     } catch (err) {
       notify.error("Failed to reorder: " + (err.message || err));
     }
   }
 
+  async function attachQuestionImage(quiz, question, { file, sourceImageId, altText }) {
+    const form = new FormData();
+    if (file) form.append("file", file);
+    else if (sourceImageId) form.append("source_image_id", String(sourceImageId));
+    else return;
+    form.append("alt_text", altText || "");
+    try {
+      await setQuizQuestionImage(quiz.id, question.id, form);
+      notify.success("Picture attached.");
+      await fetchExpandedQuiz(quiz.id);
+    } catch (err) {
+      notify.error("Failed to attach the picture: " + (err.message || err));
+    }
+  }
+
+  async function removeQuestionImage(quiz, question) {
+    try {
+      await deleteQuizQuestionImage(quiz.id, question.id);
+      notify.success("Picture removed.");
+      await fetchExpandedQuiz(quiz.id);
+    } catch (err) {
+      notify.error("Failed to remove the picture: " + (err.message || err));
+    }
+  }
+
+  /** A regenerated draft of ``question`` (an unsaved suggestion), or null. */
   async function regenerateQuestion(quizId, question, modelId) {
     if (!question?.id) {
       notify.warning("Save the quiz first, then regenerate this question.");
@@ -246,12 +309,8 @@ export function useQuizzesAdmin({ notify } = {}) {
         return null;
       }
       const suggestion = await regenerateQuizQuestion(quizId, question.id, modelId || undefined);
-      if (suggestion.question_text) question.question_text = suggestion.question_text;
-      if (suggestion.choices) question.choices = suggestion.choices;
-      if (suggestion.expected_answer) question.expected_answer = suggestion.expected_answer;
-      if (suggestion.explanation) question.explanation = suggestion.explanation;
-      notify.success("Question regenerated.");
-      return suggestion;
+      notify.success("Question regenerated. Review it, then save the quiz.");
+      return { ...suggestion, choices: normalizeChoices(suggestion.choices) };
     } catch (err) {
       notify.error("Failed to regenerate: " + (err.message || err));
       return null;
@@ -277,7 +336,10 @@ export function useQuizzesAdmin({ notify } = {}) {
       saveQuestion,
       deleteQuestion,
       moveQuestion,
+      attachQuestionImage,
+      removeQuestionImage,
       regenerateQuestion,
+      layoutTakesImage,
     },
   };
 }

@@ -183,7 +183,12 @@
         label="Title"
         :rules="[(r) => !!r || 'Title is required']"
       />
-      <v-textarea v-model="createForm.body_text" label="Body Text" rows="14" />
+      <v-textarea v-model="createForm.body_text" label="Body Text" rows="12" class="mb-3" />
+      <VoiceInstructionField
+        v-model="createForm.voice_instruction"
+        resource-type="info_card"
+        :document-id="createForm.document_id"
+      />
     </AppDialog>
 
     <!-- Edit / Expand Dialog: large split (content and image slots beside regeneration) -->
@@ -245,6 +250,12 @@
 
       <v-text-field v-model="editForm.title" label="Title" class="mb-3" />
       <v-textarea v-model="editForm.body_text" label="Body Text" rows="10" class="mb-3" />
+      <VoiceInstructionField
+        v-model="editForm.voice_instruction"
+        resource-type="info_card"
+        :document-id="editForm.document_id"
+        class="mb-3"
+      />
 
       <!-- Image Slots -->
       <v-card
@@ -348,6 +359,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from "vue";
+import { useRoute } from "vue-router";
 import {
   approveInfoCard,
   archiveInfoCard,
@@ -365,6 +377,7 @@ import { getKnowledgeDocument, getKnowledgeDocuments } from "@/services/modules/
 import { getKnowledgeLayouts } from "@/services/modules/layouts";
 import { getLLMModels } from "@/services/modules/pipeline";
 import { knowledgeStatusColor as statusColor } from "@/constants/knowledgeStatus.js";
+import VoiceInstructionField from "@/components/knowledge/VoiceInstructionField.vue";
 import { useNotify } from "@/composables/useNotify.js";
 import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
@@ -391,6 +404,7 @@ const showEditDialog = ref(false);
 const deleteDialog = ref(false);
 const deleteTarget = ref(null);
 const editingItem = ref(null);
+const route = useRoute();
 
 const headers = [
   { title: "Title", key: "title", sortable: true },
@@ -415,6 +429,7 @@ const createForm = reactive({
   layout_id: null,
   document_id: null,
   tags: [],
+  voice_instruction: "",
 });
 
 const editForm = reactive({
@@ -423,6 +438,7 @@ const editForm = reactive({
   layout_id: null,
   document_id: null,
   tags: [],
+  voice_instruction: "",
 });
 
 // -- slot management state
@@ -465,7 +481,8 @@ async function fetchCards() {
   try {
     const params = { limit: itemsPerPage.value, offset: (page.value - 1) * itemsPerPage.value };
     if (filters.status) params.status = filters.status;
-    if (filters.tags && filters.tags.length > 0) params.tags = filters.tags.join(",");
+    // Repeated tag=... parameters: a card matches when it carries any selected tag.
+    if (filters.tags?.length) params.tag = [...filters.tags];
     if (filters.document_id) params.document_id = filters.document_id;
     const res = await getInfoCards(params);
     cards.value = res.items ?? [];
@@ -516,6 +533,9 @@ async function generateFromDocument() {
     );
     if (suggestion.title) createForm.title = suggestion.title;
     if (suggestion.body_text) createForm.body_text = suggestion.body_text;
+    if (suggestion.voice_instruction && !createForm.voice_instruction) {
+      createForm.voice_instruction = suggestion.voice_instruction;
+    }
     notify.success("Info card draft generated from document.");
   } catch (err) {
     notify.error("Failed to generate: " + (err.message || err));
@@ -558,6 +578,7 @@ async function submitCreate() {
       layout_id: createForm.layout_id,
       document_id: createForm.document_id || undefined,
       tags: createForm.tags,
+      voice_instruction: createForm.voice_instruction,
     });
     notify.success("Info card created.");
     closeCreateDialog();
@@ -576,12 +597,14 @@ function closeCreateDialog() {
   createForm.layout_id = null;
   createForm.document_id = null;
   createForm.tags = [];
+  createForm.voice_instruction = "";
   generateModelId.value = "";
 }
 
 async function editCard(item) {
-  // The form is filled from the full card. List rows carry no body_text, so filling from
-  // the row opened the editor blank, and saving it erased the card's text.
+  // The form is filled from the full card. List rows carry no body_text or
+  // voice_instruction, so filling from the row opened the editor blank, and saving it
+  // erased the card's text.
   let full;
   try {
     full = await getInfoCard(item.id);
@@ -595,6 +618,7 @@ async function editCard(item) {
   editForm.layout_id = full.layout_id ?? null;
   editForm.document_id = full.document_id ?? null;
   editForm.tags = [...(full.tags ?? [])];
+  editForm.voice_instruction = full.voice_instruction ?? "";
   editGenerateModelId.value = "";
   editCardSlots.value = [];
   docImagesForPick.value = [];
@@ -713,6 +737,7 @@ async function submitEdit() {
       layout_id: editForm.layout_id,
       document_id: editForm.document_id || undefined,
       tags: editForm.tags,
+      voice_instruction: editForm.voice_instruction,
     });
     notify.success("Info card updated.");
     closeEditDialog();
@@ -784,5 +809,11 @@ onMounted(() => {
   fetchLayouts();
   fetchDocuments();
   fetchLLMModels();
+  // Set by the document page's "Create info card" action (?suggest_doc_id=<id>).
+  const docId = Number(route.query.suggest_doc_id);
+  if (Number.isInteger(docId) && docId > 0) {
+    createForm.document_id = docId;
+    showCreateDialog.value = true;
+  }
 });
 </script>

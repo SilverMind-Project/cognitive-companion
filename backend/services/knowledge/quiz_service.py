@@ -20,6 +20,7 @@ from backend.models.knowledge import (
 )
 from backend.services.knowledge.image_pipeline import ImagePipeline
 from backend.services.knowledge.layout_registry import LayoutRegistry
+from backend.services.knowledge.quiz_question_list import QuizQuestionListMixin
 from backend.services.knowledge.quiz_questions import QuizQuestionsMixin, quiz_prefix
 from backend.services.knowledge.references import (
     rule_ids_referencing,
@@ -50,7 +51,7 @@ def _approval_problems(questions: list[QuizQuestion]) -> list[str]:
     return problems
 
 
-class QuizService(QuizQuestionsMixin):
+class QuizService(QuizQuestionsMixin, QuizQuestionListMixin):
     """Business logic for quizzes; question operations live in :class:`QuizQuestionsMixin`."""
 
     def __init__(
@@ -126,7 +127,7 @@ class QuizService(QuizQuestionsMixin):
         self,
         *,
         status: str | None = None,
-        tag: str | None = None,
+        tags: list[str] | None = None,
         document_id: int | None = None,
         limit: int = 50,
         offset: int = 0,
@@ -138,9 +139,11 @@ class QuizService(QuizQuestionsMixin):
             if status:
                 stmt = stmt.where(Quiz.status == status)
                 count_stmt = count_stmt.where(Quiz.status == status)
-            if tag:
-                stmt = stmt.where(Quiz.tags.contains([tag]))
-                count_stmt = count_stmt.where(Quiz.tags.contains([tag]))
+            if tags:
+                # Any selected tag matches (array overlap), the same as the knowledge
+                # query step's tag filter.
+                stmt = stmt.where(Quiz.tags.overlap(tags))
+                count_stmt = count_stmt.where(Quiz.tags.overlap(tags))
             if document_id is not None:
                 stmt = stmt.where(Quiz.document_id == document_id)
                 count_stmt = count_stmt.where(Quiz.document_id == document_id)

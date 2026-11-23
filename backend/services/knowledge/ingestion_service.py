@@ -178,7 +178,7 @@ class KnowledgeIngestionService(DocumentEmbeddingMixin, DocumentImagesMixin):
         self,
         *,
         status: str | None = None,
-        tag: str | None = None,
+        tags: list[str] | None = None,
         q: str | None = None,
         limit: int = 50,
         offset: int = 0,
@@ -191,9 +191,11 @@ class KnowledgeIngestionService(DocumentEmbeddingMixin, DocumentImagesMixin):
             if status:
                 stmt = stmt.where(KnowledgeDocument.status == status)
                 count_stmt = count_stmt.where(KnowledgeDocument.status == status)
-            if tag:
-                stmt = stmt.where(KnowledgeDocument.tags.contains([tag]))
-                count_stmt = count_stmt.where(KnowledgeDocument.tags.contains([tag]))
+            if tags:
+                # Any selected tag matches (array overlap), the same as the knowledge
+                # query step's tag filter.
+                stmt = stmt.where(KnowledgeDocument.tags.overlap(tags))
+                count_stmt = count_stmt.where(KnowledgeDocument.tags.overlap(tags))
             if q:
                 search = f"%{q}%"
                 stmt = stmt.where(

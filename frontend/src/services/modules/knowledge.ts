@@ -84,3 +84,9 @@ export const deleteKnowledgeDocumentImage = (docId: number, imgId: number) =>
       params: { path: { doc_id: docId, img_id: imgId } },
     }),
   );
+
+/** Default voice instructions per delivery type (shown when a resource leaves its own blank). */
+export const getVoiceDefaults = () => unwrap(client.GET("/api/v1/knowledge/voice-defaults", {}));
+
+/** Per-tag document and quiz counts with the share of graded quiz answers that matched. */
+export const getTagAnalytics = () => unwrap(client.GET("/api/v1/knowledge/analytics/tags", {}));

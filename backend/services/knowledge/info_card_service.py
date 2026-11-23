@@ -95,7 +95,7 @@ class InfoCardService(InfoCardSlotsMixin):
         self,
         *,
         status: str | None = None,
-        tag: str | None = None,
+        tags: list[str] | None = None,
         document_id: int | None = None,
         limit: int = 50,
         offset: int = 0,
@@ -107,9 +107,11 @@ class InfoCardService(InfoCardSlotsMixin):
             if status:
                 stmt = stmt.where(InfoCard.status == status)
                 count_stmt = count_stmt.where(InfoCard.status == status)
-            if tag:
-                stmt = stmt.where(InfoCard.tags.contains([tag]))
-                count_stmt = count_stmt.where(InfoCard.tags.contains([tag]))
+            if tags:
+                # Any selected tag matches (array overlap), the same as the knowledge
+                # query step's tag filter.
+                stmt = stmt.where(InfoCard.tags.overlap(tags))
+                count_stmt = count_stmt.where(InfoCard.tags.overlap(tags))
             if document_id is not None:
                 stmt = stmt.where(InfoCard.document_id == document_id)
                 count_stmt = count_stmt.where(InfoCard.document_id == document_id)

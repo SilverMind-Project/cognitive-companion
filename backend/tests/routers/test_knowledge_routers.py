@@ -35,6 +35,7 @@ def client(db_factory) -> TestClient:
     image_pipeline.validate_upload.return_value = (400, 300)
     image_pipeline.render_variants = AsyncMock(return_value={})
     image_pipeline.purge_prefix = AsyncMock()
+    image_pipeline.purge_objects = AsyncMock()
 
     layouts = LayoutRegistry.load("config/knowledge_layouts.yaml")
 
@@ -222,3 +223,98 @@ def test_knowledge_interactions_router_endpoints(client: TestClient) -> None:
     tags = client.get("/api/v1/knowledge/analytics/tags")
     assert tags.status_code == 200
     assert "tags" in tags.json()
+
+
+def _mc_body(text: str, choices: list[dict] | None = None) -> dict:
+    return {
+        "question_type": "multiple_choice",
+        "question_text": text,
+        "choices": choices
+        or [{"id": "a", "text": "Yes", "is_correct": True}, {"id": "b", "text": "No"}],
+    }
+
+
+def test_quiz_created_with_its_questions_in_one_request(client: TestClient) -> None:
+    resp = client.post(
+        "/api/v1/quizzes",
+        json={"title": "Family", "questions": [_mc_body("Q1"), _mc_body("Q2")]},
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert [q["question_text"] for q in resp.json()["questions"]] == ["Q1", "Q2"]
+
+
+@pytest.mark.parametrize(
+    "choices",
+    [
+        [{"id": "", "text": "Yes"}],
+        [{"id": "  ", "text": "Yes"}],
+        [{"id": "a", "text": "Yes"}, {"id": "A", "text": "No"}],
+    ],
+)
+def test_blank_or_repeated_choice_ids_are_rejected(client: TestClient, choices) -> None:
+    """A null or empty id was the manual-authoring 422 the editor kept hitting; the server
+    now names the problem instead of accepting ids no answer can refer to."""
+    quiz = client.post("/api/v1/quizzes", json={"title": "Family"}).json()
+
+    resp = client.post(f"/api/v1/quizzes/{quiz['id']}/questions", json=_mc_body("Q", choices))
+
+    assert resp.status_code == 422
+
+
+def test_replace_questions_route_saves_the_editor_list(client: TestClient) -> None:
+    quiz = client.post(
+        "/api/v1/quizzes", json={"title": "Family", "questions": [_mc_body("Q1"), _mc_body("Q2")]}
+    ).json()
+    _q1, q2 = quiz["questions"]
+
+    resp = client.put(
+        f"/api/v1/quizzes/{quiz['id']}/questions",
+        json={"questions": [{**_mc_body("Q2"), "id": q2["id"]}, _mc_body("New")]},
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert [q["question_text"] for q in resp.json()["questions"]] == ["Q2", "New"]
+
+
+def test_replace_that_removes_needs_delete_permission(client: TestClient) -> None:
+    quiz = client.post(
+        "/api/v1/quizzes", json={"title": "Family", "questions": [_mc_body("Q1"), _mc_body("Q2")]}
+    ).json()
+    q1 = quiz["questions"][0]
+
+    async def write_only() -> AuthContext:
+        return AuthContext(key="w", name="Writer", roles=[], tokens=frozenset({"quizzes:write"}))
+
+    client.app.dependency_overrides[get_auth_context] = write_only
+    resp = client.put(
+        f"/api/v1/quizzes/{quiz['id']}/questions",
+        json={"questions": [{**_mc_body("Q1"), "id": q1["id"]}]},
+    )
+
+    assert resp.status_code == 403
+    assert "quizzes:delete" in resp.text
+
+
+def test_incomplete_reorder_is_422_not_500(client: TestClient) -> None:
+    quiz = client.post(
+        "/api/v1/quizzes", json={"title": "Family", "questions": [_mc_body("Q1"), _mc_body("Q2")]}
+    ).json()
+    q2 = quiz["questions"][1]
+
+    resp = client.post(
+        f"/api/v1/quizzes/{quiz['id']}/questions/reorder",
+        json={"items": [{"id": q2["id"], "ord": 0}]},
+    )
+
+    assert resp.status_code == 422
+
+
+def test_repeated_tag_parameters_match_any_tag(client: TestClient) -> None:
+    for title, tags in (("Meds", ["medication"]), ("Kin", ["family"]), ("Other", ["garden"])):
+        client.post("/api/v1/quizzes", json={"title": title, "tags": tags})
+
+    resp = client.get("/api/v1/quizzes", params=[("tag", "medication"), ("tag", "family")])
+
+    assert sorted(q["title"] for q in resp.json()["items"]) == ["Kin", "Meds"]
+    assert resp.json()["total"] == 2

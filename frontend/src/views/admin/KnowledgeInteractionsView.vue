@@ -4,198 +4,164 @@
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Knowledge Interactions</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">
-          Queries, quiz sessions, and info card deliveries.
+          What the senior asked, the quizzes they took, and the cards they were shown.
         </div>
       </div>
     </div>
 
     <v-tabs v-model="activeTab" color="primary" class="mb-4">
-      <v-tab value="queries">Knowledge Queries</v-tab>
+      <v-tab value="queries">Questions Asked</v-tab>
       <v-tab value="sessions">Quiz Sessions</v-tab>
       <v-tab value="deliveries">Info Card Deliveries</v-tab>
+      <v-tab value="analytics" data-test="tab-analytics">Tag Analytics</v-tab>
     </v-tabs>
 
     <v-window v-model="activeTab">
-      <!-- Queries Tab -->
-      <v-window-item value="queries">
+      <v-window-item v-for="tab in LIST_TABS" :key="tab.name" :value="tab.name">
         <v-card variant="tonal" class="pa-2 mb-2">
           <v-row dense align="center">
             <v-col cols="auto">
               <v-text-field
-                v-model="queryDateRange.start"
+                v-model="state[tab.name].dateFrom"
                 label="From"
                 type="date"
                 density="compact"
                 hide-details
+                :data-test="`${tab.name}-from`"
               />
             </v-col>
             <v-col cols="auto">
               <v-text-field
-                v-model="queryDateRange.end"
+                v-model="state[tab.name].dateTo"
                 label="To"
                 type="date"
                 density="compact"
                 hide-details
+                :data-test="`${tab.name}-to`"
               />
             </v-col>
             <v-col cols="auto">
-              <v-btn size="small" variant="outlined" @click="fetchQueries">Apply</v-btn>
+              <v-btn
+                size="small"
+                variant="outlined"
+                :data-test="`${tab.name}-apply`"
+                @click="actions.applyDates(tab.name)"
+              >
+                Apply
+              </v-btn>
             </v-col>
           </v-row>
         </v-card>
 
         <v-card class="glass-card">
-          <v-data-table
-            :headers="queryHeaders"
-            :items="queries"
-            :loading="queriesLoading"
-            :items-per-page="15"
+          <v-data-table-server
+            v-model:expanded="expandedSessions"
+            :headers="tab.headers"
+            :items="state[tab.name].items"
+            :items-length="state[tab.name].total"
+            :items-per-page="state[tab.name].itemsPerPage"
+            :page="state[tab.name].page"
+            :loading="state[tab.name].loading"
+            :show-expand="tab.name === 'sessions'"
+            item-value="id"
+            @update:options="(opts) => actions.onOptions(tab.name, opts)"
+            @update:expanded="onSessionsExpanded"
           >
+            <template v-for="key in tab.timeKeys" :key="key" #[`item.${key}`]="{ item }">
+              {{ item[key] ? formatDateTime(item[key]) : "-" }}
+            </template>
             <template #[`item.query_text`]="{ item }">
               {{ truncate(item.query_text, 80) }}
             </template>
-
-            <template #no-data>
-              <div class="pa-6 text-center">
-                <v-card flat>
-                  <v-card-text class="text-medium-emphasis text-h6">No data yet</v-card-text>
-                  <v-card-text class="text-medium-emphasis">
-                    Knowledge queries will appear here once seniors begin interacting with the
-                    system (Phase 2-3).
-                  </v-card-text>
-                </v-card>
-              </div>
+            <template #[`item.latency_ms`]="{ item }">
+              {{ formatLatency(item.latency_ms) }}
             </template>
-          </v-data-table>
-        </v-card>
-      </v-window-item>
+            <template #[`item.channels`]="{ item }">
+              {{ (item.channels || []).join(", ") }}
+            </template>
 
-      <!-- Quiz Sessions Tab -->
-      <v-window-item value="sessions">
-        <v-card variant="tonal" class="pa-2 mb-2">
-          <v-row dense align="center">
-            <v-col cols="auto">
-              <v-text-field
-                v-model="sessionDateRange.start"
-                label="From"
-                type="date"
-                density="compact"
-                hide-details
-              />
-            </v-col>
-            <v-col cols="auto">
-              <v-text-field
-                v-model="sessionDateRange.end"
-                label="To"
-                type="date"
-                density="compact"
-                hide-details
-              />
-            </v-col>
-            <v-col cols="auto">
-              <v-btn size="small" variant="outlined" @click="fetchSessions">Apply</v-btn>
-            </v-col>
-          </v-row>
-        </v-card>
-
-        <v-card class="glass-card">
-          <v-data-table
-            :headers="sessionHeaders"
-            :items="sessions"
-            :loading="sessionsLoading"
-            :items-per-page="15"
-            :show-expand="true"
-            item-value="id"
-            @click:row="toggleSessionExpand"
-          >
-            <template #expanded-row="{ item }">
-              <td :colspan="sessionHeaders.length" class="pa-4">
+            <template #expanded-row="{ columns, item }">
+              <td :colspan="columns.length" class="pa-4">
                 <v-progress-circular
-                  v-if="loadingSessionDetail === item.id"
+                  v-if="state.loadingSessionId === item.id"
                   indeterminate
                   size="20"
                 />
-                <div v-else-if="item._details">
-                  <div v-for="resp in item._details.responses || []" :key="resp.id" class="mb-3">
+                <template v-else-if="state.sessionDetails[item.id]">
+                  <div
+                    v-for="resp in state.sessionDetails[item.id].responses || []"
+                    :key="resp.id"
+                    class="mb-3"
+                    data-test="session-response"
+                  >
                     <v-card variant="outlined" class="pa-2">
                       <div><strong>Q:</strong> {{ resp.question_text }}</div>
-                      <div><strong>A:</strong> {{ resp.answer }}</div>
                       <div>
-                        <v-chip :color="resp.is_correct ? 'green' : 'red'" size="x-small">
-                          {{ resp.is_correct ? "Correct" : "Incorrect" }}
+                        <strong>A:</strong>
+                        {{ resp.chosen_choice_text || resp.open_ended_text || "-" }}
+                      </div>
+                      <div class="mt-1">
+                        <v-chip :color="answerChip(resp).color" size="x-small">
+                          {{ answerChip(resp).label }}
                         </v-chip>
                         <span class="ml-2 text-caption text-medium-emphasis">
-                          {{ resp.timing_ms ? resp.timing_ms + "ms" : "" }}
+                          {{ resp.channel }} · {{ formatLatency(resp.latency_ms) }}
                         </span>
                       </div>
                     </v-card>
                   </div>
-                  <div v-if="!item._details.responses?.length" class="text-medium-emphasis">
-                    No responses recorded.
+                  <div
+                    v-if="!state.sessionDetails[item.id].responses?.length"
+                    class="text-medium-emphasis"
+                  >
+                    No answers recorded.
                   </div>
-                </div>
-                <div v-else class="text-medium-emphasis">No detail loaded.</div>
+                </template>
               </td>
             </template>
 
             <template #no-data>
-              <div class="pa-6 text-center">
-                <v-card flat>
-                  <v-card-text class="text-medium-emphasis text-h6">No data yet</v-card-text>
-                  <v-card-text class="text-medium-emphasis">
-                    Quiz sessions will appear here once seniors begin taking quizzes (Phase 2-3).
-                  </v-card-text>
-                </v-card>
-              </div>
+              <div class="pa-6 text-center text-medium-emphasis">{{ tab.empty }}</div>
             </template>
-          </v-data-table>
+          </v-data-table-server>
         </v-card>
       </v-window-item>
 
-      <!-- Deliveries Tab -->
-      <v-window-item value="deliveries">
-        <v-card variant="tonal" class="pa-2 mb-2">
-          <v-row dense align="center">
-            <v-col cols="auto">
-              <v-text-field
-                v-model="deliveryDateRange.start"
-                label="From"
-                type="date"
-                density="compact"
-                hide-details
-              />
-            </v-col>
-            <v-col cols="auto">
-              <v-text-field
-                v-model="deliveryDateRange.end"
-                label="To"
-                type="date"
-                density="compact"
-                hide-details
-              />
-            </v-col>
-            <v-col cols="auto">
-              <v-btn size="small" variant="outlined" @click="fetchDeliveries">Apply</v-btn>
-            </v-col>
-          </v-row>
+      <v-window-item value="analytics">
+        <v-card class="glass-card pa-4 mb-4">
+          <div class="text-subtitle-1 mb-1">Answers correct by topic</div>
+          <div class="text-caption text-medium-emphasis mb-3">
+            Share of graded quiz answers that matched, per tag, across completed sessions. A topic
+            without graded answers is not shown.
+          </div>
+          <div style="height: 260px">
+            <CcBarChart
+              :categories="scoredTags.map((t) => t.tag)"
+              :series="[{ name: 'Correct', values: scoredTags.map((t) => t.avg_quiz_score_pct) }]"
+              unit="%"
+              :loading="state.analytics.loading"
+              :error="state.analytics.error"
+            >
+              <template #empty>
+                <div class="pa-6 text-center text-medium-emphasis">No graded quiz answers yet.</div>
+              </template>
+            </CcBarChart>
+          </div>
         </v-card>
-
         <v-card class="glass-card">
           <v-data-table
-            :headers="deliveryHeaders"
-            :items="deliveries"
-            :loading="deliveriesLoading"
-            :items-per-page="15"
+            :headers="ANALYTICS_HEADERS"
+            :items="state.analytics.tags"
+            :loading="state.analytics.loading"
+            item-value="tag"
+            data-test="analytics-table"
           >
+            <template #[`item.avg_quiz_score_pct`]="{ item }">
+              {{ item.avg_quiz_score_pct == null ? "-" : `${item.avg_quiz_score_pct}%` }}
+            </template>
             <template #no-data>
-              <div class="pa-6 text-center">
-                <v-card flat>
-                  <v-card-text class="text-medium-emphasis text-h6">No data yet</v-card-text>
-                  <v-card-text class="text-medium-emphasis">
-                    Info card deliveries will appear here once the delivery engine is active (Phase
-                    2-3).
-                  </v-card-text>
-                </v-card>
+              <div class="pa-6 text-center text-medium-emphasis">
+                Tag documents and quizzes to see them here.
               </div>
             </template>
           </v-data-table>
@@ -206,132 +172,98 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from "vue";
-import {
-  getInfoCardDeliveries,
-  getQuizSession,
-  getQuizSessions,
-  getSeniorKnowledgeQueries,
-} from "@/services/modules/interactions";
+import { computed, onMounted, ref, watch } from "vue";
 import { useNotify } from "@/composables/useNotify.js";
-import { DATETIME_COLUMN_WIDTH } from "@/services/timezone.js";
+import { useKnowledgeInteractions } from "@/composables/useKnowledgeInteractions.js";
+import { DATETIME_COLUMN_WIDTH, formatDateTime } from "@/services/timezone.js";
+import CcBarChart from "@/components/charts/CcBarChart.vue";
 
 const { notify } = useNotify();
+const { state, actions } = useKnowledgeInteractions({ notify });
 
 const activeTab = ref("queries");
+const expandedSessions = ref([]);
 
-// --- Queries ---
-const queries = ref([]);
-const queriesLoading = ref(false);
-const queryHeaders = [
-  { title: "Asked At", key: "asked_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
-  { title: "Senior ID", key: "senior_id", sortable: true },
-  { title: "Query", key: "query_text", sortable: false },
-  { title: "Answered Via", key: "answered_via", sortable: true },
-  { title: "Channel", key: "channel", sortable: true },
-  { title: "Latency (ms)", key: "latency_ms", sortable: true },
-];
-const queryDateRange = reactive({ start: "", end: "" });
+const time = (title, key) => ({ title, key, sortable: false, width: DATETIME_COLUMN_WIDTH });
 
-// --- Sessions ---
-const sessions = ref([]);
-const sessionsLoading = ref(false);
-const loadingSessionDetail = ref(null);
-const sessionHeaders = [
-  { title: "Started At", key: "started_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
-  { title: "Quiz ID", key: "quiz_id", sortable: true },
-  { title: "Senior ID", key: "senior_id", sortable: true },
-  { title: "Status", key: "status", sortable: true },
-  { title: "Responses", key: "response_count", sortable: false, width: 90 },
+const LIST_TABS = [
+  {
+    name: "queries",
+    timeKeys: ["asked_at"],
+    empty: "Questions the senior asks the companion will appear here.",
+    headers: [
+      time("Asked At", "asked_at"),
+      { title: "Resident", key: "senior_id", sortable: false },
+      { title: "Question", key: "query_text", sortable: false },
+      { title: "Answered From", key: "answered_via", sortable: false },
+      { title: "Channel", key: "channel", sortable: false },
+      { title: "Response Time", key: "latency_ms", sortable: false },
+    ],
+  },
+  {
+    name: "sessions",
+    timeKeys: ["started_at", "completed_at"],
+    empty: "Quiz sessions will appear here once a rule delivers a quiz.",
+    headers: [
+      time("Started At", "started_at"),
+      { title: "Quiz ID", key: "quiz_id", sortable: false },
+      { title: "Resident", key: "senior_id", sortable: false },
+      { title: "Status", key: "status", sortable: false },
+      { title: "Answers", key: "response_count", sortable: false, width: 90 },
+      time("Ended At", "completed_at"),
+    ],
+  },
+  {
+    name: "deliveries",
+    timeKeys: ["delivered_at", "viewed_at", "dismissed_at"],
+    empty: "Info cards will appear here once a rule delivers one.",
+    headers: [
+      time("Delivered At", "delivered_at"),
+      { title: "Info Card ID", key: "info_card_id", sortable: false },
+      { title: "Channels", key: "channels", sortable: false },
+      time("Viewed At", "viewed_at"),
+      time("Dismissed At", "dismissed_at"),
+      { title: "Dismissed By", key: "dismissed_by", sortable: false },
+    ],
+  },
 ];
-const sessionDateRange = reactive({ start: "", end: "" });
 
-// --- Deliveries ---
-const deliveries = ref([]);
-const deliveriesLoading = ref(false);
-const deliveryHeaders = [
-  { title: "Delivered At", key: "delivered_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
-  { title: "Info Card ID", key: "info_card_id", sortable: true },
-  { title: "Channels", key: "channels", sortable: false },
-  { title: "Viewed At", key: "viewed_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
-  { title: "Dismissed At", key: "dismissed_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
-  { title: "Dismissed By", key: "dismissed_by", sortable: false },
+const ANALYTICS_HEADERS = [
+  { title: "Tag", key: "tag" },
+  { title: "Documents", key: "document_count" },
+  { title: "Quizzes", key: "quiz_count" },
+  { title: "Answers Correct", key: "avg_quiz_score_pct" },
 ];
-const deliveryDateRange = reactive({ start: "", end: "" });
+
+const scoredTags = computed(() => state.analytics.tags.filter((t) => t.avg_quiz_score_pct != null));
 
 function truncate(text, len) {
   if (!text) return "";
   return text.length > len ? text.slice(0, len) + "..." : text;
 }
 
-function buildDateParams(range) {
-  const params = {};
-  if (range.start) params.start_date = range.start;
-  if (range.end) params.end_date = range.end;
-  return params;
+function formatLatency(ms) {
+  if (ms == null) return "-";
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
-// --- Queries ---
-async function fetchQueries() {
-  queriesLoading.value = true;
-  try {
-    const params = buildDateParams(queryDateRange);
-    const res = await getSeniorKnowledgeQueries(params);
-    queries.value = res.items;
-  } catch (err) {
-    notify.error("Failed to load queries: " + (err.message || err));
-  } finally {
-    queriesLoading.value = false;
-  }
+// Caregiver view: is_correct is recorded even in gentle mode. Null means the answer was not
+// graded (an open answer with no expected answer, or grading failed), not "wrong".
+function answerChip(resp) {
+  if (resp.is_correct === true) return { label: "Correct", color: "success" };
+  if (resp.is_correct === false) return { label: "Not correct", color: "warning" };
+  return { label: "Not graded", color: "default" };
 }
 
-// --- Sessions ---
-async function fetchSessions() {
-  sessionsLoading.value = true;
-  try {
-    const params = buildDateParams(sessionDateRange);
-    const res = await getQuizSessions(params);
-    sessions.value = res.items;
-  } catch (err) {
-    notify.error("Failed to load sessions: " + (err.message || err));
-  } finally {
-    sessionsLoading.value = false;
-  }
+function onSessionsExpanded(ids) {
+  for (const id of ids) actions.loadSessionDetail(id);
 }
 
-async function toggleSessionExpand(event, { item }) {
-  if (item._details) {
-    item._details = null;
-    return;
-  }
-  loadingSessionDetail.value = item.id;
-  try {
-    const res = await getQuizSession(item.id);
-    item._details = res;
-  } catch (err) {
-    notify.error("Failed to load session detail: " + (err.message || err));
-  } finally {
-    loadingSessionDetail.value = null;
-  }
-}
-
-// --- Deliveries ---
-async function fetchDeliveries() {
-  deliveriesLoading.value = true;
-  try {
-    const params = buildDateParams(deliveryDateRange);
-    const res = await getInfoCardDeliveries(params);
-    deliveries.value = res.items;
-  } catch (err) {
-    notify.error("Failed to load deliveries: " + (err.message || err));
-  } finally {
-    deliveriesLoading.value = false;
-  }
-}
+watch(activeTab, (tab) => {
+  if (tab === "analytics" && !state.analytics.tags.length) actions.loadTagAnalytics();
+});
 
 onMounted(() => {
-  fetchQueries();
-  fetchSessions();
-  fetchDeliveries();
+  for (const tab of LIST_TABS) actions.load(tab.name);
 });
 </script>

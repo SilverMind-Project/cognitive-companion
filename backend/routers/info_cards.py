@@ -49,7 +49,9 @@ async def create_info_card(
 @router.get("", response_model=InfoCardListResponse)
 async def list_info_cards(
     status: str | None = Query(None),
-    tag: str | None = Query(None),
+    tag: list[str] | None = Query(
+        None, description="Matches items carrying any of these tags (repeat the parameter)."
+    ),
     document_id: int | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -58,7 +60,7 @@ async def list_info_cards(
 ) -> dict[str, Any]:
     return svc.list_cards(
         status=status,
-        tag=tag,
+        tags=tag,
         document_id=document_id,
         limit=limit,
         offset=offset,

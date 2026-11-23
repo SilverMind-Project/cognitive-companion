@@ -12223,6 +12223,7 @@
         "additionalProperties": false,
         "properties": {
           "id": {
+            "minLength": 1,
             "title": "Id",
             "type": "string"
           },
@@ -12266,6 +12267,14 @@
             "default": "quiz_with_optional_image",
             "title": "Question Layout Id",
             "type": "string"
+          },
+          "questions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/QuizQuestionCreate"
+            },
+            "title": "Questions",
+            "type": "array"
           },
           "tags": {
             "default": [],
@@ -12570,6 +12579,25 @@
         "title": "QuizQuestionCreate",
         "type": "object"
       },
+      "QuizQuestionOrder": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ord": {
+            "title": "Ord",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "ord"
+        ],
+        "title": "QuizQuestionOrder",
+        "type": "object"
+      },
       "QuizQuestionOut": {
         "properties": {
           "choices": {
@@ -12630,13 +12658,11 @@
       },
       "QuizQuestionReorder": {
         "additionalProperties": false,
+        "description": "The complete new order: every question of the quiz, ords ``0..N-1``.",
         "properties": {
           "items": {
             "items": {
-              "additionalProperties": {
-                "type": "integer"
-              },
-              "type": "object"
+              "$ref": "#/components/schemas/QuizQuestionOrder"
             },
             "title": "Items",
             "type": "array"
@@ -12761,6 +12787,74 @@
           }
         },
         "title": "QuizQuestionUpdate",
+        "type": "object"
+      },
+      "QuizQuestionUpsert": {
+        "additionalProperties": false,
+        "description": "One question in a full question-list replacement; ``id`` names an existing one.",
+        "properties": {
+          "choices": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/QuizChoice"
+            },
+            "title": "Choices",
+            "type": "array"
+          },
+          "expected_answer": {
+            "default": "",
+            "title": "Expected Answer",
+            "type": "string"
+          },
+          "explanation": {
+            "default": "",
+            "title": "Explanation",
+            "type": "string"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "question_text": {
+            "title": "Question Text",
+            "type": "string"
+          },
+          "question_type": {
+            "pattern": "^(multiple_choice|open_ended)$",
+            "title": "Question Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question_type",
+          "question_text"
+        ],
+        "title": "QuizQuestionUpsert",
+        "type": "object"
+      },
+      "QuizQuestionsReplace": {
+        "additionalProperties": false,
+        "description": "The quiz's complete question list, in order. Questions left out are deleted.",
+        "properties": {
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuizQuestionUpsert"
+            },
+            "title": "Questions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "questions"
+        ],
+        "title": "QuizQuestionsReplace",
         "type": "object"
       },
       "QuizResponseOut": {
@@ -31783,18 +31877,23 @@
             }
           },
           {
+            "description": "Matches items carrying any of these tags (repeat the parameter).",
             "in": "query",
             "name": "tag",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
                 }
               ],
+              "description": "Matches items carrying any of these tags (repeat the parameter).",
               "title": "Tag"
             }
           },
@@ -33098,18 +33197,23 @@
             }
           },
           {
+            "description": "Matches items carrying any of these tags (repeat the parameter).",
             "in": "query",
             "name": "tag",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
                 }
               ],
+              "description": "Matches items carrying any of these tags (repeat the parameter).",
               "title": "Tag"
             }
           },
@@ -35870,18 +35974,23 @@
             }
           },
           {
+            "description": "Matches items carrying any of these tags (repeat the parameter).",
             "in": "query",
             "name": "tag",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
                 }
               ],
+              "description": "Matches items carrying any of these tags (repeat the parameter).",
               "title": "Tag"
             }
           },
@@ -36460,6 +36569,62 @@
           }
         ],
         "summary": "Create Question",
+        "tags": [
+          "quizzes"
+        ]
+      },
+      "put": {
+        "description": "Replace the quiz's ordered question list in one transaction (the quiz editor's save).\n\nLeaving a question out deletes it, which also needs ``quizzes:delete``: write access\nalone must not reach what the delete route guards.",
+        "operationId": "replace_questions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "quiz_id",
+            "required": true,
+            "schema": {
+              "title": "Quiz Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuizQuestionsReplace"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuizOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Replace Questions",
         "tags": [
           "quizzes"
         ]

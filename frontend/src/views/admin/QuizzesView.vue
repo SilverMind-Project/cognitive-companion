@@ -122,11 +122,15 @@
               :index="idx"
               :total="(state.expandedQuizzes[item.id]?.questions || []).length"
               :show-reorder="true"
+              :image-enabled="actions.layoutTakesImage(state.expandedQuizzes[item.id])"
+              :document-images="state.documentImages[item.id] || []"
               card-variant="flat"
               card-class="mb-4 pa-2"
               @change="(updated) => actions.saveQuestion(item, updated)"
               @move="(dir) => actions.moveQuestion(item, idx, dir)"
               @delete="confirmDeleteQuestion(item, q)"
+              @attach-image="(img) => actions.attachQuestionImage(item, q, img)"
+              @remove-image="actions.removeQuestionImage(item, q)"
             />
             <v-btn
               color="primary"
@@ -170,6 +174,7 @@
       v-model="showSuggestDialog"
       :document-options="state.documents"
       :llm-model-items="state.llmModelItems"
+      :initial-document-id="suggestDocumentId"
       @suggested="onSuggestedQuiz"
     />
 
@@ -197,6 +202,7 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
+import { useRoute } from "vue-router";
 import { getQuiz } from "@/services/modules/quizzes";
 import { knowledgeStatusColor as statusColor } from "@/constants/knowledgeStatus.js";
 import { useNotify } from "@/composables/useNotify.js";
@@ -229,6 +235,9 @@ const editingQuiz = ref(null);
 const formDialogRef = ref(null);
 const deleteDialog = ref(false);
 const deleteTarget = ref(null);
+const route = useRoute();
+// Set by the document page's "Create quiz" action (?suggest_doc_id=<id>).
+const suggestDocumentId = ref(null);
 
 const headers = [
   { title: "Title", key: "title", sortable: true },
@@ -266,9 +275,10 @@ function onSuggestedQuiz(payload) {
   formDialogRef.value?.applySuggestion(payload);
 }
 
-async function onRegenerateInDialog({ question, modelId }) {
+async function onRegenerateInDialog({ index, question, modelId }) {
   if (!editingQuiz.value?.id) return;
-  await actions.regenerateQuestion(editingQuiz.value.id, question, modelId);
+  const draft = await actions.regenerateQuestion(editingQuiz.value.id, question, modelId);
+  if (draft) formDialogRef.value?.applyRegenerated(index, draft);
 }
 
 async function confirmDeleteQuestion(quiz, question) {
@@ -301,5 +311,10 @@ onMounted(() => {
   actions.fetchLayouts();
   actions.fetchDocuments();
   actions.fetchLLMModels();
+  const docId = Number(route.query.suggest_doc_id);
+  if (Number.isInteger(docId) && docId > 0) {
+    suggestDocumentId.value = docId;
+    showSuggestDialog.value = true;
+  }
 });
 </script>

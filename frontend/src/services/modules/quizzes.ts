@@ -77,6 +77,18 @@ export const reorderQuizQuestions = (
     }),
   );
 
+/** Save the quiz editor's complete, ordered question list in one transaction. */
+export const replaceQuizQuestions = (
+  quizId: number,
+  questions: Schemas["QuizQuestionsReplace"]["questions"],
+) =>
+  unwrap(
+    client.PUT("/api/v1/quizzes/{quiz_id}/questions", {
+      params: { path: { quiz_id: quizId } },
+      body: { questions },
+    }),
+  );
+
 export const setQuizQuestionImage = (quizId: number, qid: number, formData: FormData) =>
   requestForm(`/api/v1/quizzes/${quizId}/questions/${qid}/image`, "PUT", formData);
 

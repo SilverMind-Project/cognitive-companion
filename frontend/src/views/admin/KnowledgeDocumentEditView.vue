@@ -39,7 +39,35 @@
         Restore
       </v-btn>
       <v-btn color="error" variant="text" @click="confirmDelete"> Delete </v-btn>
-      <v-btn variant="text" @click="reEmbed"> Re-embed </v-btn>
+      <v-btn
+        variant="text"
+        :loading="reembedding"
+        :disabled="document?.status === 'archived'"
+        data-test="reembed"
+        @click="reEmbed"
+      >
+        Re-embed
+      </v-btn>
+      <v-btn
+        variant="tonal"
+        color="secondary"
+        prepend-icon="mdi-card-text-outline"
+        :disabled="!document"
+        data-test="create-card"
+        @click="createFromDocument('admin-info-cards')"
+      >
+        Create info card
+      </v-btn>
+      <v-btn
+        variant="tonal"
+        color="secondary"
+        prepend-icon="mdi-help-box-outline"
+        :disabled="!document"
+        data-test="create-quiz"
+        @click="createFromDocument('admin-quizzes')"
+      >
+        Create quiz
+      </v-btn>
     </div>
 
     <v-card v-if="loading" class="pa-8 text-center">
@@ -173,6 +201,7 @@ import {
   deleteKnowledgeDocument,
   deleteKnowledgeDocumentImage,
   getKnowledgeDocument,
+  reembedKnowledgeDocument,
   restoreKnowledgeDocument,
   updateKnowledgeDocument,
 } from "@/services/modules/knowledge";
@@ -203,6 +232,8 @@ const saving = ref(false);
 const uploadingImages = ref(false);
 const newImages = ref([]);
 const deleteDialog = ref(false);
+const reembedding = ref(false);
+const docId = () => Number(route.params.id);
 
 const editForm = reactive({
   title: "",
@@ -215,7 +246,7 @@ const images = ref([]);
 async function fetchDocument() {
   loading.value = true;
   try {
-    const res = await getKnowledgeDocument(route.params.id);
+    const res = await getKnowledgeDocument(docId());
     const doc = res;
     document.value = doc;
     editForm.title = doc.title ?? "";
@@ -236,7 +267,7 @@ async function save() {
   }
   saving.value = true;
   try {
-    await updateKnowledgeDocument(route.params.id, {
+    await updateKnowledgeDocument(docId(), {
       title: editForm.title,
       source_text: editForm.source_text,
       tags: editForm.tags,
@@ -257,7 +288,7 @@ async function uploadImages() {
     for (const img of newImages.value) {
       const fd = new FormData();
       fd.append("file", img);
-      await addKnowledgeDocumentImage(route.params.id, fd);
+      await addKnowledgeDocumentImage(docId(), fd);
     }
     notify.success("Images uploaded.");
     newImages.value = [];
@@ -273,7 +304,7 @@ async function confirmDeleteImage(img) {
   const ok = await confirmRequire("Delete this image?");
   if (!ok) return;
   try {
-    await deleteKnowledgeDocumentImage(img.id);
+    await deleteKnowledgeDocumentImage(docId(), img.id);
     notify.success("Image deleted.");
     await fetchDocument();
   } catch (err) {
@@ -283,7 +314,7 @@ async function confirmDeleteImage(img) {
 
 async function approve() {
   try {
-    await approveKnowledgeDocument(route.params.id);
+    await approveKnowledgeDocument(docId());
     notify.success("Document approved.");
     await fetchDocument();
   } catch (err) {
@@ -293,7 +324,7 @@ async function approve() {
 
 async function archive() {
   try {
-    await archiveKnowledgeDocument(route.params.id);
+    await archiveKnowledgeDocument(docId());
     notify.success("Document archived.");
     await fetchDocument();
   } catch (err) {
@@ -303,7 +334,7 @@ async function archive() {
 
 async function restore() {
   try {
-    await restoreKnowledgeDocument(route.params.id);
+    await restoreKnowledgeDocument(docId());
     notify.success("Document restored.");
     await fetchDocument();
   } catch (err) {
@@ -323,7 +354,7 @@ async function doArchive() {
 async function doDelete() {
   deleteDialog.value = false;
   try {
-    await deleteKnowledgeDocument(route.params.id);
+    await deleteKnowledgeDocument(docId());
     notify.success("Document deleted.");
     router.push("/admin/knowledge/documents");
   } catch (err) {
@@ -331,8 +362,22 @@ async function doDelete() {
   }
 }
 
-function reEmbed() {
-  notify.info("Re-embed triggered (stub — not yet implemented).");
+async function reEmbed() {
+  reembedding.value = true;
+  try {
+    await reembedKnowledgeDocument(docId());
+    notify.success("Document re-embedded.");
+    await fetchDocument();
+  } catch (err) {
+    notify.error("Failed to re-embed: " + (err.message || err));
+  } finally {
+    reembedding.value = false;
+  }
+}
+
+/** Open the card or quiz page with its generator pre-set to this document. */
+function createFromDocument(routeName) {
+  router.push({ name: routeName, query: { suggest_doc_id: String(docId()) } });
 }
 
 onMounted(fetchDocument);

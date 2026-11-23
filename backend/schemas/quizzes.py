@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
@@ -20,6 +20,9 @@ class QuizCreate(BaseModel):
     intro_voice_template: str = ""
     voice_instruction: str = ""
     tags: list[str] = []
+    # Created with the quiz in one transaction, in list order, so a failed save never
+    # leaves a quiz without some of its questions.
+    questions: list[QuizQuestionCreate] = []
 
 
 class QuizUpdate(BaseModel):
@@ -117,9 +120,31 @@ class VoiceInstructionSuggestionOut(OutSchema):
 class QuizChoice(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str
+    # The senior's answer and the voice agent's submit_quiz_answer refer to a choice by
+    # this id, so it must be present and unique within its question.
+    id: str = Field(..., min_length=1)
     text: str
     is_correct: bool = False
+
+    @field_validator("id")
+    @classmethod
+    def _strip_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("choice id must not be blank")
+        return stripped
+
+
+def _unique_choice_ids(choices: list[QuizChoice] | None) -> list[QuizChoice] | None:
+    if choices is None:
+        return None
+    seen: set[str] = set()
+    for choice in choices:
+        key = choice.id.lower()
+        if key in seen:
+            raise ValueError(f"choice id '{choice.id}' is used more than once")
+        seen.add(key)
+    return choices
 
 
 class QuizQuestionCreate(BaseModel):
@@ -132,6 +157,8 @@ class QuizQuestionCreate(BaseModel):
     explanation: str = ""
     ord: int | None = None
 
+    _check_choices = field_validator("choices")(_unique_choice_ids)
+
 
 class QuizQuestionUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -143,8 +170,42 @@ class QuizQuestionUpdate(BaseModel):
     explanation: str | None = None
     ord: int | None = None
 
+    _check_choices = field_validator("choices")(_unique_choice_ids)
 
-class QuizQuestionReorder(BaseModel):
+
+class QuizQuestionOrder(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    items: list[dict[str, int]]
+    id: int
+    ord: int
+
+
+class QuizQuestionReorder(BaseModel):
+    """The complete new order: every question of the quiz, ords ``0..N-1``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[QuizQuestionOrder]
+
+
+class QuizQuestionUpsert(BaseModel):
+    """One question in a full question-list replacement; ``id`` names an existing one."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int | None = None
+    question_type: str = Field(..., pattern="^(multiple_choice|open_ended)$")
+    question_text: str
+    choices: list[QuizChoice] = []
+    expected_answer: str = ""
+    explanation: str = ""
+
+    _check_choices = field_validator("choices")(_unique_choice_ids)
+
+
+class QuizQuestionsReplace(BaseModel):
+    """The quiz's complete question list, in order. Questions left out are deleted."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    questions: list[QuizQuestionUpsert]

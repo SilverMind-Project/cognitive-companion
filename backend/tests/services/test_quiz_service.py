@@ -82,7 +82,7 @@ def test_create_quiz_with_questions_and_get(quiz_service: QuizService) -> None:
     assert len(fetched["questions"]) == 2
     assert fetched["questions"][0]["question_text"] == "Where does Priya live?"
 
-    listed = quiz_service.list_quizzes(status="draft", tag="family")
+    listed = quiz_service.list_quizzes(status="draft", tags=["family"])
     assert listed["total"] == 1
     assert listed["items"][0]["question_count"] == 2
 

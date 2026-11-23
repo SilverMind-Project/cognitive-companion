@@ -75,7 +75,7 @@ async def test_create_get_list_update_info_card(info_card_service: InfoCardServi
     assert fetched["title"] == "Morning Hydration"
     assert fetched["voice_instruction"] == "Read warmly."
 
-    listed = info_card_service.list_cards(status="draft", tag="morning")
+    listed = info_card_service.list_cards(status="draft", tags=["morning"])
     assert listed["total"] == 1
     assert listed["items"][0]["id"] == card_id
     assert listed["items"][0]["slot_count"] == 0

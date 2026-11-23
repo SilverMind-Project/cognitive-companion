@@ -4690,7 +4690,14 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * Replace Questions
+         * @description Replace the quiz's ordered question list in one transaction (the quiz editor's save).
+         *
+         *     Leaving a question out deletes it, which also needs ``quizzes:delete``: write access
+         *     alone must not reach what the delete route guards.
+         */
+        put: operations["replace_questions"];
         /** Create Question */
         post: operations["create_question"];
         delete?: never;
@@ -10443,6 +10450,11 @@ export interface components {
              */
             question_layout_id: string;
             /**
+             * Questions
+             * @default []
+             */
+            questions: components["schemas"]["QuizQuestionCreate"][];
+            /**
              * Tags
              * @default []
              */
@@ -10572,6 +10584,13 @@ export interface components {
             /** Question Type */
             question_type: string;
         };
+        /** QuizQuestionOrder */
+        QuizQuestionOrder: {
+            /** Id */
+            id: number;
+            /** Ord */
+            ord: number;
+        };
         /** QuizQuestionOut */
         QuizQuestionOut: {
             /**
@@ -10609,12 +10628,13 @@ export interface components {
             /** Quiz Id */
             quiz_id: number;
         };
-        /** QuizQuestionReorder */
+        /**
+         * QuizQuestionReorder
+         * @description The complete new order: every question of the quiz, ords ``0..N-1``.
+         */
         QuizQuestionReorder: {
             /** Items */
-            items: {
-                [key: string]: number;
-            }[];
+            items: components["schemas"]["QuizQuestionOrder"][];
         };
         /**
          * QuizQuestionSuggestionOut
@@ -10657,6 +10677,41 @@ export interface components {
             question_text?: string | null;
             /** Question Type */
             question_type?: string | null;
+        };
+        /**
+         * QuizQuestionUpsert
+         * @description One question in a full question-list replacement; ``id`` names an existing one.
+         */
+        QuizQuestionUpsert: {
+            /**
+             * Choices
+             * @default []
+             */
+            choices: components["schemas"]["QuizChoice"][];
+            /**
+             * Expected Answer
+             * @default
+             */
+            expected_answer: string;
+            /**
+             * Explanation
+             * @default
+             */
+            explanation: string;
+            /** Id */
+            id?: number | null;
+            /** Question Text */
+            question_text: string;
+            /** Question Type */
+            question_type: string;
+        };
+        /**
+         * QuizQuestionsReplace
+         * @description The quiz's complete question list, in order. Questions left out are deleted.
+         */
+        QuizQuestionsReplace: {
+            /** Questions */
+            questions: components["schemas"]["QuizQuestionUpsert"][];
         };
         /** QuizResponseOut */
         QuizResponseOut: {
@@ -19474,7 +19529,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string | null;
-                tag?: string | null;
+                /** @description Matches items carrying any of these tags (repeat the parameter). */
+                tag?: string[] | null;
                 document_id?: number | null;
                 limit?: number;
                 offset?: number;
@@ -20066,7 +20122,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string | null;
-                tag?: string | null;
+                /** @description Matches items carrying any of these tags (repeat the parameter). */
+                tag?: string[] | null;
                 q?: string | null;
                 limit?: number;
                 offset?: number;
@@ -21680,7 +21737,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string | null;
-                tag?: string | null;
+                /** @description Matches items carrying any of these tags (repeat the parameter). */
+                tag?: string[] | null;
                 document_id?: number | null;
                 limit?: number;
                 offset?: number;
@@ -21955,6 +22013,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuizStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_questions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quiz_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuizQuestionsReplace"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuizOut"];
                 };
             };
             /** @description Validation Error */

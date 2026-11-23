@@ -267,7 +267,8 @@ async function fetchDocuments() {
     const params = { limit: itemsPerPage.value, offset: (page.value - 1) * itemsPerPage.value };
     if (filters.q) params.q = filters.q;
     if (filters.status) params.status = filters.status;
-    if (filters.tags && filters.tags.length > 0) params.tags = filters.tags.join(",");
+    // Repeated tag=... parameters: a document matches when it carries any selected tag.
+    if (filters.tags?.length) params.tag = [...filters.tags];
     const res = await getKnowledgeDocuments(params);
     documents.value = res.items ?? [];
     totalItems.value = res.total ?? 0;
@@ -289,9 +290,8 @@ async function submitCreate() {
     const fd = new FormData();
     fd.append("title", createFormData.title);
     fd.append("source_text", createFormData.source_text || "");
-    for (const tag of createFormData.tags) {
-      fd.append("tags", tag);
-    }
+    // The upload takes one comma-separated tags field; repeating the field kept only one.
+    if (createFormData.tags.length) fd.append("tags", createFormData.tags.join(","));
     for (const img of createFormData.images) {
       fd.append("images", img);
     }

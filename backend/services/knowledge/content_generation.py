@@ -21,6 +21,35 @@ from backend.models.knowledge import KnowledgeDocument
 logger = get_logger(__name__)
 
 
+def normalize_choices(raw: object) -> list[dict[str, Any]]:
+    """Give drafted choices the shape a question needs before it can be saved.
+
+    The prompt asks the model for ``{"id", "text", "is_correct"}`` per choice, but nothing
+    enforced it: a draft without ids (or with repeated ones) failed to save with 422. A
+    missing, blank, or repeated id becomes the next free letter; choices without text are
+    dropped.
+    """
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    used: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("text", "")).strip()
+        if not text:
+            continue
+        choice_id = str(item.get("id") or "").strip()
+        if not choice_id or choice_id.lower() in used:
+            choice_id = next(c for c in _CHOICE_IDS if c not in used)
+        used.add(choice_id.lower())
+        out.append({"id": choice_id, "text": text, "is_correct": bool(item.get("is_correct"))})
+    return out
+
+
+_CHOICE_IDS = [chr(c) for c in range(ord("a"), ord("z") + 1)] + [f"c{n}" for n in range(1, 100)]
+
+
 # -- Result dataclasses ------------------------------------------------------
 
 
@@ -212,7 +241,7 @@ class ContentGenerationService:
                     QuizQuestionSuggestion(
                         question_type=q.get("question_type", "multiple_choice"),
                         question_text=q.get("question_text", ""),
-                        choices=q.get("choices", []),
+                        choices=normalize_choices(q.get("choices", [])),
                         expected_answer=q.get("expected_answer", ""),
                         explanation=q.get("explanation", ""),
                     )
@@ -234,7 +263,7 @@ class ContentGenerationService:
             return QuizQuestionSuggestion(
                 question_type=cast(Literal["multiple_choice", "open_ended"], question_type),
                 question_text=data.get("question_text", response[:500]),
-                choices=data.get("choices", []),
+                choices=normalize_choices(data.get("choices", [])),
                 expected_answer=data.get("expected_answer", ""),
                 explanation=data.get("explanation", ""),
             )

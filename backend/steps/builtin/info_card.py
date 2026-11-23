@@ -136,7 +136,7 @@ class InfoCardStep(StepHandler):
             speak=("voice" in channels),
             dismiss_seconds=dismiss_seconds,
             eink_expiry_minutes=eink_expiry,
-            senior_id=resolve_person_id(config, pipeline_data),
+            senior_id=resolve_person_id(config, pipeline_data, make_trigger_vars(trigger)),
             template_data=pipeline_data,
             trigger_vars=make_trigger_vars(trigger),
         )

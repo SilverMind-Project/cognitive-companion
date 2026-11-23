@@ -33,3 +33,29 @@ class TestResolvePersonId:
 
     def test_trigger_event_without_person_id_returns_none(self):
         assert resolve_person_id({}, {"trigger_event": {"signal_kind": "x"}}) is None
+
+    def test_templated_config_person_id_is_rendered(self):
+        assert (
+            resolve_person_id(
+                {"person_id": "{{trigger_event.person_id}}"},
+                {"trigger_event": {"person_id": "vasanthi-amma"}},
+            )
+            == "vasanthi-amma"
+        )
+
+    def test_templated_person_id_can_use_trigger_vars(self):
+        assert (
+            resolve_person_id({"person_id": "{{trigger.sensor_id}}"}, {}, {"sensor_id": "cam1"})
+            == "cam1"
+        )
+
+    def test_unresolved_template_resolves_to_nobody_not_someone_else(self):
+        """A named person that does not resolve must not become whoever is first in the
+        pipeline (a signal or presence read would then be attributed to the wrong person)."""
+        assert (
+            resolve_person_id({"person_id": "{{steps.missing.outputs.id}}"}, {"person_id": "alice"})
+            is None
+        )
+
+    def test_blank_person_id_still_uses_the_pipeline_fallbacks(self):
+        assert resolve_person_id({"person_id": "  "}, {"person_id": "alice"}) == "alice"

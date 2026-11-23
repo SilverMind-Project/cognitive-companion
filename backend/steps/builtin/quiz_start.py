@@ -204,7 +204,7 @@ class QuizStartStep(StepHandler):
                 randomize_order=config.get("randomize_order", False),
                 session_timeout_minutes=config.get("session_timeout_minutes", 10),
                 interaction_mode=interaction_mode,
-                senior_id=resolve_person_id(config, pipeline_data),
+                senior_id=resolve_person_id(config, pipeline_data, make_trigger_vars(trigger)),
                 template_data=pipeline_data,
                 trigger_vars=make_trigger_vars(trigger),
             )

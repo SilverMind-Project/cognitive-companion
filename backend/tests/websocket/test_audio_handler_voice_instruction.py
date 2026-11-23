@@ -67,7 +67,9 @@ class _FakeProvider:
                 turn_complete=True,
             ),
         )
-        await state.responses.put(turn)
+        # A real model answers after a delay; an instant reply hides races with
+        # whatever the handler does next.
+        asyncio.get_running_loop().call_later(0.05, state.responses.put_nowait, turn)
 
     async def send_audio(self, session: RealtimeSession, data: bytes) -> None:
         return None
@@ -242,3 +244,35 @@ async def test_handler_unregisters_from_manager_on_disconnect() -> None:
         assert h.handler in manager._audio_handlers
 
     assert h.handler not in manager._audio_handlers
+
+
+@pytest.mark.asyncio
+async def test_new_instruction_waits_for_the_turn_being_spoken() -> None:
+    """A card and a quiz delivered back to back: the card must be spoken in full before
+    the quiz's instruction reopens the session (live, the card was cut off unheard)."""
+    async with _Harness() as h:
+        await h.manager.send_backend_task(
+            prompt="Here is some information for you.",
+            voice_instruction=f"{BASE}\n\nCARD",
+            metadata={"delivery_type": "info_card", "delivery_id": 3},
+        )
+        await h.manager.send_backend_task(
+            prompt="First question",
+            voice_instruction=QUIZ,
+            metadata={"delivery_type": "quiz_start", "session_id": 7},
+        )
+        await h.session_closed()  # the card session ends only after its turn
+        h.provider.prompt_delivered.clear()
+        await asyncio.wait_for(h.provider.prompt_delivered.wait(), timeout=5)
+
+    card_session, quiz_session = h.provider.sessions
+    assert card_session.instruction == f"{BASE}\n\nCARD"
+    assert card_session.sent == ["Here is some information for you."]
+    assert quiz_session.instruction == QUIZ
+    assert quiz_session.sent[-1].endswith("First question")
+    spoken = [
+        call.args[0]
+        for call in h.ws.send_json.await_args_list
+        if call.args[0].get("type") == "transcript" and call.args[0].get("source") == "assistant"
+    ]
+    assert len(spoken) == 2, "the card's turn must complete before the session is replaced"

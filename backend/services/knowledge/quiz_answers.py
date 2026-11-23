@@ -26,6 +26,7 @@ from backend.services.knowledge.quiz_messages import (
     AnswerTarget,
     question_descriptor,
     spoken_question,
+    tablet_answer_summary,
 )
 from backend.services.knowledge.voice_instructions import QuizInteractionMode
 
@@ -109,12 +110,18 @@ class QuizAnswersMixin(DeliveryContextMixin):
         }
         await self._announce_answer(result)
 
+        answered = tablet_answer_summary(
+            question_ord,
+            chosen_text or open_ended_text or "",
+            is_correct,
+            question.explanation or "",
+        )
         if next_question is not None:
             await self._present_next_question(
-                session_id, next_question, question_ord + 1, total, channel
+                session_id, next_question, question_ord + 1, total, channel, answered
             )
         else:
-            await self._relay_quiz_end(session_id, question_ord, channel)
+            await self._relay_quiz_end(session_id, channel, answered)
             await self.complete_quiz_session(session_id)
         return result
 
@@ -320,6 +327,7 @@ class QuizAnswersMixin(DeliveryContextMixin):
         ord_num: int,
         total: int,
         channel: str,
+        answered: str,
     ) -> None:
         try:
             await self._send_question_ws(session_id, question, ord_num, total, None)
@@ -334,8 +342,7 @@ class QuizAnswersMixin(DeliveryContextMixin):
                 await inject_session_prompt(
                     self._ws_manager,
                     prompt=(
-                        f"The senior answered question {ord_num - 1} on the tablet. "
-                        f"Respond warmly, then ask the next one. "
+                        f"{answered} Respond to that answer, then ask the next one. "
                         f"{spoken_question(session_id, question, ord_num)}"
                     ),
                     delivery_type=QUIZ_DELIVERY_TYPE,
@@ -344,7 +351,7 @@ class QuizAnswersMixin(DeliveryContextMixin):
             except Exception:
                 logger.exception("quiz_voice_sync_failed", session_id=session_id)
 
-    async def _relay_quiz_end(self, session_id: int, question_ord: int, channel: str) -> None:
+    async def _relay_quiz_end(self, session_id: int, channel: str, answered: str) -> None:
         """Tell the voice agent a tablet-finished quiz is over.
 
         Without it the agent's transcript ends on an unanswered question, and it may ask
@@ -356,9 +363,9 @@ class QuizAnswersMixin(DeliveryContextMixin):
             await inject_session_prompt(
                 self._ws_manager,
                 prompt=(
-                    f"The senior answered the last question ({question_ord}) on the tablet, "
-                    "so the questions are finished. Thank them warmly for chatting and do "
-                    "not ask any more questions."
+                    f"{answered} That was the last question, so the questions are "
+                    "finished. Respond to that answer, thank them warmly for chatting, "
+                    "and do not ask any more questions."
                 ),
                 delivery_type=QUIZ_DELIVERY_TYPE,
                 session_id=session_id,

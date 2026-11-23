@@ -25,6 +25,10 @@ class GeminiLiveProvider(RealtimeLLMProvider):
         self._settings = settings
         self.api_key: str = self._settings.as_str("llm.realtime.api_key", allow_empty=False)
         self.model: str = self._settings.as_str("llm.realtime.model", allow_empty=False)
+        # Pinned rather than left to the SDK: google-genai 3.x changed its default API
+        # version, and the Live endpoint answers the new default with HTTP 404, which
+        # silently took the companion's voice offline after a dependency upgrade.
+        self.api_version: str = self._settings.as_str("llm.realtime.api_version", allow_empty=False)
         self.keepalive_interval: int = self._settings.as_int("llm.realtime.keepalive_interval")
         self._client: Any = None
 
@@ -39,6 +43,7 @@ class GeminiLiveProvider(RealtimeLLMProvider):
 
             self._client = genai.Client(
                 api_key=self.api_key,
+                http_options={"api_version": self.api_version},
             )
         return self._client
 

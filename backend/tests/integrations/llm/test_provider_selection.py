@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -21,6 +23,7 @@ def _settings(provider: str = "gemini", api_key: str = "secret") -> Settings:
                     "provider": provider,
                     "api_key": api_key,
                     "model": "gemini-live",
+                    "api_version": "v1beta",
                     "keepalive_interval": 25,
                     "system_instruction": "Be concise.",
                 }
@@ -57,3 +60,25 @@ def test_no_gemini_import_outside_provider() -> None:
             offenders.append(path.relative_to(REPO_ROOT).as_posix())
 
     assert offenders == []
+
+
+def test_gemini_client_pins_the_configured_live_api_version(monkeypatch) -> None:
+    """The SDK default API version 404s on the Live endpoint, so it is always pinned."""
+    created: list[dict] = []
+    sdk = types.ModuleType("genai")
+    sdk.Client = lambda **kwargs: created.append(kwargs) or object()
+    package = types.ModuleType("google")
+    package.genai = sdk
+    # The SDK is an optional extra; a stand-in records how the client is built.
+    monkeypatch.setitem(sys.modules, "google", package)
+    monkeypatch.setitem(sys.modules, "google" + "." + "genai", sdk)
+
+    GeminiLiveProvider(_settings())._get_client()
+
+    assert created == [{"api_key": "secret", "http_options": {"api_version": "v1beta"}}]
+
+
+def test_shipped_settings_pin_a_live_api_version() -> None:
+    shipped = Settings(config_dir=REPO_ROOT / "config")
+
+    assert shipped.as_str("llm.realtime.api_version", allow_empty=False) in {"v1alpha", "v1beta"}

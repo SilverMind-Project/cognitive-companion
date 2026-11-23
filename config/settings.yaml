@@ -136,6 +136,9 @@ llm:
     provider: "gemini"
     api_key: "${GEMINI_API_KEY}"
     model: "gemini-3.1-flash-live-preview"
+    # Live API version. Pin it: the SDK default changed in google-genai 3.x and the
+    # Live endpoint returns HTTP 404 for it.
+    api_version: "v1beta"
     keepalive_interval: 25
     idle_timeout: 120
     system_instruction: >

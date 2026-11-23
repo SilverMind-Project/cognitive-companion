@@ -158,7 +158,7 @@ export const stepTabs = [];
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { api } from "@/services/api.js";
+import { getInfoCards } from "@/services/modules/info_cards";
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
@@ -192,7 +192,8 @@ function containsTemplate(s) {
 onMounted(async () => {
   cardsLoading.value = true;
   try {
-    const res = await api.getInfoCards({ status: "approved", limit: 500 });
+    // The list endpoint caps limit at 200; 500 was rejected, so no card was ever offered.
+    const res = await getInfoCards({ status: "approved", limit: 200 });
     allCards.value = res.items ?? [];
   } catch (err) {
     cardsError.value = err.message || String(err);

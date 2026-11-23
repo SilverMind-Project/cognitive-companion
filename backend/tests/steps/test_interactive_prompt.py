@@ -44,6 +44,7 @@ class FakeServiceContainer:
     notification_dispatcher: Mock | None = None
     scheduler: Mock | None = None
     interactive_response_service: Mock | None = None
+    knowledge_delivery: Mock | None = None
 
 
 @pytest.fixture

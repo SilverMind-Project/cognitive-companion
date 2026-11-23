@@ -21,16 +21,33 @@
 
       <v-card-actions class="pa-4">
         <v-spacer />
-        <v-btn color="primary" variant="flat" size="large" class="px-8 ka-btn" @click="onClose">
+        <v-btn
+          color="primary"
+          variant="flat"
+          size="x-large"
+          class="px-8 ka-btn"
+          data-test="knowledge-answer-dismiss"
+          @click="onClose"
+        >
           Got it
         </v-btn>
       </v-card-actions>
+
+      <!-- How long the answer stays: a stale answer must never block the screen. -->
+      <v-progress-linear
+        v-if="dismissAfterSeconds > 0"
+        :model-value="remainingPercent"
+        color="primary"
+        height="6"
+        aria-hidden="true"
+        data-test="knowledge-answer-countdown"
+      />
     </v-card>
   </v-dialog>
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 
 const props = defineProps({
   queryText: { type: String, default: "" },
@@ -39,23 +56,53 @@ const props = defineProps({
   // Changes on every delivered answer so the dialog reopens even when the
   // same question is asked again (identical queryText would not retrigger).
   serverTimestamp: { type: String, default: "" },
+  // The answer closes on its own after this long (0 keeps it until "Got it").
+  dismissAfterSeconds: { type: Number, default: 45 },
 });
 
 const emit = defineEmits(["close"]);
 
 const visible = ref(false);
+const remainingSeconds = ref(0);
+let countdown = null;
+
+const remainingPercent = computed(() =>
+  props.dismissAfterSeconds > 0 ? (remainingSeconds.value / props.dismissAfterSeconds) * 100 : 0,
+);
+
+function stopCountdown() {
+  clearInterval(countdown);
+  countdown = null;
+}
+
+function startCountdown() {
+  stopCountdown();
+  if (props.dismissAfterSeconds <= 0) return;
+  remainingSeconds.value = props.dismissAfterSeconds;
+  countdown = setInterval(() => {
+    remainingSeconds.value -= 1;
+    if (remainingSeconds.value <= 0) onClose();
+  }, 1000);
+}
 
 function onClose() {
+  stopCountdown();
+  if (!visible.value) return;
   visible.value = false;
   emit("close");
 }
+
+onUnmounted(stopCountdown);
 
 // Reopen whenever a new answer is delivered (per-answer timestamp), provided
 // there is a question to show.
 watch(
   () => props.serverTimestamp,
   (ts) => {
-    if (ts && props.queryText) visible.value = true;
+    if (ts && props.queryText) {
+      visible.value = true;
+      startCountdown();
+    }
   },
 );
 </script>
@@ -98,7 +145,9 @@ watch(
 }
 
 .ka-btn {
-  min-height: 56px;
+  min-height: 64px;
+  font-size: 1.25rem;
+  text-transform: none;
   font-weight: 600;
   letter-spacing: 0.01em;
   border-radius: var(--cc-radius-md);

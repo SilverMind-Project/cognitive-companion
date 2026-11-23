@@ -1458,26 +1458,22 @@ async def submit_quiz_answer(
 ) -> dict:
     """Record the senior's answer to the current quiz question. Use exactly
     one of choice_id (multiple choice) or open_ended_text (free-form).
-    Always call this after the senior responds; do not skip ahead.
+    Always call this after the senior responds; do not skip ahead. The
+    result carries explanation (share it as a gentle reminder), completed,
+    and next_question (ask it next; null when the quiz is over).
     """
-    import time
-
-    t0 = time.monotonic()
-
     if _svc.knowledge_delivery is None:
         return {"error": "Delivery service not available"}
 
-    latency_ms = int((time.monotonic() - t0) * 1000)
-    result = await _svc.knowledge_delivery.submit_quiz_answer(
+    # Latency is measured by the service from when the question was presented; the
+    # tool call itself cannot see when the senior started answering.
+    return await _svc.knowledge_delivery.submit_quiz_answer(
         session_id=session_id,
         question_ord=question_ord,
         choice_id=choice_id,
         open_ended_text=open_ended_text,
         channel="voice",
-        latency_ms=latency_ms,
     )
-
-    return result
 
 
 @_register(token=RESIDENT_SESSION_ACT)

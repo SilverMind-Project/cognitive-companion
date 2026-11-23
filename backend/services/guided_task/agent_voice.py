@@ -9,7 +9,6 @@ from cachetools import TTLCache
 from backend.core.config import Settings
 from backend.core.config import settings as default_settings
 from backend.core.logging import get_logger
-from backend.core.template import render_template
 from backend.services.guided_task.language import compose_language_directive
 from backend.services.interactive_session.prompt_injection import inject_session_prompt
 from backend.services.interactive_session.tagging import register_session_prefix
@@ -67,20 +66,18 @@ class AgentSessionVoice:
             )
             return
 
+        # The routine's instruction is added to the companion's persona (household
+        # context and tool rules), never put in its place.
         voice_instruction = self._voice.compose(
             step_type="guided_task",
-            base_instruction="",
+            base_instruction=self._settings.get("llm.realtime.system_instruction", ""),
             step_override=None,
             resource_override=getattr(session, "routine_system_instruction_override", None) or None,
+            context={
+                "resident_name": getattr(session, "resident_name", ""),
+                "person_id": getattr(session, "person_id", ""),
+            },
         )
-        if voice_instruction:
-            voice_instruction = render_template(
-                voice_instruction,
-                {
-                    "resident_name": getattr(session, "resident_name", ""),
-                    "person_id": getattr(session, "person_id", ""),
-                },
-            )
         language_override = getattr(session, "language_override", None)
         directive = compose_language_directive(self._settings, self._voice, language_override)
         if directive:

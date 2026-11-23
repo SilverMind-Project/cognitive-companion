@@ -5,6 +5,7 @@ from __future__ import annotations
 from backend.core.logging import get_logger
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
+from backend.steps._helpers import make_trigger_vars
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -280,6 +281,18 @@ class InteractivePromptHandler(StepHandler):
 
         # Send voice prompt via Gemini Live for voice channel
         if rendered_voice_prompt:
+            # The step's instruction is added to the companion's persona, never put in
+            # its place: a bare instruction would drop the persona and tool rules.
+            effective_voice_instruction = (
+                services.knowledge_delivery.compose_voice_instruction(
+                    "interactive_prompt",
+                    step_override=voice_instruction or None,
+                    template_data=pipeline_data,
+                    trigger_vars=make_trigger_vars(trigger),
+                )
+                if services.knowledge_delivery is not None
+                else None
+            )
             # Get WebSocket manager from notification dispatcher
             notification_dispatcher = services.notification_dispatcher
             ws_manager = None
@@ -291,7 +304,7 @@ class InteractivePromptHandler(StepHandler):
                     await ws_manager.send_backend_task(
                         prompt=rendered_voice_prompt,
                         callback=None,
-                        voice_instruction=voice_instruction or None,
+                        voice_instruction=effective_voice_instruction,
                         metadata={
                             "execution_id": execution.id,
                             "step_id": step.id,

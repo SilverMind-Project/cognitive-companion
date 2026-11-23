@@ -1,46 +1,65 @@
-"""Quiz delivery: session start, answer recording, completion, and question fanout.
+"""Quiz delivery: session start, completion, timeout, and question fanout.
 
 Part of :class:`~backend.services.knowledge.delivery_service.KnowledgeDeliveryService`,
 split out by responsibility; it shares that service's injected session factory,
-WebSocket manager, MinIO client, voice instructions, grader, and pipeline executor.
+WebSocket manager, MinIO client, voice instructions, grader, and scheduler.
+
+The tablet (PWA) and the realtime voice agent are two views of one session. The
+session row is the single source of truth: every answer, from either channel, goes
+through :meth:`~backend.services.knowledge.quiz_answers.QuizAnswersMixin.submit_quiz_answer`,
+which advances the row under a lock and then tells both views what comes next.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import UTC, datetime
+import random
+from collections.abc import Callable, Mapping
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from backend.core.exceptions import ValidationError
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
 from backend.models.knowledge import Quiz, QuizQuestion, QuizResponse, QuizSession
 from backend.services.interactive_session import (
     WorkflowResumeScheduler,
+    cancel_session_timeout,
     inject_session_prompt,
     resume_owning_pipeline,
+    schedule_session_timeout,
+    voice_owner_key,
 )
 from backend.services.knowledge.delivery_result import DeliveryResult
-from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
-from backend.websocket.connection_manager import ConnectionManager
+from backend.services.knowledge.quiz_answers import QuizAnswersMixin
+from backend.services.knowledge.quiz_messages import (
+    QUIZ_DELIVERY_TYPE,
+    TERMINAL_QUIZ_STATUSES,
+    question_descriptor,
+    quiz_timeout_job_id,
+    spoken_question,
+)
+from backend.services.knowledge.voice_instructions import QuizInteractionMode
 
 # Logged under the delivery service's logger so existing log queries keep matching.
 logger = get_logger("backend.services.knowledge.delivery_service")
 
 
-class QuizDeliveryMixin:
-    """Quiz session lifecycle over the PWA WebSocket and Gemini Live voice."""
+class QuizDeliveryMixin(QuizAnswersMixin):
+    """Quiz session lifecycle over the PWA WebSocket and realtime voice."""
 
     _db_factory: Callable[[], Session]
-    _ws_manager: ConnectionManager
     _minio: MinioClient | None
-    _voice: VoiceInstructionConfig | None
     _content_gen: Any
     _scheduler: WorkflowResumeScheduler | None
+    # Sessions whose prompts went to the realtime agent. Answers tapped on the tablet
+    # for these are relayed to the agent; a tablet-only quiz never opens a paid
+    # realtime session. In memory: a restart also ends every realtime session.
+    _voice_sessions: set[int]
 
-    # -- quiz session delivery ----------------------------------------------
+    # -- start ---------------------------------------------------------------
 
     async def start_quiz_session(
         self,
@@ -48,23 +67,44 @@ class QuizDeliveryMixin:
         *,
         execution_id: int,
         rule_id: int | None = None,
+        channels: list[str] | None = None,
         voice_instruction: str | None = None,
         max_questions: int = 5,
         randomize_order: bool = False,
         session_timeout_minutes: int = 10,
+        interaction_mode: QuizInteractionMode = "gentle",
+        senior_id: str | None = None,
+        template_data: Mapping[str, Any] | None = None,
+        trigger_vars: Mapping[str, Any] | None = None,
     ) -> DeliveryResult:
-        """Create quiz_sessions row, broadcast quiz_start ws, speak intro via Gemini."""
+        """Create the session, show question 1 on the tablet, and ask it aloud.
+
+        Raises ``ValidationError`` for a quiz with no questions, before any session row
+        is written. Schedules the session timeout; the result's ``timeout_at`` is when
+        an unfinished session becomes ``timed_out`` and its pipeline resumes.
+        """
+        channels = list(channels or ["pwa", "voice"])
+        questions = sorted(quiz.questions or [], key=lambda q: q.ord)
+        if randomize_order:
+            random.shuffle(questions)
+        questions = questions[:max_questions]
+        if not questions:
+            raise ValidationError(f"Quiz {quiz.id} has no questions to ask")
+        total = len(questions)
+        first = questions[0]
+
         db: Session = self._db_factory()
         try:
             session = QuizSession(
                 quiz_id=quiz.id,
                 rule_id=rule_id,
                 execution_id=execution_id,
+                senior_id=senior_id,
                 status="started",
+                question_order=[q.id for q in questions],
             )
             db.add(session)
             db.commit()
-            db.refresh(session)
             session_id = session.id
         except Exception:
             db.rollback()
@@ -72,276 +112,147 @@ class QuizDeliveryMixin:
         finally:
             db.close()
 
-        # Resolve voice instruction
-        if self._voice:
-            voice_inst = self._voice.compose(
-                step_type="quiz",
-                base_instruction="",
-                step_override=voice_instruction or None,
-                resource_override=quiz.voice_instruction or None,
-            )
-        else:
-            voice_inst = voice_instruction or quiz.voice_instruction or ""
+        timeout_at = datetime.now(UTC) + timedelta(minutes=session_timeout_minutes)
+        schedule_session_timeout(
+            self._scheduler,
+            job_id=quiz_timeout_job_id(session_id),
+            run_at=timeout_at,
+            finalize=self.handle_session_timeout,
+            args=[session_id],
+        )
 
-        # Get questions, build persisted order
-        questions = sorted(quiz.questions or [], key=lambda q: q.ord)
-        if randomize_order:
-            import random
+        context = self._template_context(template_data, trigger_vars, senior_id)
+        intro = self._render(quiz.intro_voice_template or "", context)
+        speak = "voice" in channels
 
-            random.shuffle(questions)
-        questions = questions[:max_questions]
-        question_ids = [q.id for q in questions]
-        total = len(questions)
-
-        # Persist question_order on the session
-        db2: Session = self._db_factory()
-        try:
-            db2.execute(
-                update(QuizSession)
-                .where(QuizSession.id == session_id)
-                .values(question_order=question_ids)
-            )
-            db2.commit()
-        except Exception:
-            db2.rollback()
-            logger.exception("question_order_persist_failed", session_id=session_id)
-        finally:
-            db2.close()
-
-        # PWA popup
-        try:
-            await self._ws_manager.broadcast(
-                {
-                    "type": "quiz_start",
-                    "session_id": session_id,
-                    "quiz_id": quiz.id,
-                    "title": quiz.title,
-                    "intro_voice_text": quiz.intro_voice_template or "",
-                    "total_questions": total,
-                }
-            )
-        except Exception:
-            logger.exception("quiz_start_ws_broadcast_failed")
-
-        # Send first question via ws
-        if questions:
-            q = questions[0]
-            await self._send_question_ws(session_id, q, 0, total)
-
-        # Voice delivery
-        if voice_inst or quiz.intro_voice_template:
+        if "pwa" in channels:
             try:
-                intro = quiz.intro_voice_template or f"Let's start the quiz: {quiz.title}."
-                voice_prompt = (
-                    f"{intro}\n\nThere are {total} questions. "
-                    f"Here is the first question.\n\n{q.question_text}"
-                )
-                await inject_session_prompt(
-                    self._ws_manager,
-                    prompt=voice_prompt,
-                    delivery_type="quiz_start",
-                    session_id=session_id,
-                    execution_id=execution_id,
-                    voice_instruction=voice_inst or None,
-                    extra_metadata={
+                await self._ws_manager.broadcast(
+                    {
+                        "type": "quiz_start",
+                        "session_id": session_id,
                         "quiz_id": quiz.id,
-                    },
+                        "title": self._render(quiz.title, context),
+                        "intro_voice_text": intro,
+                        "total_questions": total,
+                        "interaction_mode": interaction_mode,
+                        "voice": speak,
+                    }
                 )
-                # Transition session to in_progress
-                self._update_session_status(session_id, "in_progress")
+                await self._send_question_ws(session_id, first, 0, total, interaction_mode)
             except Exception:
-                logger.exception("quiz_voice_delivery_failed")
+                logger.exception("quiz_start_ws_broadcast_failed", session_id=session_id)
+
+        if speak:
+            await self._speak_quiz_start(
+                quiz,
+                session_id=session_id,
+                execution_id=execution_id,
+                first=first,
+                total=total,
+                intro=intro,
+                voice_instruction=voice_instruction,
+                interaction_mode=interaction_mode,
+                context=context,
+            )
 
         logger.info(
             "quiz_session_started",
             session_id=session_id,
             quiz_id=quiz.id,
             question_count=total,
+            interaction_mode=interaction_mode,
+            voice=speak,
         )
-        return DeliveryResult(session_id=session_id)
+        return DeliveryResult(session_id=session_id, timeout_at=timeout_at)
 
-    # -- quiz answers -------------------------------------------------------
+    async def _speak_quiz_start(
+        self,
+        quiz: Quiz,
+        *,
+        session_id: int,
+        execution_id: int,
+        first: QuizQuestion,
+        total: int,
+        intro: str,
+        voice_instruction: str | None,
+        interaction_mode: QuizInteractionMode,
+        context: Mapping[str, Any],
+    ) -> None:
+        directive = self._voice.quiz_mode_directive(interaction_mode) if self._voice else ""
+        composed = self._compose_voice(
+            "quiz",
+            step_override=voice_instruction,
+            resource_override=quiz.voice_instruction,
+            context=context,
+            directive=directive,
+        )
+        opening = intro or f"Let's chat about {quiz.title}."
+        prompt = f"{opening} There are {total} questions. {spoken_question(session_id, first, 0)}"
+        try:
+            # The senior answers aloud, so the tablet microphone must be live before
+            # the question is spoken; an idle tablet would otherwise hear nothing.
+            await self._ws_manager.broadcast(
+                {
+                    "type": "enable_microphone",
+                    "reason": "quiz_voice",
+                    "session_id": session_id,
+                }
+            )
+            await inject_session_prompt(
+                self._ws_manager,
+                prompt=prompt,
+                delivery_type=QUIZ_DELIVERY_TYPE,
+                session_id=session_id,
+                execution_id=execution_id,
+                voice_instruction=composed or None,
+                extra_metadata={"quiz_id": quiz.id},
+            )
+        except Exception:
+            logger.exception("quiz_voice_delivery_failed", session_id=session_id)
+            return
+        self._voice_sessions.add(session_id)
+        self._mark_in_progress(session_id)
+
+    # -- reads ---------------------------------------------------------------
 
     def get_current_question(self, session_id: int) -> dict[str, Any]:
         """Return the question the senior should answer next.
 
-        Returns ord, text, type, choices, or {"done": True} if past the end.
+        Returns ord, text, type, choices, or {"done": True} if the session is over.
         """
         db: Session = self._db_factory()
         try:
-            session = db.execute(
-                select(QuizSession).where(QuizSession.id == session_id)
-            ).scalar_one_or_none()
+            session = db.get(QuizSession, session_id)
             if session is None:
                 return {"error": "Session not found"}
+            if session.status in TERMINAL_QUIZ_STATUSES:
+                return {"done": True, "reason": session.status}
 
             question_order: list[int] = session.question_order or []
             total = len(question_order)
-            if total == 0:
-                return {"done": True, "reason": "no questions"}
-
             idx = session.current_question_ord
-            if idx >= total:
+            if total == 0 or idx >= total:
                 return {"done": True, "reason": "past last question"}
 
-            question = db.execute(
-                select(QuizQuestion).where(QuizQuestion.id == question_order[idx])
-            ).scalar_one_or_none()
+            question = db.get(QuizQuestion, question_order[idx])
             if question is None:
                 return {"done": True, "reason": "question not found"}
-
-            return {
-                "session_id": session_id,
-                "question_ord": idx,
-                "question_text": question.question_text,
-                "question_type": question.question_type,
-                "choices": question.choices or [],
-                "total": total,
-            }
+            return {"session_id": session_id, **question_descriptor(question, idx, total)}
         finally:
             db.close()
 
-    async def submit_quiz_answer(
-        self,
-        session_id: int,
-        question_ord: int,
-        *,
-        choice_id: str | None = None,
-        open_ended_text: str | None = None,
-        channel: str = "pwa_voice",
-        latency_ms: int | None = None,
-    ) -> dict[str, Any]:
-        """Record the senior's answer and advance the session."""
-        db: Session = self._db_factory()
-        try:
-            session = db.execute(
-                select(QuizSession).where(QuizSession.id == session_id)
-            ).scalar_one_or_none()
-            if session is None:
-                return {"error": "Session not found"}
-
-            question_order: list[int] = session.question_order or []
-            total = len(question_order)
-            if total == 0:
-                return {"error": "No questions in session"}
-
-            if question_ord < 0 or question_ord >= total:
-                return {"error": f"question_ord {question_ord} out of range [0, {total})"}
-
-            question_id = question_order[question_ord]
-            question = db.execute(
-                select(QuizQuestion).where(QuizQuestion.id == question_id)
-            ).scalar_one_or_none()
-
-            if question is None:
-                return {"error": "Question not found"}
-
-            # Check is_correct for multiple choice, or grade open_ended via LLM
-            is_correct: bool | None = None
-            chosen_text = ""
-            if question.question_type == "multiple_choice" and choice_id:
-                for c in question.choices or []:
-                    if c.get("id") == choice_id:
-                        chosen_text = c.get("text", "")
-                        is_correct = c.get("is_correct", False)
-                        break
-            elif (
-                question.question_type == "open_ended"
-                and open_ended_text
-                and self._content_gen
-                and question.expected_answer
-            ):
-                try:
-                    is_correct = await self._content_gen.grade_open_ended(
-                        question.question_text,
-                        question.expected_answer,
-                        open_ended_text,
-                    )
-                except Exception:
-                    logger.exception("open_ended_grading_failed")
-                    is_correct = None
-
-            # Record response (idempotent — only advance on first insert)
-            existing = db.execute(
-                select(QuizResponse).where(
-                    QuizResponse.session_id == session_id,
-                    QuizResponse.question_id == question.id,
-                )
-            ).scalar_one_or_none()
-
-            is_new_response = existing is None
-            if is_new_response:
-                resp = QuizResponse(
-                    session_id=session_id,
-                    question_id=question.id,
-                    question_ord=question_ord,
-                    question_text=question.question_text,
-                    chosen_choice_id=choice_id,
-                    chosen_choice_text=chosen_text,
-                    open_ended_text=open_ended_text,
-                    is_correct=is_correct,
-                    channel=channel,
-                    latency_ms=latency_ms,
-                )
-                db.add(resp)
-                db.commit()
-
-                # Advance session (idempotent: only on new response)
-                session.current_question_ord = question_ord + 1
-                session.last_activity_at = datetime.now(UTC)
-                db.commit()
-
-            # Check if quiz is complete using persisted question_order
-            advance = (question_ord + 1) < total
-
-            # Broadcast shared result for both PWA and voice paths
-            try:
-                await self._ws_manager.broadcast(
-                    {
-                        "type": "quiz_answer_recorded",
-                        "session_id": session_id,
-                        "question_ord": question_ord,
-                        "is_correct": is_correct,
-                        "advance": advance,
-                    }
-                )
-            except Exception:
-                logger.exception("quiz_answer_recorded_broadcast_failed")
-
-            # Drive the next question or complete
-            if is_new_response:
-                if advance:
-                    await self._send_question_by_index(session, question_ord + 1)
-                else:
-                    await self.complete_quiz_session(session_id)
-
-            return {
-                "session_id": session_id,
-                "question_ord": question_ord,
-                "is_correct": is_correct,
-                "advance": advance,
-            }
-        except Exception:
-            db.rollback()
-            logger.exception("submit_quiz_answer_error")
-            return {"error": "Failed to record answer"}
-        finally:
-            db.close()
+    # -- terminal transitions -------------------------------------------------
 
     async def complete_quiz_session(self, session_id: int) -> dict[str, Any]:
-        """Finalize a quiz session."""
+        """Finalize a quiz session; repeating it on a finished session changes nothing."""
         db: Session = self._db_factory()
         try:
             session = db.execute(
-                select(QuizSession).where(QuizSession.id == session_id)
+                select(QuizSession).where(QuizSession.id == session_id).with_for_update()
             ).scalar_one_or_none()
             if session is None:
                 return {"error": "Session not found"}
-
-            session.status = "completed"
-            session.completed_at = datetime.now(UTC)
-
-            # Count results
             responses = (
                 db.execute(select(QuizResponse).where(QuizResponse.session_id == session_id))
                 .scalars()
@@ -349,11 +260,25 @@ class QuizDeliveryMixin:
             )
             num_answered = len(responses)
             num_correct = sum(1 for r in responses if r.is_correct)
-
-            db.commit()
+            if session.status in TERMINAL_QUIZ_STATUSES:
+                return {
+                    "session_id": session_id,
+                    "status": session.status,
+                    "num_correct": num_correct,
+                    "num_answered": num_answered,
+                }
+            session.status = "completed"
+            session.completed_at = datetime.now(UTC)
             execution_id = session.execution_id
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
-            # Broadcast completion
+        cancel_session_timeout(self._scheduler, job_id=quiz_timeout_job_id(session_id))
+        try:
             await self._ws_manager.broadcast(
                 {
                     "type": "quiz_complete",
@@ -362,54 +287,88 @@ class QuizDeliveryMixin:
                     "num_answered": num_answered,
                 }
             )
+        except Exception:
+            logger.exception("quiz_complete_broadcast_failed", session_id=session_id)
+        await self._end_session_side_effects(session_id, execution_id)
 
-            # Resume the owning pipeline execution so it doesn't wait for timeout
-            resume_owning_pipeline(self._scheduler, execution_id)
+        logger.info(
+            "quiz_session_completed",
+            session_id=session_id,
+            num_correct=num_correct,
+            num_answered=num_answered,
+        )
+        return {
+            "session_id": session_id,
+            "status": "completed",
+            "num_correct": num_correct,
+            "num_answered": num_answered,
+        }
 
-            logger.info(
-                "quiz_session_completed",
-                session_id=session_id,
-                num_correct=num_correct,
-                num_answered=num_answered,
-            )
-            return {
-                "session_id": session_id,
-                "status": "completed",
-                "num_correct": num_correct,
-                "num_answered": num_answered,
-            }
+    async def handle_session_timeout(self, session_id: int) -> None:
+        """Scheduler callback: time out a session that is still open.
+
+        A session that already finished is left alone, so a timeout job that fires
+        after completion can never overwrite ``completed``.
+        """
+        db: Session = self._db_factory()
+        try:
+            session = db.execute(
+                select(QuizSession).where(QuizSession.id == session_id).with_for_update()
+            ).scalar_one_or_none()
+            if session is None or session.status in TERMINAL_QUIZ_STATUSES:
+                db.rollback()
+                return
+            session.status = "timed_out"
+            session.completed_at = datetime.now(UTC)
+            execution_id = session.execution_id
+            db.commit()
         except Exception:
             db.rollback()
-            logger.exception("complete_quiz_session_error")
-            return {"error": "Failed to complete session"}
+            logger.exception("quiz_session_timeout_failed", session_id=session_id)
+            return
         finally:
             db.close()
 
-    # -- helpers ------------------------------------------------------------
+        try:
+            await self._ws_manager.broadcast({"type": "quiz_timeout", "session_id": session_id})
+        except Exception:
+            logger.exception("quiz_timeout_broadcast_failed", session_id=session_id)
+        await self._end_session_side_effects(session_id, execution_id)
+        logger.info("quiz_session_timed_out", session_id=session_id)
 
-    async def _send_question_by_index(self, session: QuizSession, index: int) -> None:
-        """Resolve question_order[index], load the QuizQuestion, send via ws."""
-        question_order: list[int] = session.question_order or []
-        if index < 0 or index >= len(question_order):
-            logger.error("question_index_out_of_range", index=index, total=len(question_order))
-            return
-        question_id = question_order[index]
+    async def _end_session_side_effects(self, session_id: int, execution_id: int | None) -> None:
+        """Drop the quiz persona and let the pipeline parked on this session continue."""
+        self._voice_sessions.discard(session_id)
+        await self._release_voice(voice_owner_key(QUIZ_DELIVERY_TYPE, session_id))
+        resume_owning_pipeline(self._scheduler, execution_id)
+
+    # -- helpers ---------------------------------------------------------------
+
+    def _mark_in_progress(self, session_id: int) -> None:
+        """``started`` -> ``in_progress`` only; never touches a session that has ended."""
         db: Session = self._db_factory()
         try:
-            question = db.execute(
-                select(QuizQuestion).where(QuizQuestion.id == question_id)
-            ).scalar_one_or_none()
-            if question is None:
-                logger.error("question_not_found", question_id=question_id)
-                return
-            await self._send_question_ws(session.id, question, index, len(question_order))
+            db.execute(
+                update(QuizSession)
+                .where(QuizSession.id == session_id, QuizSession.status == "started")
+                .values(status="in_progress")
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("quiz_mark_in_progress_failed", session_id=session_id)
         finally:
             db.close()
 
     async def _send_question_ws(
-        self, session_id: int, question: QuizQuestion, ord_num: int, total: int
+        self,
+        session_id: int,
+        question: QuizQuestion,
+        ord_num: int,
+        total: int,
+        interaction_mode: QuizInteractionMode | None,
     ) -> None:
-        """Send a quiz_question ws message."""
+        """Send a quiz_question ws message (with the explanation, used as a gentle hint)."""
         image_data = None
         if question.image_slot and isinstance(question.image_slot, dict):
             pwa = question.image_slot.get("variants", {}).get("pwa", {})
@@ -428,32 +387,14 @@ class QuizDeliveryMixin:
                     "alt_text": question.image_slot.get("alt_text", ""),
                 }
 
-        await self._ws_manager.broadcast(
-            {
-                "type": "quiz_question",
-                "session_id": session_id,
-                "question_ord": ord_num,
-                "question_type": question.question_type,
-                "question_text": question.question_text,
-                "choices": [
-                    {"id": c.get("id", ""), "text": c.get("text", "")}
-                    for c in (question.choices or [])
-                ],
-                "image": image_data,
-                "server_timestamp": datetime.now(UTC).isoformat(),
-            }
-        )
-
-    def _update_session_status(self, session_id: int, status: str) -> None:
-        db: Session = self._db_factory()
-        try:
-            session = db.execute(
-                select(QuizSession).where(QuizSession.id == session_id)
-            ).scalar_one_or_none()
-            if session and session.status != status:
-                session.status = status
-                db.commit()
-        except Exception:  # noqa: BLE001
-            db.rollback()
-        finally:
-            db.close()
+        payload: dict[str, Any] = {
+            "type": "quiz_question",
+            "session_id": session_id,
+            **question_descriptor(question, ord_num, total),
+            "hint": question.explanation or "",
+            "image": image_data,
+            "server_timestamp": datetime.now(UTC).isoformat(),
+        }
+        if interaction_mode is not None:
+            payload["interaction_mode"] = interaction_mode
+        await self._ws_manager.broadcast(payload)

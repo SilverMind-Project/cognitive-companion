@@ -4,8 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from backend.core.config import Settings
 from backend.services.guided_task.agent_voice import AgentSessionVoice
 from backend.services.interactive_session.tagging import prefix_for_delivery
+from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
 
 
 class _Ws:
@@ -16,27 +18,17 @@ class _Ws:
         self.calls.append(kwargs)
 
 
-class _VoiceInstructions:
-    def __init__(self) -> None:
-        self.calls: list[dict] = []
+BASE = "You are the household companion."
+DEFAULT = "Guide {{resident_name}} one step at a time."
 
-    def compose(
-        self,
-        *,
-        step_type: str,
-        base_instruction: str,
-        step_override: str | None,
-        resource_override: str | None,
-    ) -> str:
-        self.calls.append(
-            {
-                "step_type": step_type,
-                "base_instruction": base_instruction,
-                "step_override": step_override,
-                "resource_override": resource_override,
-            }
-        )
-        return resource_override or "default guided voice"
+
+def _voice() -> VoiceInstructionConfig:
+    return VoiceInstructionConfig(guided_task_default=DEFAULT)
+
+
+def _speaker(ws: _Ws, **kwargs) -> AgentSessionVoice:
+    settings = Settings.from_dict({"llm": {"realtime": {"system_instruction": BASE}}})
+    return AgentSessionVoice(ws, _voice(), settings=settings, **kwargs)
 
 
 def _session(**overrides):
@@ -54,8 +46,7 @@ def _session(**overrides):
 @pytest.mark.asyncio
 async def test_speak_step_injects_with_guided_prefix_metadata() -> None:
     ws = _Ws()
-    voice = _VoiceInstructions()
-    speaker = AgentSessionVoice(ws, voice)
+    speaker = _speaker(ws)
 
     await speaker.speak_step(
         session=_session(),
@@ -68,7 +59,7 @@ async def test_speak_step_injects_with_guided_prefix_metadata() -> None:
         {
             "prompt": "Pour water.",
             "callback": None,
-            "voice_instruction": "default guided voice",
+            "voice_instruction": f"{BASE}\n\nGuide Ruth one step at a time.",
             "metadata": {
                 "step_ord": 2,
                 "is_retry": True,
@@ -83,8 +74,7 @@ async def test_speak_step_injects_with_guided_prefix_metadata() -> None:
 @pytest.mark.asyncio
 async def test_speak_step_uses_routine_voice_override() -> None:
     ws = _Ws()
-    voice = _VoiceInstructions()
-    speaker = AgentSessionVoice(ws, voice)
+    speaker = _speaker(ws)
 
     await speaker.speak_step(
         session=_session(routine_system_instruction_override="Speak in Tamil."),
@@ -93,15 +83,13 @@ async def test_speak_step_uses_routine_voice_override() -> None:
         is_retry=False,
     )
 
-    assert voice.calls[0]["resource_override"] == "Speak in Tamil."
-    assert ws.calls[0]["voice_instruction"] == "Speak in Tamil."
+    assert ws.calls[0]["voice_instruction"] == f"{BASE}\n\nSpeak in Tamil."
 
 
 @pytest.mark.asyncio
 async def test_speak_step_renders_resident_name_in_voice_instruction() -> None:
     ws = _Ws()
-    voice = _VoiceInstructions()
-    speaker = AgentSessionVoice(ws, voice)
+    speaker = _speaker(ws)
 
     await speaker.speak_step(
         session=_session(routine_system_instruction_override="Help {{resident_name}}."),
@@ -110,14 +98,13 @@ async def test_speak_step_renders_resident_name_in_voice_instruction() -> None:
         is_retry=False,
     )
 
-    assert ws.calls[0]["voice_instruction"] == "Help Ruth."
+    assert ws.calls[0]["voice_instruction"] == f"{BASE}\n\nHelp Ruth."
 
 
 @pytest.mark.asyncio
 async def test_speak_step_without_memory_service_is_graceful() -> None:
     ws = _Ws()
-    voice = _VoiceInstructions()
-    speaker = AgentSessionVoice(ws, voice, memory_query=None)
+    speaker = _speaker(ws, memory_query=None)
 
     await speaker.speak_step(
         session=_session(),

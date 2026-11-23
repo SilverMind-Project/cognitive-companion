@@ -1,45 +1,38 @@
 <template>
-  <v-dialog
-    :model-value="screen !== 'hidden'"
-    max-width="520"
-    persistent
-    no-click-animation
-    @after-leave="onDialogClosed"
-  >
+  <v-dialog :model-value="screen !== 'hidden'" max-width="560" persistent no-click-animation>
     <v-fade-transition mode="out-in" :duration="200">
       <!-- ============================================================ -->
-      <!-- INTRO SCREEN                                                 -->
+      <!-- INTRO SCREEN (brief: advances on its own)                    -->
       <!-- ============================================================ -->
       <v-card v-if="screen === 'intro'" key="intro" class="quiz-card">
         <v-card-item>
           <template #prepend>
-            <v-icon color="primary" size="28">mdi-help-box-outline</v-icon>
+            <v-icon color="primary" size="32">mdi-help-box-outline</v-icon>
           </template>
-          <v-card-title class="text-h6 font-weight-bold">{{ title }}</v-card-title>
+          <v-card-title class="quiz-title">{{ title }}</v-card-title>
         </v-card-item>
 
         <v-divider class="mx-4" />
 
         <v-card-text class="pt-4">
-          <p class="text-body-1 intro-text mb-3">{{ introText }}</p>
-          <p class="text-caption text-medium-emphasis">
+          <p class="intro-text mb-3">{{ introText }}</p>
+          <p class="text-medium-emphasis intro-count">
             {{ totalQuestions }}
             {{ totalQuestions === 1 ? "question" : "questions" }}
           </p>
         </v-card-text>
-
-        <v-divider class="mx-4" />
 
         <v-card-actions class="pa-4">
           <v-spacer />
           <v-btn
             color="primary"
             variant="flat"
-            size="large"
+            size="x-large"
             class="px-8 start-btn"
+            data-test="quiz-start"
             @click="startQuiz"
           >
-            Start
+            Let's begin
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -51,15 +44,12 @@
         <v-card-item class="pb-0">
           <template #prepend>
             <div class="mr-2">
-              <v-chip color="primary" size="small" variant="tonal">
+              <v-chip color="primary" size="large" variant="tonal">
                 {{ currentOrd + 1 }}&thinsp;/&thinsp;{{ totalQuestions }}
               </v-chip>
             </div>
           </template>
-          <v-card-title
-            class="text-h5 font-weight-bold question-title text-wrap"
-            style="line-height: 1.3"
-          >
+          <v-card-title class="quiz-title question-title text-wrap" data-test="question-text">
             {{ questionText }}
           </v-card-title>
         </v-card-item>
@@ -67,7 +57,6 @@
         <v-divider class="mx-4 my-2" />
 
         <v-card-text class="pt-2">
-          <!-- Question image -->
           <v-img
             v-if="questionImage"
             :src="questionImage.url"
@@ -78,7 +67,27 @@
             class="rounded-lg mb-4 question-image"
           />
 
-          <!-- Multiple choice -->
+          <!-- A clue offered before answering: errorless learning prevents the
+               wrong guess rather than correcting it afterwards. -->
+          <div v-if="isGentle && hint && answered === null && !answerRecorded" class="mb-3">
+            <v-btn
+              v-if="!hintShown"
+              variant="text"
+              color="primary"
+              size="large"
+              prepend-icon="mdi-lightbulb-on-outline"
+              class="hint-btn"
+              data-test="quiz-hint"
+              @click="hintShown = true"
+            >
+              Give me a hint
+            </v-btn>
+            <div v-else class="feedback-bar feedback-bar--reminder" data-test="quiz-hint-text">
+              <v-icon size="22" class="mr-2">mdi-lightbulb-on-outline</v-icon>
+              <span>{{ hint }}</span>
+            </div>
+          </div>
+
           <div v-if="questionType === 'multiple_choice'" class="choices-stack">
             <v-btn
               v-for="choice in choices"
@@ -89,28 +98,34 @@
               class="choice-btn mb-3"
               :class="{ 'choice-btn--selected': answered === choice.id }"
               :color="getChoiceColor(choice.id)"
-              :disabled="answered !== null"
+              :disabled="answered !== null || answerRecorded"
+              :data-test="`quiz-choice-${choice.id}`"
               @click="selectChoice(choice.id)"
             >
               {{ choice.text }}
             </v-btn>
           </div>
 
-          <!-- Open ended -->
           <div v-else class="open-ended-hint">
             <div class="mic-icon-wrap">
               <v-icon size="48" color="primary">mdi-microphone</v-icon>
             </div>
-            <p class="text-center text-body-1 text-medium-emphasis mt-3">Speak your answer aloud</p>
+            <p class="text-center text-medium-emphasis mt-3 open-ended-text">
+              Tell me your answer out loud
+            </p>
           </div>
         </v-card-text>
 
-        <!-- Feedback bar (visible after answer is recorded) -->
         <v-slide-y-transition>
           <v-card-text v-if="answerRecorded" class="pt-0">
-            <div class="feedback-bar" :class="feedbackClass">
-              <v-icon size="18" class="mr-1">{{ feedbackIcon }}</v-icon>
-              <span>{{ feedbackText }}</span>
+            <div class="feedback-bar" :class="feedbackClass" data-test="quiz-feedback">
+              <v-icon size="22" class="mr-2">{{ feedbackIcon }}</v-icon>
+              <span>
+                {{ feedbackText }}
+                <span v-if="showExplanation" class="feedback-explanation">
+                  {{ explanation }}
+                </span>
+              </span>
             </div>
           </v-card-text>
         </v-slide-y-transition>
@@ -122,25 +137,39 @@
       <v-card v-else-if="screen === 'complete'" key="complete" class="quiz-card">
         <v-card-item>
           <template #prepend>
-            <v-icon color="primary" size="28">mdi-trophy-outline</v-icon>
+            <v-icon color="primary" size="32">{{
+              isGentle ? "mdi-heart-outline" : "mdi-trophy-outline"
+            }}</v-icon>
           </template>
-          <v-card-title class="text-h6 font-weight-bold">Quiz Complete!</v-card-title>
+          <v-card-title class="quiz-title">
+            {{ isGentle ? "Thank you for chatting with me!" : "Quiz complete!" }}
+          </v-card-title>
         </v-card-item>
 
         <v-divider class="mx-4" />
 
         <v-card-text class="pt-6 pb-4 text-center">
-          <p class="text-h3 font-weight-bold text-primary score-text">
-            {{ numCorrect }} / {{ numAnswered }}
+          <p v-if="isGentle" class="intro-text" data-test="quiz-complete-gentle">
+            That was lovely. I enjoyed remembering together.
           </p>
-          <p class="text-body-2 text-medium-emphasis mt-1">questions answered correctly</p>
+          <template v-else>
+            <p class="text-h3 font-weight-bold text-primary score-text" data-test="quiz-score">
+              {{ numCorrect }} / {{ numAnswered }}
+            </p>
+            <p class="text-medium-emphasis mt-1 intro-count">questions answered correctly</p>
+          </template>
         </v-card-text>
-
-        <v-divider class="mx-4" />
 
         <v-card-actions class="pa-4">
           <v-spacer />
-          <v-btn color="primary" variant="flat" size="large" class="px-8 done-btn" @click="close">
+          <v-btn
+            color="primary"
+            variant="flat"
+            size="x-large"
+            class="px-8 done-btn"
+            data-test="quiz-done"
+            @click="close"
+          >
             Done
           </v-btn>
         </v-card-actions>
@@ -153,40 +182,49 @@
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { wsClient } from "../../services/WebSocketClient.js";
 
-// How long correct/incorrect feedback dwells before advancing to the next
-// question or the score screen, so the senior can read the result.
+// How long the answer feedback stays before the next question or the closing
+// screen. A gentle reminder needs longer than a "Wonderful!" to be read.
 const FEEDBACK_DWELL_MS = 1500;
+const REMINDER_DWELL_MS = 5000;
+// The intro is a short greeting, not a gate: a senior who does not tap is never
+// left on it, and a voice quiz shows question 1 as soon as it is spoken.
+const INTRO_DWELL_MS = 3000;
 
 // ---------------------------------------------------------------------------
 // Screen: 'hidden' | 'intro' | 'question' | 'complete'
 // ---------------------------------------------------------------------------
 const screen = ref("hidden");
 
-// Quiz-level data
 const sessionId = ref(null);
-const quizId = ref(null);
 const title = ref("");
 const introText = ref("");
 const totalQuestions = ref(0);
+// "gentle" (errorless learning: no right/wrong, no score) or "standard".
+const interactionMode = ref("gentle");
+const voiceQuiz = ref(false);
 
-// Current question
 const questionQueue = ref([]);
 const currentOrd = ref(0);
 const questionText = ref("");
 const questionType = ref("multiple_choice");
 const choices = ref([]);
 const questionImage = ref(null);
+const hint = ref("");
+const hintShown = ref(false);
+let questionShownAt = 0;
 
-// Answer state for the current question
 const answered = ref(null); // selected choice id, or null
-const answerRecorded = ref(false); // true once quiz_answer_recorded arrives
+const answerRecorded = ref(false);
 const isCorrect = ref(null); // true | false | null
+const explanation = ref("");
 
-// Running tally (final numbers from quiz_complete override these)
 const numCorrect = ref(0);
 const numAnswered = ref(0);
 
 let advanceTimer = null;
+let introTimer = null;
+
+const isGentle = computed(() => interactionMode.value !== "standard");
 
 // ---------------------------------------------------------------------------
 // Incoming message handlers
@@ -195,109 +233,133 @@ function handleQuizStart(data) {
   resetState();
   screen.value = "intro";
   sessionId.value = data.session_id;
-  quizId.value = data.quiz_id;
   title.value = data.title || "";
   introText.value = data.intro_voice_text || data.intro_text || "";
   totalQuestions.value = data.total_questions || 0;
+  interactionMode.value = data.interaction_mode === "standard" ? "standard" : "gentle";
+  voiceQuiz.value = Boolean(data.voice);
+  introTimer = setTimeout(startQuiz, INTRO_DWELL_MS);
+}
+
+function isOurs(data) {
+  return data.session_id === sessionId.value;
 }
 
 function handleQuizQuestion(data) {
+  if (!isOurs(data)) return;
   questionQueue.value.push(data);
-  // If we are in the question screen and waiting for the next question,
-  // load it immediately.
-  if (screen.value === "question" && advanceTimer === null) {
+  if (screen.value === "intro" && voiceQuiz.value) {
+    // The companion is already asking question 1 aloud; show the same question.
+    startQuiz();
+  } else if (screen.value === "question" && advanceTimer === null && answerRecorded.value) {
     loadNextQuestion();
   }
 }
 
 function handleQuizAnswerRecorded(data) {
+  if (!isOurs(data)) return;
   answerRecorded.value = true;
   isCorrect.value = data.is_correct;
+  explanation.value = data.explanation || "";
   numAnswered.value++;
-  if (data.is_correct) {
-    numCorrect.value++;
-  }
+  if (data.is_correct) numCorrect.value++;
 
-  // When advance is true, load the next question after a brief delay
-  // so the user can see the correct/incorrect feedback.
   if (data.advance) {
     clearTimeout(advanceTimer);
     advanceTimer = setTimeout(() => {
       advanceTimer = null;
       loadNextQuestion();
-    }, FEEDBACK_DWELL_MS);
+    }, feedbackDwell());
   }
 }
 
 function handleQuizComplete(data) {
+  if (!isOurs(data)) return;
   clearTimeout(advanceTimer);
   advanceTimer = null;
-
-  // Use server-authoritative tallies
   numCorrect.value = data.num_correct;
   numAnswered.value = data.num_answered;
 
-  // The backend broadcasts quiz_complete immediately after the final
-  // quiz_answer_recorded, so without a delay the two reactive updates flush
-  // together and the senior never sees whether their last answer was right.
-  // When we just recorded an answer, hold the feedback for the same beat the
-  // advance path uses before switching to the score screen.
+  // quiz_complete follows the last quiz_answer_recorded immediately; hold the
+  // feedback for the same beat so the last answer's reminder is still seen.
   if (answerRecorded.value) {
     advanceTimer = setTimeout(() => {
       advanceTimer = null;
       screen.value = "complete";
-    }, FEEDBACK_DWELL_MS);
+    }, feedbackDwell());
   } else {
     screen.value = "complete";
   }
 }
 
+function handleQuizTimeout(data) {
+  if (!isOurs(data)) return;
+  close();
+}
+
 // ---------------------------------------------------------------------------
 // State helpers
 // ---------------------------------------------------------------------------
+function feedbackDwell() {
+  return showExplanation.value ? REMINDER_DWELL_MS : FEEDBACK_DWELL_MS;
+}
+
+function clearTimers() {
+  clearTimeout(advanceTimer);
+  clearTimeout(introTimer);
+  advanceTimer = null;
+  introTimer = null;
+}
+
 function resetState() {
+  clearTimers();
   screen.value = "hidden";
   sessionId.value = null;
-  quizId.value = null;
   title.value = "";
   introText.value = "";
   totalQuestions.value = 0;
+  interactionMode.value = "gentle";
+  voiceQuiz.value = false;
   questionQueue.value = [];
   currentOrd.value = 0;
   questionText.value = "";
   questionType.value = "multiple_choice";
   choices.value = [];
   questionImage.value = null;
+  hint.value = "";
+  hintShown.value = false;
   answered.value = null;
   answerRecorded.value = false;
   isCorrect.value = null;
+  explanation.value = "";
   numCorrect.value = 0;
   numAnswered.value = 0;
-  clearTimeout(advanceTimer);
-  advanceTimer = null;
 }
 
 function loadNextQuestion() {
+  if (questionQueue.value.length === 0) return;
+  const q = questionQueue.value.shift();
   answered.value = null;
   answerRecorded.value = false;
   isCorrect.value = null;
-
-  if (questionQueue.value.length > 0) {
-    const q = questionQueue.value.shift();
-    currentOrd.value = q.question_ord;
-    questionText.value = q.question_text || "";
-    questionType.value = q.question_type || "multiple_choice";
-    choices.value = q.choices || [];
-    questionImage.value = q.image || null;
-  }
-  // If the queue is empty, we stay in 'question' state and wait for
-  // the next quiz_question message to arrive.
+  explanation.value = "";
+  hintShown.value = false;
+  currentOrd.value = q.question_ord;
+  questionText.value = q.question_text || "";
+  questionType.value = q.question_type || "multiple_choice";
+  choices.value = q.choices || [];
+  questionImage.value = q.image || null;
+  hint.value = q.hint || "";
+  questionShownAt = performance.now();
 }
 
 // ---------------------------------------------------------------------------
 // User actions
 // ---------------------------------------------------------------------------
 function startQuiz() {
+  if (screen.value !== "intro") return;
+  clearTimeout(introTimer);
+  introTimer = null;
   screen.value = "question";
   loadNextQuestion();
 }
@@ -305,57 +367,57 @@ function startQuiz() {
 function selectChoice(choiceId) {
   if (answered.value !== null) return;
   answered.value = choiceId;
-
   wsClient._sendJson({
     type: "quiz_answer",
     session_id: sessionId.value,
     question_ord: currentOrd.value,
     choice_id: choiceId,
+    latency_ms: Math.round(performance.now() - questionShownAt),
   });
 }
 
 function close() {
+  clearTimers();
   screen.value = "hidden";
 }
 
-function onDialogClosed() {
-  // After-leave hook — clean up if the dialog was dismissed via backdrop,
-  // though persistent prevents that. Included for defensive safety.
-}
+// ---------------------------------------------------------------------------
+// Feedback presentation: gentle mode never shows right/wrong or a score.
+// ---------------------------------------------------------------------------
+const showExplanation = computed(
+  () => answerRecorded.value && isCorrect.value !== true && explanation.value !== "",
+);
 
-// ---------------------------------------------------------------------------
-// Color logic for choice buttons
-// ---------------------------------------------------------------------------
 function getChoiceColor(choiceId) {
   if (answered.value !== choiceId) return undefined;
-  if (!answerRecorded.value) return "primary";
+  if (!answerRecorded.value || isGentle.value) return "primary";
   return isCorrect.value === true ? "success" : "error";
 }
 
 const feedbackClass = computed(() => {
   if (!answerRecorded.value) return "";
   if (isCorrect.value === true) return "feedback-bar--correct";
-  if (isCorrect.value === false) return "feedback-bar--incorrect";
-  return "";
+  if (isCorrect.value === false && !isGentle.value) return "feedback-bar--incorrect";
+  return "feedback-bar--reminder";
 });
 
 const feedbackIcon = computed(() => {
-  if (!answerRecorded.value) return "";
-  if (isCorrect.value === true) return "mdi-check-circle";
-  if (isCorrect.value === false) return "mdi-close-circle";
-  return "mdi-check";
+  if (isCorrect.value === true) return "mdi-check-circle-outline";
+  if (isCorrect.value === false && !isGentle.value) return "mdi-information-outline";
+  return "mdi-heart-outline";
 });
 
 const feedbackText = computed(() => {
   if (!answerRecorded.value) return "";
-  if (isCorrect.value === true) return "Correct!";
-  if (isCorrect.value === false) return "Not quite";
-  return "Answer recorded";
+  if (isCorrect.value === true) return isGentle.value ? "Wonderful!" : "Correct!";
+  if (isGentle.value) {
+    return showExplanation.value ? "Good thought! Here is a little reminder:" : "Thank you!";
+  }
+  return isCorrect.value === false ? "Not quite." : "Answer recorded.";
 });
 
 // ---------------------------------------------------------------------------
-// WS listener — all quiz messages flow through onStatus since wsClient
-// does not have dedicated callback arrays for these types.
+// WS listener: quiz messages arrive through onStatus (no dedicated callbacks).
 // ---------------------------------------------------------------------------
 function onWsStatus(data) {
   switch (data.type) {
@@ -371,6 +433,9 @@ function onWsStatus(data) {
     case "quiz_complete":
       handleQuizComplete(data);
       break;
+    case "quiz_timeout":
+      handleQuizTimeout(data);
+      break;
   }
 }
 
@@ -379,7 +444,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  clearTimeout(advanceTimer);
+  wsClient.off("onStatus", onWsStatus);
+  clearTimers();
 });
 
 // Allow CompanionView (or tests) to trigger quiz_start programmatically.
@@ -389,25 +455,37 @@ defineExpose({ show: handleQuizStart });
 <style scoped>
 /* The global dialog rule (theme.css) already gives this v-card warm paper +
    --cc-radius-xl; v-card-title is serif display globally. Senior-surface work
-   here is legibility: >=20px body, >=72px targets, DS inner radii. */
+   here is legibility: >=22px body and choices, >=28px titles, >=64px targets. */
 
-/* ── Intro ─────────────────────────────────────────────────────────────── */
+.quiz-title {
+  font-size: 1.75rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
 .intro-text {
-  font-size: 1.25rem;
+  font-size: 1.375rem;
   line-height: 1.6;
   white-space: pre-wrap;
   color: var(--cc-text-1);
 }
 
+.intro-count,
+.open-ended-text {
+  font-size: 1.375rem;
+}
+
 .start-btn,
-.done-btn {
-  min-height: 56px;
+.done-btn,
+.hint-btn {
+  min-height: 64px;
+  font-size: 1.25rem;
   letter-spacing: 0.02em;
   font-weight: 600;
+  text-transform: none;
   border-radius: var(--cc-radius-md);
 }
 
-/* ── Question ──────────────────────────────────────────────────────────── */
 .question-title {
   overflow-wrap: break-word;
 }
@@ -425,7 +503,7 @@ defineExpose({ show: handleQuizStart });
   min-height: 72px !important;
   height: auto !important;
   border-radius: var(--cc-radius-md) !important;
-  font-size: 1.125rem;
+  font-size: 1.375rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   text-transform: none;
@@ -450,10 +528,20 @@ defineExpose({ show: handleQuizStart });
 }
 
 .choice-btn--selected {
-  box-shadow: 0 0 0 2px currentColor;
+  box-shadow: 0 0 0 2px currentcolor;
 }
 
-/* ── Open ended hint ───────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .choice-btn {
+    transition: none;
+  }
+
+  .choice-btn:not(:disabled):hover,
+  .choice-btn:not(:disabled):active {
+    transform: none;
+  }
+}
+
 .open-ended-hint {
   padding: 32px 0 24px;
 }
@@ -466,17 +554,18 @@ defineExpose({ show: handleQuizStart });
   height: 80px;
   margin: 0 auto;
   border-radius: 50%;
-  background: rgba(var(--v-theme-primary), 0.08);
+  background: var(--cc-brand-softer);
   animation: mic-pulse 2s ease-in-out infinite;
 }
 
 @keyframes mic-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(var(--v-theme-primary), 0.15);
+    box-shadow: 0 0 0 0 var(--cc-brand-soft);
   }
+
   50% {
-    box-shadow: 0 0 0 12px rgba(var(--v-theme-primary), 0);
+    box-shadow: 0 0 0 12px transparent;
   }
 }
 
@@ -486,27 +575,39 @@ defineExpose({ show: handleQuizStart });
   }
 }
 
-/* ── Feedback bar ──────────────────────────────────────────────────────── */
 .feedback-bar {
   display: flex;
-  align-items: center;
-  padding: 12px 16px;
+  align-items: flex-start;
+  padding: 14px 18px;
   border-radius: var(--cc-radius-md);
-  font-size: 1.0625rem;
+  font-size: 1.375rem;
+  line-height: 1.45;
   font-weight: 600;
 }
 
+.feedback-explanation {
+  display: block;
+  margin-top: 4px;
+  font-weight: 400;
+  color: var(--cc-text-1);
+}
+
 .feedback-bar--correct {
-  background: rgba(var(--v-theme-success), 0.12);
-  color: rgb(var(--v-theme-success));
+  background: color-mix(in srgb, var(--cc-success) 12%, transparent);
+  color: var(--cc-success);
+}
+
+/* A calm, warm reminder: never the error color. */
+.feedback-bar--reminder {
+  background: color-mix(in srgb, var(--cc-info) 12%, transparent);
+  color: var(--cc-info);
 }
 
 .feedback-bar--incorrect {
-  background: rgba(var(--v-theme-error), 0.12);
-  color: rgb(var(--v-theme-error));
+  background: color-mix(in srgb, var(--cc-warning) 14%, transparent);
+  color: var(--cc-text-1);
 }
 
-/* ── Complete screen ───────────────────────────────────────────────────── */
 .score-text {
   letter-spacing: -0.02em;
 }

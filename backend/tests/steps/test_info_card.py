@@ -207,11 +207,16 @@ class TestInfoCardStepExecute:
             speak=False,
             dismiss_seconds=60,
             eink_expiry_minutes=30,
+            senior_id=None,
+            template_data={},
+            trigger_vars={"room_name": "", "sensor_id": ""},
         )
+        assert result.data["_cooloff_triggered"] is True
 
     @pytest.mark.asyncio
-    async def test_execute_renders_voice_instruction_template(self):
-        """Templated voice_instruction is rendered against pipeline_data + trigger."""
+    async def test_execute_forwards_template_context_for_delivery_time_rendering(self):
+        """The step hands the raw template plus its context to delivery, which renders
+        the card's title, body, and voice instruction against the same context."""
         handler = InfoCardStep()
         step = FakePipelineStep(
             id=11,
@@ -242,7 +247,11 @@ class TestInfoCardStepExecute:
 
         assert result.success is True
         call_kwargs = delivery_svc.deliver_info_card.call_args.kwargs
-        assert call_kwargs["voice_instruction"] == "Speak gently. It is Monday in kitchen."
+        assert call_kwargs["voice_instruction"] == (
+            "Speak gently. It is {{system.local_day_of_week}} in {{trigger.room_name}}."
+        )
+        assert call_kwargs["template_data"] == pipeline_data
+        assert call_kwargs["trigger_vars"] == {"room_name": "kitchen", "sensor_id": "cam1"}
 
     @pytest.mark.asyncio
     async def test_execute_with_voice_instruction_passed_through(self):
@@ -282,3 +291,33 @@ class TestInfoCardStepExecute:
         call_kwargs = delivery_svc.deliver_info_card.call_args.kwargs
         assert call_kwargs["voice_instruction"] == "custom"
         assert call_kwargs["speak"] is True
+
+    @pytest.mark.asyncio
+    async def test_execute_without_cooloff_does_not_flag_cooloff(self):
+        handler = InfoCardStep()
+        step = FakePipelineStep(
+            id=7,
+            step_type="info_card",
+            config_json={"info_card_id": 1, "channels": ["pwa"], "trigger_cooloff": False},
+            rule_id=10,
+        )
+        card = FakeInfoCard(
+            id=1, title="T", body_text="B", layout_id="text_only", status="approved", image_slots=[]
+        )
+        mock_db = Mock()
+        mock_db.execute.return_value.scalar_one_or_none.return_value = card
+        delivery_svc = Mock()
+        delivery_svc.deliver_info_card = AsyncMock(return_value=Mock(delivery_id=45))
+        services = FakeServiceContainer(
+            db_factory=Mock(return_value=mock_db), knowledge_delivery=delivery_svc
+        )
+
+        result = await handler.execute(
+            step,
+            FakeWorkflowExecution(id=106, status="running"),
+            {},
+            FakeTriggerContext(),
+            services,
+        )
+
+        assert "_cooloff_triggered" not in result.data

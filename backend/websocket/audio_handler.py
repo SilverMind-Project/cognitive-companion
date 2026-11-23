@@ -60,14 +60,12 @@ class AudioSessionHandler:
         manager: ConnectionManager,
         realtime_provider: RealtimeLLMProvider | None,
         conversation_manager: ConversationManager | None = None,
-        rag_lookup: Callable[[str], str] | None = None,
         tool_adapter=None,
     ) -> None:
         self.ws = websocket
         self.manager = manager
         self.provider = realtime_provider
         self.conv_manager = conversation_manager
-        self.rag_lookup = rag_lookup
         self.tool_adapter = tool_adapter
 
         # Internal queues and events
@@ -170,13 +168,7 @@ class AudioSessionHandler:
                     if msg_type == "end_of_turn":
                         await self._client_to_backend.put(("end_of_turn", None))
                     elif msg_type == "text":
-                        text = data.get("text", "")
-                        if text and self.rag_lookup:
-                            # Enrich with RAG context
-                            context = self.rag_lookup(text)
-                            if context:
-                                text = f"[Context: {context}]\n{text}"
-                        await self._client_to_backend.put(("text", text))
+                        await self._client_to_backend.put(("text", data.get("text", "")))
                     elif msg_type == "interactive_response":
                         await self._handle_interactive_response(data)
                     elif msg_type == "quiz_answer":

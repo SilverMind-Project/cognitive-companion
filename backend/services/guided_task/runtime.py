@@ -267,7 +267,7 @@ class Runtime:
         )
         guided_metrics.guided_sessions_total.labels(outcome=outcome).inc()
         await self._memory_bridge.on_session_terminal(updated)
-        resume_owning_pipeline(ctx.pipeline_executor, ctx.db_factory, updated.execution_id)
+        resume_owning_pipeline(ctx.scheduler, updated.execution_id, now=now)
         return updated
 
     async def abandon(self, session_id: int, *, now: datetime, outcome: str) -> GuidedSession:

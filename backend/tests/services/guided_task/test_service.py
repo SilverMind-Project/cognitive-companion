@@ -74,10 +74,12 @@ class _FakeScheduler:
 
 
 @dataclass
-class _FakePipelineExecutor:
+class _ResumeRecordingScheduler(_FakeScheduler):
+    """Records the pipeline resume a terminal session schedules through the scheduler."""
+
     resumed: list[int] = field(default_factory=list)
 
-    def resume(self, execution_id: int, db) -> None:
+    def schedule_workflow_resume(self, execution_id: int, resume_at) -> None:
         self.resumed.append(execution_id)
 
 
@@ -209,8 +211,8 @@ async def test_handle_completion_on_last_step_completes_and_resumes_pipeline(
 ):
     routine_id = _seed_routine(db_session, steps=1)
     clock = _Clock()
-    executor = _FakePipelineExecutor()
-    service = _service(db_factory, clock, pipeline_executor=executor)
+    scheduler = _ResumeRecordingScheduler()
+    service = _service(db_factory, clock, scheduler=scheduler)
     session = await service.start(routine_id, "resident-1", execution_id=42)
 
     result = await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
@@ -222,7 +224,7 @@ async def test_handle_completion_on_last_step_completes_and_resumes_pipeline(
     stored = db_session.get(GuidedSession, session.id)
     assert stored.status == "completed"
     assert stored.outcome == "completed"
-    assert executor.resumed == [42]
+    assert scheduler.resumed == [42]
 
 
 @pytest.mark.asyncio
@@ -272,9 +274,9 @@ async def test_resume_after_grace_abandons(db_session, db_factory):
     than waiting out the park-ceiling backstop meant for a wedged session."""
     routine_id = _seed_routine(db_session)
     clock = _Clock()
-    executor = _FakePipelineExecutor()
+    scheduler = _ResumeRecordingScheduler()
     service = _service(
-        db_factory, clock, settings=_settings(resume_grace_s=60), pipeline_executor=executor
+        db_factory, clock, settings=_settings(resume_grace_s=60), scheduler=scheduler
     )
     session = await service.start(routine_id, "resident-1", execution_id=42)
     clock.advance(61)
@@ -286,7 +288,7 @@ async def test_resume_after_grace_abandons(db_session, db_factory):
     stored = db_session.get(GuidedSession, session.id)
     assert stored.status == "abandoned"
     assert stored.outcome == "abandoned"
-    assert executor.resumed == [42]
+    assert scheduler.resumed == [42]
 
 
 @pytest.mark.asyncio

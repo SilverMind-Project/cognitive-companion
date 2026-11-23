@@ -128,7 +128,7 @@ No `container` parameter -- runs before `ServiceContainer` exists.
 | `knowledge_interaction_service` | -- |
 | `knowledge_query` | `llm_model_registry` |
 | `knowledge_content_gen` | `llm_model_registry` |
-| `knowledge_delivery` | `ws_manager`, `minio_client`, `eink_renderer`, `voice_instructions`, `knowledge_content_gen` |
+| `knowledge_delivery` | `ws_manager`, `minio_client`, `eink_renderer`, `voice_instructions`, `knowledge_content_gen` (scheduler attached later by `pipeline.wire_scheduler`) |
 | `notification_dispatcher` | `telegram_client`, `ws_manager`, `tts_client`, `eink_renderer`, `minio_client`, `ha_client` |
 
 ### `pipeline.wire_service_container`
@@ -200,8 +200,10 @@ Also assigns `container.camera_source_resolver`.
 | --- | --- |
 | `scheduler` | `event_aggregator`, `pipeline_executor`, `rules_engine` |
 
-Also injects `scheduler_bridge` into `pipeline_executor._scheduler` and
-`interactive_response_service.scheduler` (not new `app.state` attributes).
+Also injects `scheduler_bridge` into `pipeline_executor._scheduler`,
+`interactive_response_service.scheduler`, and `knowledge_delivery` (through
+`attach_scheduler`, for quiz timeouts and the early pipeline resume when a quiz ends);
+none are new `app.state` attributes.
 Returns `scheduler_bridge` for `guided_task.wire_guided_task`.
 
 ### `guided_task.wire_guided_task`

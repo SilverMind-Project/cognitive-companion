@@ -30,10 +30,12 @@ class _WsManager:
 
 
 @dataclass
-class _PipelineExecutor:
+class _ResumeScheduler:
+    """Records the pipeline resume a terminal session schedules through the scheduler."""
+
     resumed: list[int] = field(default_factory=list)
 
-    def resume(self, execution_id: int, db) -> None:
+    def schedule_workflow_resume(self, execution_id: int, resume_at) -> None:
         self.resumed.append(execution_id)
 
 
@@ -145,10 +147,10 @@ async def test_escalation_unanswered_after_grace_abandons_and_resumes(
 ) -> None:
     session = _seed(db_session, execution_id=123)
     clock = _Clock()
-    pipeline = _PipelineExecutor()
+    pipeline = _ResumeScheduler()
     service = GuidedTaskService(
         db_factory=db_factory,
-        pipeline_executor=pipeline,
+        scheduler=pipeline,
         settings=_settings(),
         time_fn=clock,
     )

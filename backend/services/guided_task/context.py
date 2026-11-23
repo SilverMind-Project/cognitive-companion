@@ -228,7 +228,7 @@ class RuntimeContext:
         )
         if updated is None:
             raise NotFoundError("Guided session", session_id)
-        resume_owning_pipeline(self.pipeline_executor, self.db_factory, updated.execution_id)
+        resume_owning_pipeline(self.scheduler, updated.execution_id, now=now)
         self.evict_runtime_state(session_id)
         guided_metrics.guided_sessions_total.labels(outcome=outcome).inc()
         return updated

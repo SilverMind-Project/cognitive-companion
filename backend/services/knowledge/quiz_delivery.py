@@ -18,6 +18,7 @@ from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
 from backend.models.knowledge import Quiz, QuizQuestion, QuizResponse, QuizSession
 from backend.services.interactive_session import (
+    WorkflowResumeScheduler,
     inject_session_prompt,
     resume_owning_pipeline,
 )
@@ -37,7 +38,7 @@ class QuizDeliveryMixin:
     _minio: MinioClient | None
     _voice: VoiceInstructionConfig | None
     _content_gen: Any
-    _pipeline_executor: Any
+    _scheduler: WorkflowResumeScheduler | None
 
     # -- quiz session delivery ----------------------------------------------
 
@@ -363,7 +364,7 @@ class QuizDeliveryMixin:
             )
 
             # Resume the owning pipeline execution so it doesn't wait for timeout
-            resume_owning_pipeline(self._pipeline_executor, self._db_factory, execution_id)
+            resume_owning_pipeline(self._scheduler, execution_id)
 
             logger.info(
                 "quiz_session_completed",

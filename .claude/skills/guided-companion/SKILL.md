@@ -109,8 +109,10 @@ Quiz and guided task share: a durable session row linked to an `execution_id`,
 prompt injection into the live agent via
 `connection_manager.send_backend_task(prompt, voice_instruction, metadata)`, the
 `metadata.delivery_type` + `session_id` tagging consumed by `audio_handler`, a
-scheduled session timeout, and `pipeline_executor.resume(execution_id, db)` on
-completion. These live in `backend/services/interactive_session/`. Call
+scheduled session timeout, and `resume_owning_pipeline(scheduler, execution_id)` on
+a terminal transition (it schedules the resume under the executor's
+`resume_{execution_id}` job, off the caller's path, replacing the `wait_until`
+fallback). These live in `backend/services/interactive_session/`. Call
 them; do not re-implement prompt injection or pipeline park/resume in
 `guided_task/`.
 

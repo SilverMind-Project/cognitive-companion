@@ -73,11 +73,14 @@ class _Scheduler:
         )
 
 
-class _Pipeline:
+class _ResumeScheduler(_Scheduler):
+    """Records the pipeline resume a terminal session schedules through the scheduler."""
+
     def __init__(self) -> None:
+        super().__init__()
         self.resumed: list[int] = []
 
-    def resume(self, execution_id: int, db) -> None:
+    def schedule_workflow_resume(self, execution_id: int, resume_at) -> None:
         self.resumed.append(execution_id)
 
 
@@ -134,12 +137,10 @@ def _service(
     live: bool,
     dispatcher: _Dispatcher | None = None,
     scheduler: _Scheduler | None = None,
-    pipeline: _Pipeline | None = None,
 ) -> GuidedTaskService:
     return GuidedTaskService(
         db_factory=db_factory,
         scheduler=scheduler,
-        pipeline_executor=pipeline,
         person_location_service=_PersonLocation(location),
         companion_surface_service=_Surfaces(surfaces or []),
         ws_manager=_Ws(live),
@@ -280,14 +281,14 @@ async def test_summon_timeout_abandons_and_resumes_pipeline(db_factory, db_sessi
     db_session.add(session)
     db_session.commit()
     db_session.refresh(session)
-    pipeline = _Pipeline()
+    scheduler = _ResumeScheduler()
     svc = _service(
         db_factory,
         now=datetime(2026, 6, 17, 12, 6, tzinfo=UTC),
         location=None,
         surfaces=[],
         live=False,
-        pipeline=pipeline,
+        scheduler=scheduler,
     )
 
     await svc._summon_recheck(session.id, 300)
@@ -296,7 +297,7 @@ async def test_summon_timeout_abandons_and_resumes_pipeline(db_factory, db_sessi
     stored = db_session.get(GuidedSession, session.id)
     assert stored.status == "abandoned"
     assert stored.outcome == "summon_timeout"
-    assert pipeline.resumed == [42]
+    assert scheduler.resumed == [42]
 
 
 @pytest.mark.asyncio

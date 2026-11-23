@@ -44,7 +44,7 @@
     </div>
 
     <v-card class="glass-card">
-      <v-data-table
+      <v-data-table-server
         :headers="headers"
         :items="state.quizzes"
         :loading="state.loading"
@@ -155,7 +155,7 @@
             </v-card>
           </div>
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <QuizFormDialog
@@ -240,11 +240,11 @@ const route = useRoute();
 const suggestDocumentId = ref(null);
 
 const headers = [
-  { title: "Title", key: "title", sortable: true },
+  { title: "Title", key: "title", sortable: false },
   { title: "Questions", key: "question_count", sortable: false, width: 90 },
-  { title: "Layout", key: "question_layout_id", sortable: true },
-  { title: "Status", key: "status", sortable: true, width: 100 },
-  { title: "Version", key: "version", sortable: true, width: 80 },
+  { title: "Layout", key: "question_layout_id", sortable: false },
+  { title: "Status", key: "status", sortable: false, width: 100 },
+  { title: "Version", key: "version", sortable: false, width: 80 },
   { title: "Approved By", key: "approved_by", sortable: false },
   { title: "Actions", key: "actions", sortable: false, width: 200 },
 ];

@@ -58,7 +58,7 @@
     </div>
 
     <v-card class="glass-card">
-      <v-data-table
+      <v-data-table-server
         :headers="headers"
         :items="documents"
         :loading="loading"
@@ -135,7 +135,7 @@
             @click="confirmDelete(item)"
           />
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <!-- Create Dialog: medium form -->
@@ -219,11 +219,11 @@ const deleteDialog = ref(false);
 const deleteTarget = ref(null);
 
 const headers = [
-  { title: "Title", key: "title", sortable: true },
+  { title: "Title", key: "title", sortable: false },
   { title: "Tags", key: "tags", sortable: false },
   { title: "Images", key: "image_count", sortable: false, width: 80 },
-  { title: "Status", key: "status", sortable: true, width: 100 },
-  { title: "Created", key: "created_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
+  { title: "Status", key: "status", sortable: false, width: 100 },
+  { title: "Created", key: "created_at", sortable: false, width: DATETIME_COLUMN_WIDTH },
   { title: "Actions", key: "actions", sortable: false, width: 200 },
 ];
 

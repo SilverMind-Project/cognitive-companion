@@ -146,6 +146,7 @@ Judgment checks not covered by the deterministic gates above:
 - Dialogs use `AppDialog` (or plain persistent `<v-dialog>` + `<v-card>` only for `useConfirm()`) and reset forms on close
 - `tracking-tight` on page titles
 - Status chips use `statusColor()` helper
+- A server-paged list uses `v-data-table-server`, never `v-data-table` with `:items-length`
 - Inspector drawers: `useNotify()` imported and used (zero `console.log` / `console.error` stubs), `useConfirm()` called before every destructive action, and `@click:row` wired on data tables (not only the Inspect button)
 - No module-level `ref`/`reactive` shared across components (that belongs in a Pinia store)
 - Shared composables expose one canonical key per value; test mocks do not invent aliases absent from production

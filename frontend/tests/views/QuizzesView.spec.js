@@ -153,7 +153,7 @@ const stubs = {
     props: ["modelValue", "maxWidth", "persistent"],
     template: "<div v-if='modelValue' class='v-dialog-stub'><slot /></div>",
   },
-  "v-data-table": {
+  "v-data-table-server": {
     props: [
       "headers",
       "items",

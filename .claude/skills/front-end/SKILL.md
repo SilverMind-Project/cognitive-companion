@@ -51,9 +51,14 @@ applies:
    always `persistent`.
 8. Right drawers use `class="cc-drawer-right"` at width 480 or 640 only, a plain `<div>` root, and
    a `min-height: 0` scroll body.
-9. Every `v-data-table` sits in `<v-card class="glass-card">`, paginates server-side
-   (`:items-length`, `:page`, `@update:options`), resets to page 1 on any filter change, and uses
-   `#no-data` (never `#bottom`) for the empty state; a small workbench table may skip pagination.
+9. Every data table sits in `<v-card class="glass-card">`. A list paged by the server uses
+   `v-data-table-server` (`:items-length`, `:page`, `@update:options`): a plain `v-data-table`
+   ignores `:items-length` and hides every row past the first page
+   (`tests/architecture/server_paged_tables.spec.ts` enforces it). Its headers are
+   `sortable: false` unless the endpoint sorts: a server table only reports the new `sortBy`, so
+   a sortable header flips its arrow over unsorted rows. Reset to page 1 on any filter
+   change and use `#no-data` (never `#bottom`) for the empty state; a small workbench table may
+   skip pagination.
 10. Destructive or irreversible actions (merge, split, delete, reassign) need a visible review step
     and `useConfirm()` immediately before the request; bulk mutations use one batch endpoint.
 11. Use the shared controls: `CcSegmentedToggle` (never `v-btn-toggle` for pickers),

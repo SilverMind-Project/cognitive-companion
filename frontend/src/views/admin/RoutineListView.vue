@@ -29,7 +29,7 @@
     </div>
 
     <v-card class="glass-card">
-      <v-data-table
+      <v-data-table-server
         :headers="headers"
         :items="items"
         :loading="loading"
@@ -74,7 +74,7 @@
             </v-card>
           </div>
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <!-- Create dialog: small form -->

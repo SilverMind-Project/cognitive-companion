@@ -46,7 +46,7 @@
     </div>
 
     <v-card class="glass-card">
-      <v-data-table
+      <v-data-table-server
         :headers="headers"
         :items="state.cards"
         :loading="state.loading"
@@ -106,7 +106,7 @@
             @click="confirmDelete(item)"
           />
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <InfoCardFormDialog
@@ -153,10 +153,10 @@ const deleteDialog = ref(false);
 const deleteTarget = ref(null);
 
 const headers = [
-  { title: "Title", key: "title", sortable: true },
-  { title: "Layout", key: "layout_id", sortable: true },
-  { title: "Status", key: "status", sortable: true, width: 100 },
-  { title: "Version", key: "version", sortable: true, width: 80 },
+  { title: "Title", key: "title", sortable: false },
+  { title: "Layout", key: "layout_id", sortable: false },
+  { title: "Status", key: "status", sortable: false, width: 100 },
+  { title: "Version", key: "version", sortable: false, width: 80 },
   { title: "Approved By", key: "approved_by", sortable: false },
   { title: "Actions", key: "actions", sortable: false, width: 200 },
 ];

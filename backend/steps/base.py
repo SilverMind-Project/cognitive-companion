@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from backend.services.guided_task.service import GuidedTaskService
     from backend.services.interactive_response import InteractiveResponseService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
+    from backend.services.knowledge.query_service import KnowledgeQueryService
     from backend.services.memory_query.service import MemoryQueryService
     from backend.services.notification_dispatcher import NotificationDispatcher
     from backend.services.person_location.service import PersonLocationService
@@ -126,6 +127,9 @@ class ServiceContainer:
     activity: ActivityService | None = None
     signals: SignalsService | None = None
     knowledge_delivery: KnowledgeDeliveryService | None = None
+    # Curated household knowledge (approved documents), distinct from memory_query,
+    # which reads camera scene observations.
+    knowledge_query: KnowledgeQueryService | None = None
     minio_client: MinioClient | None = None
     guided_task: GuidedTaskService | None = None
     # CTS sliding-window frame buffer, injected after CTS bootstrap. Read by the

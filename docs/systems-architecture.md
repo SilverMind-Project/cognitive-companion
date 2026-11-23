@@ -266,13 +266,13 @@ Pipeline steps, notification channels, and context filters are auto-discovered f
 
 ### Step types
 
-There are 28 registered built-in step types:
+There are 29 registered built-in step types:
 
 | Category | Step types |
 | --- | --- |
 | Perception and media | `person_identification`, `scene_analysis`, `media_window_poll`, `media_presign`, `image_crop`, `object_trend_analysis`, `region_presence`, `novelty_gate` |
 | Presence and state | `presence_query`, `home_state`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report` |
-| Knowledge | `semantic_memory_query`, `semantic_memory_write`, `info_card`, `quiz_start` |
+| Knowledge | `knowledge_query`, `semantic_memory_query`, `semantic_memory_write`, `info_card`, `quiz_start` |
 | Reasoning and flow | `llm_call`, `condition`, `verification`, `wait`, `interactive_prompt`, `gate_verdict`, `guided_task_start` |
 | Actions | `notification`, `ha_action`, `signal_emit` |
 

@@ -6,6 +6,7 @@ and constrained LLM answer generation.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
@@ -21,6 +22,17 @@ from backend.models.knowledge import SeniorKnowledgeQuery
 
 logger = get_logger(__name__)
 
+# The synthesis prompt asks for this exact token when the retrieved context does not
+# hold the answer. A free-text refusal ("I don't have that information.") used to be
+# reported as a RAG answer, so callers could not tell "answered" from "declined".
+NO_ANSWER_TOKEN = "NO_ANSWER"
+# Matched anywhere in the reply: a model that adds reasoning or a sentence after the
+# token must still yield no answer, never have that text spoken to the senior.
+_NO_ANSWER = re.compile(rf"\b{NO_ANSWER_TOKEN}\b", re.IGNORECASE)
+
+# Admission-control caller tag for knowledge synthesis (load attribution).
+_ADMISSION_CALLER = "knowledge_rag"
+
 
 @dataclass(frozen=True, slots=True)
 class KnowledgeAnswer:
@@ -30,6 +42,9 @@ class KnowledgeAnswer:
     source_chunk_ids: tuple[int, ...]
     top_similarity: float
     answered_via: Literal["rag", "no_answer"]
+    # The retrieved chunk texts, in similarity order, for callers (a pipeline
+    # llm_call) that want the evidence rather than the synthesized sentence.
+    chunks: tuple[str, ...] = ()
 
 
 class KnowledgeQueryService:
@@ -45,8 +60,21 @@ class KnowledgeQueryService:
         self._embedding_client = embedding_client
         self._llm_registry = llm_model_registry
 
-    async def answer(self, query: str) -> KnowledgeAnswer:
-        """Embed query, search chunks, synthesize answer via LLM."""
+    async def answer(
+        self,
+        query: str,
+        *,
+        tags: list[str] | None = None,
+        top_k: int | None = None,
+        min_similarity: float | None = None,
+    ) -> KnowledgeAnswer:
+        """Embed the query, search approved chunks, and synthesize a grounded answer.
+
+        ``tags`` keeps only documents carrying any of them. ``top_k`` and
+        ``min_similarity`` override ``knowledge.retrieval_top_k`` and
+        ``knowledge.min_similarity`` for this call; left unset, every caller (voice and
+        pipeline) answers the same way.
+        """
         if self._embedding_client is None:
             return KnowledgeAnswer(
                 query_text=query,
@@ -72,8 +100,14 @@ class KnowledgeQueryService:
             )
 
         # 2. Vector search
-        top_k = settings.as_int("knowledge.retrieval_top_k")
-        min_sim = settings.as_float("knowledge.min_similarity")
+        if top_k is None:
+            top_k = settings.as_int("knowledge.retrieval_top_k")
+        min_sim = (
+            settings.as_float("knowledge.min_similarity")
+            if min_similarity is None
+            else min_similarity
+        )
+        tag_filter = [t for t in (tags or []) if t]
 
         db: Session = self._db_factory()
         try:
@@ -91,10 +125,16 @@ class KnowledgeQueryService:
                     FROM knowledge_document_chunks kdc
                     JOIN knowledge_documents kd ON kd.id = kdc.document_id
                     WHERE kd.status = 'approved'
+                      AND (CAST(:no_tags AS boolean) OR kd.tags && CAST(:tags AS text[]))
                     ORDER BY kdc.embedding <=> CAST(:vec AS vector)
                     LIMIT :topk
                 """),
-                {"vec": vec_str, "topk": top_k},
+                {
+                    "vec": vec_str,
+                    "topk": top_k,
+                    "no_tags": not tag_filter,
+                    "tags": tag_filter,
+                },
             ).fetchall()
 
             if not rows:
@@ -133,11 +173,14 @@ class KnowledgeQueryService:
             answer_text = ""
             if self._llm_registry is not None:
                 answer_text = await self._synthesize(query, context)
+            if _NO_ANSWER.search(answer_text):
+                answer_text = ""
 
-            # Retrieval succeeded but synthesis produced nothing (model unreachable or
-            # misconfigured). Reporting that as a RAG answer would tell the voice agent the
-            # knowledge base answered with silence; report no_answer so it says it does not
-            # know, while the retrieved sources stay on the audit row for the caregiver.
+            # Synthesis produced nothing (model unreachable or misconfigured) or declined
+            # because the context lacks the answer. Reporting either as a RAG answer would
+            # tell the voice agent, or a pipeline's has_answer check, that the knowledge
+            # base answered; report no_answer, while the retrieved sources and chunks stay
+            # on the result for the caregiver's audit row.
             return KnowledgeAnswer(
                 query_text=query,
                 answer_text=answer_text,
@@ -145,6 +188,7 @@ class KnowledgeQueryService:
                 source_chunk_ids=tuple(chunk_ids),
                 top_similarity=top_similarity,
                 answered_via="rag" if answer_text else "no_answer",
+                chunks=tuple(context_parts),
             )
         except Exception:
             logger.exception("query_search_failed")
@@ -173,7 +217,7 @@ class KnowledgeQueryService:
             logger.warning("llm_provider_none", model=answer_model_id)
             return ""
 
-        prompt = f"""You are a helpful assistant for a senior citizen. Answer the question using ONLY the provided context. If the context does not contain the answer, say "I don't have that information."
+        prompt = f"""You are a helpful assistant for a senior citizen. Answer the question using ONLY the provided context. If the context does not contain the answer, reply with exactly {NO_ANSWER_TOKEN} and nothing else.
 
 Context:
 {context}
@@ -183,7 +227,7 @@ Question: {query}
 Answer (in 1-2 simple sentences):"""
 
         try:
-            response = await provider.call(prompt)
+            response = await provider.call(prompt, caller=_ADMISSION_CALLER)
             return response.strip()
         except Exception:
             logger.exception("llm_synthesis_failed")

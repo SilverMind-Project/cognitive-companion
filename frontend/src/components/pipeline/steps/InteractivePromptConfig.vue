@@ -64,6 +64,17 @@
     "
   />
 
+  <TemplateInput
+    v-if="modelValue.voice_prompt_template"
+    :model-value="modelValue.voice_instruction"
+    label="Voice instruction (optional)"
+    multiline
+    :rows="2"
+    hint="Added to the companion's persona while this prompt is spoken; the persona is kept. Blank uses the default. Type {{ to autocomplete."
+    class="mb-4"
+    @update:model-value="emit('update:modelValue', { ...modelValue, voice_instruction: $event })"
+  />
+
   <v-divider class="mb-4" />
 
   <v-row>
@@ -140,6 +151,7 @@
 export const stepDefaults = {
   popup_message_template: "",
   voice_prompt_template: "",
+  voice_instruction: "",
   escalate_button_text: "",
   dismiss_button_text: "",
   countdown_seconds: 30,

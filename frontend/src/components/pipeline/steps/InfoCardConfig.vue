@@ -121,7 +121,7 @@
         :model-value="modelValue.voice_instruction"
         :multiline="true"
         :rows="3"
-        hint="Overrides the Gemini Live system instruction. Supports {{template}} syntax (type {{ for variable autocomplete)."
+        hint="Added to the companion's persona while the card is read aloud; the persona is kept. Supports {{template}} syntax (type {{ for variable autocomplete)."
         @update:model-value="
           emit('update:modelValue', { ...modelValue, voice_instruction: $event })
         "
@@ -154,6 +154,13 @@ export const stepDefaults = {
   trigger_cooloff: true,
 };
 export const stepTabs = [];
+
+export function chips(cfg, { chip }) {
+  const out = [];
+  if (cfg.info_card_id) out.push(chip(`Card #${cfg.info_card_id}`, "mdi-card-text-outline"));
+  if (cfg.channels?.length) out.push(chip(cfg.channels.join(" + "), "mdi-tablet-cellphone"));
+  return out;
+}
 </script>
 
 <script setup>

@@ -24,8 +24,10 @@ from __future__ import annotations
 from datetime import UTC
 
 from backend.core.logging import get_logger
+from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
+from backend.steps._helpers import make_trigger_vars
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -124,6 +126,29 @@ class SemanticMemoryQueryHandler(StepHandler):
                 "limit": 5,
                 "output_key": "memory_context",
             },
+            # The result is one object under the configurable output_key, so the schema
+            # names the default key and x-output-key tells the editor which config field
+            # renames it (the variable autocomplete follows each step's actual key).
+            output_schema={
+                "type": "object",
+                "x-output-key": {"config_field": "output_key", "default": "memory_context"},
+                "properties": {
+                    "memory_context": {
+                        "type": "object",
+                        "description": "Recent scene memory for the room",
+                        "properties": {
+                            "recent_objects": {"type": "array", "items": {"type": "object"}},
+                            "recent_hazards": {"type": "array", "items": {"type": "object"}},
+                            "observations": {"type": "array", "items": {"type": "object"}},
+                            "summary": {
+                                "type": "string",
+                                "description": "Compact text summary for an LLM prompt",
+                            },
+                            "observations_count": {"type": "integer"},
+                        },
+                    },
+                },
+            },
             gate_safe=True,
         )
 
@@ -145,9 +170,16 @@ class SemanticMemoryQueryHandler(StepHandler):
             return StepResult(data=_empty_output(output_key))
 
         config = step.config_json or {}
+        trigger_vars = make_trigger_vars(trigger)
+
+        def render(value: object) -> str:
+            return render_template(str(value or ""), pipeline_data, trigger_vars).strip()
+
+        def render_all(values: list[str]) -> list[str]:
+            return [rendered for v in values if (rendered := render(v))]
 
         # Resolve room_id
-        room_id: str | None = config.get("room_id") or None
+        room_id: str | None = render(config.get("room_id")) or None
         if not room_id and config.get("use_trigger_room", True) and trigger.room_name:
             room_id = trigger.room_name
 
@@ -155,9 +187,9 @@ class SemanticMemoryQueryHandler(StepHandler):
             return StepResult(data=_empty_output(output_key))
 
         since_minutes: int = config.get("since_minutes", 60)
-        objects_any: list[str] = config.get("objects_any", [])
-        hazard_flags_any: list[str] = config.get("hazard_flags_any", [])
-        query_text: str = config.get("query_text", "")
+        objects_any = render_all(config.get("objects_any") or [])
+        hazard_flags_any = render_all(config.get("hazard_flags_any") or [])
+        query_text = render(config.get("query_text"))
         limit: int = config.get("limit", 5)
 
         # Delegate to domain service

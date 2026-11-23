@@ -303,6 +303,16 @@
     },
     {
       "category": "reasoning",
+      "display_name": "Knowledge Query",
+      "gate_safe": true,
+      "icon": "mdi-book-search-outline",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "knowledge_query"
+    },
+    {
+      "category": "reasoning",
       "display_name": "LLM Call",
       "gate_safe": true,
       "icon": "mdi-brain",

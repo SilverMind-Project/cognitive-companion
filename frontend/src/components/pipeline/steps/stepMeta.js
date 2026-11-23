@@ -20,8 +20,10 @@ export const STEP_DOT_COLORS = {
   ha_action: "blue",
   home_state: "blue",
   image_crop: "teal",
+  guided_task_start: "success",
   info_card: "cyan",
   interactive_prompt: "cyan",
+  knowledge_query: "info",
   llm_call: "purple",
   media_presign: "teal",
   media_window_poll: "teal",
@@ -30,6 +32,7 @@ export const STEP_DOT_COLORS = {
   object_trend_analysis: "teal",
   person_identification: "indigo",
   presence_query: "blue",
+  quiz_start: "secondary",
   region_presence: "green",
   scene_analysis: "teal",
   semantic_memory_query: "teal",
@@ -87,9 +90,25 @@ export function buildTextPreview(step, maxLength = 120) {
   if (type === "notification" && (cfg.message_template || cfg.telegram_template)) {
     return truncate(cfg.message_template || cfg.telegram_template, maxLength);
   }
-  if (type === "semantic_memory_query" && cfg.query)
-    return truncate(cfg.query, Math.min(maxLength, 100));
-  if (type === "semantic_memory_write" && cfg.content)
-    return truncate(cfg.content, Math.min(maxLength, 100));
+  // These read the steps' real config keys; `query` and `content` never existed, so the
+  // previews never rendered.
+  if ((type === "semantic_memory_query" || type === "knowledge_query") && cfg.query_text)
+    return truncate(cfg.query_text, Math.min(maxLength, 100));
+  if (type === "semantic_memory_write" && cfg.description_key)
+    return truncate(`from ${cfg.description_key}`, Math.min(maxLength, 100));
   return "";
+}
+
+// A step that writes its result under a configurable key (semantic_memory_query's
+// output_key) declares its schema under the default key plus an `x-output-key` marker
+// naming the config field. This returns the schema as this step instance actually
+// writes it, so variable autocomplete offers the key the rule really produces.
+export function instanceOutputSchema(schema, config) {
+  const marker = schema?.["x-output-key"];
+  const properties = schema?.properties;
+  if (!marker || !properties || !(marker.default in properties)) return schema;
+  const key = String(config?.[marker.config_field] ?? "").trim();
+  if (!key || key === marker.default) return schema;
+  const { [marker.default]: moved, ...rest } = properties;
+  return { ...schema, properties: { ...rest, [key]: moved } };
 }

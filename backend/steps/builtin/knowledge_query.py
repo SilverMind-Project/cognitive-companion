@@ -27,8 +27,8 @@ from backend.steps.base import (
 logger = get_logger(__name__)
 
 
-def _empty_output(query_text: str = "") -> dict[str, Any]:
-    return {
+def _empty_output(query_text: str = "", error: str | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {
         "query_text": query_text,
         "answer_text": "",
         "answered_via": "no_answer",
@@ -39,6 +39,9 @@ def _empty_output(query_text: str = "") -> dict[str, Any]:
         "chunks": [],
         "query_id": None,
     }
+    if error:
+        out["error"] = error
+    return out
 
 
 @StepRegistry.register
@@ -140,6 +143,10 @@ class KnowledgeQueryStep(StepHandler):
                         "type": ["integer", "null"],
                         "description": "History row id when log_interaction is on",
                     },
+                    "error": {
+                        "type": "string",
+                        "description": "Why the step failed (only on failure)",
+                    },
                 },
             },
             gate_safe=True,
@@ -165,13 +172,22 @@ class KnowledgeQueryStep(StepHandler):
             str(config.get("query_text") or ""), pipeline_data, trigger_vars
         ).strip()
         if not query_text:
-            return StepResult(success=False, data=_empty_output())
+            return StepResult(success=False, data=_empty_output(error="query_text is empty"))
 
         tags = [
             rendered
             for raw in config.get("tags") or []
             if (rendered := render_template(str(raw), pipeline_data, trigger_vars).strip())
         ]
+        # render_template leaves an unresolvable {{ }} in place. Searching for the braces
+        # (or filtering on a literal "{{topic}}" tag) returns a confident-looking "no
+        # answer" for what is really a rule-authoring mistake, so fail loudly instead.
+        if "{{" in query_text or any("{{" in tag for tag in tags):
+            logger.warning("knowledge_query_template_unresolved", step_id=step.id)
+            return StepResult(
+                success=False,
+                data=_empty_output(error="a {{template}} in query_text or tags did not resolve"),
+            )
         top_k = config.get("top_k")
         min_similarity = config.get("min_similarity")
 

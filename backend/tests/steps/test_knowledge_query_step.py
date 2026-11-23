@@ -139,7 +139,7 @@ async def test_renders_templates_answers_and_matches_output_schema(
     assert result.data["query_id"] is None
     schema = KnowledgeQueryStep.metadata().output_schema
     assert not list(Draft202012Validator(schema).iter_errors(result.data))
-    assert set(result.data) == set(schema["properties"])
+    assert set(result.data) == set(schema["properties"]) - {"error"}
 
 
 @pytest.mark.asyncio
@@ -176,7 +176,29 @@ async def test_missing_service_fails_with_the_full_empty_output() -> None:
 
     assert result.success is False
     assert result.data["answered_via"] == "no_answer"
-    assert set(result.data) == set(KnowledgeQueryStep.metadata().output_schema["properties"])
+    assert set(result.data) <= set(KnowledgeQueryStep.metadata().output_schema["properties"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"query_text": "{{question}}"},
+        {"query_text": "What does she take?", "tags": ["{{topic}}"]},
+    ],
+)
+async def test_unresolved_template_fails_instead_of_searching_for_braces(
+    db_factory, medication_doc: int, config: dict
+) -> None:
+    """Live, {{question}} was embedded and searched verbatim, producing a 'no answer'
+    that hid a rule-authoring mistake."""
+    svc = _service(db_factory)
+
+    result = await _run(config, svc)
+
+    assert result.success is False
+    assert "did not resolve" in result.data["error"]
+    assert svc.calls == []
 
 
 @pytest.mark.asyncio

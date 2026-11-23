@@ -77,3 +77,9 @@ class KnowledgeDocumentImageUpdate(BaseModel):
 
     alt_text: str | None = None
     ord: int | None = None
+
+
+class VoiceInstructionSuggestionOut(OutSchema):
+    """An LLM-drafted voice instruction for a quiz or an info card, for the caregiver to edit."""
+
+    voice_instruction: str

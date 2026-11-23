@@ -348,8 +348,8 @@ There is no operator-edited adjacency graph: cameras that overlap are declared a
 | --- | --- |
 | Knowledge documents | `POST /knowledge/documents`, `GET /knowledge/documents`, `GET /knowledge/documents/{doc_id}`, `PATCH /knowledge/documents/{doc_id}`, approval, archive, restore, delete, re-embed |
 | Knowledge images | `POST /knowledge/documents/{doc_id}/images`, `PATCH /knowledge/documents/{doc_id}/images/{img_id}`, `DELETE /knowledge/documents/{doc_id}/images/{img_id}` |
-| Info cards | CRUD, approve, archive, restore, suggest, and slot update endpoints under `/info-cards` |
-| Quizzes | CRUD, approve, archive, restore, question CRUD, reorder, whole-list replace (`PUT /quizzes/{quiz_id}/questions`), and question image endpoints under `/quizzes` |
+| Info cards | CRUD, approve, archive, restore, suggest, voice-instruction suggest (`info_cards:write`), and slot update endpoints under `/info-cards` |
+| Quizzes | CRUD, approve, archive, restore, question CRUD, reorder, whole-list replace (`PUT /quizzes/{quiz_id}/questions`), voice-instruction suggest, and question image endpoints under `/quizzes` |
 | Interactions | `GET /knowledge-interactions/queries`, `/quiz-sessions`, and `/info-card-deliveries` return `{items, total}`; `GET /knowledge/analytics/tags` |
 
 - List filters: `GET /knowledge/documents`, `/info-cards`, and `/quizzes` take a repeatable `tag` parameter; an item matches when it carries any of the given tags.

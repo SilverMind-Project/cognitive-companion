@@ -272,3 +272,34 @@ describe("KnowledgeInteractionsView", () => {
     expect(wrapper.find("[data-test='analytics-table']").exists()).toBe(true);
   });
 });
+
+describe("VoiceInstructionField", () => {
+  it("drafts with the route of its own resource", async () => {
+    const quizzes = await import("@/services/modules/quizzes");
+    const cards = await import("@/services/modules/info_cards");
+    const quizSpy = vi
+      .spyOn(quizzes, "suggestQuizVoiceInstruction")
+      .mockResolvedValue({ voice_instruction: "Quiz tone." });
+    const cardSpy = vi
+      .spyOn(cards, "suggestInfoCardVoiceInstruction")
+      .mockResolvedValue({ voice_instruction: "Card tone." });
+    apiMock.getVoiceDefaults = vi.fn().mockResolvedValue({});
+    const VoiceInstructionField = (await import("@/components/knowledge/VoiceInstructionField.vue"))
+      .default;
+
+    for (const resourceType of ["info_card", "quiz"]) {
+      const wrapper = mount(VoiceInstructionField, {
+        props: { modelValue: "", resourceType, documentId: 5 },
+        global: { stubs: { "v-btn": btn, "v-textarea": { template: "<textarea />" } } },
+      });
+      await flushPromises();
+      await wrapper.find("[data-test='suggest-voice']").trigger("click");
+      await flushPromises();
+      expect(wrapper.emitted("update:modelValue")[0][0]).toBe(
+        resourceType === "quiz" ? "Quiz tone." : "Card tone.",
+      );
+    }
+    expect(cardSpy).toHaveBeenCalledWith(5);
+    expect(quizSpy).toHaveBeenCalledWith(5);
+  });
+});

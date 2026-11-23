@@ -3465,6 +3465,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/info-cards/voice-instruction-suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suggest Info Card Voice Instruction
+         * @description Draft an info card's voice instruction from a document.
+         */
+        post: operations["suggest_info_card_voice_instruction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/info-cards/{card_id}": {
         parameters: {
             query?: never;
@@ -4619,10 +4639,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Suggest Voice Instruction
-         * @description Generate a voice instruction suggestion via LLM.
+         * Suggest Quiz Voice Instruction
+         * @description Draft a quiz's voice instruction from a document. Info cards use
+         *     ``POST /info-cards/voice-instruction-suggest`` under ``info_cards:write``.
          */
-        post: operations["suggest_voice_instruction"];
+        post: operations["suggest_quiz_voice_instruction"];
         delete?: never;
         options?: never;
         head?: never;
@@ -13324,7 +13345,10 @@ export interface components {
             /** Quiz Default */
             quiz_default: string;
         };
-        /** VoiceInstructionSuggestionOut */
+        /**
+         * VoiceInstructionSuggestionOut
+         * @description An LLM-drafted voice instruction for a quiz or an info card, for the caregiver to edit.
+         */
         VoiceInstructionSuggestionOut: {
             /** Voice Instruction */
             voice_instruction: string;
@@ -19634,6 +19658,38 @@ export interface operations {
             };
         };
     };
+    suggest_info_card_voice_instruction: {
+        parameters: {
+            query?: {
+                document_id?: number | null;
+                model_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceInstructionSuggestionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_info_card: {
         parameters: {
             query?: never;
@@ -21844,11 +21900,10 @@ export interface operations {
             };
         };
     };
-    suggest_voice_instruction: {
+    suggest_quiz_voice_instruction: {
         parameters: {
             query?: {
                 document_id?: number | null;
-                resource_type?: string;
                 model_id?: string | null;
             };
             header?: never;

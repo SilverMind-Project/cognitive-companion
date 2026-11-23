@@ -114,10 +114,6 @@ class QuizSuggestionOut(OutSchema):
     questions: list[QuizQuestionSuggestionOut] = []
 
 
-class VoiceInstructionSuggestionOut(OutSchema):
-    voice_instruction: str
-
-
 # -- Quiz Question ------------------------------------------------------------
 
 

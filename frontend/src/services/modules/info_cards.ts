@@ -49,6 +49,13 @@ export const suggestInfoCard = (documentId: number, modelId?: string) =>
     }),
   );
 
+export const suggestInfoCardVoiceInstruction = (documentId: number, modelId?: string) =>
+  unwrap(
+    client.POST("/api/v1/info-cards/voice-instruction-suggest", {
+      params: { query: { document_id: documentId, ...(modelId ? { model_id: modelId } : {}) } },
+    }),
+  );
+
 // ─── Image slots ───────────────────────────────────────────────────────────
 
 export const setInfoCardSlot = (cardId: number, slotIndex: number, formData: FormData) =>

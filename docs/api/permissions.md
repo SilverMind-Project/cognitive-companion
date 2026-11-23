@@ -16,7 +16,7 @@ Closed D4 actions (14): `acknowledge`, `act`, `calibrate`, `correct`, `delete`, 
 
 | Metric | Value |
 | --- | --- |
-| Guarded HTTP routes | 362 |
+| Guarded HTTP routes | 363 |
 | Authenticated WebSocket routes | 2 |
 | Distinct route and WebSocket D4 tokens | 105 |
 | Configured roles (`roles:`) | 9 |
@@ -238,6 +238,7 @@ reachability across the remaining configured roles.
 | `info_cards:read` | `GET` | `/api/v1/info-cards/{card_id}` | Y | Y | . | . | . | . | . |
 | `info_cards:write` | `POST` | `/api/v1/info-cards` | . | Y | . | . | . | . | . |
 | `info_cards:write` | `POST` | `/api/v1/info-cards/suggest` | . | Y | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards/voice-instruction-suggest` | . | Y | . | . | . | . | . |
 | `info_cards:write` | `PATCH` | `/api/v1/info-cards/{card_id}` | . | Y | . | . | . | . | . |
 | `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/approve` | . | Y | . | . | . | . | . |
 | `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/archive` | . | Y | . | . | . | . | . |

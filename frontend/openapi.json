@@ -20064,6 +20064,7 @@
         "type": "object"
       },
       "VoiceInstructionSuggestionOut": {
+        "description": "An LLM-drafted voice instruction for a quiz or an info card, for the caregiver to edit.",
         "properties": {
           "voice_instruction": {
             "title": "Voice Instruction",
@@ -32099,6 +32100,77 @@
         ]
       }
     },
+    "/api/v1/info-cards/voice-instruction-suggest": {
+      "post": {
+        "description": "Draft an info card's voice instruction from a document.",
+        "operationId": "suggest_info_card_voice_instruction",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "document_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "model_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceInstructionSuggestionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Suggest Info Card Voice Instruction",
+        "tags": [
+          "info-cards"
+        ]
+      }
+    },
     "/api/v1/info-cards/{card_id}": {
       "delete": {
         "operationId": "delete_info_card",
@@ -36218,8 +36290,8 @@
     },
     "/api/v1/quizzes/voice-instruction-suggest": {
       "post": {
-        "description": "Generate a voice instruction suggestion via LLM.",
-        "operationId": "suggest_voice_instruction",
+        "description": "Draft a quiz's voice instruction from a document. Info cards use\n``POST /info-cards/voice-instruction-suggest`` under ``info_cards:write``.",
+        "operationId": "suggest_quiz_voice_instruction",
         "parameters": [
           {
             "in": "query",
@@ -36235,16 +36307,6 @@
                 }
               ],
               "title": "Document Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "resource_type",
-            "required": false,
-            "schema": {
-              "default": "quiz",
-              "title": "Resource Type",
-              "type": "string"
             }
           },
           {
@@ -36291,7 +36353,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Suggest Voice Instruction",
+        "summary": "Suggest Quiz Voice Instruction",
         "tags": [
           "quizzes"
         ]

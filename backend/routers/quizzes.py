@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from backend.core.auth import AuthContext, actor_from_auth, has_token, require_permission
 from backend.core.exceptions import NotFoundError, ValidationError
 from backend.routers.dependencies import get_content_generation, get_quiz_service
+from backend.schemas.knowledge import VoiceInstructionSuggestionOut
 from backend.schemas.quizzes import (
     QuizCreate,
     QuizListResponse,
@@ -24,7 +25,6 @@ from backend.schemas.quizzes import (
     QuizStatusOut,
     QuizSuggestionOut,
     QuizUpdate,
-    VoiceInstructionSuggestionOut,
 )
 from backend.services.knowledge.content_generation import ContentGenerationService
 from backend.services.knowledge.quiz_service import QuizService
@@ -237,24 +237,17 @@ async def suggest_quiz(
 
 
 @router.post("/voice-instruction-suggest", response_model=VoiceInstructionSuggestionOut)
-async def suggest_voice_instruction(
+async def suggest_quiz_voice_instruction(
     document_id: int | None = None,
-    resource_type: str = "quiz",
     model_id: str | None = None,
     content_gen: ContentGenerationService = Depends(get_content_generation),
     _auth: None = Depends(require_permission("quizzes:write")),
 ) -> dict[str, str]:
-    """Generate a voice instruction suggestion via LLM."""
+    """Draft a quiz's voice instruction from a document. Info cards use
+    ``POST /info-cards/voice-instruction-suggest`` under ``info_cards:write``."""
     if document_id is None:
         raise ValidationError("document_id is required")
-
-    resolved_type = cast(
-        Literal["info_card", "quiz"],
-        "info_card" if resource_type == "info_card" else "quiz",
-    )
-    text = await content_gen.suggest_voice_instruction(
-        document_id, resolved_type, model_id=model_id
-    )
+    text = await content_gen.suggest_voice_instruction(document_id, "quiz", model_id=model_id)
     return {"voice_instruction": text}
 
 

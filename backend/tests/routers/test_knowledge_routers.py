@@ -356,3 +356,29 @@ def test_repeated_tag_parameters_match_any_tag(client: TestClient) -> None:
 
     assert sorted(q["title"] for q in resp.json()["items"]) == ["Kin", "Meds"]
     assert resp.json()["total"] == 2
+
+
+def test_voice_suggestions_are_authorized_per_resource(client: TestClient) -> None:
+    """A card author drafts a card's voice instruction under info_cards:write; the quiz
+    route needs quizzes:write and only drafts for quizzes."""
+    content_gen = client.app.state.knowledge_content_gen
+
+    async def card_writer() -> AuthContext:
+        return AuthContext(
+            key="c", name="Card writer", roles=[], tokens=frozenset({"info_cards:write"})
+        )
+
+    full_access = client.app.dependency_overrides.get(get_auth_context)
+    client.app.dependency_overrides[get_auth_context] = card_writer
+    card = client.post("/api/v1/info-cards/voice-instruction-suggest", params={"document_id": 1})
+    quiz = client.post("/api/v1/quizzes/voice-instruction-suggest", params={"document_id": 1})
+    client.app.dependency_overrides[get_auth_context] = full_access
+
+    assert card.status_code == 200, card.text
+    assert card.json() == {"voice_instruction": "Speak slowly and clearly."}
+    content_gen.suggest_voice_instruction.assert_awaited_once_with(1, "info_card", model_id=None)
+    assert quiz.status_code == 403
+
+    resp = client.post("/api/v1/quizzes/voice-instruction-suggest", params={"document_id": 1})
+    assert resp.status_code == 200
+    content_gen.suggest_voice_instruction.assert_awaited_with(1, "quiz", model_id=None)

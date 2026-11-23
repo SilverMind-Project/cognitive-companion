@@ -120,20 +120,10 @@ export const suggestQuiz = (
     }),
   );
 
-export const suggestQuizVoiceInstruction = (
-  documentId: number,
-  resourceType?: string,
-  modelId?: string,
-) =>
+export const suggestQuizVoiceInstruction = (documentId: number, modelId?: string) =>
   unwrap(
     client.POST("/api/v1/quizzes/voice-instruction-suggest", {
-      params: {
-        query: {
-          document_id: documentId,
-          ...(resourceType ? { resource_type: resourceType } : {}),
-          ...(modelId ? { model_id: modelId } : {}),
-        },
-      },
+      params: { query: { document_id: documentId, ...(modelId ? { model_id: modelId } : {}) } },
     }),
   );
 

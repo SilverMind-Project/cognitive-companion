@@ -30,12 +30,17 @@
 import { computed, onMounted, ref } from "vue";
 import { useNotify } from "@/composables/useNotify.js";
 import { getVoiceDefaults } from "@/services/modules/knowledge";
+import { suggestInfoCardVoiceInstruction } from "@/services/modules/info_cards";
 import { suggestQuizVoiceInstruction } from "@/services/modules/quizzes";
 
 const props = defineProps({
   modelValue: { type: String, default: "" },
   // "quiz" or "info_card": picks the default shown and the kind of suggestion.
-  resourceType: { type: String, required: true },
+  resourceType: {
+    type: String,
+    required: true,
+    validator: (v) => ["quiz", "info_card"].includes(v),
+  },
   // The source document a suggestion is drafted from; Suggest is disabled without one.
   documentId: { type: Number, default: null },
 });
@@ -55,7 +60,12 @@ async function suggest() {
   if (!props.documentId) return;
   suggesting.value = true;
   try {
-    const res = await suggestQuizVoiceInstruction(props.documentId, props.resourceType);
+    // Each resource has its own route, authorized by its own write permission.
+    const suggestFor =
+      props.resourceType === "info_card"
+        ? suggestInfoCardVoiceInstruction
+        : suggestQuizVoiceInstruction;
+    const res = await suggestFor(props.documentId);
     if (res?.voice_instruction) emit("update:modelValue", res.voice_instruction);
   } catch (err) {
     notify.error("Failed to suggest a voice instruction: " + (err.message || err));

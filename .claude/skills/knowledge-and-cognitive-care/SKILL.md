@@ -33,6 +33,7 @@ All business logic, status state machines, SQLAlchemy sessions, and MinIO side-e
 7. **Quizzes save atomically:** the quiz editor saves details and the whole ordered question list in one `PATCH /quizzes/{quiz_id}` with `questions` (`QuizService.update_quiz_with_questions` in `backend/services/knowledge/quiz_question_list.py`; `PUT /quizzes/{quiz_id}/questions` is the list-only form) and creates a quiz with its questions in one `POST /quizzes`. Never save a quiz with one request per question: a mid-way failure leaves a half-saved quiz. Removing questions needs `quizzes:delete`, checked under the quiz lock. Reorder takes the complete order or 422s.
 8. **Choice ids:** a choice id is non-blank and unique within its question (schema-validated); the editor assigns the next free letter (`frontend/src/components/knowledge/quizChoices.js`), and `content_generation.normalize_choices` fixes drafted choices.
 9. **Tag filters are any-of:** list endpoints take a repeatable `tag` parameter matched with array overlap, the same as the `knowledge_query` step.
+10. **Voice-instruction drafts are per resource:** `POST /quizzes/voice-instruction-suggest` (`quizzes:write`) drafts for quizzes and `POST /info-cards/voice-instruction-suggest` (`info_cards:write`) for cards; a route never authorizes another resource's writes.
 
 ## 3. Multimodal voice + PWA synchronization and voice lifecycle
 

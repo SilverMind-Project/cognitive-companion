@@ -21,6 +21,7 @@ from backend.schemas.info_cards import (
     InfoCardSuggestionOut,
     InfoCardUpdate,
 )
+from backend.schemas.knowledge import VoiceInstructionSuggestionOut
 from backend.services.knowledge.content_generation import ContentGenerationService
 from backend.services.knowledge.info_card_service import InfoCardService
 
@@ -142,6 +143,20 @@ async def suggest_info_card(
         "body_text": suggestion.body_text,
         "voice_instruction": suggestion.voice_instruction,
     }
+
+
+@router.post("/voice-instruction-suggest", response_model=VoiceInstructionSuggestionOut)
+async def suggest_info_card_voice_instruction(
+    document_id: int | None = None,
+    model_id: str | None = None,
+    content_gen: ContentGenerationService = Depends(get_content_generation),
+    _auth: None = Depends(require_permission("info_cards:write")),
+) -> dict[str, str]:
+    """Draft an info card's voice instruction from a document."""
+    if document_id is None:
+        raise ValidationError("document_id is required")
+    text = await content_gen.suggest_voice_instruction(document_id, "info_card", model_id=model_id)
+    return {"voice_instruction": text}
 
 
 # -- slots -------------------------------------------------------------------

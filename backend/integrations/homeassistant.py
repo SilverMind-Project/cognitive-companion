@@ -513,17 +513,19 @@ class _HaWsSession:
         self._task = asyncio.create_task(self._run_loop())
 
     async def stop(self, timeout: float = 5.0) -> None:
-        """Cancel the event loop and await with *timeout*."""
+        """Cancel the event loop and wait up to *timeout* for it to finish.
+
+        The loop spends its time blocked on the next WebSocket message (up to 30 s), so
+        it is cancelled rather than asked to stop; waiting for it only delayed shutdown.
+        """
         self._stop.set()
         if self._task is not None:
-            try:
-                await asyncio.wait_for(
-                    asyncio.shield(self._task),
-                    timeout=timeout,
-                )
-            except TimeoutError:
+            self._task.cancel()
+            # asyncio.wait never raises the task's CancelledError, so a cancellation of
+            # stop() itself still propagates.
+            _done, pending = await asyncio.wait({self._task}, timeout=timeout)
+            if pending:
                 logger.warning("ha_ws_stop_timeout", entity_count=len(self._entity_ids))
-                self._task.cancel()
             self._task = None
 
     # -- internal ----------------------------------------------------------
@@ -540,11 +542,16 @@ class _HaWsSession:
                 delay = 1.0
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
+                # The cause is logged: a reconnect loop that hid it once went unnoticed
+                # for months. Exceptions here carry the URL and HA's reply, never the token.
+                cause = _root_cause(exc)
                 logger.warning(
                     "ha_ws_reconnect",
                     delay_seconds=delay,
                     entity_count=len(self._entity_ids),
+                    error_type=type(cause).__name__,
+                    error=str(cause)[:200],
                 )
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, max_delay)
@@ -554,33 +561,20 @@ class _HaWsSession:
         ws_url = self._base_url.replace("http", "ws").rstrip("/") + "/api/websocket"
         headers = {"Authorization": f"Bearer {self._token}"}
 
-        async with aconnect_ws(
-            ws_url,
-            httpx.AsyncClient(timeout=httpx.Timeout(30.0)),
-            headers=headers,
-        ) as _ws:
+        async with (
+            httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as http,
+            aconnect_ws(ws_url, http, headers=headers) as _ws,
+        ):
             ws: Any = _ws
-            # Auth handshake
-            msg = await ws.receive_text()
-            auth_msg = _parse_ws_message(msg)
-            if auth_msg is None or auth_msg.get("type") != "auth_ok":
-                # Try receiving auth_required first, then send auth
-                msg2 = await ws.receive_text()
-                auth_req = _parse_ws_message(msg2)
-                if auth_req and auth_req.get("type") == "auth_required":
-                    await ws.send_text(_format_ws_message(type="auth", access_token=self._token))
-                    msg3 = await ws.receive_text()
-                    auth_msg = _parse_ws_message(msg3)
-                    if auth_msg is None or auth_msg.get("type") != "auth_ok":
-                        raise RuntimeError(f"HA WebSocket auth failed: {auth_msg}")
+            await self._authenticate(ws)
 
             # Subscribe to state_changed events
-            sub_msg = _format_ws_message(
-                id=1,
-                type="subscribe_events",
-                event_type="state_changed",
+            await ws.send_text(
+                _format_ws_message(id=1, type="subscribe_events", event_type="state_changed")
             )
-            await ws.send_text(sub_msg)
+            result = _parse_ws_message(await ws.receive_text())
+            if result is None or result.get("type") != "result" or not result.get("success"):
+                raise RuntimeError(f"HA WebSocket subscribe failed: {result}")
 
             # Initial REST snapshot for registered entities
             await self._fetch_initial_state()
@@ -594,6 +588,23 @@ class _HaWsSession:
                     # Keep-alive ping — do nothing, loop continues
                     continue
 
+    async def _authenticate(self, ws: Any) -> None:
+        """Run HA's handshake: server ``auth_required``, client ``auth``, server ``auth_ok``.
+
+        HA always greets with ``auth_required`` and sends nothing more until the client
+        answers, so the token is sent right after the greeting.
+        """
+        greeting = _parse_ws_message(await ws.receive_text())
+        greeting_type = greeting.get("type") if greeting else None
+        if greeting_type != "auth_required":
+            raise RuntimeError(f"HA WebSocket expected auth_required, got {greeting_type}")
+        await ws.send_text(_format_ws_message(type="auth", access_token=self._token))
+        reply = _parse_ws_message(await ws.receive_text())
+        reply_type = reply.get("type") if reply else None
+        if reply_type != "auth_ok":
+            detail = reply.get("message", "") if reply else ""
+            raise RuntimeError(f"HA WebSocket auth failed: {reply_type} {detail}".strip())
+
     async def _fetch_initial_state(self) -> None:
         """Fetch current state for every registered entity via REST."""
         if not self._entity_ids:
@@ -605,6 +616,11 @@ class _HaWsSession:
                         f"{self._base_url}/api/states/{entity_id}",
                         headers={"Authorization": f"Bearer {self._token}"},
                     )
+                    if resp.status_code == 404:
+                        # A configured entity HA does not have: every consumer of it sees
+                        # nothing, so say which one instead of skipping it silently.
+                        logger.warning("ha_entity_not_found", entity_id=entity_id)
+                        continue
                     if resp.status_code == 200:
                         data = resp.json()
                         state_str = data.get("state", "unknown")
@@ -661,6 +677,13 @@ class _HaWsSession:
         # blocking the WS read loop.  The task is tracked by the event
         # loop; we do not need to await it.
         asyncio.create_task(self._on_state_changed(ha_event))  # noqa: RUF006
+
+
+def _root_cause(exc: BaseException) -> BaseException:
+    """The first leaf exception: the WebSocket library wraps failures in task groups."""
+    while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
+        exc = exc.exceptions[0]
+    return exc
 
 
 def _parse_ws_message(raw: str) -> dict[str, Any] | None:

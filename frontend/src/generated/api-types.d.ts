@@ -295,7 +295,7 @@ export interface paths {
         };
         /**
          * Llm Models Health
-         * @description Concurrently check the health of all configured LLM models.
+         * @description Concurrently check that every configured LLM model is served by its server.
          */
         get: operations["llm_models_health"];
         put?: never;

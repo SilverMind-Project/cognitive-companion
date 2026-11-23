@@ -419,9 +419,9 @@ knowledge:
   chunk_overlap_tokens: 60
   retrieval_top_k: 8
   min_similarity: 0.55
-  answer_model: "gemma-4-26B-A4B-it"
-  paraphrase_model: "gemma-4-26B-A4B-it"
-  quiz_generation_model: "gemma-4-26B-A4B-it"
+  answer_model: "qwen-3.8-27b"
+  paraphrase_model: "qwen-3.8-27b"
+  quiz_generation_model: "qwen-3.8-27b"
   max_upload_bytes: 15728640
   max_pixels: 40000000
   allowed_mime_types: ["image/jpeg", "image/png", "image/webp", "image/heic"]

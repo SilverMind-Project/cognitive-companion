@@ -52,3 +52,23 @@ def spoken_question(session_id: int, question: QuizQuestion, ord_num: int) -> st
         f"Question (session_id={session_id}, question_ord={ord_num}): "
         f"{question.question_text}{spoken_choices(question)}"
     )
+
+
+def tablet_answer_summary(
+    question_ord: int, answer_text: str, is_correct: bool | None, explanation: str
+) -> str:
+    """What the voice agent needs to respond to an answer it did not hear.
+
+    The agent's quiz instructions (gentle or standard) decide the tone; this only gives
+    it the facts. Without the explanation the agent cannot offer the reminder that
+    errorless learning depends on.
+    """
+    parts = [f"The senior answered question {question_ord} on the tablet"]
+    parts[0] += f': "{answer_text}".' if answer_text else "."
+    if is_correct is True:
+        parts.append("That matches the expected answer.")
+    elif is_correct is False:
+        parts.append("That differs from the expected answer.")
+        if explanation:
+            parts.append(f"Explanation to share as your instructions say: {explanation}")
+    return " ".join(parts)

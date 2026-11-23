@@ -109,6 +109,10 @@ class AudioSessionHandler:
         # so an instruction release never cuts the companion off mid-sentence.
         self._model_turn_active = False
         self._sync_after_turn = False
+        # Prompts that would change the instruction while a turn is still being spoken
+        # (and any prompt queued behind them, to keep order). They wait for
+        # turn_complete; ending the session at once would cut off what is being said.
+        self._held_prompts: deque[tuple[str, Any]] = deque()
 
     async def run(self) -> None:
         """Main entry point - run until the client disconnects."""
@@ -264,6 +268,8 @@ class AudioSessionHandler:
                                 pass  # Provider handles turn detection
                             elif kind == "text":
                                 await provider.send_text(session, payload)
+                            elif kind == "wake":
+                                pass  # A turn finished; held prompts are now replayed.
                             elif kind == "sync_instruction":
                                 if self._current_voice_instruction != session_instruction:
                                     logger.info("ws_voice_instruction_released")
@@ -274,8 +280,17 @@ class AudioSessionHandler:
                                     logger.debug("ws_backend_prompt_expired")
                                     continue
 
+                                changes_instruction = bool(
+                                    voice_instruction and voice_instruction != session_instruction
+                                )
+                                if self._held_prompts or (
+                                    changes_instruction and self._turn_in_progress()
+                                ):
+                                    self._held_prompts.append((kind, payload))
+                                    logger.info("ws_prompt_held_until_turn_complete")
+                                    continue
                                 self._adopt_prompt_instruction(payload)
-                                if voice_instruction and voice_instruction != session_instruction:
+                                if changes_instruction:
                                     self._replay.append((kind, payload))
                                     logger.info("ws_voice_instruction_changed")
                                     return
@@ -305,8 +320,7 @@ class AudioSessionHandler:
 
                     await self.provider.disconnect(session)
                     self._backend_active = False
-                    self._model_turn_active = False
-                    self._sync_after_turn = False
+                    self._reset_turn_state()
 
                     if self._client_disconnected.is_set():
                         return
@@ -319,6 +333,7 @@ class AudioSessionHandler:
 
                 except Exception as exc:
                     self._backend_active = False
+                    self._reset_turn_state()
                     if self._client_disconnected.is_set():
                         return
                     logger.error("ws_backend_error", error=str(exc))
@@ -449,6 +464,10 @@ class AudioSessionHandler:
             self._pending_assistant_text.clear()
             self._pending_prompt_text.clear()
             self._is_orchestrator_turn = False
+            if self._held_prompts:
+                self._release_held_prompts()
+                # Wake the forward loop, which may be blocked on the empty queue.
+                await self._client_to_backend.put(("wake", None))
 
     # ------------------------------------------------------------------
     # Tool call handling
@@ -527,7 +546,7 @@ class AudioSessionHandler:
                 item = await asyncio.wait_for(self._client_to_backend.get(), timeout=1.0)
             except TimeoutError:
                 continue
-            if item[0] == "sync_instruction":
+            if item[0] in ("sync_instruction", "wake"):
                 # No session is open, so the next one already uses the current
                 # instruction; opening a paid session just to apply it is waste.
                 continue
@@ -544,6 +563,22 @@ class AudioSessionHandler:
         if voice_instruction and time.time() <= exp:
             self._current_voice_instruction = voice_instruction
             self._voice_instruction_owner = voice_owner_for(metadata)
+
+    def _turn_in_progress(self) -> bool:
+        """An orchestrator prompt awaits its reply, or the model is mid-turn."""
+        return self._is_orchestrator_turn or self._model_turn_active
+
+    def _release_held_prompts(self) -> None:
+        """Put held prompts first in line, in their original order."""
+        self._replay.extendleft(reversed(self._held_prompts))
+        self._held_prompts.clear()
+
+    def _reset_turn_state(self) -> None:
+        """A session ended: no turn survives it, and held prompts go to the next one."""
+        self._model_turn_active = False
+        self._sync_after_turn = False
+        self._is_orchestrator_turn = False
+        self._release_held_prompts()
 
     async def _next_backend_item(self) -> tuple[str, Any]:
         """Return a held item first, then the next one from the client/prompt queue."""

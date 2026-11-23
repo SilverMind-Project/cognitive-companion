@@ -125,7 +125,13 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
             )
             try:
                 await self._ws_manager.send_backend_task(
-                    prompt=f"Here is some information for you.\n\n{title}\n\n{body}",
+                    # An instruction to the agent, not words from the senior: sent bare,
+                    # the agent acknowledged the card ("Noted") instead of reading it.
+                    prompt=(
+                        "Read this information card aloud to the senior, warmly and "
+                        f'slowly, then ask if they have any questions. Title: "{title}". '
+                        f'Card: "{body}"'
+                    ),
                     voice_instruction=composed or None,
                     metadata={
                         "delivery_type": INFO_CARD_DELIVERY_TYPE,

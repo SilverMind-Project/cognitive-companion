@@ -191,11 +191,15 @@ async def test_tablet_answer_on_a_voice_quiz_tells_the_agent_the_next_question(
     delivery, ws, _scheduler, result, _ = await _start(db_session, db_factory)
     ws.backend_tasks.clear()
 
-    await delivery.submit_quiz_answer(result.session_id, 0, choice_id="a", channel="pwa")
+    await delivery.submit_quiz_answer(result.session_id, 0, choice_id="b", channel="pwa")
 
     assert len(ws.backend_tasks) == 1
     sync = ws.backend_tasks[0]
-    assert "answered question 0 on the tablet" in sync["prompt"]
+    # The agent never heard the tap: it gets what was chosen and the explanation, so it
+    # can offer the errorless-learning reminder instead of just moving on.
+    assert 'answered question 0 on the tablet: "Your neighbour"' in sync["prompt"]
+    assert "differs from the expected answer" in sync["prompt"]
+    assert "Priya is your granddaughter who lives in Boston." in sync["prompt"]
     assert "question_ord=1" in sync["prompt"]
     assert "Where is Boston?" in sync["prompt"]
     # The persona set at quiz start stays; the relay does not reopen the session.

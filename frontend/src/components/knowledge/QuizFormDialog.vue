@@ -176,12 +176,7 @@ import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
 import QuizQuestionEditorCard from "@/components/knowledge/QuizQuestionEditorCard.vue";
 import { normalizeChoices, questionPayload } from "@/components/knowledge/quizChoices.js";
 import VoiceInstructionField from "@/components/knowledge/VoiceInstructionField.vue";
-import {
-  createQuiz,
-  replaceQuizQuestions,
-  suggestQuiz,
-  updateQuiz,
-} from "@/services/modules/quizzes";
+import { createQuiz, suggestQuiz, updateQuiz } from "@/services/modules/quizzes";
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },
@@ -403,13 +398,15 @@ async function onSubmit() {
   submitting.value = true;
   try {
     if (props.mode === "edit" && props.quiz?.id) {
-      await updateQuiz(props.quiz.id, metadata());
-      // One transaction for the whole list: added, edited, removed, and reordered
-      // questions are saved together, or nothing changes.
-      await replaceQuizQuestions(
-        props.quiz.id,
-        form.questions.map((q) => ({ ...(q.id ? { id: q.id } : {}), ...questionPayload(q) })),
-      );
+      // One transaction for the details and the whole list: added, edited, removed, and
+      // reordered questions are saved with the title and tags, or nothing changes.
+      await updateQuiz(props.quiz.id, {
+        ...metadata(),
+        questions: form.questions.map((q) => ({
+          ...(q.id ? { id: q.id } : {}),
+          ...questionPayload(q),
+        })),
+      });
       notify.success("Quiz updated.");
     } else {
       await createQuiz({

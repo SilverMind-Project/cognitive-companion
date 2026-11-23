@@ -33,6 +33,10 @@ class QuizUpdate(BaseModel):
     intro_voice_template: str | None = None
     voice_instruction: str | None = None
     tags: list[str] | None = None
+    # When given, the quiz's complete ordered question list, saved with the details in one
+    # transaction (same semantics as PUT /quizzes/{quiz_id}/questions). Omitted: questions
+    # are untouched.
+    questions: list[QuizQuestionUpsert] | None = None
 
 
 class QuizQuestionOut(OutSchema):

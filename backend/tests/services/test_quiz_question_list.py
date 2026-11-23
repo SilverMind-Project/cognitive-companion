@@ -176,3 +176,86 @@ def test_reorder_bumps_an_approved_quiz_version(svc: QuizService, db_session) ->
 
     db_session.expire_all()
     assert db_session.get(Quiz, quiz["id"]).version == approved_version + 1
+
+
+async def test_quiz_update_saves_details_and_questions_together(svc: QuizService) -> None:
+    quiz = _quiz(svc, "Q1", "Q2")
+    _q1, q2 = quiz["questions"]
+
+    out = await svc.update_quiz_with_questions(
+        quiz["id"],
+        {"title": "Family, revised", "tags": ["family"]},
+        [{**_mc("Q2"), "id": q2["id"]}, {**_mc("Q3"), "id": None}],
+    )
+
+    assert out["title"] == "Family, revised"
+    assert _texts(out) == ["Q2", "Q3"]
+    assert svc.get_quiz(quiz["id"])["tags"] == ["family"]
+
+
+async def test_refused_question_list_rolls_back_the_detail_changes(
+    svc: QuizService, db_session
+) -> None:
+    """The point of one call: a refused question list must not leave the new title saved."""
+    quiz = _quiz(svc, "Q1", "Q2")
+    q1, q2 = quiz["questions"]
+    session = QuizSession(quiz_id=quiz["id"], status="completed")
+    db_session.add(session)
+    db_session.flush()
+    db_session.add(
+        QuizResponse(
+            session_id=session.id,
+            question_id=q1["id"],
+            question_ord=0,
+            question_text="Q1",
+            channel="pwa",
+        )
+    )
+    db_session.commit()
+
+    with pytest.raises(ConflictError):
+        await svc.update_quiz_with_questions(
+            quiz["id"], {"title": "Renamed"}, [{**_mc("Q2"), "id": q2["id"]}]
+        )
+
+    saved = svc.get_quiz(quiz["id"])
+    assert saved["title"] == "Family"
+    assert _texts(saved) == ["Q1", "Q2"]
+
+
+async def test_quiz_update_bumps_an_approved_version_once(svc: QuizService, db_session) -> None:
+    quiz = _quiz(svc, "Q1")
+    approved_version = svc.approve_quiz(quiz["id"], approved_by="tester")["version"]
+    (q1,) = quiz["questions"]
+
+    await svc.update_quiz_with_questions(
+        quiz["id"], {"title": "Renamed"}, [{**_mc("Q1 edited"), "id": q1["id"]}]
+    )
+
+    db_session.expire_all()
+    assert db_session.get(Quiz, quiz["id"]).version == approved_version + 1
+
+
+async def test_quiz_update_without_questions_leaves_them_untouched(
+    svc: QuizService, image_pipeline: Mock
+) -> None:
+    quiz = _quiz(svc, "Q1", "Q2")
+
+    out = await svc.update_quiz_with_questions(quiz["id"], {"title": "Renamed"}, None)
+
+    assert out["title"] == "Renamed"
+    assert _texts(out) == ["Q1", "Q2"]
+    image_pipeline.purge_objects.assert_not_awaited()
+
+
+async def test_quiz_update_rejects_an_unknown_layout_before_touching_the_quiz(
+    svc: QuizService,
+) -> None:
+    quiz = _quiz(svc, "Q1")
+
+    with pytest.raises(ValidationError):
+        await svc.update_quiz_with_questions(
+            quiz["id"], {"title": "Renamed", "question_layout_id": "no_such_layout"}, []
+        )
+
+    assert svc.get_quiz(quiz["id"])["title"] == "Family"

@@ -38,15 +38,37 @@ logger = get_logger("backend.services.knowledge.quiz_service")
 
 _EDITABLE_FIELDS = ("question_type", "question_text", "choices", "expected_answer", "explanation")
 
+# Quiz fields whose change bumps an approved quiz's version (the delivered content).
+QUIZ_CONTENT_FIELDS = (
+    "title",
+    "question_layout_id",
+    "intro_voice_template",
+    "voice_instruction",
+)
+
+
+def apply_quiz_fields(quiz: Quiz, updates: dict[str, Any]) -> bool:
+    """Set the non-None ``updates`` on ``quiz``; True when delivered content changed."""
+    content_changed = any(
+        field in updates and updates[field] is not None and getattr(quiz, field) != updates[field]
+        for field in QUIZ_CONTENT_FIELDS
+    )
+    for key, val in updates.items():
+        if val is not None and hasattr(quiz, key):
+            setattr(quiz, key, val)
+    return content_changed
+
 
 class QuizQuestionListMixin:
-    """Whole-list question replacement for the quiz editor."""
+    """Whole-list question replacement and the editor's single atomic quiz save."""
 
     _db_factory: Callable[[], Session]
     _image_pipeline: ImagePipeline | None
     _load_questions: Callable[[Session, int], list[QuizQuestion]]
     _renumber: Callable[[Session, list[QuizQuestion], list[int]], None]
     _quiz_out: Callable[..., dict[str, Any]]
+
+    _validate_layout: Callable[[str], None]
 
     async def replace_questions(
         self, quiz_id: int, items: list[dict[str, Any]], *, allow_delete: bool = True
@@ -60,6 +82,27 @@ class QuizQuestionListMixin:
         after commit. Bumps an approved quiz's version. With ``allow_delete`` false, a list
         that would remove a question is refused with 403 (checked under the quiz lock).
         """
+        return await self.update_quiz_with_questions(quiz_id, {}, items, allow_delete=allow_delete)
+
+    async def update_quiz_with_questions(
+        self,
+        quiz_id: int,
+        updates: dict[str, Any],
+        items: list[dict[str, Any]] | None,
+        *,
+        allow_delete: bool = True,
+    ) -> dict[str, Any]:
+        """Apply quiz field ``updates`` and, when given, the question list ``items``, atomically.
+
+        One transaction under the quiz lock: either the details and the whole question list
+        are saved, or nothing is (the quiz editor's single save). ``items`` follows
+        :meth:`replace_questions`; ``None`` leaves the questions untouched. An approved
+        quiz's version is bumped once when its content or questions change.
+        """
+        if updates.get("question_layout_id") is not None:
+            self._validate_layout(updates["question_layout_id"])
+        removed_slots: dict[int, dict[str, Any]] = {}
+        stale: set[str] = set()
         db: Session = self._db_factory()
         try:
             quiz = db.execute(
@@ -68,49 +111,22 @@ class QuizQuestionListMixin:
             if quiz is None:
                 raise NotFoundError("Quiz", quiz_id)
 
-            current = {q.id: q for q in self._load_questions(db, quiz_id)}
-            listed_ids = [item["id"] for item in items if item.get("id") is not None]
-            unknown = sorted(set(listed_ids) - set(current))
-            if unknown:
-                raise ValidationError(f"Questions {unknown} are not in quiz {quiz_id}")
-            if len(listed_ids) != len(set(listed_ids)):
-                raise ValidationError("A question is listed more than once")
+            content_changed = apply_quiz_fields(quiz, updates)
+            if items is not None:
+                final, removed_slots = self._apply_question_list(
+                    db, quiz_id, items, allow_delete=allow_delete
+                )
+                content_changed = True
+            else:
+                final = self._load_questions(db, quiz_id)
 
-            removed = [q for qid, q in current.items() if qid not in set(listed_ids)]
-            if removed and not allow_delete:
-                raise PermissionDeniedError("Removing questions requires quizzes:delete")
-            removed_slots = {q.id: dict(q.image_slot or {}) for q in removed}
-            self._delete_unanswered(db, quiz_id, removed)
-
-            # Move the kept questions out of the way before new rows take ordinals, so no
-            # intermediate state collides on uq_qq_quiz_ord.
-            kept = [current[qid] for qid in listed_ids]
-            self._renumber(db, kept, [-(i + 1) for i in range(len(kept))])
-            db.flush()
-
-            final: list[QuizQuestion] = []
-            for idx, item in enumerate(items):
-                fields = {key: item[key] for key in _EDITABLE_FIELDS if key in item}
-                fields["choices"] = [dict(c) for c in fields.get("choices") or []]
-                if item.get("id") is not None:
-                    question = current[item["id"]]
-                    for key, value in fields.items():
-                        setattr(question, key, value)
-                else:
-                    question = QuizQuestion(quiz_id=quiz_id, ord=-(len(items) + idx + 1), **fields)
-                    db.add(question)
-                final.append(question)
-            db.flush()
-            self._renumber(db, final, list(range(len(final))))
-
-            if quiz.status == "approved":
+            if quiz.status == "approved" and content_changed:
                 quiz.version += 1
             quiz.updated_at = datetime.now(UTC)
             db.commit()
             for question in final:
                 db.refresh(question)
             db.refresh(quiz)
-            stale: set[str] = set()
             for slot in removed_slots.values():
                 stale |= owned_object_names(slot, quiz_prefix(quiz_id))
             stale -= names_in_use((q.image_slot for q in final), quiz_prefix(quiz_id))
@@ -121,17 +137,62 @@ class QuizQuestionListMixin:
         finally:
             db.close()
 
-        if self._image_pipeline is not None:
+        if self._image_pipeline is not None and removed_slots:
             await self._image_pipeline.purge_objects(stale)
             for qid in removed_slots:
                 await self._image_pipeline.purge_prefix(f"{_question_image_key(quiz_id, qid)}__")
-        logger.info(
-            "quiz_questions_replaced",
-            quiz_id=quiz_id,
-            question_count=len(items),
-            removed=len(removed_slots),
-        )
+        if items is not None:
+            logger.info(
+                "quiz_questions_replaced",
+                quiz_id=quiz_id,
+                question_count=len(items),
+                removed=len(removed_slots),
+            )
         return result
+
+    def _apply_question_list(
+        self, db: Session, quiz_id: int, items: list[dict[str, Any]], *, allow_delete: bool
+    ) -> tuple[list[QuizQuestion], dict[int, dict[str, Any]]]:
+        """Stage ``items`` as the quiz's question list in ``db`` (no commit).
+
+        Returns the questions in their new order and the image slots of the removed ones.
+        The caller holds the quiz lock and owns the transaction.
+        """
+        current = {q.id: q for q in self._load_questions(db, quiz_id)}
+        listed_ids = [item["id"] for item in items if item.get("id") is not None]
+        unknown = sorted(set(listed_ids) - set(current))
+        if unknown:
+            raise ValidationError(f"Questions {unknown} are not in quiz {quiz_id}")
+        if len(listed_ids) != len(set(listed_ids)):
+            raise ValidationError("A question is listed more than once")
+
+        removed = [q for qid, q in current.items() if qid not in set(listed_ids)]
+        if removed and not allow_delete:
+            raise PermissionDeniedError("Removing questions requires quizzes:delete")
+        removed_slots = {q.id: dict(q.image_slot or {}) for q in removed}
+        self._delete_unanswered(db, quiz_id, removed)
+
+        # Move the kept questions out of the way before new rows take ordinals, so no
+        # intermediate state collides on uq_qq_quiz_ord.
+        kept = [current[qid] for qid in listed_ids]
+        self._renumber(db, kept, [-(i + 1) for i in range(len(kept))])
+        db.flush()
+
+        final: list[QuizQuestion] = []
+        for idx, item in enumerate(items):
+            fields = {key: item[key] for key in _EDITABLE_FIELDS if key in item}
+            fields["choices"] = [dict(c) for c in fields.get("choices") or []]
+            if item.get("id") is not None:
+                question = current[item["id"]]
+                for key, value in fields.items():
+                    setattr(question, key, value)
+            else:
+                question = QuizQuestion(quiz_id=quiz_id, ord=-(len(items) + idx + 1), **fields)
+                db.add(question)
+            final.append(question)
+        db.flush()
+        self._renumber(db, final, list(range(len(final))))
+        return final, removed_slots
 
     @staticmethod
     def _delete_unanswered(db: Session, quiz_id: int, removed: list[QuizQuestion]) -> None:

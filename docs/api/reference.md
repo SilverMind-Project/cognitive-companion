@@ -353,7 +353,7 @@ There is no operator-edited adjacency graph: cameras that overlap are declared a
 | Interactions | `GET /knowledge-interactions/queries`, `/quiz-sessions`, and `/info-card-deliveries` return `{items, total}`; `GET /knowledge/analytics/tags` |
 
 - List filters: `GET /knowledge/documents`, `/info-cards`, and `/quizzes` take a repeatable `tag` parameter; an item matches when it carries any of the given tags.
-- `POST /quizzes` accepts `questions` and creates them with the quiz in one transaction. `PUT /quizzes/{quiz_id}/questions` replaces the ordered question list atomically: listed ids are updated, items without an id are created, unlisted questions are deleted (409, nothing changed, if one has recorded answers; 403 without `quizzes:delete`). `POST /quizzes/{quiz_id}/questions/reorder` takes the complete order (every question once, ords `0..N-1`; 422 otherwise).
+- `POST /quizzes` accepts `questions` and creates them with the quiz in one transaction. `PATCH /quizzes/{quiz_id}` with `questions` saves the details and the whole list in one transaction (the editor's save); without `questions` it changes details only. `PUT /quizzes/{quiz_id}/questions` replaces the ordered question list atomically: listed ids are updated, items without an id are created, unlisted questions are deleted (409, nothing changed, if one has recorded answers; 403 without `quizzes:delete`). `POST /quizzes/{quiz_id}/questions/reorder` takes the complete order (every question once, ords `0..N-1`; 422 otherwise).
 - A multiple-choice choice id must be non-blank and unique within its question (422 otherwise); drafted choices are given ids server-side.
 
 Lifecycle rules the endpoints enforce:

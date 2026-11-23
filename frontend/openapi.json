@@ -13260,6 +13260,20 @@
             ],
             "title": "Question Layout Id"
           },
+          "questions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/QuizQuestionUpsert"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
+          },
           "tags": {
             "anyOf": [
               {
@@ -36368,6 +36382,7 @@
         ]
       },
       "patch": {
+        "description": "Update quiz details and, when ``questions`` is given, the whole question list atomically.\n\nRemoving questions also needs ``quizzes:delete``, checked by the service under the quiz\nlock, as on ``PUT /{quiz_id}/questions``.",
         "operationId": "update_quiz",
         "parameters": [
           {

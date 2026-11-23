@@ -383,9 +383,8 @@ describe("QuizFormDialog saving", () => {
     ],
   };
 
-  it("saves an edited quiz's whole ordered list in one replace call", async () => {
+  it("saves an edited quiz's details and whole ordered list in one call", async () => {
     apiMock.updateQuiz.mockResolvedValue({});
-    apiMock.replaceQuizQuestions.mockResolvedValue({});
     const wrapper = mount(QuizFormDialog, {
       props: { modelValue: true, mode: "edit", quiz },
       global: { stubs },
@@ -399,10 +398,14 @@ describe("QuizFormDialog saving", () => {
     wrapper.findComponent({ name: "AppDialog" }).vm.$emit("confirm");
     await flushPromises();
 
-    expect(apiMock.replaceQuizQuestions).toHaveBeenCalledTimes(1);
-    const [quizId, questions] = apiMock.replaceQuizQuestions.mock.calls[0];
+    // Details and questions travel together: a failed list can no longer leave a new
+    // title saved over the old questions.
+    expect(apiMock.updateQuiz).toHaveBeenCalledTimes(1);
+    const [quizId, body] = apiMock.updateQuiz.mock.calls[0];
     expect(quizId).toBe(10);
-    expect(questions.map((q) => q.id)).toEqual([101]);
+    expect(body.title).toBe("Family");
+    expect(body.questions.map((q) => q.id)).toEqual([101]);
+    expect(apiMock.replaceQuizQuestions).not.toHaveBeenCalled();
     expect(apiMock.deleteQuizQuestion).not.toHaveBeenCalled();
     expect(apiMock.createQuizQuestion).not.toHaveBeenCalled();
     expect(wrapper.emitted("saved")).toHaveLength(1);

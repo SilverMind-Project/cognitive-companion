@@ -20,17 +20,16 @@ from backend.models.knowledge import (
 )
 from backend.services.knowledge.image_pipeline import ImagePipeline
 from backend.services.knowledge.layout_registry import LayoutRegistry
-from backend.services.knowledge.quiz_question_list import QuizQuestionListMixin
+from backend.services.knowledge.quiz_question_list import (
+    QuizQuestionListMixin,
+    apply_quiz_fields,
+)
 from backend.services.knowledge.quiz_questions import QuizQuestionsMixin, quiz_prefix
 from backend.services.knowledge.references import (
     rule_ids_referencing,
 )
 
 logger = get_logger(__name__)
-
-_QUIZ_CONTENT_FIELDS: frozenset[str] = frozenset(
-    {"title", "question_layout_id", "intro_voice_template", "voice_instruction"}
-)
 
 
 def _approval_problems(questions: list[QuizQuestion]) -> list[str]:
@@ -219,15 +218,7 @@ class QuizService(QuizQuestionsMixin, QuizQuestionListMixin):
             if quiz is None:
                 raise NotFoundError("Quiz", quiz_id)
 
-            content_changed = any(
-                field in updates
-                and updates[field] is not None
-                and getattr(quiz, field) != updates[field]
-                for field in _QUIZ_CONTENT_FIELDS
-            )
-            for key, val in updates.items():
-                if val is not None and hasattr(quiz, key):
-                    setattr(quiz, key, val)
+            content_changed = apply_quiz_fields(quiz, updates)
 
             if quiz.status == "approved" and content_changed:
                 quiz.version += 1

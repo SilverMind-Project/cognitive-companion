@@ -296,6 +296,44 @@ def test_replace_that_removes_needs_delete_permission(client: TestClient) -> Non
     assert "quizzes:delete" in resp.text
 
 
+def test_patch_with_questions_saves_details_and_list_in_one_call(client: TestClient) -> None:
+    quiz = client.post(
+        "/api/v1/quizzes", json={"title": "Family", "questions": [_mc_body("Q1"), _mc_body("Q2")]}
+    ).json()
+    _q1, q2 = quiz["questions"]
+
+    resp = client.patch(
+        f"/api/v1/quizzes/{quiz['id']}",
+        json={"title": "Renamed", "questions": [{**_mc_body("Q2"), "id": q2["id"]}]},
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["title"] == "Renamed"
+    assert [q["question_text"] for q in resp.json()["questions"]] == ["Q2"]
+
+
+def test_patch_that_removes_questions_needs_delete_permission(client: TestClient) -> None:
+    quiz = client.post(
+        "/api/v1/quizzes", json={"title": "Family", "questions": [_mc_body("Q1"), _mc_body("Q2")]}
+    ).json()
+    q1 = quiz["questions"][0]
+
+    async def write_only() -> AuthContext:
+        return AuthContext(key="w", name="Writer", roles=[], tokens=frozenset({"quizzes:write"}))
+
+    full_access = client.app.dependency_overrides.get(get_auth_context)
+    client.app.dependency_overrides[get_auth_context] = write_only
+    resp = client.patch(
+        f"/api/v1/quizzes/{quiz['id']}",
+        json={"title": "Renamed", "questions": [{**_mc_body("Q1"), "id": q1["id"]}]},
+    )
+    client.app.dependency_overrides[get_auth_context] = full_access
+
+    assert resp.status_code == 403
+    # Refused under the lock with the details: the new title was not saved either.
+    assert client.get(f"/api/v1/quizzes/{quiz['id']}").json()["title"] == "Family"
+
+
 def test_incomplete_reorder_is_422_not_500(client: TestClient) -> None:
     quiz = client.post(
         "/api/v1/quizzes", json={"title": "Family", "questions": [_mc_body("Q1"), _mc_body("Q2")]}

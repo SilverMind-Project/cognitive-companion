@@ -4644,7 +4644,13 @@ export interface paths {
         delete: operations["delete_quiz"];
         options?: never;
         head?: never;
-        /** Update Quiz */
+        /**
+         * Update Quiz
+         * @description Update quiz details and, when ``questions`` is given, the whole question list atomically.
+         *
+         *     Removing questions also needs ``quizzes:delete``, checked by the service under the quiz
+         *     lock, as on ``PUT /{quiz_id}/questions``.
+         */
         patch: operations["update_quiz"];
         trace?: never;
     };
@@ -10852,6 +10858,8 @@ export interface components {
             intro_voice_template?: string | null;
             /** Question Layout Id */
             question_layout_id?: string | null;
+            /** Questions */
+            questions?: components["schemas"]["QuizQuestionUpsert"][] | null;
             /** Tags */
             tags?: string[] | null;
             /** Title */

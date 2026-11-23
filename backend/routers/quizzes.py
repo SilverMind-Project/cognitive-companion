@@ -79,9 +79,21 @@ async def update_quiz(
     quiz_id: int,
     body: QuizUpdate,
     svc: QuizService = Depends(get_quiz_service),
-    _auth: None = Depends(require_permission("quizzes:write")),
+    auth: AuthContext = Depends(require_permission("quizzes:write")),
 ) -> dict[str, Any]:
-    return svc.update_quiz(quiz_id, body.model_dump(exclude_none=True))
+    """Update quiz details and, when ``questions`` is given, the whole question list atomically.
+
+    Removing questions also needs ``quizzes:delete``, checked by the service under the quiz
+    lock, as on ``PUT /{quiz_id}/questions``.
+    """
+    if body.questions is None:
+        return svc.update_quiz(quiz_id, body.model_dump(exclude_none=True))
+    return await svc.update_quiz_with_questions(
+        quiz_id,
+        body.model_dump(exclude_none=True, exclude={"questions"}),
+        [q.model_dump(exclude_none=True) for q in body.questions],
+        allow_delete=has_token(auth, "quizzes:delete"),
+    )
 
 
 # -- state transitions -------------------------------------------------------

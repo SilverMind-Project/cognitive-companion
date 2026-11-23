@@ -198,7 +198,7 @@ class SignalEmitHandler(StepHandler):
             )
 
         trigger_vars = make_trigger_vars(trigger)
-        person_id = resolve_person_id(config, pipeline_data)
+        person_id = resolve_person_id(config, pipeline_data, trigger_vars)
         if not person_id:
             logger.warning("signal_emit_no_person_id", kind=kind)
             return StepResult(

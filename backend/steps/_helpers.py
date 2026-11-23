@@ -6,7 +6,14 @@ person-resolution logic.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
+
+from backend.core.logging import get_logger
+from backend.core.template import render_template
 from backend.steps.base import TriggerContext
+
+logger = get_logger(__name__)
 
 
 def make_trigger_vars(trigger: TriggerContext) -> dict[str, str]:
@@ -17,12 +24,18 @@ def make_trigger_vars(trigger: TriggerContext) -> dict[str, str]:
     }
 
 
-def resolve_person_id(config: dict, pipeline_data: dict) -> str | None:
+def resolve_person_id(
+    config: dict,
+    pipeline_data: dict,
+    trigger_vars: Mapping[str, Any] | None = None,
+) -> str | None:
     """Resolve a person_id from step config or upstream pipeline data.
 
     Resolution order:
-    1. Explicit ``person_id`` in step config (supports ``{{template}}``
-       syntax -- resolved by the template engine before this call).
+    1. Explicit ``person_id`` in step config. ``{{template}}`` syntax is rendered here
+       against ``pipeline_data`` (and ``trigger_vars``); nothing renders step config
+       before a step runs. A template that does not resolve returns None: an author who
+       named a person gets that person or nobody, never whoever comes first below.
     2. First entry from ``pipeline_data["persons"]`` (list of dicts with
        ``id`` or ``person_id`` keys).
     3. Scalar ``pipeline_data["person_id"]``.
@@ -33,6 +46,13 @@ def resolve_person_id(config: dict, pipeline_data: dict) -> str | None:
     Returns None when nothing is resolvable.
     """
     person_id = (config.get("person_id") or "").strip() or None
+    if person_id and "{{" in person_id:
+        rendered = render_template(person_id, pipeline_data, trigger_vars).strip()
+        if not rendered or "{{" in rendered:
+            # Field name only: the template and pipeline values may identify a person.
+            logger.warning("person_id_template_unresolved", field="person_id")
+            return None
+        return rendered
     if person_id:
         return person_id
 

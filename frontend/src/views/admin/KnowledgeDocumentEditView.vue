@@ -72,7 +72,7 @@
               variant="outlined"
               multiple
               chips
-              deletable-chips
+              closable-chips
             />
           </v-card>
 
@@ -128,7 +128,7 @@
               {{ document.status }}
             </v-chip>
             <div class="text-body-2 mb-2">
-              <strong>Created by:</strong> {{ document.created_by ?? "—" }}
+              <strong>Created by:</strong> {{ document.created_by ?? "Unknown" }}
             </div>
             <div class="text-body-2 mb-2">
               <strong>Created at:</strong> {{ formatDateTime(document.created_at) }}
@@ -176,6 +176,7 @@ import {
   restoreKnowledgeDocument,
   updateKnowledgeDocument,
 } from "@/services/modules/knowledge";
+import { knowledgeStatusColor as statusColor } from "@/constants/knowledgeStatus.js";
 import { useNotify } from "@/composables/useNotify.js";
 import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import { useConfirm } from "@/composables/useConfirm.js";
@@ -210,16 +211,6 @@ const editForm = reactive({
 });
 
 const images = ref([]);
-
-function statusColor(status) {
-  const map = {
-    uploaded: "blue",
-    chunked: "orange",
-    approved: "green",
-    archived: "grey",
-  };
-  return map[status] || "default";
-}
 
 async function fetchDocument() {
   loading.value = true;

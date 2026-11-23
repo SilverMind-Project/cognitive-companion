@@ -95,7 +95,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function fetchDocuments() {
     try {
-      const res = await getKnowledgeDocuments({ per_page: 200 });
+      const res = await getKnowledgeDocuments({ limit: 200 });
       state.documents = res?.items ?? [];
     } catch (_err) {
       // non-critical

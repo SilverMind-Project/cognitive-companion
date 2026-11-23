@@ -106,7 +106,7 @@
         rows="3"
         class="mb-3"
       />
-      <v-combobox v-model="form.tags" label="Tags" multiple chips deletable-chips />
+      <v-combobox v-model="form.tags" label="Tags" multiple chips closable-chips />
     </template>
 
     <template #section-questions>

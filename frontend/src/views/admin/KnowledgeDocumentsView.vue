@@ -78,7 +78,7 @@
           <span
             v-if="!item.tags || item.tags.length === 0"
             class="text-caption text-medium-emphasis"
-            >—</span
+            >-</span
           >
         </template>
 
@@ -162,7 +162,7 @@
         <v-textarea v-model="createFormData.source_text" label="Source Text" rows="8" />
         <v-row dense>
           <v-col cols="12" sm="6">
-            <v-combobox v-model="createFormData.tags" label="Tags" multiple chips deletable-chips />
+            <v-combobox v-model="createFormData.tags" label="Tags" multiple chips closable-chips />
           </v-col>
           <v-col cols="12" sm="6">
             <v-file-input
@@ -200,6 +200,7 @@ import {
   getKnowledgeDocuments,
   restoreKnowledgeDocument,
 } from "@/services/modules/knowledge";
+import { knowledgeStatusColor as statusColor } from "@/constants/knowledgeStatus.js";
 import { useNotify } from "@/composables/useNotify.js";
 import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import { formatDateTime, DATETIME_COLUMN_WIDTH } from "@/services/timezone.js";
@@ -275,16 +276,6 @@ async function fetchDocuments() {
   } finally {
     loading.value = false;
   }
-}
-
-function statusColor(status) {
-  const map = {
-    uploaded: "blue",
-    chunked: "orange",
-    approved: "green",
-    archived: "grey",
-  };
-  return map[status] || "default";
 }
 
 function truncate(text, len) {

@@ -60,7 +60,7 @@
           {{ item.questions?.length ?? item.question_count ?? 0 }}
         </template>
 
-        <template #[`item.layout_id`]="{ item }">
+        <template #[`item.question_layout_id`]="{ item }">
           <v-chip size="x-small" color="primary" variant="outlined">
             {{ item.question_layout_id ?? "-" }}
           </v-chip>
@@ -198,6 +198,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { getQuiz } from "@/services/modules/quizzes";
+import { knowledgeStatusColor as statusColor } from "@/constants/knowledgeStatus.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { useQuizzesAdmin } from "@/composables/useQuizzesAdmin.js";
@@ -232,7 +233,7 @@ const deleteTarget = ref(null);
 const headers = [
   { title: "Title", key: "title", sortable: true },
   { title: "Questions", key: "question_count", sortable: false, width: 90 },
-  { title: "Layout", key: "layout_id", sortable: true },
+  { title: "Layout", key: "question_layout_id", sortable: true },
   { title: "Status", key: "status", sortable: true, width: 100 },
   { title: "Version", key: "version", sortable: true, width: 80 },
   { title: "Approved By", key: "approved_by", sortable: false },
@@ -240,15 +241,6 @@ const headers = [
 ];
 
 const statusOptions = ["draft", "approved", "archived"];
-
-function statusColor(status) {
-  const map = {
-    draft: "info",
-    approved: "success",
-    archived: "secondary",
-  };
-  return map[status] || "default";
-}
 
 function openCreateDialog() {
   formMode.value = "create";

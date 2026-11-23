@@ -68,7 +68,7 @@
       >
         <template #[`item.layout_id`]="{ item }">
           <v-chip size="x-small" color="primary" variant="outlined">
-            {{ item.layout_id ?? "—" }}
+            {{ item.layout_id ?? "-" }}
           </v-chip>
         </template>
 
@@ -175,7 +175,7 @@
           label="Layout"
           :rules="[(r) => !!r || 'Layout is required']"
         />
-        <v-combobox v-model="createForm.tags" label="Tags" multiple chips deletable-chips />
+        <v-combobox v-model="createForm.tags" label="Tags" multiple chips closable-chips />
       </template>
 
       <v-text-field
@@ -240,7 +240,7 @@
           label="Layout"
           class="mb-3"
         />
-        <v-combobox v-model="editForm.tags" label="Tags" multiple chips deletable-chips />
+        <v-combobox v-model="editForm.tags" label="Tags" multiple chips closable-chips />
       </template>
 
       <v-text-field v-model="editForm.title" label="Title" class="mb-3" />
@@ -364,6 +364,7 @@ import {
 import { getKnowledgeDocument, getKnowledgeDocuments } from "@/services/modules/knowledge";
 import { getKnowledgeLayouts } from "@/services/modules/layouts";
 import { getLLMModels } from "@/services/modules/pipeline";
+import { knowledgeStatusColor as statusColor } from "@/constants/knowledgeStatus.js";
 import { useNotify } from "@/composables/useNotify.js";
 import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
@@ -459,15 +460,6 @@ function onPageOptions({ page: newPage, itemsPerPage: newPerPage }) {
   fetchCards();
 }
 
-function statusColor(status) {
-  const map = {
-    draft: "blue",
-    approved: "green",
-    archived: "grey",
-  };
-  return map[status] || "default";
-}
-
 async function fetchCards() {
   loading.value = true;
   try {
@@ -496,7 +488,7 @@ async function fetchLayouts() {
 
 async function fetchDocuments() {
   try {
-    const res = await getKnowledgeDocuments({ per_page: 200 });
+    const res = await getKnowledgeDocuments({ limit: 200 });
     documentOptions.value = res.items ?? [];
   } catch (_) {
     // non-critical

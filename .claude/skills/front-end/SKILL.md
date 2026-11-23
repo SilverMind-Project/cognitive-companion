@@ -62,7 +62,8 @@ applies:
 10. Destructive or irreversible actions (merge, split, delete, reassign) need a visible review step
     and `useConfirm()` immediately before the request; bulk mutations use one batch endpoint.
 11. Use the shared controls: `CcSegmentedToggle` (never `v-btn-toggle` for pickers),
-    `CcStatusPill`, `CcAvatar`, `KeyframeAnnotationDialog`, `useCanvasZoom` + `CcZoomControls`.
+    `CcAvatar`, `KeyframeAnnotationDialog`, `useCanvasZoom` + `CcZoomControls`; a headline
+    wellbeing reading uses the `.cc-badge` DS badge.
 12. A row mixing a labeled field and a control uses `align-items: center`; fields inherit
     `outlined`/`comfortable`; submit buttons show `:loading`.
 13. Route names sit on the record that resolves the page; router tests use the real table with

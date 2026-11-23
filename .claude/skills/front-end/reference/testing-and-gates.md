@@ -145,7 +145,7 @@ Judgment checks not covered by the deterministic gates above:
 - Data tables use server-side pagination and reset page to 1 on filter changes
 - Dialogs use `AppDialog` (or plain persistent `<v-dialog>` + `<v-card>` only for `useConfirm()`) and reset forms on close
 - `tracking-tight` on page titles
-- Status chips use `statusColor()` helper
+- Status chips use a status helper in theme colors (one shared helper per domain in `src/constants/`)
 - A server-paged list uses `v-data-table-server`, never `v-data-table` with `:items-length`
 - Inspector drawers: `useNotify()` imported and used (zero `console.log` / `console.error` stubs), `useConfirm()` called before every destructive action, and `@click:row` wired on data tables (not only the Inspect button)
 - No module-level `ref`/`reactive` shared across components (that belongs in a Pinia store)

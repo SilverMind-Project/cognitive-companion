@@ -346,7 +346,7 @@ Use `width: 200` for the Actions column when there are 4+ icon buttons (edit, ap
 
 ### Column patterns
 
-- Status columns: `width: 100`, use `<v-chip>` with `statusColor()` helper
+- Status columns: `width: 100`, use `<v-chip>` colored by a status helper (shared in `src/constants/` when several views show the same statuses)
 - Version/ID columns: `width: 80`
 - Datetime columns: import `DATETIME_COLUMN_WIDTH` from `@/services/timezone.js`
 - Tag/chip-list columns (e.g. trigger types, labels): `width: 160` to constrain without truncating typical values
@@ -468,16 +468,9 @@ The DS replacement for `v-btn-toggle` in period/mode/source pickers. See "Compac
 <CcSegmentedToggle v-model="viewMode" :options="VIEW_MODE_OPTIONS" />
 ```
 
-### `CcStatusPill` -- the wellbeing indicator
+### Wellbeing readings and status chips
 
-The signature DS status reading: a calm pill pairing a colored dot with a label and optional detail line. Use it for the headline wellbeing state of a person or room. Lead with the calm reading; only escalate `status` when something genuinely warrants attention.
-
-```html
-<CcStatusPill status="steady" detail="Calm night, up at 7:10am" />
-<CcStatusPill status="notice" label="Worth a look" detail="Quieter in the kitchen" />
-```
-
-Statuses: `steady` | `notice` | `quiet` | `alert`. This is distinct from a status `v-chip` (which uses the per-view `statusColor()` helper for table cells) -- use `CcStatusPill` for the prominent, human-facing reading and `v-chip` for compact table status.
+There is no status-pill component. For the headline wellbeing reading of a person or room, use the DS badge (`.cc-badge` with a tone modifier and a leading `cc-badge__dot`; see `design-tokens.md`), leading with the calm reading. Compact table status stays a `v-chip` colored by a status helper in theme colors; when several views show the same domain's statuses, the helper lives once in `src/constants/` (for example `knowledgeStatus.js`), never as a copy per view.
 
 ### `CcAvatar` -- person likeness
 

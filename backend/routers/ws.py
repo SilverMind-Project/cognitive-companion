@@ -41,7 +41,6 @@ async def websocket_audio(websocket: WebSocket):
     manager: ConnectionManager | None = app.state.ws_manager
     realtime_provider: RealtimeLLMProvider | None = app.state.realtime_provider
     conversation_manager: ConversationManager | None = app.state.conversation_manager
-    rag_lookup = getattr(app.state, "rag_lookup", None)  # Not yet wired in lifespan
     gemini_adapter: GeminiToolAdapter | None = app.state.gemini_adapter
 
     if manager is None:
@@ -64,7 +63,6 @@ async def websocket_audio(websocket: WebSocket):
             manager=manager,
             realtime_provider=realtime_provider,
             conversation_manager=conversation_manager,
-            rag_lookup=rag_lookup,
             tool_adapter=gemini_adapter,
         )
         await handler.run()

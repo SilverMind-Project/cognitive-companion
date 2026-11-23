@@ -63,7 +63,6 @@ def wire_executor_and_workflow(
     pipeline_ws_manager = app.state.pipeline_ws_manager
     event_aggregator = app.state.event_aggregator
     minio_client = app.state.minio_client
-    knowledge_delivery = app.state.knowledge_delivery
     ha_client = app.state.ha_client
 
     # -- Pipeline executor -------------------------------------------------
@@ -108,9 +107,6 @@ def wire_executor_and_workflow(
         ledger_stale_hours=settings.get("daily_living.health.ledger_stale_hours", 48.0),
     )
     app.state.daily_living_health = daily_living_health
-
-    # Wire pipeline executor into knowledge delivery for quiz completion resume
-    knowledge_delivery._pipeline_executor = pipeline_executor
 
     # -- Workflow pipeline -------------------------------------------------
     from backend.services.workflow import WorkflowPipeline
@@ -178,5 +174,8 @@ def wire_scheduler(
 
     # Inject scheduler bridge into interactive response service
     interactive_response_service.scheduler = scheduler_bridge
+
+    # Quiz timeouts and the early pipeline resume on quiz completion go through it.
+    app.state.knowledge_delivery.attach_scheduler(scheduler_bridge)
 
     return scheduler_bridge

@@ -16,6 +16,7 @@ from backend.core.logging import get_logger
 from backend.integrations.eink_renderer import EInkRenderer
 from backend.integrations.minio_client import MinioClient
 from backend.models.knowledge import InfoCard, InfoCardDelivery
+from backend.services.interactive_session import WorkflowResumeScheduler
 from backend.services.knowledge.delivery_result import DeliveryResult
 from backend.services.knowledge.quiz_delivery import QuizDeliveryMixin
 from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
@@ -37,7 +38,8 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
         eink_renderer: EInkRenderer | None = None,
         voice_instructions: VoiceInstructionConfig | None = None,
         content_generation: Any = None,
-        pipeline_executor: Any = None,
+        *,
+        scheduler: WorkflowResumeScheduler | None = None,
     ) -> None:
         self._db_factory = db_factory
         self._ws_manager = ws_manager
@@ -45,7 +47,14 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
         self._eink = eink_renderer
         self._voice = voice_instructions
         self._content_gen = content_generation
-        self._pipeline_executor = pipeline_executor
+        self._scheduler = scheduler
+
+    def attach_scheduler(self, scheduler: WorkflowResumeScheduler) -> None:
+        """Bind the scheduler once it exists (it is built after the knowledge phase).
+
+        The early pipeline resume when a quiz completes goes through it.
+        """
+        self._scheduler = scheduler
 
     # -- info card delivery -------------------------------------------------
 

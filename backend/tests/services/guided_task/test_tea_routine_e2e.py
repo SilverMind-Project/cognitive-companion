@@ -31,14 +31,6 @@ class _Voice:
         self.calls.append((step.ord, rendered_prompt, is_retry))
 
 
-@dataclass
-class _Pipeline:
-    resumed: list[int] = field(default_factory=list)
-
-    def resume(self, execution_id: int, db) -> None:
-        self.resumed.append(execution_id)
-
-
 class _Dispatcher:
     def __init__(self) -> None:
         self.calls: list[dict] = []
@@ -63,6 +55,17 @@ class _Scheduler:
                 "replace_existing": replace_existing,
             }
         )
+
+
+class _ResumeScheduler(_Scheduler):
+    """Records the pipeline resume a terminal session schedules through the scheduler."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.resumed: list[int] = []
+
+    def schedule_workflow_resume(self, execution_id: int, resume_at) -> None:
+        self.resumed.append(execution_id)
 
 
 def _settings(max_step_attempts: int = 3) -> Settings:
@@ -109,13 +112,12 @@ def _service(
     *,
     voice: _Voice,
     dispatcher: _Dispatcher,
-    pipeline: _Pipeline | None = None,
+    scheduler: _Scheduler | None = None,
     max_step_attempts: int = 3,
 ) -> GuidedTaskService:
     return GuidedTaskService(
         db_factory=db_factory,
-        scheduler=_Scheduler(),
-        pipeline_executor=pipeline,
+        scheduler=scheduler or _Scheduler(),
         voice=voice,
         escalator=NotifyOnlyEscalator(
             dispatcher,
@@ -133,8 +135,8 @@ async def test_tea_routine_happy_path_advances_and_resumes_pipeline(db_session, 
     clock = _Clock()
     voice = _Voice()
     dispatcher = _Dispatcher()
-    pipeline = _Pipeline()
-    service = _service(db_factory, clock, voice=voice, dispatcher=dispatcher, pipeline=pipeline)
+    scheduler = _ResumeScheduler()
+    service = _service(db_factory, clock, voice=voice, dispatcher=dispatcher, scheduler=scheduler)
 
     session = await service.start(routine_id, "resident-1", execution_id=99)
     prompts: list[str] = [voice.calls[0][1]]
@@ -162,7 +164,7 @@ async def test_tea_routine_happy_path_advances_and_resumes_pipeline(db_session, 
         "Put a tea bag in the cup.",
         "Pour the hot water.",
     ]
-    assert pipeline.resumed == [99]
+    assert scheduler.resumed == [99]
     assert [event.kind for event in events].count("step_completed") == 4
 
 

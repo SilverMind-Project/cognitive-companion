@@ -114,7 +114,9 @@ a terminal transition (it schedules the resume under the executor's
 `resume_{execution_id}` job, off the caller's path, replacing the `wait_until`
 fallback). These live in `backend/services/interactive_session/`. Call
 them; do not re-implement prompt injection or pipeline park/resume in
-`guided_task/`.
+`guided_task/`. A delivery's realtime instruction always includes the base
+persona (`llm.realtime.system_instruction`) and is released by its owner key
+(`voice_owner_key`) through `ConnectionManager.release_voice_instruction`.
 
 ## 7. Session status and transitions
 

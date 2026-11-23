@@ -20,10 +20,11 @@ Key design points:
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import time
+from collections import deque
 from collections.abc import Callable
+from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
@@ -33,7 +34,7 @@ from backend.integrations.llm.base import RealtimeLLMProvider, RealtimeSession
 from backend.schemas.interactive_response import InteractiveResponseMessage
 from backend.services.conversation_manager import ConversationManager
 from backend.services.interactive_response import InteractiveResponseService
-from backend.services.interactive_session.tagging import prefix_for_delivery
+from backend.services.interactive_session.tagging import prefix_for_delivery, voice_owner_for
 from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
 from backend.websocket.connection_manager import ConnectionManager
 
@@ -94,8 +95,20 @@ class AudioSessionHandler:
         # Active session reference (for tool response sending)
         self._current_session: RealtimeSession | None = None
 
-        # Current voice instruction (tracked to detect changes across prompts)
+        # The system instruction the next realtime session must use (None means the
+        # provider's base persona) and the delivery that set it. Only that delivery may
+        # release it, so a card timing out never strips a running quiz's instruction.
         self._current_voice_instruction: str | None = None
+        self._voice_instruction_owner: str | None = None
+
+        # Items taken off the backend queue that must be processed again by the next
+        # realtime session (a prompt that arrived with a new system instruction).
+        self._replay: deque[tuple[str, Any]] = deque()
+
+        # True from the first model output or tool call of a turn until turn_complete,
+        # so an instruction release never cuts the companion off mid-sentence.
+        self._model_turn_active = False
+        self._sync_after_turn = False
 
     async def run(self) -> None:
         """Main entry point - run until the client disconnects."""
@@ -103,6 +116,7 @@ class AudioSessionHandler:
         if self.conv_manager:
             self._session_id = self.conv_manager.create_session()
             self.manager.current_conversation_session_id = self._session_id
+        self.manager.register_audio_handler(self)
 
         # Best-effort: a freshly opened realtime session may satisfy a guided-task
         # session that is summoning the resident to a companion surface. Re-check
@@ -126,6 +140,7 @@ class AudioSessionHandler:
         await asyncio.gather(client_task, backend_task, return_exceptions=True)
 
         # Cleanup
+        self.manager.unregister_audio_handler(self)
         if self.manager.current_conversation_session_id == self._session_id:
             self.manager.current_conversation_session_id = None
         if self.conv_manager and self._session_id:
@@ -216,8 +231,9 @@ class AudioSessionHandler:
                     tool_declarations = None
                     if self.tool_adapter:
                         tool_declarations = self.tool_adapter.get_declarations()
+                    session_instruction = self._current_voice_instruction
                     config = self.provider.build_config(
-                        system_instruction=self._current_voice_instruction or "",
+                        system_instruction=session_instruction or "",
                         conversation_history=self._get_history_text(),
                         tools=tool_declarations,
                     )
@@ -230,9 +246,17 @@ class AudioSessionHandler:
 
                     provider = self.provider
 
-                    async def forward_to_backend(session=session, provider=provider) -> None:
+                    async def forward_to_backend(
+                        session=session,
+                        provider=provider,
+                        session_instruction=session_instruction,
+                    ) -> None:
+                        # Returning ends this realtime session; the outer loop opens the
+                        # next one with the current instruction and replays any held item.
+                        # The session is never swapped in place: the receiver is bound to
+                        # it and would keep reading a closed session.
                         while True:
-                            kind, payload = await self._client_to_backend.get()
+                            kind, payload = await self._next_backend_item()
 
                             if kind == "audio":
                                 await provider.send_audio(session, payload)
@@ -240,37 +264,25 @@ class AudioSessionHandler:
                                 pass  # Provider handles turn detection
                             elif kind == "text":
                                 await provider.send_text(session, payload)
+                            elif kind == "sync_instruction":
+                                if self._current_voice_instruction != session_instruction:
+                                    logger.info("ws_voice_instruction_released")
+                                    return
                             elif kind == "prompt":
                                 text, callback, exp, voice_instruction, metadata = payload
                                 if time.time() > exp:
                                     logger.debug("ws_backend_prompt_expired")
                                     continue
 
+                                self._adopt_prompt_instruction(payload)
+                                if voice_instruction and voice_instruction != session_instruction:
+                                    self._replay.append((kind, payload))
+                                    logger.info("ws_voice_instruction_changed")
+                                    return
+
                                 prefix = prefix_for_delivery(metadata)
                                 if prefix:
                                     text = f"{prefix} {text}"
-
-                                # Detect voice_instruction change: reconnect inline
-                                if (
-                                    voice_instruction
-                                    and voice_instruction != self._current_voice_instruction
-                                ):
-                                    self._current_voice_instruction = voice_instruction
-                                    logger.info("ws_voice_instruction_changed")
-                                    if self.provider is not None:
-                                        with contextlib.suppress(Exception):
-                                            await self.provider.disconnect(session)
-                                        tool_declarations = None
-                                        if self.tool_adapter:
-                                            tool_declarations = self.tool_adapter.get_declarations()
-                                        config = self.provider.build_config(
-                                            system_instruction=voice_instruction,
-                                            conversation_history=self._get_history_text(),
-                                            tools=tool_declarations,
-                                        )
-                                        session = await self.provider.connect(config)
-                                        self._current_session = session
-                                        logger.info("ws_backend_reconnected_with_voice_instruction")
                                 self._current_callback = callback
                                 self._is_orchestrator_turn = True
                                 self._pending_prompt_text.append(text)
@@ -293,6 +305,8 @@ class AudioSessionHandler:
 
                     await self.provider.disconnect(session)
                     self._backend_active = False
+                    self._model_turn_active = False
+                    self._sync_after_turn = False
 
                     if self._client_disconnected.is_set():
                         return
@@ -319,6 +333,7 @@ class AudioSessionHandler:
 
     async def _handle_backend_response(self, response) -> None:
         """Process a response from the Gemini Live backend."""
+        self._model_turn_active = True
         # Handle tool calls (Gemini function calling)
         tool_call = getattr(response, "tool_call", None)
         if tool_call and tool_call.function_calls and self.tool_adapter:
@@ -354,6 +369,10 @@ class AudioSessionHandler:
 
         # Turn complete
         if getattr(server_content, "turn_complete", False):
+            self._model_turn_active = False
+            if self._sync_after_turn:
+                self._sync_after_turn = False
+                await self._client_to_backend.put(("sync_instruction", None))
             is_orchestrator = self._is_orchestrator_turn
             prompt_text = "".join(self._pending_prompt_text).strip()
             user_text = "".join(self._pending_user_text).strip()
@@ -501,14 +520,55 @@ class AudioSessionHandler:
 
     async def _wait_for_activity(self) -> None:
         """Block until the first audio/text/prompt arrives or the client disconnects."""
+        if self._replay:
+            return
         while not self._client_disconnected.is_set():
             try:
                 item = await asyncio.wait_for(self._client_to_backend.get(), timeout=1.0)
-                # Put it back so the forward loop can consume it
-                await self._client_to_backend.put(item)
-                return
             except TimeoutError:
                 continue
+            if item[0] == "sync_instruction":
+                # No session is open, so the next one already uses the current
+                # instruction; opening a paid session just to apply it is waste.
+                continue
+            if item[0] == "prompt":
+                # Open the session with the prompt's instruction rather than opening
+                # one with the old instruction only to replace it.
+                self._adopt_prompt_instruction(item[1])
+            self._replay.append(item)
+            return
+
+    def _adopt_prompt_instruction(self, payload: tuple) -> None:
+        """Make a prompt's system instruction (if any) current and record its owner."""
+        _text, _callback, exp, voice_instruction, metadata = payload
+        if voice_instruction and time.time() <= exp:
+            self._current_voice_instruction = voice_instruction
+            self._voice_instruction_owner = voice_owner_for(metadata)
+
+    async def _next_backend_item(self) -> tuple[str, Any]:
+        """Return a held item first, then the next one from the client/prompt queue."""
+        if self._replay:
+            return self._replay.popleft()
+        return await self._client_to_backend.get()
+
+    async def release_voice_instruction(self, owner: str) -> bool:
+        """Restore the base persona if ``owner`` set the active system instruction.
+
+        Returns whether this handler held ``owner``'s instruction. An open realtime
+        session is ended between turns (never mid-sentence) so the next one opens with
+        the base persona; an idle handler is not woken.
+        """
+        if owner is None or owner != self._voice_instruction_owner:
+            return False
+        self._current_voice_instruction = None
+        self._voice_instruction_owner = None
+        if self._backend_active:
+            if self._model_turn_active:
+                self._sync_after_turn = True
+            else:
+                await self._client_to_backend.put(("sync_instruction", None))
+        logger.info("ws_voice_instruction_release_requested")
+        return True
 
     async def _no_backend_fallback(self) -> None:
         """Keep the WebSocket alive for push notifications when no AI backend."""

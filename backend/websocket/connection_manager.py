@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Protocol
 
 from fastapi import WebSocket
 
@@ -16,6 +16,12 @@ from backend.core.config import settings
 from backend.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class VoiceInstructionHolder(Protocol):
+    """A live audio session that can drop a delivery's system instruction."""
+
+    async def release_voice_instruction(self, owner: str) -> bool: ...
 
 
 class ConnectionManager:
@@ -38,6 +44,9 @@ class ConnectionManager:
         # other services (guided_task) link to the live conversation without
         # reaching into the audio handler directly.
         self.current_conversation_session_id: int | None = None
+        # Every live /ws/audio session. A delivery's instruction is applied by whichever
+        # session consumed its prompt from the shared queue, so a release must reach all.
+        self._audio_handlers: set[VoiceInstructionHolder] = set()
 
     async def connect(self, websocket: WebSocket) -> bool:
         """Accept and register a WebSocket connection.
@@ -154,6 +163,29 @@ class ConnectionManager:
             (prompt, callback, expiration, voice_instruction, metadata or {})
         )
         logger.info("ws_backend_task_queued", queue_size=self.prompt_queue.qsize())
+
+    def register_audio_handler(self, handler: VoiceInstructionHolder) -> None:
+        """Track a live audio session so voice-instruction releases reach it."""
+        self._audio_handlers.add(handler)
+
+    def unregister_audio_handler(self, handler: VoiceInstructionHolder) -> None:
+        """Stop tracking an audio session that has ended."""
+        self._audio_handlers.discard(handler)
+
+    async def release_voice_instruction(self, owner: str) -> bool:
+        """Restore the base persona on any session whose instruction ``owner`` set.
+
+        Called when a quiz ends, an info card is dismissed, or a guided session reaches a
+        terminal state, so the delivery's instruction does not outlive it. Returns
+        whether any session held it.
+        """
+        released = False
+        for handler in list(self._audio_handlers):
+            try:
+                released = await handler.release_voice_instruction(owner) or released
+            except Exception:
+                logger.exception("ws_voice_instruction_release_failed")
+        return released
 
     @property
     def has_connections(self) -> bool:

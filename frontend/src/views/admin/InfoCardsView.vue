@@ -588,12 +588,21 @@ function closeCreateDialog() {
 }
 
 async function editCard(item) {
+  // The form is filled from the full card. List rows carry no body_text, so filling from
+  // the row opened the editor blank, and saving it erased the card's text.
+  let full;
+  try {
+    full = await getInfoCard(item.id);
+  } catch (err) {
+    notify.error("Failed to load the card: " + (err.message || err));
+    return;
+  }
   editingItem.value = item;
-  editForm.title = item.title ?? "";
-  editForm.body_text = item.body_text ?? "";
-  editForm.layout_id = item.layout_id ?? null;
-  editForm.document_id = item.document_id ?? null;
-  editForm.tags = item.tags ?? [];
+  editForm.title = full.title ?? "";
+  editForm.body_text = full.body_text ?? "";
+  editForm.layout_id = full.layout_id ?? null;
+  editForm.document_id = full.document_id ?? null;
+  editForm.tags = [...(full.tags ?? [])];
   editGenerateModelId.value = "";
   editCardSlots.value = [];
   docImagesForPick.value = [];
@@ -602,13 +611,7 @@ async function editCard(item) {
   for (const k of Object.keys(slotUploadFiles)) delete slotUploadFiles[k];
   for (const k of Object.keys(slotFileNames)) delete slotFileNames[k];
 
-  // Fetch full card to get image_slots
-  try {
-    const full = await getInfoCard(item.id);
-    editCardSlots.value = full.image_slots ?? [];
-  } catch (_) {
-    /* best-effort */
-  }
+  editCardSlots.value = full.image_slots ?? [];
 
   // Fetch document images for picker
   if (editForm.document_id) {

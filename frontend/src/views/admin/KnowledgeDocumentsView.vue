@@ -192,7 +192,14 @@
 
 <script setup>
 import { ref, reactive, onMounted } from "vue";
-import { api } from "@/services/api.js";
+import {
+  approveKnowledgeDocument,
+  archiveKnowledgeDocument,
+  createKnowledgeDocument,
+  deleteKnowledgeDocument,
+  getKnowledgeDocuments,
+  restoreKnowledgeDocument,
+} from "@/services/modules/knowledge";
 import { useNotify } from "@/composables/useNotify.js";
 import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import { formatDateTime, DATETIME_COLUMN_WIDTH } from "@/services/timezone.js";
@@ -260,7 +267,7 @@ async function fetchDocuments() {
     if (filters.q) params.q = filters.q;
     if (filters.status) params.status = filters.status;
     if (filters.tags && filters.tags.length > 0) params.tags = filters.tags.join(",");
-    const res = await api.getKnowledgeDocuments(params);
+    const res = await getKnowledgeDocuments(params);
     documents.value = res.items ?? [];
     totalItems.value = res.total ?? 0;
   } catch (err) {
@@ -297,7 +304,7 @@ async function submitCreate() {
     for (const img of createFormData.images) {
       fd.append("images", img);
     }
-    await api.createKnowledgeDocument(fd);
+    await createKnowledgeDocument(fd);
     notify.success("Document created.");
     closeCreateDialog();
     await fetchDocuments();
@@ -318,7 +325,7 @@ function closeCreateDialog() {
 
 async function approve(item) {
   try {
-    await api.approveKnowledgeDocument(item.id);
+    await approveKnowledgeDocument(item.id);
     notify.success("Document approved.");
     await fetchDocuments();
   } catch (err) {
@@ -328,7 +335,7 @@ async function approve(item) {
 
 async function archive(item) {
   try {
-    await api.archiveKnowledgeDocument(item.id);
+    await archiveKnowledgeDocument(item.id);
     notify.success("Document archived.");
     await fetchDocuments();
   } catch (err) {
@@ -338,7 +345,7 @@ async function archive(item) {
 
 async function restore(item) {
   try {
-    await api.restoreKnowledgeDocument(item.id);
+    await restoreKnowledgeDocument(item.id);
     notify.success("Document restored.");
     await fetchDocuments();
   } catch (err) {
@@ -363,7 +370,7 @@ async function doDelete() {
   deleteTarget.value = null;
   if (!item) return;
   try {
-    await api.deleteKnowledgeDocument(item.id);
+    await deleteKnowledgeDocument(item.id);
     notify.success("Document deleted.");
     await fetchDocuments();
   } catch (err) {

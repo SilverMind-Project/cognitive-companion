@@ -197,7 +197,7 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
-import { api } from "@/services/api.js";
+import { getQuiz } from "@/services/modules/quizzes";
 import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { useQuizzesAdmin } from "@/composables/useQuizzesAdmin.js";
@@ -258,7 +258,7 @@ function openCreateDialog() {
 
 async function openEditDialog(item) {
   try {
-    const detail = await api.getQuiz(item.id);
+    const detail = await getQuiz(item.id);
     formMode.value = "edit";
     editingQuiz.value = detail;
     showFormDialog.value = true;

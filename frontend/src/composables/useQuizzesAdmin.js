@@ -1,5 +1,20 @@
 import { reactive } from "vue";
-import { api } from "@/services/api.js";
+import { getKnowledgeDocuments } from "@/services/modules/knowledge";
+import { getKnowledgeLayouts } from "@/services/modules/layouts";
+import { getLLMModels } from "@/services/modules/pipeline";
+import {
+  approveQuiz as approveQuizApi,
+  archiveQuiz as archiveQuizApi,
+  createQuizQuestion,
+  deleteQuiz as deleteQuizApi,
+  deleteQuizQuestion,
+  getQuiz,
+  getQuizzes,
+  regenerateQuizQuestion,
+  reorderQuizQuestions,
+  restoreQuiz as restoreQuizApi,
+  updateQuizQuestion,
+} from "@/services/modules/quizzes";
 import { requireNotify } from "@/composables/useNotify.js";
 
 /**
@@ -40,7 +55,7 @@ export function useQuizzesAdmin({ notify } = {}) {
       if (state.filters.tags && state.filters.tags.length > 0) {
         params.tags = state.filters.tags.join(",");
       }
-      const res = await api.getQuizzes(params);
+      const res = await getQuizzes(params);
       state.quizzes = res?.items ?? [];
       state.totalQuizzes = res?.total ?? 0;
     } catch (err) {
@@ -71,7 +86,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function fetchLayouts() {
     try {
-      const res = await api.getKnowledgeLayouts("quiz_question");
+      const res = await getKnowledgeLayouts("quiz_question");
       state.layouts = res?.layouts ?? [];
     } catch (err) {
       notify.error("Failed to load layouts: " + (err.message || err));
@@ -80,7 +95,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function fetchDocuments() {
     try {
-      const res = await api.getKnowledgeDocuments({ per_page: 200 });
+      const res = await getKnowledgeDocuments({ per_page: 200 });
       state.documents = res?.items ?? [];
     } catch (_err) {
       // non-critical
@@ -89,7 +104,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function fetchLLMModels() {
     try {
-      state.llmModelItems = (await api.getLLMModels()) ?? [];
+      state.llmModelItems = (await getLLMModels()) ?? [];
     } catch (_err) {
       // non-critical
     }
@@ -97,7 +112,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function fetchExpandedQuiz(quizId) {
     try {
-      const detail = await api.getQuiz(quizId);
+      const detail = await getQuiz(quizId);
       state.expandedQuizzes = {
         ...state.expandedQuizzes,
         [quizId]: detail,
@@ -129,7 +144,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function approveQuiz(item) {
     try {
-      await api.approveQuiz(item.id);
+      await approveQuizApi(item.id);
       notify.success("Quiz approved.");
       await fetchQuizzes();
     } catch (err) {
@@ -139,7 +154,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function archiveQuiz(item) {
     try {
-      await api.archiveQuiz(item.id);
+      await archiveQuizApi(item.id);
       notify.success("Quiz archived.");
       await fetchQuizzes();
     } catch (err) {
@@ -149,7 +164,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function restoreQuiz(item) {
     try {
-      await api.restoreQuiz(item.id);
+      await restoreQuizApi(item.id);
       notify.success("Quiz restored.");
       await fetchQuizzes();
     } catch (err) {
@@ -159,7 +174,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function deleteQuiz(item) {
     try {
-      await api.deleteQuiz(item.id);
+      await deleteQuizApi(item.id);
       notify.success("Quiz deleted.");
       await fetchQuizzes();
     } catch (err) {
@@ -169,7 +184,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function addQuestion(quiz) {
     try {
-      await api.createQuizQuestion(quiz.id, {
+      await createQuizQuestion(quiz.id, {
         question_text: "",
         question_type: "multiple_choice",
         choices: [],
@@ -185,7 +200,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function saveQuestion(quiz, question) {
     try {
-      await api.updateQuizQuestion(quiz.id, question.id, {
+      await updateQuizQuestion(quiz.id, question.id, {
         question_text: question.question_text,
         question_type: question.question_type,
         choices: question.choices,
@@ -199,7 +214,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function deleteQuestion(quiz, question) {
     try {
-      await api.deleteQuizQuestion(quiz.id, question.id);
+      await deleteQuizQuestion(quiz.id, question.id);
       notify.success("Question deleted.");
       await fetchQuizzes();
     } catch (err) {
@@ -209,7 +224,7 @@ export function useQuizzesAdmin({ notify } = {}) {
 
   async function moveQuestion(quiz, question, direction) {
     try {
-      await api.reorderQuizQuestions(quiz.id, {
+      await reorderQuizQuestions(quiz.id, {
         question_id: question?.id,
         direction,
       });
@@ -225,16 +240,12 @@ export function useQuizzesAdmin({ notify } = {}) {
       return null;
     }
     try {
-      const quiz = await api.getQuiz(quizId);
+      const quiz = await getQuiz(quizId);
       if (!quiz.document_id) {
         notify.warning("Quiz has no linked document for regeneration.");
         return null;
       }
-      const suggestion = await api.regenerateQuizQuestion(
-        quizId,
-        question.id,
-        modelId || undefined,
-      );
+      const suggestion = await regenerateQuizQuestion(quizId, question.id, modelId || undefined);
       if (suggestion.question_text) question.question_text = suggestion.question_text;
       if (suggestion.choices) question.choices = suggestion.choices;
       if (suggestion.expected_answer) question.expected_answer = suggestion.expected_answer;

@@ -24,9 +24,12 @@ const { apiMock } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/services/api.js", () => ({
-  api: apiMock,
-}));
+// One mock object behind the api.js barrel and every typed module the views import.
+vi.mock("@/services/api.js", () => ({ api: apiMock }));
+vi.mock("@/services/modules/quizzes", () => apiMock);
+vi.mock("@/services/modules/knowledge", () => apiMock);
+vi.mock("@/services/modules/layouts", () => apiMock);
+vi.mock("@/services/modules/pipeline", () => apiMock);
 
 vi.mock("@/composables/useNotify.js", () => ({
   useNotify: () => ({

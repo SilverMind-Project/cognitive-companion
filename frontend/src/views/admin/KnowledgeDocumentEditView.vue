@@ -166,7 +166,16 @@
 <script setup>
 import { ref, reactive, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { api } from "@/services/api.js";
+import {
+  addKnowledgeDocumentImage,
+  approveKnowledgeDocument,
+  archiveKnowledgeDocument,
+  deleteKnowledgeDocument,
+  deleteKnowledgeDocumentImage,
+  getKnowledgeDocument,
+  restoreKnowledgeDocument,
+  updateKnowledgeDocument,
+} from "@/services/modules/knowledge";
 import { useNotify } from "@/composables/useNotify.js";
 import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import { useConfirm } from "@/composables/useConfirm.js";
@@ -215,7 +224,7 @@ function statusColor(status) {
 async function fetchDocument() {
   loading.value = true;
   try {
-    const res = await api.getKnowledgeDocument(route.params.id);
+    const res = await getKnowledgeDocument(route.params.id);
     const doc = res;
     document.value = doc;
     editForm.title = doc.title ?? "";
@@ -236,7 +245,7 @@ async function save() {
   }
   saving.value = true;
   try {
-    await api.updateKnowledgeDocument(route.params.id, {
+    await updateKnowledgeDocument(route.params.id, {
       title: editForm.title,
       source_text: editForm.source_text,
       tags: editForm.tags,
@@ -257,7 +266,7 @@ async function uploadImages() {
     for (const img of newImages.value) {
       const fd = new FormData();
       fd.append("file", img);
-      await api.addKnowledgeDocumentImage(route.params.id, fd);
+      await addKnowledgeDocumentImage(route.params.id, fd);
     }
     notify.success("Images uploaded.");
     newImages.value = [];
@@ -273,7 +282,7 @@ async function confirmDeleteImage(img) {
   const ok = await confirmRequire("Delete this image?");
   if (!ok) return;
   try {
-    await api.deleteKnowledgeDocumentImage(img.id);
+    await deleteKnowledgeDocumentImage(img.id);
     notify.success("Image deleted.");
     await fetchDocument();
   } catch (err) {
@@ -283,7 +292,7 @@ async function confirmDeleteImage(img) {
 
 async function approve() {
   try {
-    await api.approveKnowledgeDocument(route.params.id);
+    await approveKnowledgeDocument(route.params.id);
     notify.success("Document approved.");
     await fetchDocument();
   } catch (err) {
@@ -293,7 +302,7 @@ async function approve() {
 
 async function archive() {
   try {
-    await api.archiveKnowledgeDocument(route.params.id);
+    await archiveKnowledgeDocument(route.params.id);
     notify.success("Document archived.");
     await fetchDocument();
   } catch (err) {
@@ -303,7 +312,7 @@ async function archive() {
 
 async function restore() {
   try {
-    await api.restoreKnowledgeDocument(route.params.id);
+    await restoreKnowledgeDocument(route.params.id);
     notify.success("Document restored.");
     await fetchDocument();
   } catch (err) {
@@ -323,7 +332,7 @@ async function doArchive() {
 async function doDelete() {
   deleteDialog.value = false;
   try {
-    await api.deleteKnowledgeDocument(route.params.id);
+    await deleteKnowledgeDocument(route.params.id);
     notify.success("Document deleted.");
     router.push("/admin/knowledge/documents");
   } catch (err) {

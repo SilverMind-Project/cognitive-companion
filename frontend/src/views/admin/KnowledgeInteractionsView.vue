@@ -207,7 +207,12 @@
 
 <script setup>
 import { ref, reactive, onMounted } from "vue";
-import { api } from "@/services/api.js";
+import {
+  getInfoCardDeliveries,
+  getQuizSession,
+  getQuizSessions,
+  getSeniorKnowledgeQueries,
+} from "@/services/modules/interactions";
 import { useNotify } from "@/composables/useNotify.js";
 import { DATETIME_COLUMN_WIDTH } from "@/services/timezone.js";
 
@@ -271,7 +276,7 @@ async function fetchQueries() {
   queriesLoading.value = true;
   try {
     const params = buildDateParams(queryDateRange);
-    const res = await api.getSeniorKnowledgeQueries(params);
+    const res = await getSeniorKnowledgeQueries(params);
     queries.value = res.items;
   } catch (err) {
     notify.error("Failed to load queries: " + (err.message || err));
@@ -285,7 +290,7 @@ async function fetchSessions() {
   sessionsLoading.value = true;
   try {
     const params = buildDateParams(sessionDateRange);
-    const res = await api.getQuizSessions(params);
+    const res = await getQuizSessions(params);
     sessions.value = res.items;
   } catch (err) {
     notify.error("Failed to load sessions: " + (err.message || err));
@@ -301,7 +306,7 @@ async function toggleSessionExpand(event, { item }) {
   }
   loadingSessionDetail.value = item.id;
   try {
-    const res = await api.getQuizSession(item.id);
+    const res = await getQuizSession(item.id);
     item._details = res;
   } catch (err) {
     notify.error("Failed to load session detail: " + (err.message || err));
@@ -315,7 +320,7 @@ async function fetchDeliveries() {
   deliveriesLoading.value = true;
   try {
     const params = buildDateParams(deliveryDateRange);
-    const res = await api.getInfoCardDeliveries(params);
+    const res = await getInfoCardDeliveries(params);
     deliveries.value = res.items;
   } catch (err) {
     notify.error("Failed to load deliveries: " + (err.message || err));

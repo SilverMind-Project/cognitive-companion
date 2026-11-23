@@ -160,7 +160,15 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from "vue";
-import { api } from "@/services/api.js";
+import {
+  createQuiz,
+  createQuizQuestion,
+  deleteQuizQuestion,
+  getQuiz,
+  suggestQuiz,
+  updateQuiz,
+  updateQuizQuestion,
+} from "@/services/modules/quizzes";
 import { useNotify } from "@/composables/useNotify.js";
 import AppDialog from "@/components/common/AppDialog.vue";
 import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
@@ -299,7 +307,7 @@ async function generateQuiz() {
   }
   generating.value = true;
   try {
-    const suggestion = await api.suggestQuiz(
+    const suggestion = await suggestQuiz(
       form.document_id,
       Number(generateNumQuestions.value) || 5,
       generateMix.value,
@@ -344,22 +352,22 @@ async function onSubmit() {
   submitting.value = true;
   try {
     if (props.mode === "edit" && props.quiz?.id) {
-      await api.updateQuiz(props.quiz.id, {
+      await updateQuiz(props.quiz.id, {
         title: form.title,
         question_layout_id: form.question_layout_id,
         intro_voice_template: form.intro_voice_template,
         tags: form.tags,
       });
       const currentIds = new Set(form.questions.filter((q) => q.id).map((q) => q.id));
-      const originalQuiz = await api.getQuiz(props.quiz.id);
+      const originalQuiz = await getQuiz(props.quiz.id);
       for (const origQ of originalQuiz.questions || []) {
         if (!currentIds.has(origQ.id)) {
-          await api.deleteQuizQuestion(props.quiz.id, origQ.id);
+          await deleteQuizQuestion(props.quiz.id, origQ.id);
         }
       }
       for (const q of form.questions) {
         if (q.id) {
-          await api.updateQuizQuestion(props.quiz.id, q.id, {
+          await updateQuizQuestion(props.quiz.id, q.id, {
             question_text: q.question_text,
             question_type: q.question_type,
             choices: q.choices || [],
@@ -367,7 +375,7 @@ async function onSubmit() {
             explanation: q.explanation || "",
           });
         } else {
-          await api.createQuizQuestion(props.quiz.id, {
+          await createQuizQuestion(props.quiz.id, {
             question_text: q.question_text,
             question_type: q.question_type,
             choices: q.choices || [],
@@ -378,7 +386,7 @@ async function onSubmit() {
       }
       notify.success("Quiz updated.");
     } else {
-      const created = await api.createQuiz({
+      const created = await createQuiz({
         title: form.title,
         question_layout_id: form.question_layout_id,
         intro_voice_template: form.intro_voice_template,
@@ -386,7 +394,7 @@ async function onSubmit() {
         document_id: form.document_id || undefined,
       });
       for (const q of form.questions) {
-        await api.createQuizQuestion(created.id, {
+        await createQuizQuestion(created.id, {
           question_text: q.question_text,
           question_type: q.question_type,
           choices: q.choices || [],

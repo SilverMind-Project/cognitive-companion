@@ -348,7 +348,22 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from "vue";
-import { api } from "@/services/api.js";
+import {
+  approveInfoCard,
+  archiveInfoCard,
+  createInfoCard,
+  deleteInfoCard,
+  deleteInfoCardSlot,
+  getInfoCard,
+  getInfoCards,
+  restoreInfoCard,
+  setInfoCardSlot,
+  suggestInfoCard,
+  updateInfoCard,
+} from "@/services/modules/info_cards";
+import { getKnowledgeDocument, getKnowledgeDocuments } from "@/services/modules/knowledge";
+import { getKnowledgeLayouts } from "@/services/modules/layouts";
+import { getLLMModels } from "@/services/modules/pipeline";
 import { useNotify } from "@/composables/useNotify.js";
 import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
 import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
@@ -460,7 +475,7 @@ async function fetchCards() {
     if (filters.status) params.status = filters.status;
     if (filters.tags && filters.tags.length > 0) params.tags = filters.tags.join(",");
     if (filters.document_id) params.document_id = filters.document_id;
-    const res = await api.getInfoCards(params);
+    const res = await getInfoCards(params);
     cards.value = res.items ?? [];
     totalItems.value = res.total ?? 0;
   } catch (err) {
@@ -472,7 +487,7 @@ async function fetchCards() {
 
 async function fetchLayouts() {
   try {
-    const res = await api.getKnowledgeLayouts("info_card");
+    const res = await getKnowledgeLayouts("info_card");
     layouts.value = res.layouts ?? [];
   } catch (err) {
     notify.error("Failed to load layouts: " + (err.message || err));
@@ -481,7 +496,7 @@ async function fetchLayouts() {
 
 async function fetchDocuments() {
   try {
-    const res = await api.getKnowledgeDocuments({ per_page: 200 });
+    const res = await getKnowledgeDocuments({ per_page: 200 });
     documentOptions.value = res.items ?? [];
   } catch (_) {
     // non-critical
@@ -490,7 +505,7 @@ async function fetchDocuments() {
 
 async function fetchLLMModels() {
   try {
-    llmModelItems.value = await api.getLLMModels();
+    llmModelItems.value = await getLLMModels();
   } catch (_) {
     // non-critical
   }
@@ -503,7 +518,7 @@ async function generateFromDocument() {
   }
   generating.value = true;
   try {
-    const suggestion = await api.suggestInfoCard(
+    const suggestion = await suggestInfoCard(
       createForm.document_id,
       generateModelId.value || undefined,
     );
@@ -524,7 +539,7 @@ async function generateEditFromDocument() {
   }
   editGenerating.value = true;
   try {
-    const suggestion = await api.suggestInfoCard(
+    const suggestion = await suggestInfoCard(
       editForm.document_id,
       editGenerateModelId.value || undefined,
     );
@@ -545,7 +560,7 @@ async function submitCreate() {
   }
   creating.value = true;
   try {
-    await api.createInfoCard({
+    await createInfoCard({
       title: createForm.title,
       body_text: createForm.body_text,
       layout_id: createForm.layout_id,
@@ -589,7 +604,7 @@ async function editCard(item) {
 
   // Fetch full card to get image_slots
   try {
-    const full = await api.getInfoCard(item.id);
+    const full = await getInfoCard(item.id);
     editCardSlots.value = full.image_slots ?? [];
   } catch (_) {
     /* best-effort */
@@ -598,7 +613,7 @@ async function editCard(item) {
   // Fetch document images for picker
   if (editForm.document_id) {
     try {
-      const doc = await api.getKnowledgeDocument(editForm.document_id);
+      const doc = await getKnowledgeDocument(editForm.document_id);
       docImagesForPick.value = doc.images ?? [];
     } catch (_) {
       /* best-effort */
@@ -639,11 +654,11 @@ async function uploadSlotImage(slotIndex) {
   try {
     const fd = new FormData();
     fd.append("file", file);
-    await api.setInfoCardSlot(editingItem.value.id, slotIndex, fd);
+    await setInfoCardSlot(editingItem.value.id, slotIndex, fd);
     notify.success("Slot image updated.");
     delete slotUploadFiles[slotIndex];
     // Refresh slot data
-    const full = await api.getInfoCard(editingItem.value.id);
+    const full = await getInfoCard(editingItem.value.id);
     editCardSlots.value = full.image_slots ?? [];
   } catch (err) {
     notify.error("Failed to upload slot image: " + (err.message || err));
@@ -657,9 +672,9 @@ async function pickSlotImage(slotIndex, sourceImageId) {
   try {
     const fd = new FormData();
     fd.append("source_image_id", String(sourceImageId));
-    await api.setInfoCardSlot(editingItem.value.id, slotIndex, fd);
+    await setInfoCardSlot(editingItem.value.id, slotIndex, fd);
     notify.success("Slot image set from document.");
-    const full = await api.getInfoCard(editingItem.value.id);
+    const full = await getInfoCard(editingItem.value.id);
     editCardSlots.value = full.image_slots ?? [];
   } catch (err) {
     notify.error("Failed to set slot image: " + (err.message || err));
@@ -671,9 +686,9 @@ async function pickSlotImage(slotIndex, sourceImageId) {
 async function clearSlot(slotIndex) {
   slotUploading[slotIndex] = true;
   try {
-    await api.deleteInfoCardSlot(editingItem.value.id, slotIndex);
+    await deleteInfoCardSlot(editingItem.value.id, slotIndex);
     notify.success("Slot image cleared.");
-    const full = await api.getInfoCard(editingItem.value.id);
+    const full = await getInfoCard(editingItem.value.id);
     editCardSlots.value = full.image_slots ?? [];
   } catch (err) {
     notify.error("Failed to clear slot image: " + (err.message || err));
@@ -697,7 +712,7 @@ async function submitEdit() {
   if (!editingItem.value) return;
   saving.value = true;
   try {
-    await api.updateInfoCard(editingItem.value.id, {
+    await updateInfoCard(editingItem.value.id, {
       title: editForm.title,
       body_text: editForm.body_text,
       layout_id: editForm.layout_id,
@@ -716,7 +731,7 @@ async function submitEdit() {
 
 async function approve(item) {
   try {
-    await api.approveInfoCard(item.id);
+    await approveInfoCard(item.id);
     notify.success("Info card approved.");
     await fetchCards();
   } catch (err) {
@@ -726,7 +741,7 @@ async function approve(item) {
 
 async function archive(item) {
   try {
-    await api.archiveInfoCard(item.id);
+    await archiveInfoCard(item.id);
     notify.success("Info card archived.");
     await fetchCards();
   } catch (err) {
@@ -736,7 +751,7 @@ async function archive(item) {
 
 async function restore(item) {
   try {
-    await api.restoreInfoCard(item.id);
+    await restoreInfoCard(item.id);
     notify.success("Info card restored.");
     await fetchCards();
   } catch (err) {
@@ -761,7 +776,7 @@ async function doDelete() {
   deleteTarget.value = null;
   if (!item) return;
   try {
-    await api.deleteInfoCard(item.id);
+    await deleteInfoCard(item.id);
     notify.success("Info card deleted.");
     await fetchCards();
   } catch (err) {

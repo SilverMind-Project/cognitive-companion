@@ -9,7 +9,7 @@
       </div>
       <v-spacer />
       <v-select
-        v-model="filters.status"
+        v-model="state.filters.status"
         :items="statusOptions"
         label="Status"
         variant="outlined"
@@ -17,13 +17,10 @@
         hide-details
         clearable
         style="max-width: 160px"
-        @update:model-value="
-          page = 1;
-          fetchCards();
-        "
+        @update:model-value="actions.onFilterChange"
       />
       <v-combobox
-        v-model="filters.tags"
+        v-model="state.filters.tags"
         label="Tags"
         variant="outlined"
         multiple
@@ -31,27 +28,19 @@
         hide-details
         clearable
         style="max-width: 200px"
-        @update:model-value="
-          page = 1;
-          fetchCards();
-        "
+        @update:model-value="actions.onFilterChange"
       />
       <v-text-field
-        v-model="filters.document_id"
+        v-model="state.filters.document_id"
         label="Document ID"
         variant="outlined"
         density="compact"
         hide-details
         clearable
         style="max-width: 180px"
-        @update:model-value="debouncedFetch"
+        @update:model-value="actions.onFilterTyped"
       />
-      <v-btn
-        color="primary"
-        variant="flat"
-        prepend-icon="mdi-plus"
-        @click="showCreateDialog = true"
-      >
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate()">
         New Info Card
       </v-btn>
     </div>
@@ -59,12 +48,12 @@
     <v-card class="glass-card">
       <v-data-table
         :headers="headers"
-        :items="cards"
-        :loading="loading"
-        :items-length="totalItems"
-        :items-per-page="itemsPerPage"
-        :page="page"
-        @update:options="onPageOptions"
+        :items="state.cards"
+        :loading="state.loading"
+        :items-length="state.totalCards"
+        :items-per-page="state.itemsPerPage"
+        :page="state.page"
+        @update:options="actions.onPageOptions"
       >
         <template #[`item.layout_id`]="{ item }">
           <v-chip size="x-small" color="primary" variant="outlined">
@@ -92,14 +81,14 @@
             size="small"
             variant="text"
             color="success"
-            @click="approve(item)"
+            @click="actions.approve(item)"
           />
           <v-btn
             v-if="item.status !== 'archived'"
             icon="mdi-archive"
             size="small"
             variant="text"
-            @click="archive(item)"
+            @click="actions.archive(item)"
           />
           <v-btn
             v-if="item.status === 'archived'"
@@ -107,7 +96,7 @@
             size="small"
             variant="text"
             color="warning"
-            @click="restore(item)"
+            @click="actions.restore(item)"
           />
           <v-btn
             icon="mdi-delete"
@@ -120,231 +109,16 @@
       </v-data-table>
     </v-card>
 
-    <!-- Create Dialog: large split (content beside generation, layout, and tags) -->
-    <AppDialog
-      v-model="showCreateDialog"
-      size="lg"
-      persistent
-      icon="mdi-card-text-outline"
-      label="Create New"
-      title="Info Card"
-      hint="Generate content from a knowledge document, or fill in fields manually."
-      confirm-label="Create"
-      :confirm-loading="creating"
-      @cancel="closeCreateDialog"
-      @confirm="submitCreate"
-    >
-      <template #aside>
-        <v-card variant="tonal" class="mb-4 pa-3">
-          <div class="text-subtitle-2 mb-2">Generate from Knowledge Document</div>
-          <LlmModelPicker
-            v-model="generateModelId"
-            :model-items="llmModelItems"
-            label="LLM Model"
-            hint="Model used when generating from a document"
-            persistent-hint
-            clearable
-            class="mb-3"
-          />
-          <v-select
-            v-model="createForm.document_id"
-            :items="documentOptions"
-            item-title="title"
-            item-value="id"
-            label="Knowledge Document"
-            hint="Source document for content generation"
-            clearable
-            class="mb-2"
-          />
-          <v-btn
-            color="secondary"
-            variant="tonal"
-            :loading="generating"
-            :disabled="!createForm.document_id"
-            block
-            @click="generateFromDocument"
-          >
-            Generate
-          </v-btn>
-        </v-card>
-        <v-select
-          v-model="createForm.layout_id"
-          :items="layouts"
-          item-title="display_name"
-          item-value="id"
-          label="Layout"
-          :rules="[(r) => !!r || 'Layout is required']"
-        />
-        <v-combobox v-model="createForm.tags" label="Tags" multiple chips closable-chips />
-      </template>
-
-      <v-text-field
-        v-model="createForm.title"
-        label="Title"
-        :rules="[(r) => !!r || 'Title is required']"
-      />
-      <v-textarea v-model="createForm.body_text" label="Body Text" rows="12" class="mb-3" />
-      <VoiceInstructionField
-        v-model="createForm.voice_instruction"
-        resource-type="info_card"
-        :document-id="createForm.document_id"
-      />
-    </AppDialog>
-
-    <!-- Edit / Expand Dialog: large split (content and image slots beside regeneration) -->
-    <AppDialog
-      v-model="showEditDialog"
-      size="lg"
-      persistent
-      icon="mdi-card-text-outline"
-      label="Edit"
-      title="Info Card"
-      hint="Modify card content, manage image slots, and update tags."
-      :confirm-loading="saving"
-      @cancel="closeEditDialog"
-      @confirm="submitEdit"
-    >
-      <template #aside>
-        <v-card variant="tonal" class="mb-4 pa-3">
-          <div class="text-subtitle-2 mb-2">Regenerate from Knowledge Document</div>
-          <LlmModelPicker
-            v-model="editGenerateModelId"
-            :model-items="llmModelItems"
-            label="LLM Model"
-            hint="Model used for regeneration"
-            persistent-hint
-            clearable
-            class="mb-3"
-          />
-          <v-select
-            v-model="editForm.document_id"
-            :items="documentOptions"
-            item-title="title"
-            item-value="id"
-            label="Knowledge Document"
-            hint="Source document for content regeneration"
-            clearable
-            class="mb-2"
-          />
-          <v-btn
-            color="secondary"
-            variant="tonal"
-            :loading="editGenerating"
-            :disabled="!editForm.document_id"
-            block
-            @click="generateEditFromDocument"
-          >
-            Regenerate
-          </v-btn>
-        </v-card>
-        <v-select
-          v-model="editForm.layout_id"
-          :items="layouts"
-          item-title="display_name"
-          item-value="id"
-          label="Layout"
-          class="mb-3"
-        />
-        <v-combobox v-model="editForm.tags" label="Tags" multiple chips closable-chips />
-      </template>
-
-      <v-text-field v-model="editForm.title" label="Title" class="mb-3" />
-      <v-textarea v-model="editForm.body_text" label="Body Text" rows="10" class="mb-3" />
-      <VoiceInstructionField
-        v-model="editForm.voice_instruction"
-        resource-type="info_card"
-        :document-id="editForm.document_id"
-        class="mb-3"
-      />
-
-      <!-- Image Slots -->
-      <v-card
-        v-if="editingItem && currentEditLayoutSlots.length > 0"
-        variant="tonal"
-        class="mb-3 pa-3"
-      >
-        <div class="text-subtitle-2 mb-3">Image Slots</div>
-        <div v-for="(slotDef, idx) in currentEditLayoutSlots" :key="idx" class="mb-3">
-          <div class="text-caption mb-1">Slot {{ idx }}: {{ slotDef.slot_id }}</div>
-          <div class="d-flex align-center ga-2 flex-wrap">
-            <v-sheet
-              v-if="getSlotPreview(idx)"
-              width="80"
-              height="60"
-              class="rounded-lg overflow-hidden"
-            >
-              <v-img :src="getSlotPreview(idx)" height="60" cover />
-            </v-sheet>
-            <v-sheet
-              v-else
-              width="80"
-              height="60"
-              class="rounded-lg bg-surface-variant d-flex align-center justify-center"
-            >
-              <v-icon size="24" color="var(--cc-text-3)">mdi-image-outline</v-icon>
-            </v-sheet>
-
-            <v-btn
-              size="small"
-              variant="tonal"
-              prepend-icon="mdi-image-plus"
-              @click="triggerSlotFilePicker(idx)"
-            >
-              {{ slotFileNames[idx] || "Choose" }}
-            </v-btn>
-            <v-btn
-              v-if="slotUploadFiles[idx]"
-              size="small"
-              color="primary"
-              variant="tonal"
-              :loading="slotUploading[idx]"
-              @click="uploadSlotImage(idx)"
-            >
-              Save
-            </v-btn>
-
-            <v-btn
-              v-if="docImagesForPick.length > 0"
-              size="small"
-              variant="tonal"
-              @click="showDocPickIdx = showDocPickIdx === idx ? -1 : idx"
-            >
-              Pick from Document
-            </v-btn>
-
-            <v-btn
-              v-if="getSlotPreview(idx)"
-              size="small"
-              color="error"
-              variant="text"
-              icon="mdi-delete"
-              :loading="slotUploading[idx]"
-              @click="clearSlot(idx)"
-            />
-          </div>
-
-          <div v-if="showDocPickIdx === idx" class="d-flex ga-2 flex-wrap mt-2">
-            <v-img
-              v-for="docImg in docImagesForPick"
-              :key="docImg.id"
-              :src="docImg.presigned_url"
-              width="80"
-              height="60"
-              cover
-              class="rounded-lg"
-              style="cursor: pointer; border: 2px solid transparent"
-              @click="
-                pickSlotImage(idx, docImg.id);
-                showDocPickIdx = -1;
-              "
-            />
-          </div>
-        </div>
-      </v-card>
-
-      <!-- Hidden file input for slot image picking -->
-      <input ref="slotFileInput" type="file" accept="image/*" hidden @change="onSlotFilePicked" />
-    </AppDialog>
+    <InfoCardFormDialog
+      v-model="showForm"
+      :mode="formMode"
+      :card="editingCard"
+      :initial-document-id="initialDocumentId"
+      :layouts="state.layouts"
+      :documents="state.documents"
+      :llm-model-items="state.llmModelItems"
+      @saved="actions.fetchCards"
+    />
 
     <!-- Delete Confirm Dialog -->
     <ArchiveOrDeleteDialog
@@ -358,53 +132,25 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import {
-  approveInfoCard,
-  archiveInfoCard,
-  createInfoCard,
-  deleteInfoCard,
-  deleteInfoCardSlot,
-  getInfoCard,
-  getInfoCards,
-  restoreInfoCard,
-  setInfoCardSlot,
-  suggestInfoCard,
-  updateInfoCard,
-} from "@/services/modules/info_cards";
-import { getKnowledgeDocument, getKnowledgeDocuments } from "@/services/modules/knowledge";
-import { getKnowledgeLayouts } from "@/services/modules/layouts";
-import { getLLMModels } from "@/services/modules/pipeline";
+import { getInfoCard } from "@/services/modules/info_cards";
 import { knowledgeStatusColor as statusColor } from "@/constants/knowledgeStatus.js";
-import VoiceInstructionField from "@/components/knowledge/VoiceInstructionField.vue";
 import { useNotify } from "@/composables/useNotify.js";
+import { useInfoCardsAdmin } from "@/composables/useInfoCardsAdmin.js";
 import ArchiveOrDeleteDialog from "@/components/common/ArchiveOrDeleteDialog.vue";
-import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
-import AppDialog from "@/components/common/AppDialog.vue";
+import InfoCardFormDialog from "@/components/knowledge/InfoCardFormDialog.vue";
 
 const { notify } = useNotify();
+const { state, actions } = useInfoCardsAdmin({ notify });
+const route = useRoute();
 
-const cards = ref([]);
-const layouts = ref([]);
-const documentOptions = ref([]);
-const llmModelItems = ref([]);
-const loading = ref(false);
-const totalItems = ref(0);
-const itemsPerPage = ref(20);
-const page = ref(1);
-const creating = ref(false);
-const saving = ref(false);
-const generating = ref(false);
-const generateModelId = ref("");
-const editGenerating = ref(false);
-const editGenerateModelId = ref("");
-const showCreateDialog = ref(false);
-const showEditDialog = ref(false);
+const showForm = ref(false);
+const formMode = ref("create");
+const editingCard = ref(null);
+const initialDocumentId = ref(null);
 const deleteDialog = ref(false);
 const deleteTarget = ref(null);
-const editingItem = ref(null);
-const route = useRoute();
 
 const headers = [
   { title: "Title", key: "title", sortable: true },
@@ -417,194 +163,16 @@ const headers = [
 
 const statusOptions = ["draft", "approved", "archived"];
 
-const filters = reactive({
-  status: null,
-  tags: [],
-  document_id: "",
-});
-
-const createForm = reactive({
-  title: "",
-  body_text: "",
-  layout_id: null,
-  document_id: null,
-  tags: [],
-  voice_instruction: "",
-});
-
-const editForm = reactive({
-  title: "",
-  body_text: "",
-  layout_id: null,
-  document_id: null,
-  tags: [],
-  voice_instruction: "",
-});
-
-// -- slot management state
-const editCardSlots = ref([]);
-const slotUploadFiles = reactive({});
-const slotUploading = reactive({});
-const slotFileNames = reactive({});
-const activeSlotIdx = ref(-1);
-const slotFileInput = ref(null);
-const showDocPickIdx = ref(-1);
-const docImagesForPick = ref([]);
-
-const currentEditLayoutSlots = computed(() => {
-  if (!editForm.layout_id) return [];
-  const layout = layouts.value.find((l) => l.id === editForm.layout_id);
-  return layout?.image_slots ?? [];
-});
-
-let debounceTimer = null;
-function debouncedFetch() {
-  clearTimeout(debounceTimer);
-  page.value = 1;
-  debounceTimer = setTimeout(fetchCards, 300);
-}
-
-function onPageOptions({ page: newPage, itemsPerPage: newPerPage }) {
-  // The server table echoes its current options on mount; that repeats the mount fetch.
-  if (newPage === page.value && newPerPage === itemsPerPage.value) return;
-  if (newPerPage !== itemsPerPage.value) {
-    itemsPerPage.value = newPerPage;
-    page.value = 1;
-  } else {
-    page.value = newPage;
-  }
-  fetchCards();
-}
-
-async function fetchCards() {
-  loading.value = true;
-  try {
-    const params = { limit: itemsPerPage.value, offset: (page.value - 1) * itemsPerPage.value };
-    if (filters.status) params.status = filters.status;
-    // Repeated tag=... parameters: a card matches when it carries any selected tag.
-    if (filters.tags?.length) params.tag = [...filters.tags];
-    if (filters.document_id) params.document_id = filters.document_id;
-    const res = await getInfoCards(params);
-    cards.value = res.items ?? [];
-    totalItems.value = res.total ?? 0;
-  } catch (err) {
-    notify.error("Failed to load info cards: " + (err.message || err));
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function fetchLayouts() {
-  try {
-    const res = await getKnowledgeLayouts("info_card");
-    layouts.value = res.layouts ?? [];
-  } catch (err) {
-    notify.error("Failed to load layouts: " + (err.message || err));
-  }
-}
-
-async function fetchDocuments() {
-  try {
-    const res = await getKnowledgeDocuments({ limit: 200 });
-    documentOptions.value = res.items ?? [];
-  } catch (_) {
-    // non-critical
-  }
-}
-
-async function fetchLLMModels() {
-  try {
-    llmModelItems.value = await getLLMModels();
-  } catch (_) {
-    // non-critical
-  }
-}
-
-async function generateFromDocument() {
-  if (!createForm.document_id) {
-    notify.warning("Select a knowledge document first.");
-    return;
-  }
-  generating.value = true;
-  try {
-    const suggestion = await suggestInfoCard(
-      createForm.document_id,
-      generateModelId.value || undefined,
-    );
-    if (suggestion.title) createForm.title = suggestion.title;
-    if (suggestion.body_text) createForm.body_text = suggestion.body_text;
-    if (suggestion.voice_instruction && !createForm.voice_instruction) {
-      createForm.voice_instruction = suggestion.voice_instruction;
-    }
-    notify.success("Info card draft generated from document.");
-  } catch (err) {
-    notify.error("Failed to generate: " + (err.message || err));
-  } finally {
-    generating.value = false;
-  }
-}
-
-async function generateEditFromDocument() {
-  if (!editForm.document_id) {
-    notify.warning("Select a knowledge document first.");
-    return;
-  }
-  editGenerating.value = true;
-  try {
-    const suggestion = await suggestInfoCard(
-      editForm.document_id,
-      editGenerateModelId.value || undefined,
-    );
-    if (suggestion.title) editForm.title = suggestion.title;
-    if (suggestion.body_text) editForm.body_text = suggestion.body_text;
-    notify.success("Info card content regenerated.");
-  } catch (err) {
-    notify.error("Failed to regenerate: " + (err.message || err));
-  } finally {
-    editGenerating.value = false;
-  }
-}
-
-async function submitCreate() {
-  if (!createForm.title || !createForm.layout_id) {
-    notify.warning("Title and Layout are required.");
-    return;
-  }
-  creating.value = true;
-  try {
-    await createInfoCard({
-      title: createForm.title,
-      body_text: createForm.body_text,
-      layout_id: createForm.layout_id,
-      document_id: createForm.document_id || undefined,
-      tags: createForm.tags,
-      voice_instruction: createForm.voice_instruction,
-    });
-    notify.success("Info card created.");
-    closeCreateDialog();
-    await fetchCards();
-  } catch (err) {
-    notify.error("Failed to create: " + (err.message || err));
-  } finally {
-    creating.value = false;
-  }
-}
-
-function closeCreateDialog() {
-  showCreateDialog.value = false;
-  createForm.title = "";
-  createForm.body_text = "";
-  createForm.layout_id = null;
-  createForm.document_id = null;
-  createForm.tags = [];
-  createForm.voice_instruction = "";
-  generateModelId.value = "";
+function openCreate(documentId = null) {
+  formMode.value = "create";
+  editingCard.value = null;
+  initialDocumentId.value = documentId;
+  showForm.value = true;
 }
 
 async function editCard(item) {
-  // The form is filled from the full card. List rows carry no body_text or
-  // voice_instruction, so filling from the row opened the editor blank, and saving it
-  // erased the card's text.
+  // The dialog is given the full card. List rows carry no body_text or voice_instruction,
+  // so a form filled from the row opened blank, and saving it erased the card's text.
   let full;
   try {
     full = await getInfoCard(item.id);
@@ -612,171 +180,9 @@ async function editCard(item) {
     notify.error("Failed to load the card: " + (err.message || err));
     return;
   }
-  editingItem.value = item;
-  editForm.title = full.title ?? "";
-  editForm.body_text = full.body_text ?? "";
-  editForm.layout_id = full.layout_id ?? null;
-  editForm.document_id = full.document_id ?? null;
-  editForm.tags = [...(full.tags ?? [])];
-  editForm.voice_instruction = full.voice_instruction ?? "";
-  editGenerateModelId.value = "";
-  editCardSlots.value = [];
-  docImagesForPick.value = [];
-  showDocPickIdx.value = -1;
-  // Clear per-slot file inputs
-  for (const k of Object.keys(slotUploadFiles)) delete slotUploadFiles[k];
-  for (const k of Object.keys(slotFileNames)) delete slotFileNames[k];
-
-  editCardSlots.value = full.image_slots ?? [];
-
-  // Fetch document images for picker
-  if (editForm.document_id) {
-    try {
-      const doc = await getKnowledgeDocument(editForm.document_id);
-      docImagesForPick.value = doc.images ?? [];
-    } catch (_) {
-      /* best-effort */
-    }
-  }
-
-  showEditDialog.value = true;
-}
-
-function getSlotPreview(slotIndex) {
-  const slot = editCardSlots.value.find((s) => s.slot_index === slotIndex);
-  if (!slot) return null;
-  const pwa = slot.variants?.pwa;
-  return pwa?.presigned_url || null;
-}
-
-function triggerSlotFilePicker(idx) {
-  activeSlotIdx.value = idx;
-  slotFileInput.value?.click();
-}
-
-function onSlotFilePicked(e) {
-  const idx = activeSlotIdx.value;
-  if (idx < 0) return;
-  const file = e.target.files?.[0];
-  if (file) {
-    slotUploadFiles[idx] = file;
-    slotFileNames[idx] = file.name;
-  }
-  e.target.value = "";
-  activeSlotIdx.value = -1;
-}
-
-async function uploadSlotImage(slotIndex) {
-  const file = slotUploadFiles[slotIndex];
-  if (!file) return;
-  slotUploading[slotIndex] = true;
-  try {
-    const fd = new FormData();
-    fd.append("file", file);
-    await setInfoCardSlot(editingItem.value.id, slotIndex, fd);
-    notify.success("Slot image updated.");
-    delete slotUploadFiles[slotIndex];
-    // Refresh slot data
-    const full = await getInfoCard(editingItem.value.id);
-    editCardSlots.value = full.image_slots ?? [];
-  } catch (err) {
-    notify.error("Failed to upload slot image: " + (err.message || err));
-  } finally {
-    slotUploading[slotIndex] = false;
-  }
-}
-
-async function pickSlotImage(slotIndex, sourceImageId) {
-  slotUploading[slotIndex] = true;
-  try {
-    const fd = new FormData();
-    fd.append("source_image_id", String(sourceImageId));
-    await setInfoCardSlot(editingItem.value.id, slotIndex, fd);
-    notify.success("Slot image set from document.");
-    const full = await getInfoCard(editingItem.value.id);
-    editCardSlots.value = full.image_slots ?? [];
-  } catch (err) {
-    notify.error("Failed to set slot image: " + (err.message || err));
-  } finally {
-    slotUploading[slotIndex] = false;
-  }
-}
-
-async function clearSlot(slotIndex) {
-  slotUploading[slotIndex] = true;
-  try {
-    await deleteInfoCardSlot(editingItem.value.id, slotIndex);
-    notify.success("Slot image cleared.");
-    const full = await getInfoCard(editingItem.value.id);
-    editCardSlots.value = full.image_slots ?? [];
-  } catch (err) {
-    notify.error("Failed to clear slot image: " + (err.message || err));
-  } finally {
-    slotUploading[slotIndex] = false;
-  }
-}
-
-function closeEditDialog() {
-  showEditDialog.value = false;
-  editingItem.value = null;
-  editCardSlots.value = [];
-  docImagesForPick.value = [];
-  showDocPickIdx.value = -1;
-  activeSlotIdx.value = -1;
-  for (const k of Object.keys(slotUploadFiles)) delete slotUploadFiles[k];
-  for (const k of Object.keys(slotFileNames)) delete slotFileNames[k];
-}
-
-async function submitEdit() {
-  if (!editingItem.value) return;
-  saving.value = true;
-  try {
-    await updateInfoCard(editingItem.value.id, {
-      title: editForm.title,
-      body_text: editForm.body_text,
-      layout_id: editForm.layout_id,
-      document_id: editForm.document_id || undefined,
-      tags: editForm.tags,
-      voice_instruction: editForm.voice_instruction,
-    });
-    notify.success("Info card updated.");
-    closeEditDialog();
-    await fetchCards();
-  } catch (err) {
-    notify.error("Failed to update: " + (err.message || err));
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function approve(item) {
-  try {
-    await approveInfoCard(item.id);
-    notify.success("Info card approved.");
-    await fetchCards();
-  } catch (err) {
-    notify.error("Failed to approve: " + (err.message || err));
-  }
-}
-
-async function archive(item) {
-  try {
-    await archiveInfoCard(item.id);
-    notify.success("Info card archived.");
-    await fetchCards();
-  } catch (err) {
-    notify.error("Failed to archive: " + (err.message || err));
-  }
-}
-
-async function restore(item) {
-  try {
-    await restoreInfoCard(item.id);
-    notify.success("Info card restored.");
-    await fetchCards();
-  } catch (err) {
-    notify.error("Failed to restore: " + (err.message || err));
-  }
+  formMode.value = "edit";
+  editingCard.value = full;
+  showForm.value = true;
 }
 
 function confirmDelete(item) {
@@ -786,7 +192,7 @@ function confirmDelete(item) {
 
 async function doArchive() {
   deleteDialog.value = false;
-  if (deleteTarget.value) await archive(deleteTarget.value);
+  if (deleteTarget.value) await actions.archive(deleteTarget.value);
   deleteTarget.value = null;
 }
 
@@ -794,26 +200,16 @@ async function doDelete() {
   deleteDialog.value = false;
   const item = deleteTarget.value;
   deleteTarget.value = null;
-  if (!item) return;
-  try {
-    await deleteInfoCard(item.id);
-    notify.success("Info card deleted.");
-    await fetchCards();
-  } catch (err) {
-    notify.error("Failed to delete: " + (err.message || err));
-  }
+  if (item) await actions.remove(item);
 }
 
 onMounted(() => {
-  fetchCards();
-  fetchLayouts();
-  fetchDocuments();
-  fetchLLMModels();
+  actions.fetchCards();
+  actions.fetchLayouts();
+  actions.fetchDocuments();
+  actions.fetchLLMModels();
   // Set by the document page's "Create info card" action (?suggest_doc_id=<id>).
   const docId = Number(route.query.suggest_doc_id);
-  if (Number.isInteger(docId) && docId > 0) {
-    createForm.document_id = docId;
-    showCreateDialog.value = true;
-  }
+  if (Number.isInteger(docId) && docId > 0) openCreate(docId);
 });
 </script>

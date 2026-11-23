@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from unittest.mock import AsyncMock, Mock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock
 
 import pytest
 
 from backend.steps.builtin.quiz_start import QuizStartStep
+from backend.tests.factories.knowledge import (
+    multiple_choice,
+    seed_completed_session,
+    seed_execution,
+    seed_quiz,
+)
+from backend.tests.factories.knowledge_delivery import make_delivery
 
 
 @dataclass
@@ -29,6 +37,10 @@ class FakeWorkflowExecution:
 class FakeTriggerContext:
     room_name: str | None = None
     sensor_id: str | None = None
+
+
+def _step(config: dict, step_id: int = 1) -> FakePipelineStep:
+    return FakePipelineStep(id=step_id, step_type="quiz_start", config_json=config)
 
 
 @dataclass
@@ -74,165 +86,186 @@ class TestQuizStartStepMetadata:
 
 
 class TestQuizStartStepExecute:
-    """Test QuizStartStep execute method."""
+    """Execute against the real database: mocked sessions hid MultipleResultsFound and
+    the detached lazy load of the quiz's questions."""
 
     @pytest.mark.asyncio
-    async def test_execute_with_missing_knowledge_delivery_returns_error(self):
-        """Missing service returns StepResult error."""
-        handler = QuizStartStep()
-        step = FakePipelineStep(
-            id=1, step_type="quiz_start", config_json={"quiz_id": 1, "dedupe_hours": 0}
+    async def test_missing_quiz_id_returns_error(self, db_factory):
+        services = FakeServiceContainer(db_factory=db_factory, knowledge_delivery=Mock())
+
+        result = await QuizStartStep().execute(
+            _step({}),
+            FakeWorkflowExecution(id=1, status="running"),
+            {},
+            FakeTriggerContext(),
+            services,
         )
-        execution = FakeWorkflowExecution(id=200, status="running")
-        quiz = FakeQuiz(id=1, title="Quiz", status="approved", questions=[])
-        mock_db = Mock()
-        # First call: quiz lookup; second call: dedupe session lookup returns None
-        mock_db.execute.return_value.scalar_one_or_none.side_effect = [quiz, None]
-        services = FakeServiceContainer(
-            db_factory=Mock(return_value=mock_db),
-            knowledge_delivery=None,
-        )
-
-        result = await handler.execute(step, execution, {}, FakeTriggerContext(), services)
-
-        assert result.success is False
-        assert "knowledge delivery service not available" in result.data["error"]
-
-    @pytest.mark.asyncio
-    async def test_execute_with_missing_quiz_id_returns_error(self):
-        """Missing quiz_id in config returns error."""
-        handler = QuizStartStep()
-        step = FakePipelineStep(id=2, step_type="quiz_start", config_json={})
-        execution = FakeWorkflowExecution(id=201, status="running")
-        delivery_svc = Mock()
-        services = FakeServiceContainer(
-            db_factory=Mock(),
-            knowledge_delivery=delivery_svc,
-        )
-
-        result = await handler.execute(step, execution, {}, FakeTriggerContext(), services)
 
         assert result.success is False
         assert "quiz_id is required" in result.data["error"]
 
     @pytest.mark.asyncio
-    async def test_execute_with_quiz_not_found_returns_error(self):
-        """Quiz not in DB returns error."""
-        handler = QuizStartStep()
-        step = FakePipelineStep(id=3, step_type="quiz_start", config_json={"quiz_id": 99})
-        execution = FakeWorkflowExecution(id=202, status="running")
-        mock_db = Mock()
-        mock_db.execute.return_value.scalar_one_or_none.return_value = None
-        delivery_svc = Mock()
-        services = FakeServiceContainer(
-            db_factory=Mock(return_value=mock_db),
-            knowledge_delivery=delivery_svc,
-        )
+    async def test_missing_quiz_returns_error(self, db_factory):
+        services = FakeServiceContainer(db_factory=db_factory, knowledge_delivery=Mock())
 
-        result = await handler.execute(step, execution, {}, FakeTriggerContext(), services)
+        result = await QuizStartStep().execute(
+            _step({"quiz_id": 999}),
+            FakeWorkflowExecution(id=1, status="running"),
+            {},
+            FakeTriggerContext(),
+            services,
+        )
 
         assert result.success is False
         assert "not found" in result.data["error"]
 
     @pytest.mark.asyncio
-    async def test_execute_with_unapproved_quiz_returns_error(self):
-        """Quiz in draft status returns error."""
-        handler = QuizStartStep()
-        step = FakePipelineStep(id=4, step_type="quiz_start", config_json={"quiz_id": 1})
-        execution = FakeWorkflowExecution(id=203, status="running")
-        quiz = FakeQuiz(id=1, title="Quiz", status="draft", questions=[])
-        mock_db = Mock()
-        mock_db.execute.return_value.scalar_one_or_none.return_value = quiz
-        delivery_svc = Mock()
-        services = FakeServiceContainer(
-            db_factory=Mock(return_value=mock_db),
-            knowledge_delivery=delivery_svc,
-        )
+    async def test_unapproved_quiz_returns_error(self, db_session, db_factory):
+        quiz = seed_quiz(db_session, [multiple_choice("Q?", "A", "B")], status="draft")
+        services = FakeServiceContainer(db_factory=db_factory, knowledge_delivery=Mock())
 
-        result = await handler.execute(step, execution, {}, FakeTriggerContext(), services)
+        result = await QuizStartStep().execute(
+            _step({"quiz_id": quiz.id}),
+            FakeWorkflowExecution(id=1, status="running"),
+            {},
+            FakeTriggerContext(),
+            services,
+        )
 
         assert result.success is False
         assert "not approved" in result.data["error"]
 
     @pytest.mark.asyncio
-    async def test_execute_with_approved_quiz_returns_success(self):
-        """Approved quiz delivery returns success with session_id."""
-        handler = QuizStartStep()
-        step = FakePipelineStep(
-            id=5, step_type="quiz_start", config_json={"quiz_id": 1}, rule_id=10
-        )
-        execution = FakeWorkflowExecution(id=204, status="running")
-        quiz = FakeQuiz(id=1, title="Quiz", status="approved", questions=[])
-        mock_db = Mock()
-        # First call: quiz lookup returns quiz; second call: dedupe session lookup returns None
-        mock_db.execute.return_value.scalar_one_or_none.side_effect = [quiz, None]
-        delivery_svc = Mock()
-        delivery_svc.start_quiz_session = AsyncMock(return_value=Mock(session_id=55))
-        services = FakeServiceContainer(
-            db_factory=Mock(return_value=mock_db),
-            knowledge_delivery=delivery_svc,
-            scheduler=None,
+    async def test_missing_delivery_service_returns_error(self, db_session, db_factory):
+        quiz = seed_quiz(db_session, [multiple_choice("Q?", "A", "B")])
+        services = FakeServiceContainer(db_factory=db_factory, knowledge_delivery=None)
+
+        result = await QuizStartStep().execute(
+            _step({"quiz_id": quiz.id, "dedupe_hours": 0}),
+            FakeWorkflowExecution(id=1, status="running"),
+            {},
+            FakeTriggerContext(),
+            services,
         )
 
-        result = await handler.execute(step, execution, {}, FakeTriggerContext(), services)
-
-        assert result.success is True
-        assert result.data["quiz_id"] == 1
-        assert result.data["quiz_session_id"] == 55
-        delivery_svc.start_quiz_session.assert_called_once()
+        assert result.success is False
+        assert "knowledge delivery service not available" in result.data["error"]
 
     @pytest.mark.asyncio
-    async def test_execute_with_dedupe_skips_delivery(self):
-        """Recent completed session triggers dedupe skip."""
-        handler = QuizStartStep()
-        step = FakePipelineStep(
-            id=6,
-            step_type="quiz_start",
-            config_json={"quiz_id": 1, "dedupe_hours": 12},
-            rule_id=10,
+    async def test_starts_session_parks_past_timeout_and_flags_cooloff(
+        self, db_session, db_factory
+    ):
+        execution = seed_execution(db_session)
+        quiz = seed_quiz(
+            db_session,
+            [multiple_choice("Who is Priya?", "Granddaughter", "Neighbour")],
         )
-        execution = FakeWorkflowExecution(id=205, status="running")
-        quiz = FakeQuiz(id=1, title="Quiz", status="approved", questions=[])
-        recent_session = Mock(id=99, status="completed")
-        mock_db = Mock()
-        # First execute returns quiz, second returns a recent session (dedupe hit)
-        mock_db.execute.return_value.scalar_one_or_none.side_effect = [quiz, recent_session]
-        delivery_svc = Mock()
-        services = FakeServiceContainer(
-            db_factory=Mock(return_value=mock_db),
-            knowledge_delivery=delivery_svc,
-        )
+        delivery, ws, _scheduler = make_delivery(db_factory)
+        services = FakeServiceContainer(db_factory=db_factory, knowledge_delivery=delivery)
+        before = datetime.now(UTC)
 
-        result = await handler.execute(step, execution, {}, FakeTriggerContext(), services)
+        result = await QuizStartStep().execute(
+            _step({"quiz_id": quiz.id, "session_timeout_minutes": 10}),
+            execution,
+            {"person_id": "resident-1"},
+            FakeTriggerContext(),
+            services,
+        )
 
         assert result.success is True
-        assert result.data["skipped"] is True
-        assert result.data["reason"] == "dedupe"
-        delivery_svc.start_quiz_session.assert_not_called()
+        assert result.data["status"] == "started"
+        assert result.data["quiz_session_id"] is not None
+        assert result.data["_cooloff_triggered"] is True
+        # The pipeline waits past the session timeout, so the session is terminal
+        # before anything downstream runs.
+        assert result.wait_until > before + timedelta(minutes=10)
+        question = ws.of_type("quiz_question")[0]
+        assert question["question_text"] == "Who is Priya?"
 
     @pytest.mark.asyncio
-    async def test_execute_with_zero_dedupe_hours_skips_check(self):
-        """Zero dedupe_hours bypasses the dedupe query."""
-        handler = QuizStartStep()
-        step = FakePipelineStep(
-            id=7,
-            step_type="quiz_start",
-            config_json={"quiz_id": 1, "dedupe_hours": 0},
-            rule_id=10,
-        )
-        execution = FakeWorkflowExecution(id=206, status="running")
-        quiz = FakeQuiz(id=1, title="Quiz", status="approved", questions=[])
-        mock_db = Mock()
-        mock_db.execute.return_value.scalar_one_or_none.return_value = quiz
-        delivery_svc = Mock()
-        delivery_svc.start_quiz_session = AsyncMock(return_value=Mock(session_id=56))
-        services = FakeServiceContainer(
-            db_factory=Mock(return_value=mock_db),
-            knowledge_delivery=delivery_svc,
-            scheduler=None,
-        )
+    async def test_dedupe_with_several_recent_completions_skips_with_latest(
+        self, db_session, db_factory
+    ):
+        quiz = seed_quiz(db_session, [multiple_choice("Q?", "A", "B")])
+        now = datetime.now(UTC)
+        seed_completed_session(db_session, quiz, completed_at=now - timedelta(hours=3))
+        latest = seed_completed_session(db_session, quiz, completed_at=now - timedelta(hours=1))
+        delivery = Mock()
+        services = FakeServiceContainer(db_factory=db_factory, knowledge_delivery=delivery)
 
-        result = await handler.execute(step, execution, {}, FakeTriggerContext(), services)
+        result = await QuizStartStep().execute(
+            _step({"quiz_id": quiz.id, "dedupe_hours": 12}),
+            FakeWorkflowExecution(id=1, status="running"),
+            {},
+            FakeTriggerContext(),
+            services,
+        )
 
         assert result.success is True
-        delivery_svc.start_quiz_session.assert_called_once()
+        assert result.data == {
+            "quiz_id": quiz.id,
+            "quiz_session_id": None,
+            "max_questions": 5,
+            "status": "skipped_dedupe",
+            "skipped": True,
+            "reason": "dedupe",
+            "prior_session_id": latest.id,
+        }
+        assert result.wait_until is None
+        delivery.start_quiz_session.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_zero_dedupe_hours_ignores_recent_completion(self, db_session, db_factory):
+        execution = seed_execution(db_session)
+        quiz = seed_quiz(db_session, [multiple_choice("Q?", "A", "B")])
+        seed_completed_session(db_session, quiz, completed_at=datetime.now(UTC))
+        delivery, _ws, _scheduler = make_delivery(db_factory)
+        services = FakeServiceContainer(db_factory=db_factory, knowledge_delivery=delivery)
+
+        result = await QuizStartStep().execute(
+            _step({"quiz_id": quiz.id, "dedupe_hours": 0}),
+            execution,
+            {},
+            FakeTriggerContext(),
+            services,
+        )
+
+        assert result.data["status"] == "started"
+
+    @pytest.mark.asyncio
+    async def test_quiz_without_questions_fails_without_a_session_row(self, db_session, db_factory):
+        from backend.models.knowledge import QuizSession
+
+        execution = seed_execution(db_session)
+        quiz = seed_quiz(db_session, [])
+        delivery, _ws, _scheduler = make_delivery(db_factory)
+        services = FakeServiceContainer(db_factory=db_factory, knowledge_delivery=delivery)
+
+        result = await QuizStartStep().execute(
+            _step({"quiz_id": quiz.id}), execution, {}, FakeTriggerContext(), services
+        )
+
+        assert result.success is False
+        assert "no questions" in result.data["error"]
+        assert db_session.query(QuizSession).count() == 0
+
+    @pytest.mark.asyncio
+    async def test_rejects_unknown_interaction_mode(self, db_session, db_factory):
+        quiz = seed_quiz(db_session, [multiple_choice("Q?", "A", "B")])
+        services = FakeServiceContainer(db_factory=db_factory, knowledge_delivery=Mock())
+
+        result = await QuizStartStep().execute(
+            _step({"quiz_id": quiz.id, "interaction_mode": "exam"}),
+            FakeWorkflowExecution(id=1, status="running"),
+            {},
+            FakeTriggerContext(),
+            services,
+        )
+
+        assert result.success is False
+        assert "interaction_mode" in result.data["error"]
+
+    def test_metadata_defaults_to_gentle_mode_with_both_channels(self):
+        metadata = QuizStartStep.metadata()
+        assert metadata.default_config["interaction_mode"] == "gentle"
+        assert metadata.default_config["channels"] == ["pwa", "voice"]

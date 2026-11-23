@@ -128,7 +128,7 @@ No `container` parameter -- runs before `ServiceContainer` exists.
 | `knowledge_interaction_service` | -- |
 | `knowledge_query` | `llm_model_registry` |
 | `knowledge_content_gen` | `llm_model_registry` |
-| `knowledge_delivery` | `ws_manager`, `minio_client`, `eink_renderer`, `voice_instructions`, `knowledge_content_gen` (scheduler attached later by `pipeline.wire_scheduler`) |
+| `knowledge_delivery` | `ws_manager`, `minio_client`, `eink_renderer`, `voice_instructions`, `knowledge_content_gen`, `llm.realtime.system_instruction` (scheduler attached later by `pipeline.wire_scheduler`) |
 | `notification_dispatcher` | `telegram_client`, `ws_manager`, `tts_client`, `eink_renderer`, `minio_client`, `ha_client` |
 
 ### `pipeline.wire_service_container`

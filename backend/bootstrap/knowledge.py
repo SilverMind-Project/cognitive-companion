@@ -134,6 +134,7 @@ def wire_knowledge(app: FastAPI, settings: Settings) -> None:
         eink_renderer=eink_renderer,
         voice_instructions=voice_instructions,
         content_generation=knowledge_content_gen,
+        base_instruction=settings.as_str("llm.realtime.system_instruction"),
     )
     app.state.knowledge_delivery = knowledge_delivery
 

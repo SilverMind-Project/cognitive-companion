@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
+from backend.core.exceptions import ValidationError
 from backend.core.logging import get_logger
 from backend.models.knowledge import Quiz, QuizSession
 from backend.models.pipeline import PipelineStep, WorkflowExecution
-from backend.services.interactive_session import schedule_session_timeout
+from backend.services.knowledge.voice_instructions import QUIZ_INTERACTION_MODES
 from backend.steps import StepRegistry
+from backend.steps._helpers import make_trigger_vars, resolve_person_id
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -21,10 +22,12 @@ from backend.steps.base import (
     TriggerContext,
 )
 
-if TYPE_CHECKING:
-    from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
-
 logger = get_logger(__name__)
+
+# The pipeline parks until the quiz ends; the delivery service resumes it on completion
+# or timeout. This margin past the session timeout is only the executor's backstop, so
+# the session is always marked timed_out before anything downstream runs.
+_RESUME_BACKSTOP = timedelta(seconds=60)
 
 
 @StepRegistry.register
@@ -43,6 +46,30 @@ class QuizStartStep(StepHandler):
                 "type": "object",
                 "properties": {
                     "quiz_id": {"type": "integer"},
+                    "channels": {
+                        "type": "array",
+                        "items": {"enum": ["pwa", "voice"]},
+                        "minItems": 1,
+                        "default": ["pwa", "voice"],
+                    },
+                    "interaction_mode": {
+                        "type": "string",
+                        "enum": list(QUIZ_INTERACTION_MODES),
+                        "default": "gentle",
+                        "description": (
+                            "gentle: errorless learning, no right/wrong feedback or score "
+                            "shown to the senior (answers are still recorded). standard: "
+                            "graded feedback and a score."
+                        ),
+                    },
+                    "person_id": {
+                        "type": "string",
+                        "default": "",
+                        "description": (
+                            "Resident taking the quiz; defaults to the person in the "
+                            "trigger or upstream steps. Supports {{template}} syntax."
+                        ),
+                    },
                     "max_questions": {"type": "integer", "default": 5},
                     "randomize_order": {"type": "boolean", "default": False},
                     "session_timeout_minutes": {"type": "integer", "default": 10},
@@ -55,12 +82,18 @@ class QuizStartStep(StepHandler):
                     "voice_instruction": {
                         "type": "string",
                         "default": "",
-                        "description": "Override the Gemini Live system instruction for this quiz session.",
+                        "description": (
+                            "Added to the companion's persona for this quiz session. "
+                            "Supports {{template}} syntax."
+                        ),
                     },
                 },
                 "required": ["quiz_id"],
             },
             default_config={
+                "channels": ["pwa", "voice"],
+                "interaction_mode": "gentle",
+                "person_id": "",
                 "max_questions": 5,
                 "randomize_order": False,
                 "session_timeout_minutes": 10,
@@ -72,8 +105,15 @@ class QuizStartStep(StepHandler):
                 "type": "object",
                 "properties": {
                     "quiz_id": {"type": "integer"},
-                    "quiz_session_id": {"type": "integer"},
+                    "quiz_session_id": {
+                        "type": ["integer", "null"],
+                        "description": "This run's session; null when skipped.",
+                    },
                     "max_questions": {"type": "integer"},
+                    "status": {"type": "string", "enum": ["started", "skipped_dedupe"]},
+                    "skipped": {"type": "boolean"},
+                    "reason": {"type": "string"},
+                    "prior_session_id": {"type": ["integer", "null"]},
                 },
             },
         )
@@ -91,16 +131,22 @@ class QuizStartStep(StepHandler):
         if not quiz_id:
             return StepResult(success=False, data={"error": "quiz_id is required"})
 
+        interaction_mode = config.get("interaction_mode", "gentle")
+        if interaction_mode not in QUIZ_INTERACTION_MODES:
+            return StepResult(
+                success=False,
+                data={"error": f"interaction_mode must be one of {list(QUIZ_INTERACTION_MODES)}"},
+            )
         max_questions = config.get("max_questions", 5)
-        randomize_order = config.get("randomize_order", False)
-        timeout_minutes = config.get("session_timeout_minutes", 10)
         dedupe_hours = config.get("dedupe_hours", 12)
-        voice_instruction = config.get("voice_instruction", "")
 
-        # Load the quiz
         db: Session = services.db_factory()
         try:
-            quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
+            # Questions are eager-loaded: delivery reads them after this session closes,
+            # and a lazy load on the detached quiz would raise.
+            quiz = db.execute(
+                select(Quiz).options(selectinload(Quiz.questions)).where(Quiz.id == quiz_id)
+            ).scalar_one_or_none()
             if quiz is None:
                 return StepResult(success=False, data={"error": f"Quiz {quiz_id} not found"})
             if quiz.status != "approved":
@@ -109,67 +155,72 @@ class QuizStartStep(StepHandler):
                     data={"error": f"Quiz {quiz_id} is not approved (status: {quiz.status})"},
                 )
 
-            # Dedupe check
             if dedupe_hours > 0:
                 cutoff = datetime.now(UTC) - timedelta(hours=dedupe_hours)
-                recent = db.execute(
-                    select(QuizSession).where(
-                        QuizSession.quiz_id == quiz_id,
-                        QuizSession.status == "completed",
-                        QuizSession.completed_at >= cutoff,
+                recent = (
+                    db.execute(
+                        select(QuizSession)
+                        .where(
+                            QuizSession.quiz_id == quiz_id,
+                            QuizSession.status == "completed",
+                            QuizSession.completed_at >= cutoff,
+                        )
+                        .order_by(QuizSession.completed_at.desc())
+                        .limit(1)
                     )
-                ).scalar_one_or_none()
-                if recent:
+                    .scalars()
+                    .first()
+                )
+                if recent is not None:
                     logger.info("quiz_dedupe_skipped", quiz_id=quiz_id, session_id=recent.id)
                     return StepResult(
-                        data={"skipped": True, "reason": "dedupe", "prior_session_id": recent.id}
+                        data={
+                            "quiz_id": quiz_id,
+                            "quiz_session_id": None,
+                            "max_questions": max_questions,
+                            "status": "skipped_dedupe",
+                            "skipped": True,
+                            "reason": "dedupe",
+                            "prior_session_id": recent.id,
+                        }
                     )
         finally:
             db.close()
 
-        # Delivery
         delivery_svc = services.knowledge_delivery
         if delivery_svc is None:
             return StepResult(
                 success=False, data={"error": "knowledge delivery service not available"}
             )
 
-        result = await delivery_svc.start_quiz_session(
-            quiz=quiz,
-            execution_id=execution.id,
-            rule_id=step.rule_id,
-            voice_instruction=voice_instruction or None,
-            max_questions=max_questions,
-            randomize_order=randomize_order,
-            session_timeout_minutes=timeout_minutes,
-        )
+        try:
+            result = await delivery_svc.start_quiz_session(
+                quiz=quiz,
+                execution_id=execution.id,
+                rule_id=step.rule_id,
+                channels=config.get("channels") or ["pwa", "voice"],
+                voice_instruction=config.get("voice_instruction") or None,
+                max_questions=max_questions,
+                randomize_order=config.get("randomize_order", False),
+                session_timeout_minutes=config.get("session_timeout_minutes", 10),
+                interaction_mode=interaction_mode,
+                senior_id=resolve_person_id(config, pipeline_data),
+                template_data=pipeline_data,
+                trigger_vars=make_trigger_vars(trigger),
+            )
+        except ValidationError as exc:
+            return StepResult(success=False, data={"error": exc.message})
 
-        # Schedule timeout
-        timeout_at = datetime.now(UTC) + timedelta(minutes=timeout_minutes)
-        schedule_session_timeout(
-            services.scheduler,
-            job_id=f"quiz_timeout_{result.session_id}",
-            run_at=timeout_at,
-            finalize=self._handle_timeout,
-            args=[result.session_id, delivery_svc],
-        )
-
-        logger.info(
-            "quiz_start_step_executed",
-            quiz_id=quiz_id,
-            session_id=result.session_id,
-        )
-        return StepResult(
-            data={
-                "quiz_id": quiz_id,
-                "quiz_session_id": result.session_id,
-                "max_questions": max_questions,
-            },
-            wait_until=timeout_at,
-        )
-
-    @staticmethod
-    async def _handle_timeout(session_id: int, delivery_svc: KnowledgeDeliveryService) -> None:
-        """Handle quiz session timeout."""
-        delivery_svc._update_session_status(session_id, "timed_out")
-        logger.info("quiz_session_timed_out", session_id=session_id)
+        logger.info("quiz_start_step_executed", quiz_id=quiz_id, session_id=result.session_id)
+        result_data: dict = {
+            "quiz_id": quiz_id,
+            "quiz_session_id": result.session_id,
+            "max_questions": max_questions,
+            "status": "started",
+            "skipped": False,
+            "prior_session_id": None,
+        }
+        if config.get("trigger_cooloff", True):
+            result_data["_cooloff_triggered"] = True
+        timeout_at = result.timeout_at or datetime.now(UTC)
+        return StepResult(data=result_data, wait_until=timeout_at + _RESUME_BACKSTOP)

@@ -736,6 +736,6 @@ class AudioSessionHandler:
             return
 
         try:
-            delivery.record_info_card_event(delivery_id, action)
+            await delivery.handle_info_card_event(delivery_id, action)
         except Exception:
             logger.exception("info_card_event_handler_error", delivery_id=delivery_id)

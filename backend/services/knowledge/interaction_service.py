@@ -269,89 +269,53 @@ class KnowledgeInteractionService:
             db.close()
 
     def tag_analytics(self) -> dict[str, Any]:
-        """Return per-tag document count, quiz count, and average quiz score."""
+        """Per-tag counts of active documents and quizzes, and the share of graded answers correct.
+
+        Counts exclude archived documents and quizzes: they describe the content in use.
+        The score pools every graded answer in completed sessions of any quiz carrying the
+        tag, archived or not, because those answers really happened. A tag with neither
+        active content nor graded answers is left out. Three grouped queries, whatever the
+        number of tags.
+        """
         db: Session = self._db_factory()
         try:
-            doc_tags: set[str] = set()
-            docs = db.execute(select(KnowledgeDocument.tags)).scalars().all()
-            for tag_list in docs:
-                for t in tag_list or []:
-                    doc_tags.add(t)
+            doc_counts = _active_tag_counts(db, KnowledgeDocument)
+            quiz_counts = _active_tag_counts(db, Quiz)
 
-            quiz_tags: set[str] = set()
-            quizzes = db.execute(select(Quiz.tags)).scalars().all()
-            for tag_list in quizzes:
-                for t in tag_list or []:
-                    quiz_tags.add(t)
-
-            all_tags = sorted(doc_tags | quiz_tags)
-
-            result: list[dict[str, Any]] = []
-            for tag in all_tags:
-                doc_count = (
-                    db.execute(
-                        select(func.count(KnowledgeDocument.id)).where(
-                            KnowledgeDocument.tags.contains([tag])
-                        )
-                    ).scalar()
-                    or 0
+            quiz_tag = (
+                select(Quiz.id.label("quiz_id"), func.unnest(Quiz.tags).label("tag"))
+                .distinct()
+                .subquery()
+            )
+            graded = (
+                select(
+                    quiz_tag.c.tag,
+                    func.count(QuizResponse.id),
+                    func.count(QuizResponse.id).filter(QuizResponse.is_correct.is_(True)),
                 )
-
-                quiz_count = (
-                    db.execute(
-                        select(func.count(Quiz.id)).where(Quiz.tags.contains([tag]))
-                    ).scalar()
-                    or 0
-                )
-
-                quiz_ids = (
-                    db.execute(select(Quiz.id).where(Quiz.tags.contains([tag]))).scalars().all()
-                )
-
-                avg_score: float | None = None
-                if quiz_ids:
-                    session_ids = (
-                        db.execute(
-                            select(QuizSession.id).where(
-                                QuizSession.quiz_id.in_(quiz_ids),
-                                QuizSession.status == "completed",
-                            )
-                        )
-                        .scalars()
-                        .all()
-                    )
-                    if session_ids:
-                        responses = (
-                            db.execute(
-                                select(QuizResponse.is_correct).where(
-                                    QuizResponse.session_id.in_(session_ids),
-                                    QuizResponse.is_correct.isnot(None),
-                                )
-                            )
-                            .scalars()
-                            .all()
-                        )
-                        if responses:
-                            avg_score = round(
-                                sum(1 for r in responses if r) / len(responses) * 100, 1
-                            )
-
-                result.append(
-                    {
-                        "tag": tag,
-                        "document_count": doc_count,
-                        "quiz_count": quiz_count,
-                        "avg_quiz_score_pct": avg_score,
-                    }
-                )
-
-            return {
-                "tags": sorted(
-                    result,
-                    key=lambda x: x["document_count"] + x["quiz_count"],
-                    reverse=True,
-                )
+                .join(QuizSession, QuizSession.quiz_id == quiz_tag.c.quiz_id)
+                .join(QuizResponse, QuizResponse.session_id == QuizSession.id)
+                .where(QuizSession.status == "completed", QuizResponse.is_correct.isnot(None))
+                .group_by(quiz_tag.c.tag)
+            )
+            scores = {
+                tag: round(correct / total * 100, 1)
+                for tag, total, correct in db.execute(graded).tuples()
+                if total
             }
+
+            tags = set(doc_counts) | set(quiz_counts) | set(scores)
+            result = [
+                {
+                    "tag": tag,
+                    "document_count": doc_counts.get(tag, 0),
+                    "quiz_count": quiz_counts.get(tag, 0),
+                    "avg_quiz_score_pct": scores.get(tag),
+                }
+                for tag in sorted(tags)
+            ]
+            result.sort(key=lambda x: x["document_count"] + x["quiz_count"], reverse=True)
+            return {"tags": result}
         finally:
             db.close()
 
@@ -359,3 +323,15 @@ class KnowledgeInteractionService:
 def _count(db: Session, stmt: Select[Any]) -> int:
     """Total rows matching ``stmt``'s filters, ignoring any ordering or paging."""
     return db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+
+
+def _active_tag_counts(db: Session, model: type[KnowledgeDocument] | type[Quiz]) -> dict[str, int]:
+    """Tag to number of non-archived ``model`` rows carrying it (a repeated tag counts once)."""
+    row_tag = (
+        select(model.id.label("row_id"), func.unnest(model.tags).label("tag"))
+        .where(model.status != "archived")
+        .distinct()
+        .subquery()
+    )
+    stmt = select(row_tag.c.tag, func.count(row_tag.c.row_id)).group_by(row_tag.c.tag)
+    return dict(db.execute(stmt).tuples().all())

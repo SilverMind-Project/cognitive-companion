@@ -34,6 +34,7 @@ All business logic, status state machines, SQLAlchemy sessions, and MinIO side-e
 8. **Choice ids:** a choice id is non-blank and unique within its question (schema-validated); the editor assigns the next free letter (`frontend/src/components/knowledge/quizChoices.js`), and `content_generation.normalize_choices` fixes drafted choices.
 9. **Tag filters are any-of:** list endpoints take a repeatable `tag` parameter matched with array overlap, the same as the `knowledge_query` step.
 10. **Voice-instruction drafts are per resource:** `POST /quizzes/voice-instruction-suggest` (`quizzes:write`) drafts for quizzes and `POST /info-cards/voice-instruction-suggest` (`info_cards:write`) for cards; a route never authorizes another resource's writes.
+11. **Tag analytics:** counts exclude archived documents and quizzes; the correct-answer share pools graded answers from completed sessions of every quiz with the tag, archived included.
 
 ## 3. Multimodal voice + PWA synchronization and voice lifecycle
 

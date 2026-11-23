@@ -131,8 +131,9 @@
         <v-card class="glass-card pa-4 mb-4">
           <div class="text-subtitle-1 mb-1">Answers correct by topic</div>
           <div class="text-caption text-medium-emphasis mb-3">
-            Share of graded quiz answers that matched, per tag, across completed sessions. A topic
-            without graded answers is not shown.
+            Share of graded quiz answers that matched, per tag, across completed sessions (archived
+            quizzes included). A topic without graded answers is not shown. Document and quiz counts
+            below leave out archived items.
           </div>
           <div style="height: 260px">
             <CcBarChart

@@ -194,3 +194,67 @@ def test_tag_analytics_aggregates_documents_quizzes_and_scores(
     assert by_tag["boston"]["document_count"] == 1
     assert by_tag["boston"]["quiz_count"] == 0
     assert by_tag["boston"]["avg_quiz_score_pct"] is None
+
+
+def test_tag_analytics_counts_active_content_and_keeps_archived_history(
+    db_session, interaction_service: KnowledgeInteractionService
+) -> None:
+    """Archived items leave the counts, but answers to an archived quiz still score its tag;
+    a tag only on archived items with no answers is not listed."""
+    archived_quiz = Quiz(
+        title="Old",
+        question_layout_id="quiz_with_optional_image",
+        tags=["garden", "garden"],
+        status="archived",
+    )
+    active_quiz = Quiz(
+        title="New", question_layout_id="quiz_with_optional_image", tags=["garden"], status="draft"
+    )
+    db_session.add_all(
+        [
+            archived_quiz,
+            active_quiz,
+            KnowledgeDocument(
+                title="Old notes",
+                source_text="x",
+                tags=["attic"],
+                status="archived",
+                created_by="caregiver",
+            ),
+        ]
+    )
+    db_session.flush()
+    # One answer per question per session: three graded (two correct), one ungraded.
+    questions = [
+        QuizQuestion(
+            quiz_id=archived_quiz.id,
+            ord=n,
+            question_type="open_ended",
+            question_text=f"Q{n}",
+            expected_answer="A",
+        )
+        for n in range(4)
+    ]
+    sess = QuizSession(quiz_id=archived_quiz.id, senior_id="senior-1", status="completed")
+    db_session.add_all([*questions, sess])
+    db_session.flush()
+    db_session.add_all(
+        [
+            QuizResponse(
+                session_id=sess.id,
+                question_id=question.id,
+                question_ord=question.ord,
+                question_text=question.question_text,
+                is_correct=correct,
+                channel="voice",
+            )
+            for question, correct in zip(questions, (True, True, False, None), strict=True)
+        ]
+    )
+    db_session.commit()
+
+    by_tag = {item["tag"]: item for item in interaction_service.tag_analytics()["tags"]}
+
+    assert by_tag["garden"]["quiz_count"] == 1
+    assert by_tag["garden"]["avg_quiz_score_pct"] == 66.7
+    assert "attic" not in by_tag

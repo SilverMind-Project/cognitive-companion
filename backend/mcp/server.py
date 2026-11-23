@@ -1429,7 +1429,9 @@ async def list_quiz_sessions_history(
 
 @_register(token="knowledge.interactions:read")
 async def get_quiz_tag_analytics() -> dict:
-    """Caregiver review: per-tag document count, quiz count, and average quiz score.
+    """Caregiver review: per tag, active (non-archived) document and quiz counts, and the
+    share of graded quiz answers that were correct (avg_quiz_score_pct, from completed
+    sessions of every quiz with the tag, archived ones included; null when none graded).
 
     Same data as GET /api/v1/knowledge/analytics/tags.
     """

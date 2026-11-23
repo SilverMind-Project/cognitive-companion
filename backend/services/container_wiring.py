@@ -35,6 +35,7 @@ ALWAYS_REQUIRED: frozenset[str] = frozenset(
         "activity",
         "signals",
         "knowledge_delivery",
+        "knowledge_query",
         "minio_client",
         "guided_task",
         "camera_source_resolver",

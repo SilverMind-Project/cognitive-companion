@@ -16,6 +16,6 @@ Every documentation artifact across the SilverMind repositories belongs in exact
 
 | File | Kind | Purpose |
 | --- | --- | --- |
-| [systems-architecture.md](systems-architecture.md) | Architecture reference | Single-file technical reference for `cognitive-companion`: runtime stack, backend layering, unified camera aggregation and image rate limiting, rules and graph pipelines, unified execution observability, plugin registries (28 step types, 7 channels, 13 filters), CTS integration and `PersonLocationService` SSOT, and frontend surfaces |
+| [systems-architecture.md](systems-architecture.md) | Architecture reference | Single-file technical reference for `cognitive-companion`: runtime stack, backend layering, unified camera aggregation and image rate limiting, rules and graph pipelines, unified execution observability, plugin registries (29 step types, 7 channels, 13 filters), CTS integration and `PersonLocationService` SSOT, and frontend surfaces |
 | [api/reference.md](api/reference.md) | API contract reference | Complete BFF HTTP (`/api/v1/*`), WebSocket (`/ws/pipeline`), and MCP (`/mcp`) contract reference, including permissions, envelopes, and error codes |
 | [maintenance/cleanup_legacy_door_zones.sql](maintenance/cleanup_legacy_door_zones.sql) | Maintenance script | Idempotent operator SQL cleanup for legacy door-zone records |

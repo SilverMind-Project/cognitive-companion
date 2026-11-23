@@ -107,7 +107,12 @@ class InteractivePromptHandler(StepHandler):
                     "voice_instruction": {
                         "type": "string",
                         "default": "",
-                        "description": "Prepended to the Gemini Live system instruction for this prompt. Falls back to knowledge_voice.yaml interactive_prompt_default when empty.",
+                        "description": (
+                            "Added to the companion's persona while this prompt is spoken "
+                            "(the persona is kept). Falls back to knowledge_voice.yaml "
+                            "interactive_prompt_default when empty. Supports {{template}} "
+                            "syntax."
+                        ),
                     },
                 },
                 "anyOf": [

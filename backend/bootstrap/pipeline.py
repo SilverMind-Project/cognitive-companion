@@ -46,6 +46,7 @@ def wire_service_container(
         llm_model_registry=app.state.llm_model_registry,
         minio_client=app.state.minio_client,
         knowledge_delivery=app.state.knowledge_delivery,
+        knowledge_query=app.state.knowledge_query,
     )
     app.state.service_container = services_container
 

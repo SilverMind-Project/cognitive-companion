@@ -127,6 +127,7 @@ import {
   STEP_ICONS,
   STEP_LABELS,
 } from "./steps/index.js";
+import { instanceOutputSchema } from "./steps/stepMeta.js";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -215,7 +216,7 @@ const ruleContext = computed(() => {
   for (const s of props.allSteps) {
     const schema = stepTypeSchemas.value[s.step_type];
     if (s.label && schema?.output_schema?.properties) {
-      stepOutputs[s.label] = schema.output_schema;
+      stepOutputs[s.label] = instanceOutputSchema(schema.output_schema, s.config_json);
     }
   }
   return { labels, stepOutputs };
@@ -259,7 +260,8 @@ function _buildPipelineReference() {
   for (const s of props.allSteps || []) {
     const stepMetaSchema = stepTypeSchemas.value[s.step_type];
     if (!stepMetaSchema?.output_schema?.properties) continue;
-    for (const [propName] of Object.entries(stepMetaSchema.output_schema.properties)) {
+    const outputs = instanceOutputSchema(stepMetaSchema.output_schema, s.config_json);
+    for (const [propName] of Object.entries(outputs.properties)) {
       entries.push({
         key: `steps.${s.label}.outputs.${propName}`,
         source: `${s.label} (${s.step_type})`,

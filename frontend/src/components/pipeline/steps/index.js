@@ -101,7 +101,23 @@ import MediaWindowPollConfig, {
 import InfoCardConfig, {
   stepDefaults as infoCardDefaults,
   stepTabs as infoCardTabs,
+  chips as infoCardChips,
 } from "./InfoCardConfig.vue";
+import KnowledgeQueryConfig, {
+  stepDefaults as knowledgeQueryDefaults,
+  stepTabs as knowledgeQueryTabs,
+  chips as knowledgeQueryChips,
+} from "./KnowledgeQueryConfig.vue";
+import QuizStartConfig, {
+  stepDefaults as quizStartDefaults,
+  stepTabs as quizStartTabs,
+  chips as quizStartChips,
+} from "./QuizStartConfig.vue";
+import GuidedTaskStartConfig, {
+  stepDefaults as guidedTaskStartDefaults,
+  stepTabs as guidedTaskStartTabs,
+  chips as guidedTaskStartChips,
+} from "./GuidedTaskStartConfig.vue";
 import ImageCropConfig, {
   stepDefaults as imageCropDefaults,
   stepTabs as imageCropTabs,
@@ -212,12 +228,24 @@ export const stepConfigMap = {
   },
   interactive_prompt: { component: InteractivePromptConfig, defaults: ipDefaults, tabs: ipTabs },
   guided_task_start: {
-    component: GenericPluginConfig,
-    defaults: { require_presence: true, dedupe_hours: 0 },
-    tabs: genericTabs,
+    component: GuidedTaskStartConfig,
+    defaults: guidedTaskStartDefaults,
+    tabs: guidedTaskStartTabs,
+    chips: guidedTaskStartChips,
   },
   media_window_poll: { component: MediaWindowPollConfig, defaults: mwpDefaults, tabs: mwpTabs },
-  info_card: { component: InfoCardConfig, defaults: infoCardDefaults, tabs: infoCardTabs },
+  info_card: {
+    component: InfoCardConfig,
+    defaults: infoCardDefaults,
+    tabs: infoCardTabs,
+    chips: infoCardChips,
+  },
+  knowledge_query: {
+    component: KnowledgeQueryConfig,
+    defaults: knowledgeQueryDefaults,
+    tabs: knowledgeQueryTabs,
+    chips: knowledgeQueryChips,
+  },
   image_crop: {
     component: ImageCropConfig,
     defaults: imageCropDefaults,
@@ -235,7 +263,12 @@ export const stepConfigMap = {
     tabs: regionPresenceTabs,
     chips: regionPresenceChips,
   },
-  quiz_start: { component: GenericPluginConfig, defaults: {}, tabs: genericTabs },
+  quiz_start: {
+    component: QuizStartConfig,
+    defaults: quizStartDefaults,
+    tabs: quizStartTabs,
+    chips: quizStartChips,
+  },
   media_presign: {
     component: GenericPluginConfig,
     defaults: { object_names_key: [], retention_minutes: 240, output_key: "presigned_images" },

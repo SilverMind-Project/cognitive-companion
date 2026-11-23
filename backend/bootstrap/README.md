@@ -135,7 +135,7 @@ No `container` parameter -- runs before `ServiceContainer` exists.
 
 | Attribute | Depends on |
 | --- | --- |
-| `service_container` | `notification_dispatcher`, `ha_client`, `llm_model_registry`, `minio_client`, `knowledge_delivery` |
+| `service_container` | `notification_dispatcher`, `ha_client`, `llm_model_registry`, `minio_client`, `knowledge_delivery`, `knowledge_query` |
 
 `rules_engine` is built here too but is never assigned to `app.state`; it
 is a plain return value consumed later in this same module (`setup_scheduler`).

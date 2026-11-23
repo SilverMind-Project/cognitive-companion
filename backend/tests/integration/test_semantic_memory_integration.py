@@ -256,6 +256,36 @@ class TestSemanticMemoryQueryStep:
         assert result.success is True
         assert result.data["memory_context"]["observations_count"] == 1
 
+    async def test_templates_in_room_query_and_filters_are_rendered(self):
+        """The editor offers {{template}} input for these fields; the step used to pass
+        the braces to semantic memory verbatim."""
+        memory_query = MagicMock()
+        memory_query.room_context = AsyncMock(return_value=RoomContext(room_id="bedroom"))
+        services = _make_services(memory_query=memory_query)
+        step = MagicMock(
+            config_json={
+                "room_id": "{{steps.where.outputs.room}}",
+                "query_text": "{{topic}} near the {{trigger.room_name}}",
+                "objects_any": ["{{topic}}", "{{steps.missing.outputs.x}}x"],
+                "hazard_flags_any": ["{{hazard}}"],
+            },
+        )
+        pipeline_data = {
+            "steps": {"where": {"outputs": {"room": "bedroom"}}},
+            "topic": "kettle",
+            "hazard": "stove_on",
+        }
+
+        await SemanticMemoryQueryHandler().execute(
+            step, MagicMock(id=1), pipeline_data, _make_trigger(), services
+        )
+
+        args, kwargs = memory_query.room_context.await_args
+        assert args[0] == "bedroom"
+        assert kwargs["query_text"] == "kettle near the kitchen"
+        assert kwargs["objects_any"] == ("kettle", "{{steps.missing.outputs.x}}x")
+        assert kwargs["hazard_flags_any"] == ("stove_on",)
+
     async def test_no_client_returns_empty(self):
         handler = SemanticMemoryQueryHandler()
         step = MagicMock(config_json={})

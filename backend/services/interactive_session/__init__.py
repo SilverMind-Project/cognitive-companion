@@ -12,6 +12,8 @@ from backend.services.interactive_session.prompt_injection import inject_session
 from backend.services.interactive_session.tagging import (
     prefix_for_delivery,
     register_session_prefix,
+    voice_owner_for,
+    voice_owner_key,
 )
 
 __all__ = [
@@ -22,4 +24,6 @@ __all__ = [
     "register_session_prefix",
     "resume_owning_pipeline",
     "schedule_session_timeout",
+    "voice_owner_for",
+    "voice_owner_key",
 ]

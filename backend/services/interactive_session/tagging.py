@@ -24,3 +24,25 @@ def prefix_for_delivery(metadata: dict[str, Any] | None) -> str:
     if builder is None or session_id is None:
         return ""
     return builder(int(session_id))
+
+
+def voice_owner_key(delivery_type: str, delivery_ref: int) -> str:
+    """Identify the delivery that owns a realtime system instruction.
+
+    ``delivery_ref`` is the session id for an interactive session and the delivery id
+    for a one-shot delivery such as an info card.
+    """
+    return f"{delivery_type}:{delivery_ref}"
+
+
+def voice_owner_for(metadata: dict[str, Any] | None) -> str | None:
+    """Return the owner key carried by backend-task metadata, or None when it has none."""
+    if not metadata:
+        return None
+    delivery_type = metadata.get("delivery_type")
+    delivery_ref = metadata.get("session_id")
+    if delivery_ref is None:
+        delivery_ref = metadata.get("delivery_id")
+    if not delivery_type or delivery_ref is None:
+        return None
+    return voice_owner_key(str(delivery_type), int(delivery_ref))

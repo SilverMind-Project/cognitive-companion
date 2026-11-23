@@ -52,6 +52,11 @@ def validate_knowledge_models(settings: Settings, registry: LLMModelRegistry) ->
     return invalid
 
 
+def knowledge_model_requirements(settings: Settings) -> dict[str, str]:
+    """The model id each knowledge feature depends on, keyed by its setting."""
+    return {key: settings.as_str(key, allow_empty=True) for key in KNOWLEDGE_MODEL_SETTING_KEYS}
+
+
 def wire_knowledge(app: FastAPI, settings: Settings) -> None:
     minio_client = app.state.minio_client
     ws_manager = app.state.ws_manager

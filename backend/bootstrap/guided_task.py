@@ -278,6 +278,23 @@ async def wire_guided_task(
     )
     logger.info("knowledge_reembed_job_scheduled", interval_minutes=10)
 
+    # -- Served-model check (once, at startup) ---------------------------
+    # validate_knowledge_models only proves an id is in llm.models; the server behind
+    # it may still not serve that model, and then every knowledge answer, draft, and
+    # grade fails on call. A one-shot job so a slow or unreachable server never delays
+    # boot; findings are logged as llm_model_not_served.
+    from backend.bootstrap.knowledge import knowledge_model_requirements
+    from backend.services.llm_model_health import log_unserved_models
+
+    scheduler.add_job(
+        log_unserved_models,
+        args=[settings.as_list("llm.models")],
+        kwargs={"required_ids": knowledge_model_requirements(settings)},
+        id="llm_served_model_check",
+        name="Check configured LLM models are served",
+        replace_existing=True,
+    )
+
     # -- Person-location tick: inferred-dwell timeout +
     # per-source quiet-gap segment closure. Previously an asyncio task owned
     # by CTSRuntime (only running when cts.enabled); now on the shared

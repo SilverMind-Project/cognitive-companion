@@ -4,7 +4,6 @@ Admin endpoints for health checks and configuration management.
 
 from __future__ import annotations
 
-import asyncio
 import copy
 import re
 
@@ -24,6 +23,7 @@ from backend.schemas.admin import (
     ServiceHealthOut,
     TelegramTriggerDefaultsOut,
 )
+from backend.services.llm_model_health import check_served_models
 
 logger = get_logger(__name__)
 
@@ -233,38 +233,8 @@ async def triton_health():
     dependencies=[Depends(require_permission("admin:read"))],
 )
 async def llm_models_health() -> list[dict]:
-    """Concurrently check the health of all configured LLM models."""
-    models = settings.as_list("llm.models")
-
-    async def check_model(model: dict) -> dict:
-        model_id = model.get("id", "")
-        name = model.get("name", "")
-        base_url = (model.get("base_url") or "").rstrip("/")
-        configured_model = model.get("model", "")
-
-        base: dict = {"id": model_id, "name": name, "configured_model": configured_model}
-
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(f"{base_url}/v1/models")
-                resp.raise_for_status()
-                data = resp.json()
-                available_ids = [entry.get("id") for entry in data.get("data", [])]
-                if configured_model in available_ids:
-                    return {**base, "status": "success"}
-                else:
-                    return {
-                        **base,
-                        "status": "warning",
-                        "detail": f"configured: {configured_model}, available: {available_ids}",
-                    }
-        except httpx.TimeoutException:
-            return {**base, "status": "error", "detail": "Request timed out"}
-        except Exception as exc:  # noqa: BLE001
-            return {**base, "status": "error", "detail": str(exc)}
-
-    results = await asyncio.gather(*(check_model(m) for m in models))
-    return list(results)
+    """Concurrently check that every configured LLM model is served by its server."""
+    return await check_served_models(settings.as_list("llm.models"))
 
 
 @router.post("/config/reload", response_model=ConfigReloadOut)

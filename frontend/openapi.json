@@ -22200,7 +22200,7 @@
     },
     "/api/v1/admin/health/llm-models": {
       "get": {
-        "description": "Concurrently check the health of all configured LLM models.",
+        "description": "Concurrently check that every configured LLM model is served by its server.",
         "operationId": "llm_models_health",
         "responses": {
           "200": {

@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select, true
+from sqlalchemy import ColumnElement, func, select, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -276,6 +276,7 @@ class GuidedTaskStore:
         """
         db = self._db_factory()
         try:
+            step_filter: ColumnElement[bool]
             if any_step:
                 step_filter = true()
             elif step_ord is None:

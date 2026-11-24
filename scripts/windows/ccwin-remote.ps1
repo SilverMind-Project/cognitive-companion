@@ -412,6 +412,23 @@ function Invoke-GradleCommand {
 # leaves on disk (see Remove-Secrets).
 $script:SecretValues = @()
 
+# Reads a file even while another process holds it open for writing (a log).
+function Read-BytesShared([string]$Path) {
+    $stream = [System.IO.File]::Open($Path, 'Open', 'Read', 'ReadWrite')
+    try {
+        $buffer = New-Object byte[] $stream.Length
+        $read = 0
+        while ($read -lt $buffer.Length) {
+            $count = $stream.Read($buffer, $read, $buffer.Length - $read)
+            if ($count -le 0) { break }
+            $read += $count
+        }
+        return , $buffer
+    } finally {
+        $stream.Dispose()
+    }
+}
+
 function Read-TestArguments {
     $result = @{}
     if (-not $ReadSecrets) { return $result }
@@ -440,7 +457,7 @@ function Remove-Secrets([string[]]$Roots) {
         if (-not (Test-Path $root)) { continue }
         foreach ($file in Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue) {
             if ($file.Length -gt 200MB) { continue }
-            $text = $latin1.GetString([System.IO.File]::ReadAllBytes($file.FullName))
+            $text = $latin1.GetString((Read-BytesShared $file.FullName))
             $changed = $false
             foreach ($secret in $script:SecretValues) {
                 if ($text.Contains($secret)) {
@@ -464,7 +481,7 @@ function Assert-NoSecrets([string[]]$Roots) {
         if (-not (Test-Path $root)) { continue }
         foreach ($file in Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue) {
             if ($file.Length -gt 200MB) { continue }
-            $text = $latin1.GetString([System.IO.File]::ReadAllBytes($file.FullName))
+            $text = $latin1.GetString((Read-BytesShared $file.FullName))
             foreach ($secret in $script:SecretValues) {
                 if ($text.Contains($secret)) { Fail $ExitHarness "a secret survived in $($file.FullName)" }
             }
@@ -497,8 +514,9 @@ function Invoke-TestInstrumented {
         $outputs = @((Join-Path $AndroidDir 'app\build\outputs'), (Join-Path $AndroidDir 'app\build\reports'))
         Remove-Secrets $outputs
         Save-GradleOutputs $runDir
-        Remove-Secrets @($runDir)
+        # The emulator holds its log open until it exits.
         Stop-Avd $emulator
+        Remove-Secrets @($runDir)
     }
     Assert-NoSecrets ($outputs + $runDir)
     Write-Out "run=$RunId target=$serial gradle_exit=$code"

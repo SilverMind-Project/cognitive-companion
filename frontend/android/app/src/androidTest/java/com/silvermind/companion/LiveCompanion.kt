@@ -47,8 +47,15 @@ object LiveCompanion {
      */
     fun launchConnected(): ActivityScenario<MainActivity> {
         val scenario = ActivityScenario.launch(MainActivity::class.java)
-        waitUntil("the companion page to load from the household server") {
-            js(scenario, "document.readyState === 'complete' && location.protocol === 'https:'") == "true"
+        // On failure, say where the page stuck (no answer at all, about:blank, loading).
+        var lastSeen = "no answer from the WebView"
+        try {
+            waitUntil("the companion page to load from the household server") {
+                lastSeen = js(scenario, "location.href + ' ' + document.readyState")
+                js(scenario, "document.readyState === 'complete' && location.protocol === 'https:'") == "true"
+            }
+        } catch (timeout: AssertionError) {
+            throw AssertionError("${timeout.message}; last seen: $lastSeen", timeout)
         }
         val settings = JSONObject()
             .put("kioskEnabled", true)

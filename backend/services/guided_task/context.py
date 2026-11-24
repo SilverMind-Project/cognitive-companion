@@ -26,7 +26,7 @@ from typing import Any
 from cachetools import TTLCache
 from sqlalchemy.orm import Session
 
-from backend.core.config import SettingNotFoundError, Settings
+from backend.core.config import Settings
 from backend.core.config import settings as default_settings
 from backend.core.exceptions import NotFoundError, ValidationError
 from backend.core.logging import get_logger
@@ -47,6 +47,8 @@ from backend.services.interactive_session.pipeline_link import resume_owning_pip
 from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
 
 logger = get_logger(__name__)
+
+_RUNTIME_CACHE_TTL_S = 86400
 
 
 class RuntimeContext:
@@ -117,19 +119,16 @@ class RuntimeContext:
         self.gate_runner = gate_runner
         self.camera_source_resolver = camera_source_resolver
         self.event_aggregator = event_aggregator
-        try:
-            resume_grace_s = self.settings.as_int("guided_task.resume_grace_s")
-        except SettingNotFoundError:
-            resume_grace_s = 600
-        # TTL is a memory bound only; correctness relies on the
-        # explicit elapsed-time comparisons at each read site, not on cache
-        # eviction. Eagerly evicted per-session on terminal transitions too
-        # (see evict_runtime_state).
+        # A memory bound only, never the correctness gate: every read compares
+        # timestamps explicitly, and entries are evicted on terminal transitions
+        # (evict_runtime_state). It must outlive any step's timeout plus the resume
+        # grace; tying it to the grace alone silently forgot vision progress on a
+        # step whose timeout is longer than the grace.
         self.last_watch_at: TTLCache[tuple[int, int], datetime] = TTLCache(
-            maxsize=4096, ttl=resume_grace_s, timer=lambda: self.time_fn().timestamp()
+            maxsize=4096, ttl=_RUNTIME_CACHE_TTL_S, timer=lambda: self.time_fn().timestamp()
         )
         self.progress_seen_at: TTLCache[tuple[int, int], datetime] = TTLCache(
-            maxsize=4096, ttl=resume_grace_s, timer=lambda: self.time_fn().timestamp()
+            maxsize=4096, ttl=_RUNTIME_CACHE_TTL_S, timer=lambda: self.time_fn().timestamp()
         )
 
     # ------------------------------------------------------------------

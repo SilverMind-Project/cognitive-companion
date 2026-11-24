@@ -74,7 +74,7 @@ class Watch:
                 continue
 
             policy = resolve_policy(routine, step, ctx.settings)
-            if (tick_at - session.last_activity_at).total_seconds() > policy.resume_grace_s:
+            if self._idle_beyond_backstop(session, step, policy, tick_at):
                 decision = GuidedTaskStateMachine.decide(
                     ctx.session_view(session, steps),
                     ctx.step_view(step),
@@ -103,6 +103,28 @@ class Watch:
                 await self._escalate_safety(
                     session, routine, steps, step, policy, safety_events, tick_at
                 )
+
+    def _idle_beyond_backstop(
+        self, session: GuidedSession, step: RoutineStep, policy: Any, now: datetime
+    ) -> bool:
+        """Whether the session has been idle past the point its owner should have acted.
+
+        For a step in progress the timeout ladder owns idleness; this is only a
+        backstop for a timeout job lost on restart, so it waits for the step's own
+        timeout plus the resume grace, measured from the later of her last
+        activity and the vision watch's last sign of progress. Comparing idle time
+        with the grace alone would abandon a step whose timeout is longer than the
+        grace (a long steep) or one the vision watch sees progressing. A summoning
+        session has no step timeout, so the grace alone applies.
+        """
+        idle_from = session.last_activity_at
+        budget_s = policy.resume_grace_s
+        if session.status in ("active", "waiting"):
+            progress_at = self._ctx.progress_seen_at.get((session.id, step.ord))
+            if progress_at is not None and progress_at > idle_from:
+                idle_from = progress_at
+            budget_s += policy.step_timeout_s
+        return (now - idle_from).total_seconds() > budget_s
 
     async def _escalate_safety(
         self,

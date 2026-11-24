@@ -512,3 +512,66 @@ async def test_watch_error_isolated_from_safety_watch(db_session, monkeypatch) -
     # Should not throw exception, and safety should still run
     await svc.tick(clock.now)
     assert safety.evaluated is True
+
+
+@pytest.mark.asyncio
+async def test_long_step_is_not_abandoned_before_its_own_timeout(db_session) -> None:
+    """A step timeout longer than the resume grace (a long steep) used to be
+    abandoned by the tick at the grace, before its own timeout fired."""
+    from backend.models.guided_task import GuidedSession
+
+    member = db_session.get(HouseholdMember, "resident-1")
+    if not member:
+        db_session.add(HouseholdMember(id="resident-1", name="Resident"))
+        db_session.flush()
+    routine = Routine(name="Steep tea", person_id="resident-1", is_enabled=True)
+    routine.steps.append(RoutineStep(ord=0, prompt_template="Steep", step_timeout_s_override=900))
+    db_session.add(routine)
+    db_session.commit()
+    clock = _Clock()
+    svc = GuidedTaskService(
+        db_factory=lambda: db_session,
+        voice=_RecordingVoice(),
+        escalator=_RecordingEscalator(),
+        settings=_settings(),
+        time_fn=clock,
+        safety_watch=FakeSafetyWatch(),
+    )
+    session = await svc.start(routine.id, "resident-1")
+
+    clock.advance(601)
+    await svc.tick(clock.now)
+    db_session.expire_all()
+    assert db_session.get(GuidedSession, session.id).status == "active"
+
+    # The step timeout never fired (a job lost on restart): the tick is the
+    # backstop once the step's timeout plus the grace has passed.
+    clock.advance(900)
+    await svc.tick(clock.now)
+    db_session.expire_all()
+    assert db_session.get(GuidedSession, session.id).status == "abandoned"
+
+
+@pytest.mark.asyncio
+async def test_vision_progress_holds_off_the_idle_backstop(db_session) -> None:
+    from backend.models.guided_task import GuidedSession
+
+    routine_id = _seed_routine_with_watch(db_session, watch_enabled=False)
+    clock = _Clock()
+    svc = GuidedTaskService(
+        db_factory=lambda: db_session,
+        voice=_RecordingVoice(),
+        escalator=_RecordingEscalator(),
+        settings=_settings(),
+        time_fn=clock,
+        safety_watch=FakeSafetyWatch(),
+    )
+    session = await svc.start(routine_id, "resident-1")
+
+    clock.advance(800)
+    svc._progress_seen_at[(session.id, 0)] = clock.now
+    clock.advance(800)
+    await svc.tick(clock.now)
+
+    db_session.expire_all()
+    assert db_session.get(GuidedSession, session.id).status == "active"

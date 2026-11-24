@@ -270,7 +270,7 @@ async def test_no_progress_does_not_suppress(db_session, monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_suppression_does_not_block_abandonment(db_session, monkeypatch) -> None:
+async def test_abandonment_follows_the_last_vision_progress(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
 
     monkeypatch.setattr(
@@ -306,10 +306,24 @@ async def test_suppression_does_not_block_abandonment(db_session, monkeypatch) -
     # Run watch -> progress seen
     await svc.tick(clock.now)
 
-    # Advance clock past resume_grace_s (650s)
+    # Vision progress holds off the idle backstop while it keeps coming (an
+    # owner decision that relaxes the original "suppression only delays" rule).
     clock.advance(650)
+    await svc.tick(clock.now)
+    db_session.expire_all()
+    assert svc._store.get_session(session.id).status == "active"
 
-    # Tick should run abandonment check and transition session to abandoned
+    # Once progress stops, the backstop abandons after the step timeout plus
+    # the resume grace (100 + 600 s) measured from the last progress.
+    gate_runner.verdict_to_return = GateVerdict(
+        complete=False,
+        confidence=0.2,
+        reason="no_progress",
+        node_results={},
+        cost={},
+        profile="watch",
+    )
+    clock.advance(701)
     await svc.tick(clock.now)
 
     db_session.expire_all()

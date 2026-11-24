@@ -130,8 +130,11 @@ def wire_core_services(app: FastAPI, settings: Settings) -> None:
     from backend.websocket.connection_manager import ConnectionManager
     from backend.websocket.pipeline_manager import PipelineConnectionManager
 
+    # Companion surfaces (/ws/audio) and the admin CTS live view (/ws/cts) get
+    # separate managers: a broadcast to one must never reach the other.
     ws_manager = ConnectionManager()
     app.state.ws_manager = ws_manager
+    app.state.cts_ws_manager = ConnectionManager()
 
     pipeline_ws_manager = PipelineConnectionManager()
     app.state.pipeline_ws_manager = pipeline_ws_manager

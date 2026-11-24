@@ -105,7 +105,8 @@ No `container` parameter -- runs before `ServiceContainer` exists.
 | `ha_client` | -- |
 | `telegram_client` | -- |
 | `tts_client` | -- |
-| `ws_manager` | -- |
+| `ws_manager` | -- (companion surfaces, `/ws/audio`) |
+| `cts_ws_manager` | -- (admin CTS live view, `/ws/cts`; never shares a broadcast with `ws_manager`) |
 | `pipeline_ws_manager` | -- |
 | `realtime_provider` | -- |
 | `llm_admission_controller` | -- |

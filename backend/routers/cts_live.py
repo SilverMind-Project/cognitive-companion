@@ -74,7 +74,9 @@ async def cts_live_websocket(websocket: WebSocket) -> None:
         await websocket.close(code=1008, reason="permission_denied")
         return
 
-    manager: ConnectionManager | None = websocket.app.state.ws_manager
+    # Its own manager: CTS frames must never reach a resident's companion surface,
+    # and an admin live view must never count as a companion surface being open.
+    manager: ConnectionManager | None = websocket.app.state.cts_ws_manager
     if manager is None:
         logger.error("cts_live_ws_rejected_no_manager", client=client_ip)
         await websocket.close(code=1011, reason="server_not_ready")

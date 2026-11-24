@@ -53,7 +53,7 @@ async def wire_cts(
     from backend.services.cts.ph_enrichment import PHEnrichmentService
     from backend.services.cts.runtime import CTSRuntime, CTSRuntimeConfig
 
-    ws_manager = app.state.ws_manager
+    ws_manager = app.state.cts_ws_manager
     pipeline_executor = app.state.pipeline_executor
     minio_client = app.state.minio_client
     scene_analysis_client = app.state.scene_analysis_client

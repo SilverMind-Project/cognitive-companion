@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Device-owner kiosk: no policies beyond those a device owner holds by default. -->
+<device-admin>
+    <uses-policies />
+</device-admin>

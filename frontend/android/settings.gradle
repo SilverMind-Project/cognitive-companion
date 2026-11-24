@@ -1,0 +1,8 @@
+include ':app'
+// The shell's decision logic (leases, volume floor, attention), built and tested
+// without the Android SDK; see companion-core/settings.gradle.kts.
+includeBuild('companion-core')
+include ':capacitor-cordova-android-plugins'
+project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
+
+apply from: 'capacitor.settings.gradle'

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Google TV / Android TV home-screen banner (320x180). A plain brand panel
+     until a designed banner image replaces it. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/ic_launcher_background" />
+    <size android:width="320dp" android:height="180dp" />
+</shape>

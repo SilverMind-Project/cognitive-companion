@@ -1,0 +1,97 @@
+package com.silvermind.companion
+
+import android.Manifest
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.content.Context
+import android.os.Bundle
+import android.webkit.PermissionRequest
+import com.getcapacitor.BridgeActivity
+import com.getcapacitor.BridgeWebChromeClient
+
+/**
+ * The companion screen: the household server's companion page in a WebView that may
+ * play audio and capture the microphone without a tap.
+ *
+ * A resident with dementia cannot be expected to walk up to a sleeping tablet and
+ * tap "Begin" after every reboot or crash, which is all a browser would allow. Here
+ * the page can be woken, heard, and listen as soon as the server asks, and the
+ * Android shell only moves bytes: what to say and when to listen is decided by the
+ * server and the page.
+ */
+class MainActivity : BridgeActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        registerPlugin(CompanionHardwarePlugin::class.java)
+        super.onCreate(savedInstanceState)
+
+        // Shown over the lock screen and allowed to turn the screen on, so a wake
+        // command from the server is seen without unlocking.
+        setShowWhenLocked(true)
+        setTurnScreenOn(true)
+
+        val webView = bridge.webView
+        webView.settings.mediaPlaybackRequiresUserGesture = false
+        webView.webChromeClient = CompanionChromeClient(this)
+
+        if (isDeviceOwner()) enterKiosk()
+        CompanionForegroundService.start(this)
+    }
+
+    private fun isDeviceOwner(): Boolean =
+        getSystemService(DevicePolicyManager::class.java).isDeviceOwnerApp(packageName)
+
+    /**
+     * As device owner (provisioned once with `adb shell dpm set-device-owner`), grant
+     * the capture permissions silently, keep the keyguard away, and pin the app so a
+     * stray touch cannot leave it.
+     */
+    private fun enterKiosk() {
+        val dpm = getSystemService(DevicePolicyManager::class.java)
+        val admin = CompanionDeviceAdminReceiver.component(this)
+        for (permission in KIOSK_PERMISSIONS) {
+            dpm.setPermissionGrantState(
+                admin,
+                packageName,
+                permission,
+                DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED,
+            )
+        }
+        dpm.setKeyguardDisabled(admin, true)
+        dpm.setLockTaskPackages(admin, arrayOf(packageName))
+        startLockTask()
+    }
+
+    /**
+     * Grants the page's own capture requests (microphone, camera) without a prompt.
+     * Any other origin, or any other resource, is denied.
+     */
+    private class CompanionChromeClient(private val activity: MainActivity) :
+        BridgeWebChromeClient(activity.bridge) {
+        override fun onPermissionRequest(request: PermissionRequest) {
+            val ownOrigin = activity.bridge.serverUrl?.let { android.net.Uri.parse(it) }
+            val fromOwnOrigin = ownOrigin != null &&
+                request.origin.scheme == ownOrigin.scheme &&
+                request.origin.host == ownOrigin.host
+            val allowed = request.resources.filter { it in CAPTURE_RESOURCES }
+            if (fromOwnOrigin && allowed.isNotEmpty()) {
+                request.grant(allowed.toTypedArray())
+            } else {
+                request.deny()
+            }
+        }
+    }
+
+    companion object {
+        private val KIOSK_PERMISSIONS = listOf(
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.CAMERA,
+            Manifest.permission.POST_NOTIFICATIONS,
+        )
+        private val CAPTURE_RESOURCES = setOf(
+            PermissionRequest.RESOURCE_AUDIO_CAPTURE,
+            PermissionRequest.RESOURCE_VIDEO_CAPTURE,
+        )
+
+        fun component(context: Context) = ComponentName(context, MainActivity::class.java)
+    }
+}

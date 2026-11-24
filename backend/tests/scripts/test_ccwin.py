@@ -71,7 +71,15 @@ def harness(tmp_path: Path):
     (repo / "frontend").mkdir()
     shutil.copy2(_SCRIPT, repo / "scripts" / "ccwin")
     (repo / "frontend" / ".nvmrc").write_text("24.16.0\n")
-    (repo / ".gitignore").write_text(".env\n")
+    (repo / ".gitignore").write_text(".env\n/scripts/ccwin.local.env\n")
+    (repo / "scripts" / "ccwin.local.env").write_text(
+        "# test settings\n"
+        "CCWIN_HOST=buildpc\n"
+        "CCWIN_REMOTE_ROOT='C:\\ccwin'\n"
+        "CCWIN_TABLET_AVD=test_tablet\n"
+        "CCWIN_TV_AVD=test_tv\n"
+        "CCWIN_SURFACE_ID=test-surface\n"
+    )
     _git(repo, "init", "-q")
     _git(repo, "commit", "-q", "--allow-empty", "-m", "base")
     _git(repo, "add", "-A")
@@ -142,7 +150,8 @@ def test_remote_commands_run_the_deployed_harness_with_exact_exit_codes(harness)
     harness("status")
 
     line = harness.log.read_text().splitlines()[0]
-    assert "-File C:\\ccwin\\bin\\ccwin-remote.ps1 status" in line
+    assert "-File 'C:\\ccwin\\bin\\ccwin-remote.ps1' status" in line
+    assert "-Root 'C:\\ccwin'" in line
     assert line.rstrip().endswith("exit $LASTEXITCODE")
 
 
@@ -221,7 +230,7 @@ def test_live_tests_register_the_surface_and_send_the_key_only_on_stdin(harness)
     assert "caregiver-secret" not in calls
     sent = harness.stdin_log.read_text()
     assert "ccApiKey=device-secret" in sent
-    assert "ccSurfaceId=ccwin-test-device" in sent
+    assert "ccSurfaceId=test-surface" in sent
     assert "caregiver-secret" not in sent
 
 
@@ -232,3 +241,23 @@ def test_live_tests_need_the_device_key(harness):
 
     assert result.returncode == 64
     assert "CC_COMPANION_TEST_API_KEY" in result.stderr
+
+
+def test_the_pc_details_come_only_from_local_settings(harness):
+    (harness.repo / "scripts" / "ccwin.local.env").unlink()
+
+    result = harness("status")
+
+    assert result.returncode == 64
+    assert "CCWIN_HOST CCWIN_REMOTE_ROOT" in result.stderr
+    assert "ccwin.local.env.example" in result.stderr
+    assert harness.log.read_text() == ""
+
+
+def test_the_environment_overrides_local_settings(harness):
+    harness("status", CCWIN_HOST="otherpc")
+
+    # The fake ssh logs its arguments: options, then the host, then the command.
+    args = harness.log.read_text().splitlines()[0].split()
+    assert "otherpc" in args
+    assert "buildpc" not in args

@@ -3,18 +3,23 @@
   Creates or repairs the companion shell's emulators on the Windows build PC.
 
 .DESCRIPTION
-  Run through `scripts/ccwin avd-setup` (as builduser, under the runner lock). Idempotent:
+  Run through `scripts/ccwin avd-setup` (as the build account, under the runner lock),
+  which passes the AVD names from its local settings. Idempotent:
   a missing system image is installed, a missing AVD is created, and an existing AVD
   has only the hardware keys below rewritten, so its data survives.
 
-    companion_tablet_api35    Pixel Tablet, API 35 Google APIs, with an emulated front
+    -TabletAvd            Pixel Tablet, API 35 Google APIs, with an emulated front
                           camera (the attention check needs one) and a microphone.
-    companion_googletv_api36  Google TV 1080p, API 36 (the app's compile and target SDK),
+    -TvAvd                Google TV 1080p, API 36 (the app's compile and target SDK),
                           D-pad and no touchscreen, so TV navigation is exercised as a
                           remote would.
 
   Google ships no x86_64 Google TV image below API 36 (API 34 has only 32-bit x86).
 #>
+param(
+    [Parameter(Mandatory = $true)][string]$TabletAvd,
+    [Parameter(Mandatory = $true)][string]$TvAvd
+)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
@@ -26,7 +31,7 @@ $avdmanager = Join-Path $sdk 'cmdline-tools\latest\bin\avdmanager.bat'
 
 $avds = @(
     @{
-        Name     = 'companion_tablet_api35'
+        Name     = $TabletAvd
         Package  = 'system-images;android-35;google_apis;x86_64'
         Device   = 'pixel_tablet'
         Hardware = [ordered]@{
@@ -37,7 +42,7 @@ $avds = @(
         }
     },
     @{
-        Name     = 'companion_googletv_api36'
+        Name     = $TvAvd
         Package  = 'system-images;android-36;google-tv;x86_64'
         Device   = 'tv_1080p'
         Hardware = [ordered]@{
@@ -71,7 +76,7 @@ function Set-AvdHardware([string]$ConfigPath, [System.Collections.IDictionary]$H
 # The emulator finds an AVD only through <name>.ini in ANDROID_AVD_HOME. `avdmanager
 # create avd -p <dir>` (as the Windows setup guide runs it) writes that pointer under
 # the creating account's own profile instead, so an AVD made that way exists on disk but
-# is invisible to builduser. Writing the pointer here makes every AVD bootable by builduser.
+# is invisible to the build account. Writing the pointer here makes every AVD bootable.
 function Set-AvdPointer([string]$Name, [string]$Package, [string]$AvdDir) {
     $apiLevel = (($Package -split ';')[1]) -replace '^android-', ''
     $pointer = @(

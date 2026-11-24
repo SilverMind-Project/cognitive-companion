@@ -26,3 +26,6 @@ kubernetes/local/
 .qwen/
 .kiro/
 /artifacts/
+
+# scripts/ccwin settings for this household's build PC (network, account, paths)
+/scripts/ccwin.local.env

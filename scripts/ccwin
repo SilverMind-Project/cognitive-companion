@@ -4,12 +4,15 @@
 #
 # This host is aarch64 and Google ships no linux-arm64 Android build tools, so every
 # Android build, lint, and emulator or device test runs on the PC as the non-admin
-# builduser account. The web build and `cap sync` run here; the PC needs no Node.
+# build account. The web build and `cap sync` run here; the PC needs no Node.
+#
+# The PC's address, account, paths, and AVD names are this household's, so they live
+# in scripts/ccwin.local.env (gitignored); copy scripts/ccwin.local.env.example.
 #
 # Usage: scripts/ccwin <command> [args]
 #   doctor                     Check this box (key, Node 24, CC_COMPANION_URL) and the PC.
 #   status                     The PC's in-use flag, runner lock, and latest run.
-#   install-remote             Copy scripts/windows/*.ps1 to C:\ccwin\bin on the PC.
+#   install-remote             Copy scripts/windows/*.ps1 to the PC's bin folder.
 #   sync [--allow-dirty]       Web build + cap sync here, then check out the same commit on the PC.
 #   gradle <task>...           Run Gradle tasks in frontend/android on the PC.
 #   check                      The Android gate: core tests, lint, unit tests, debug APK.
@@ -20,12 +23,17 @@
 #   adb <args>...              adb on the PC (connect ip:port is remembered for later calls).
 #   fetch [run-id|latest]      Copy a run folder back to artifacts/ccwin/<run-id>/.
 #
-# Options (environment):
-#   CCWIN_HOST           SSH host (default buildpc, a ~/.ssh/config entry).
+# Settings (scripts/ccwin.local.env, or the environment, which wins):
+#   CCWIN_HOST           The PC's ~/.ssh/config Host entry (required).
+#   CCWIN_SSH_KEY        That entry's identity file, checked by doctor (optional).
+#   CCWIN_REMOTE_ROOT    The build account's root folder on the PC (required); it holds
+#                        bin, locks, runs, staging, and repos.
+#   CCWIN_TABLET_AVD     The tablet AVD name (required for test-instrumented tablet).
+#   CCWIN_TV_AVD         The Google TV AVD name (required for test-instrumented tv).
 #   CCWIN_WAIT_SECONDS   Wait this long for the PC's runner lock (default 0: fail at once).
 #   CC_COMPANION_URL     The https:// companion page the shell loads (required by sync).
 #   CCWIN_API_ORIGIN     The household BFF (default https://api.nanai.khoofia.com).
-#   CCWIN_SURFACE_ID     The test surface the device connects as (default ccwin-test-device).
+#   CCWIN_SURFACE_ID     The test surface the device connects as (required for test-instrumented).
 #   CCWIN_COMPANION_KEY  The test device key (default: CC_COMPANION_TEST_API_KEY in .env).
 #   CCWIN_GUARD_KEY      A caregiver key, used only on this box to check that no guided
 #                        routine is live and to register the test surface (default:
@@ -45,18 +53,36 @@ readonly EXIT_UNREACHABLE=75
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
-readonly CCWIN_HOST="${CCWIN_HOST:-buildpc}"
+readonly LOCAL_ENV="$REPO_ROOT/scripts/ccwin.local.env"
+
+# The household's own values (gitignored). Variables already in the environment win.
+load_local_env() {
+  [[ -f "$LOCAL_ENV" ]] || return 0
+  local line name value
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
+    [[ "$line" =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]] || continue
+    name="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
+    value="${value%\'}"
+    value="${value#\'}"
+    [[ -n "${!name:-}" ]] || export "$name=$value"
+  done <"$LOCAL_ENV"
+}
+load_local_env
+
+readonly CCWIN_HOST="${CCWIN_HOST:-}"
+readonly CCWIN_REMOTE_ROOT="${CCWIN_REMOTE_ROOT:-}"
 readonly CCWIN_WAIT_SECONDS="${CCWIN_WAIT_SECONDS:-0}"
-readonly REMOTE_BIN='C:\ccwin\bin'
-readonly REMOTE_BIN_SCP='C:/ccwin/bin/'
-readonly REMOTE_STAGING_SCP='C:/ccwin/staging/nanai/'
-readonly REMOTE_RUNS_SCP='C:/ccwin/runs'
+# The PC's paths, in Windows form for PowerShell and with forward slashes for scp.
+readonly REMOTE_BIN="${CCWIN_REMOTE_ROOT}\\bin"
+readonly REMOTE_ROOT_SCP="${CCWIN_REMOTE_ROOT//\\//}"
 readonly WORKSPACE='nanai'
 readonly REPO_NAME='cognitive-companion'
 readonly CHECK_TASKS=':companion-core:test :app:lintDebug :app:testDebugUnitTest :app:assembleDebug'
 readonly INSTRUMENTED_TASKS=':app:connectedDebugAndroidTest'
 readonly CCWIN_API_ORIGIN="${CCWIN_API_ORIGIN:-https://api.nanai.khoofia.com}"
-readonly CCWIN_SURFACE_ID="${CCWIN_SURFACE_ID:-ccwin-test-device}"
+readonly CCWIN_SURFACE_ID="${CCWIN_SURFACE_ID:-}"
 # Every status in which a guided routine is live (services/guided_task/domain.py
 # LIVE_STATUSES). A test socket opened during one could be taken for her tablet.
 readonly LIVE_GUIDED_STATUSES=(summoning active waiting escalated caregiver_takeover)
@@ -74,6 +100,15 @@ die() {
 usage() {
   sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
   exit "$EXIT_USAGE"
+}
+
+require_settings() {
+  local name missing=()
+  for name in "$@"; do
+    [[ -n "${!name:-}" ]] || missing+=("$name")
+  done
+  [[ ${#missing[@]} -eq 0 ]] ||
+    die "$EXIT_USAGE" "set ${missing[*]} in scripts/ccwin.local.env (copy scripts/ccwin.local.env.example)"
 }
 
 new_run_id() {
@@ -124,8 +159,11 @@ ps_quote() {
 run_remote_harness() {
   local command="$1"
   shift
-  local line="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ${REMOTE_BIN}\\ccwin-remote.ps1 ${command}"
-  line+=" -Workspace ${WORKSPACE} -Repo ${REPO_NAME} -WaitSeconds ${CCWIN_WAIT_SECONDS}"
+  local line="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $(ps_quote "${REMOTE_BIN}\\ccwin-remote.ps1") ${command}"
+  line+=" -Root $(ps_quote "$CCWIN_REMOTE_ROOT") -Workspace ${WORKSPACE} -Repo ${REPO_NAME}"
+  line+=" -WaitSeconds ${CCWIN_WAIT_SECONDS}"
+  [[ -z "${CCWIN_TABLET_AVD:-}" ]] || line+=" -TabletAvd $(ps_quote "$CCWIN_TABLET_AVD")"
+  [[ -z "${CCWIN_TV_AVD:-}" ]] || line+=" -TvAvd $(ps_quote "$CCWIN_TV_AVD")"
   local arg
   for arg in "$@"; do
     line+=" $(ps_quote "$arg")"
@@ -186,7 +224,9 @@ build_commit() {
 cmd_doctor() {
   local ok=1
   echo "== this box"
-  [[ -f "$HOME/.ssh/buildpc_ed25519" ]] && echo "ssh key: ok" || { echo "ssh key: missing ~/.ssh/buildpc_ed25519"; ok=0; }
+  if [[ -n "${CCWIN_SSH_KEY:-}" ]]; then
+    [[ -f "${CCWIN_SSH_KEY/#\~/$HOME}" ]] && echo "ssh key: ok" || { echo "ssh key: missing $CCWIN_SSH_KEY"; ok=0; }
+  fi
   if with_node node --version >/dev/null 2>&1; then
     echo "node: $(with_node node --version)"
   else
@@ -205,7 +245,7 @@ cmd_doctor() {
 }
 
 cmd_install_remote() {
-  copy_to_remote "$REMOTE_BIN_SCP" "$REPO_ROOT"/scripts/windows/*.ps1
+  copy_to_remote "$REMOTE_ROOT_SCP/bin/" "$REPO_ROOT"/scripts/windows/*.ps1
   echo "installed $(cd "$REPO_ROOT/scripts/windows" && ls ./*.ps1 | tr '\n' ' ')to $REMOTE_BIN"
 }
 
@@ -248,7 +288,7 @@ cmd_sync() {
   cat >"$stage/sync-manifest.json" <<EOF
 {"commit": "$commit", "base_commit": "$base", "dirty": $dirty, "companion_url": "$CC_COMPANION_URL", "synced_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
 EOF
-  copy_to_remote "$REMOTE_STAGING_SCP" "$stage/repo.bundle" "$stage/cap-android-deps.tar.gz" "$stage/sync-manifest.json"
+  copy_to_remote "$REMOTE_ROOT_SCP/staging/$WORKSPACE/" "$stage/repo.bundle" "$stage/cap-android-deps.tar.gz" "$stage/sync-manifest.json"
   run_remote_harness sync -Commit "$commit"
   echo "ccwin: synced $commit (base $base, dirty $dirty)"
 }
@@ -311,12 +351,14 @@ register_test_surface() {
 cmd_test_instrumented() {
   local target_args=() kind surface_kind
   case "${1:-}" in
-    tablet | tv) target_args=(-Avd "$1"); kind="$1"; surface_kind="$1" ;;
+    tablet) require_settings CCWIN_TABLET_AVD; target_args=(-Avd tablet); kind=tablet; surface_kind=tablet ;;
+    tv) require_settings CCWIN_TV_AVD; target_args=(-Avd tv); kind=tv; surface_kind=tv ;;
     --device)
       [[ -n "${2:-}" && "$2" =~ ^[A-Za-z0-9._:-]+$ ]] || die "$EXIT_USAGE" "test-instrumented --device needs a serial"
       target_args=(-Device "$2"); kind=device; surface_kind=tablet ;;
     *) die "$EXIT_USAGE" "test-instrumented needs tablet, tv, or --device SERIAL" ;;
   esac
+  require_settings CCWIN_SURFACE_ID
   [[ "$CCWIN_SURFACE_ID" =~ ^[A-Za-z0-9._-]+$ ]] || die "$EXIT_USAGE" "invalid CCWIN_SURFACE_ID"
   local device_key guard_key
   device_key="$(env_or_dotenv CCWIN_COMPANION_KEY CC_COMPANION_TEST_API_KEY)"
@@ -349,14 +391,14 @@ cmd_adb() {
 cmd_fetch() {
   local run_id="${1:-latest}"
   if [[ "$run_id" == "latest" ]]; then
-    run_id="$(remote 'Get-Content C:\ccwin\runs\ccwin-latest.txt' | tr -d '\r\n')"
+    run_id="$(remote "Get-Content '${CCWIN_REMOTE_ROOT}\\runs\\ccwin-latest.txt'" | tr -d '\r\n')"
     [[ -n "$run_id" ]] || die "$EXIT_HARNESS" "no runs recorded on $CCWIN_HOST"
   fi
   [[ "$run_id" =~ ^[A-Za-z0-9._-]+$ ]] || die "$EXIT_USAGE" "invalid run id '$run_id'"
   local dest="$REPO_ROOT/artifacts/ccwin"
   mkdir -p "$dest"
   rm -rf "${dest:?}/$run_id"
-  scp -q -r "${SSH_OPTS[@]}" "$CCWIN_HOST:$REMOTE_RUNS_SCP/$run_id" "$dest/" ||
+  scp -q -r "${SSH_OPTS[@]}" "$CCWIN_HOST:$REMOTE_ROOT_SCP/runs/$run_id" "$dest/" ||
     die "$EXIT_HARNESS" "fetching run $run_id failed"
   echo "$dest/$run_id"
 }
@@ -365,6 +407,10 @@ main() {
   [[ $# -gt 0 ]] || usage
   local command="$1"
   shift
+  case "$command" in
+    -h | --help | help) usage ;;
+  esac
+  require_settings CCWIN_HOST CCWIN_REMOTE_ROOT
   case "$command" in
     doctor) cmd_doctor ;;
     status) run_remote_harness status ;;
@@ -378,7 +424,6 @@ main() {
     avd-setup) run_remote_harness avd-setup ;;
     adb) cmd_adb "$@" ;;
     fetch) cmd_fetch "$@" ;;
-    -h | --help | help) usage ;;
     *) die "$EXIT_USAGE" "unknown command '$command' (scripts/ccwin --help)" ;;
   esac
 }

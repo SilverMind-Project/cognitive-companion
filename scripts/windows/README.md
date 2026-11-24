@@ -3,23 +3,26 @@
 `frontend/android/` (the tablet and Google TV shell) cannot be built on the Linux dev
 box: it is aarch64, and Google ships no linux-arm64 Android build tools. It is built,
 linted, and tested on the household's Windows x86_64 PC instead, driven from Linux by
-`scripts/ccwin` over SSH as the PC's non-admin `builduser` account. The two PowerShell
-scripts here are the PC's half; `scripts/ccwin install-remote` copies them to
-`C:\ccwin\bin`.
+`scripts/ccwin` over SSH as the PC's non-admin build account. The two PowerShell
+scripts here are the PC's half; `scripts/ccwin install-remote` copies them to the
+`bin` folder under the account's root on the PC.
 
-The PC setup itself (the `builduser` account, OpenSSH, the firewall rule, the SDK, the JDK,
-the `C:\ccwin` layout) is shared with the other projects that use the PC and is
+The PC setup itself (the build account, OpenSSH, the firewall rule, the SDK, the JDK,
+the root folder layout) is shared with the other projects that use the PC and is
 described once, in `windows-pc-unified-setup-and-cross-project-build-guide.md` at the
 nanai workspace root (Parts 0 to 9). This page covers only what this repository adds.
 
 ## One-time setup on the dev box
 
-1. `~/.ssh/config` has a `Host buildpc` entry (address, `User builduser`,
-   `IdentityFile ~/.ssh/buildpc_ed25519`, `IdentitiesOnly yes`). Confirm the PC's host key
+1. Copy `scripts/ccwin.local.env.example` to `scripts/ccwin.local.env` (gitignored) and
+   fill it in: the PC's SSH host entry, the build account's root folder, the AVD names,
+   and the test surface id. This household's network and PC never enter the repository.
+2. `~/.ssh/config` has that host entry (address, `User`, `IdentityFile`,
+   `IdentitiesOnly yes`). Confirm the PC's host key
    on the PC itself the first time: `ssh-keygen -lf C:\ProgramData\ssh\ssh_host_ed25519_key.pub`.
-2. `scripts/ccwin install-remote`, then `scripts/ccwin avd-setup` (installs the Google TV
+3. `scripts/ccwin install-remote`, then `scripts/ccwin avd-setup` (installs the Google TV
    image and creates or repairs both AVDs; safe to repeat).
-3. `scripts/ccwin doctor` should report the toolchain, WHPX acceleration, both AVDs, the
+4. `scripts/ccwin doctor` should report the toolchain, WHPX acceleration, both AVDs, the
    lock state, and the synced commit.
 
 ## Everyday use
@@ -47,9 +50,9 @@ part of `make check` or `make check-all`, which must pass with the PC off.
   when the session ends, so nothing outlives a call: Gradle runs without a daemon, an
   emulator is booted, used, and killed inside `test-instrumented`, and the adb server
   is restarted each time. There is deliberately no `emulator start` that returns.
-- **The owner comes first.** While `C:\ccwin\locks\in_use.flag` exists (or a desk helper
+- **The owner comes first.** While `<root>\locks\in_use.flag` exists (or a desk helper
   on `127.0.0.1:17420` reports `in_use`), every job refuses with exit 73.
-- **One job at a time.** `C:\ccwin\locks\runner.lock` is held open for the whole job, so a
+- **One job at a time.** `<root>\locks\runner.lock` is held open for the whole job, so a
   killed session releases it. A second job exits 74 at once, or waits up to
   `CCWIN_WAIT_SECONDS`.
 - **A sleeping PC fails fast** (exit 75) instead of retrying.
@@ -70,7 +73,7 @@ They connect to the household server, so `test-instrumented`:
 - refuses to start (exit 69) while any guided routine is summoning, active, waiting,
   escalated, or in caregiver takeover, checked with the caregiver key from `.env`
   (`CC_CAREGIVER_API_KEY`, or `CCWIN_GUARD_KEY`), which never leaves the dev box;
-- registers the room-less test surface `ccwin-test-device` (never a delivery target);
+- registers the room-less test surface `CCWIN_SURFACE_ID` (never a delivery target);
 - passes the dedicated test key (`CC_COMPANION_TEST_API_KEY` in `.env`, or
   `CCWIN_COMPANION_KEY`) to the PC on stdin, never on a command line. The key's role,
   `companion_test_device`, holds exactly a companion screen's tokens plus
@@ -80,7 +83,7 @@ The backend must be deployed with `CC_COMPANION_TEST_API_KEY` set for these to p
 
 ## Physical tablets and Google TV devices
 
-USB devices attached to the owner's desktop session may not be visible to `builduser`, so
+USB devices attached to the owner's desktop session may not be visible to the build account, so
 use wireless debugging. On the device, enable Developer options, then Wireless
 debugging, and pair once:
 

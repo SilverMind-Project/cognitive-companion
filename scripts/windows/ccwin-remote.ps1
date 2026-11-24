@@ -1,21 +1,22 @@
 <#
 .SYNOPSIS
   The Windows half of scripts/ccwin: builds and tests the companion Android shell on the
-  shared Windows build PC, as the non-admin builduser account, over SSH.
+  shared Windows build PC, as its non-admin build account, over SSH.
 
 .DESCRIPTION
-  Deployed to C:\ccwin\bin by `scripts/ccwin install-remote`; never run by hand from a
+  Deployed to <Root>\bin by `scripts/ccwin install-remote`; never run by hand from a
   desktop session. Every command is one SSH session, and Windows OpenSSH kills every
   process a session started when it ends (the session's job object). So nothing here
   outlives the call: Gradle runs without a daemon, an emulator is started and killed
   inside the command that needs it, and the adb server (with its device connections)
   is restarted per call, which is why device commands reconnect the recorded devices.
 
-  Shared protocol with the other projects that use this PC (xrflight's buildpc):
-    C:\ccwin\locks\in_use.flag   The owner is using the PC: refuse to start anything.
-    C:\ccwin\locks\runner.lock   One job at a time. Held open (not merely present) for
+  Shared protocol with the other projects that use this PC (their runners use the same
+  root, given as -Root by scripts/ccwin from its local settings):
+    <Root>\locks\in_use.flag    The owner is using the PC: refuse to start anything.
+    <Root>\locks\runner.lock    One job at a time. Held open (not merely present) for
                                  the whole job, so a killed session releases it.
-    C:\ccwin\runs\<run-id>\      Everything a job produced; `ccwin fetch` copies it back.
+    <Root>\runs\<run-id>\       Everything a job produced; `ccwin fetch` copies it back.
 
   Output is plain text on stdout, errors on stderr, and the exit code is the contract:
     0 ok, 1 the job failed (build or test failure), 64 usage, 70 harness error,
@@ -25,6 +26,8 @@ param(
     [Parameter(Mandatory = $true, Position = 0)]
     [ValidateSet('doctor', 'status', 'sync', 'gradle', 'test-instrumented', 'adb', 'avd-setup')]
     [string]$Command,
+    [Parameter(Mandatory = $true)]
+    [string]$Root,
     [string]$RunId = '',
     [string]$Workspace = 'nanai',
     [string]$Repo = 'cognitive-companion',
@@ -33,6 +36,8 @@ param(
     [ValidateSet('', 'tablet', 'tv')]
     [string]$Avd = '',
     [string]$Device = '',
+    [string]$TabletAvd = '',
+    [string]$TvAvd = '',
     [int]$WaitSeconds = 0,
     [int]$BootTimeoutSeconds = 420,
     [switch]$ReadSecrets,
@@ -45,20 +50,20 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-$builduserRoot = 'C:\ccwin'
-$LockDir = Join-Path $builduserRoot 'locks'
+$RootDir = $Root.TrimEnd('\')
+$LockDir = Join-Path $RootDir 'locks'
 $InUseFlag = Join-Path $LockDir 'in_use.flag'
 $RunnerLock = Join-Path $LockDir 'runner.lock'
-$RunsRoot = Join-Path $builduserRoot 'runs'
-$StagingDir = Join-Path $builduserRoot "staging\$Workspace"
-$RepoDir = Join-Path $builduserRoot "repos\$Workspace\$Repo"
+$RunsRoot = Join-Path $RootDir 'runs'
+$StagingDir = Join-Path $RootDir "staging\$Workspace"
+$RepoDir = Join-Path $RootDir "repos\$Workspace\$Repo"
 $AndroidDir = Join-Path $RepoDir 'frontend\android'
-$DevicesFile = Join-Path $builduserRoot '.android\ccwin-devices.txt'
+$DevicesFile = Join-Path $RootDir '.android\ccwin-devices.txt'
 $LatestFile = Join-Path $RunsRoot 'ccwin-latest.txt'
 $DeskHelperStatus = 'http://127.0.0.1:17420/status'
 $EmulatorPort = 5584
 $EmulatorSerial = "emulator-$EmulatorPort"
-$AvdNames = @{ tablet = 'companion_tablet_api35'; tv = 'companion_googletv_api36' }
+$AvdNames = @{ tablet = $TabletAvd; tv = $TvAvd }
 
 $ExitJobFailed = 1
 $ExitUsage = 64
@@ -74,7 +79,7 @@ function Fail([int]$Code, [string]$Message) {
     exit $Code
 }
 
-# -NoProfile skips builduser's profile, so the toolchain comes from machine scope: the
+# -NoProfile skips the build account's profile, so the toolchain comes from machine scope: the
 # Windows guide sets it there for every account. Reading it here (not hardcoding paths)
 # means a moved SDK or JDK needs no change to this script.
 function Initialize-Toolchain {
@@ -84,8 +89,8 @@ function Initialize-Toolchain {
         Set-Item -Path "env:$name" -Value $value
     }
     $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
-    $env:ANDROID_USER_HOME = Join-Path $builduserRoot '.android'
-    $env:TEMP = Join-Path $builduserRoot '.temp'
+    $env:ANDROID_USER_HOME = Join-Path $RootDir '.android'
+    $env:TEMP = Join-Path $RootDir '.temp'
     $env:TMP = $env:TEMP
     $env:GIT_LFS_SKIP_SMUDGE = '1'
     $env:Path = @(
@@ -226,7 +231,7 @@ function Start-Avd([string]$Name, [string]$RunDir) {
     $avdDir = Join-Path $env:ANDROID_AVD_HOME "$Name.avd"
     # The emulator resolves an AVD through <name>.ini in ANDROID_AVD_HOME, not the folder.
     if (-not (Test-Path $avdDir) -or -not (Test-Path (Join-Path $env:ANDROID_AVD_HOME "$Name.ini"))) {
-        Fail $ExitHarness "AVD $Name is not bootable by builduser; run 'scripts/ccwin avd-setup'"
+        Fail $ExitHarness "AVD $Name is not bootable by this account; run 'scripts/ccwin avd-setup'"
     }
     $log = Join-Path $RunDir "emulator-$Name.log"
     # Headless and wiped: every run starts from the same device state, so a run never
@@ -332,10 +337,11 @@ function Invoke-Doctor {
     Write-Out "accel: $((($accel.Text -split "`n") | Where-Object { $_ -match 'usable|not' }) -join ' ')"
     foreach ($kind in $AvdNames.Keys | Sort-Object) {
         $avd = $AvdNames[$kind]
+        if (-not $avd) { continue }
         Write-Out ("avd {0}={1} exists={2}" -f $kind, $avd, (Test-Path (Join-Path $env:ANDROID_AVD_HOME "$avd.avd")))
     }
-    $drive = [System.IO.DriveInfo]::new('D')
-    Write-Out ("disk D: free={0}GB" -f [int]($drive.AvailableFreeSpace / 1GB))
+    $drive = [System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($RootDir))
+    Write-Out ("disk {0} free={1}GB" -f $drive.Name, [int]($drive.AvailableFreeSpace / 1GB))
     Write-Out "in_use=$(Test-OwnerInUse)"
     Write-Out "runner_lock=$(Get-LockHolder)"
     $synced = 'none'
@@ -500,6 +506,7 @@ function Invoke-TestInstrumented {
     $code = $ExitJobFailed
     try {
         if ($Avd) {
+            if (-not $AvdNames[$Avd]) { Fail $ExitUsage "no AVD name given for '$Avd'" }
             $emulator = Start-Avd $AvdNames[$Avd] $runDir
             $serial = $EmulatorSerial
             Wait-AvdBoot $emulator
@@ -547,8 +554,9 @@ function Invoke-Adb {
 }
 
 function Invoke-AvdSetup {
+    if (-not $TabletAvd -or -not $TvAvd) { Fail $ExitUsage 'avd-setup needs -TabletAvd and -TvAvd (CCWIN_TABLET_AVD, CCWIN_TV_AVD)' }
     Initialize-Toolchain
-    & (Join-Path $PSScriptRoot 'avd-setup.ps1')
+    & (Join-Path $PSScriptRoot 'avd-setup.ps1') -TabletAvd $TabletAvd -TvAvd $TvAvd
     exit $LASTEXITCODE
 }
 

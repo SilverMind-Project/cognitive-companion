@@ -26,6 +26,19 @@ register_session_prefix(
     lambda session_id: f"[guided task session {session_id}]",
 )
 
+
+def step_header(step_ord: int, total_steps: int | None) -> str:
+    """The step marker put before every spoken step prompt.
+
+    The agent must pass this exact ``step_ord`` to ``mark_guided_step_complete``.
+    Without it the agent had to look the step up or guess it from the step's
+    wording, and a wrong guess could match a step a caregiver had just advanced
+    to, completing a step the resident never heard.
+    """
+    of_total = f" of {total_steps}" if total_steps else ""
+    return f"[step_ord {step_ord}{of_total}]"
+
+
 # Once-per-session warning budget for the unsupported voice-override degrade.
 # TTL is a memory bound only (mirrors the pattern in service.py); a
 # session outliving a day is not realistic for this always-on process.
@@ -105,7 +118,7 @@ class AgentSessionVoice:
         )
         await inject_session_prompt(
             self._ws_manager,
-            prompt=rendered_prompt,
+            prompt=f"{step_header(step.ord, getattr(session, 'total_steps', None))} {rendered_prompt}",
             delivery_type=GUIDED_TASK_DELIVERY_TYPE,
             session_id=session.id,
             execution_id=session.execution_id,

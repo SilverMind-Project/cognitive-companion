@@ -269,3 +269,31 @@ def test_test_run_starts_session_without_presence_check(db_factory, db_session) 
     assert session_data["routine_id"] == routine_id
     assert session_data["person_id"] == "resident-1"
     assert session_data["status"] in ("active", "waiting", "summoning", "pending")
+
+
+def test_routine_with_session_history_cannot_be_deleted(db_factory, db_session) -> None:
+    """Deleting a routine that has run used to fail with a 500 (the session's
+    required routine key could not be cleared); it is now refused with a 409
+    that says to disable it, and the routine and its history are untouched."""
+    _seed_member(db_session)
+    client = _client(db_factory, _admin())
+    routine_id = client.post(
+        "/api/v1/routines", json={"name": "Make Tea", "person_id": "resident-1"}
+    ).json()["id"]
+    client.put(
+        f"/api/v1/routines/{routine_id}/steps",
+        json={"steps": [{"ord": 0, "prompt_template": "Boil water."}]},
+    )
+    assert client.post(f"/api/v1/routines/{routine_id}/test-run", json={}).status_code == 201
+
+    deleted = client.delete(f"/api/v1/routines/{routine_id}")
+
+    assert deleted.status_code == 409
+    assert "Disable it instead" in deleted.text
+    assert client.get(f"/api/v1/routines/{routine_id}").status_code == 200
+    assert (
+        client.patch(f"/api/v1/routines/{routine_id}", json={"is_enabled": False}).json()[
+            "is_enabled"
+        ]
+        is False
+    )

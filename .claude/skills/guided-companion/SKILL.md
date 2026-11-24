@@ -130,6 +130,8 @@ and `Runtime.abandon`. Steps reach the companion socket through
 
 ## 8. MCP tools mirror the quiz tools (D3, single-service-layer)
 
+Every spoken step prompt starts with a `[step_ord N of M]` marker (`agent_voice.step_header`), and `mark_guided_step_complete` must receive that exact `step_ord`. Without it the agent guessed the ordinal from the step's wording ("step 1" is `step_ord` 0); a wrong guess that matched a step a caregiver had just advanced to completed a step the resident never heard, defeating the stale-step guard. A routine with any session history cannot be deleted (409, "disable it instead"): sessions are the audit trail and metrics source.
+
 Guided-task tools (`get_active_guided_step`, `mark_guided_step_complete`,
 `repeat_guided_step`, `report_step_blocked`, `request_caregiver_help`) call
 `GuidedTaskService` methods, never the store. Add them to the `mcp.gemini_tools`

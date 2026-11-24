@@ -66,7 +66,7 @@ async def test_speak_step_injects_with_guided_prefix_metadata() -> None:
 
     assert ws.calls == [
         {
-            "prompt": "Pour water.",
+            "prompt": "[step_ord 2] Pour water.",
             "callback": None,
             "voice_instruction": f"{BASE}\n\nGuide Ruth one step at a time.",
             "metadata": {
@@ -161,3 +161,18 @@ async def test_speak_step_turns_the_tablet_microphone_on_first() -> None:
         "reason": "guided_task",
         "session_id": 3,
     }
+
+
+@pytest.mark.asyncio
+async def test_spoken_step_carries_its_step_ord_and_total() -> None:
+    """The agent must not infer the step from its wording ("step 1" is step_ord 0)."""
+    ws = _Ws()
+
+    await _speaker(ws).speak_step(
+        session=_session(total_steps=3),
+        step=SimpleNamespace(ord=0),
+        rendered_prompt="Say only these words: test step 1.",
+        is_retry=False,
+    )
+
+    assert ws.calls[0]["prompt"] == "[step_ord 0 of 3] Say only these words: test step 1."

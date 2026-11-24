@@ -1504,10 +1504,12 @@ async def mark_guided_step_complete(
 ) -> dict:
     """Agent-facing: propose that the resident completed the current guided step.
 
-    Pass ``step_ord`` as the step number you are confirming (the ``step_ord`` you
-    received from ``get_active_guided_step`` or the previous advance). It is required
-    so a repeated call for a step that already advanced is ignored instead of
-    skipping the next step. Always call this only after the resident confirms.
+    Pass ``step_ord`` exactly as given in the ``[step_ord N of M]`` marker of the step
+    you asked her about (or from ``get_active_guided_step`` or the previous advance).
+    Never work it out from the step's wording: ``step_ord`` counts from 0. It is
+    required so a call for a step that has already moved on is ignored instead of
+    completing a step she has not heard. Always call this only after the resident
+    confirms.
 
     Pass ``already_done=True`` when she tells you she had already done this step
     before you asked (not in response to your instruction). Steps whose skip

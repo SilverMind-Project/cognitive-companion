@@ -68,11 +68,26 @@ class GuidedTaskStore:
             db.close()
 
     def delete_routine(self, routine_id: int) -> bool:
+        """Delete a routine that has never run; return False when it does not exist.
+
+        A routine with any session is refused: sessions are the caregiver's audit
+        trail and the source of routine metrics, and they reference the routine
+        with a required key, so deleting it would have to destroy that history.
+        Disabling the routine is the supported way to retire it.
+        """
         db = self._db_factory()
         try:
             routine = db.get(Routine, routine_id)
             if routine is None:
                 return False
+            has_history = db.execute(
+                select(GuidedSession.id).where(GuidedSession.routine_id == routine_id).limit(1)
+            ).first()
+            if has_history is not None:
+                raise ConflictError(
+                    "This routine has session history, so it cannot be deleted. "
+                    "Disable it instead to stop it from running."
+                )
             db.delete(routine)
             db.commit()
             return True

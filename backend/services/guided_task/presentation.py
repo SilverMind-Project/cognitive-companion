@@ -141,6 +141,7 @@ class Presentation:
             attempts=session.attempts,
             routine_system_instruction_override=routine.system_instruction_override,
             resident_name=ctx.resident_name(session.person_id),
+            total_steps=len(ctx.store.list_steps(session.routine_id)),
             language_override=routine.language_override,
             voice_override=routine.voice_override,
         )

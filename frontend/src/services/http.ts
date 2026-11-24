@@ -16,14 +16,15 @@
 import createClient, { type Middleware } from "openapi-fetch";
 
 import type { paths } from "@/generated/api-types";
+import { API_ORIGIN, apiUrl } from "@/services/apiOrigin";
 
 /**
- * Note the empty baseUrl: the OpenAPI path keys already carry the `/api/v1` prefix (the routers
- * are mounted under it), so the paths are absolute already. Setting `baseUrl: "/api/v1"` would
- * request `/api/v1/api/v1/...`. `/metrics` is the one non-prefixed path.
+ * The baseUrl is only the API origin: the OpenAPI path keys already carry the `/api/v1` prefix
+ * (the routers are mounted under it), so setting `baseUrl: "/api/v1"` would request
+ * `/api/v1/api/v1/...`. `/metrics` is the one non-prefixed path.
  */
 export const client = createClient<paths>({
-  baseUrl: "",
+  baseUrl: API_ORIGIN,
   // openapi-fetch captures globalThis.fetch when the client is constructed, at module load.
   // Resolving it per call instead keeps `vi.stubGlobal("fetch",...)` working in specs, and
   // costs one property lookup per request.
@@ -164,7 +165,7 @@ export async function requestJson<T = unknown>(
 
   let response: Response;
   try {
-    response = await fetch(path, { ...options, headers });
+    response = await fetch(apiUrl(path), { ...options, headers });
   } catch (cause) {
     // A transport failure is not an HTTP status; surface it as one recognisable message rather
     // than letting a raw TypeError reach a component (behavior carried over from cts.js).
@@ -193,7 +194,7 @@ export async function requestForm<T = unknown>(
   formData: FormData,
 ): Promise<T> {
   const key = getApiKey();
-  const response = await fetch(path, {
+  const response = await fetch(apiUrl(path), {
     method,
     headers: key ? { "X-API-Key": key } : {},
     body: formData,
@@ -216,14 +217,14 @@ async function toBlobUrl(response: Response): Promise<string> {
  */
 export async function requestBlobUrl(path: string): Promise<string> {
   const key = getApiKey();
-  return toBlobUrl(await fetch(path, { headers: key ? { "X-API-Key": key } : {} }));
+  return toBlobUrl(await fetch(apiUrl(path), { headers: key ? { "X-API-Key": key } : {} }));
 }
 
 /** POST JSON, receive binary, return an object URL. Caller revokes. */
 export async function postJsonForBlobUrl(path: string, body: unknown): Promise<string> {
   const key = getApiKey();
   return toBlobUrl(
-    await fetch(path, {
+    await fetch(apiUrl(path), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -238,7 +239,7 @@ export async function postJsonForBlobUrl(path: string, body: unknown): Promise<s
 export async function postFormForBlobUrl(path: string, formData: FormData): Promise<string> {
   const key = getApiKey();
   return toBlobUrl(
-    await fetch(path, {
+    await fetch(apiUrl(path), {
       method: "POST",
       headers: key ? { "X-API-Key": key } : {},
       body: formData,

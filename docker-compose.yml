@@ -50,6 +50,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # The BFF's HTTPS origin the app calls (api.nanai.khoofia.com); empty keeps
+        # the API on the page's own origin through this container's nginx.
+        VITE_API_ORIGIN: ${CC_API_ORIGIN:-}
     container_name: cc-frontend
     restart: unless-stopped
     ports:

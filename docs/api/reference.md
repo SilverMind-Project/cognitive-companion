@@ -201,6 +201,8 @@ The graph validator rejects unknown step IDs, unknown source ports, cycles that 
 
 ## Companion surfaces and the companion socket
 
+The app and the BFF may be served on separate origins. The frontend builds every request and socket URL from `VITE_API_ORIGIN` (`frontend/src/services/apiOrigin.ts`), which is empty for the same origin. The backend's `cors.origins` must list the app's origin. In this household the app is `https://nanai.khoofia.com` and the BFF is `https://api.nanai.khoofia.com`.
+
 `/ws/audio` is the resident's companion socket. It requires a key holding `companion.audio:act` (`x-api-key` header, or from a browser the `Sec-WebSocket-Protocol` header, which the server echoes on accept). Optional query parameters:
 
 | Parameter | Meaning |

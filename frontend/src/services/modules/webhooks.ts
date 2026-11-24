@@ -1,5 +1,6 @@
 /** Webhook trigger (per-rule HMAC auth) and secret rotation. */
 
+import { apiUrl } from "@/services/apiOrigin";
 import { ApiError, client, unwrap } from "@/services/http";
 
 /**
@@ -14,7 +15,7 @@ export async function triggerWebhook(
   payload: unknown,
   secret: string,
 ): Promise<unknown> {
-  const response = await fetch(`/api/v1/webhooks/${ruleId}`, {
+  const response = await fetch(apiUrl(`/api/v1/webhooks/${ruleId}`), {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Webhook-Secret": secret },
     body: JSON.stringify(payload),

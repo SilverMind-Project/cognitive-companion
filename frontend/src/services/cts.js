@@ -5,6 +5,7 @@
  * tracking microservices directly.
  */
 
+import { wsUrl } from "./apiOrigin";
 import { getApiKey, requestBlobUrl, requestJson } from "./http";
 
 const BASE = "/api/v1/cts";
@@ -252,9 +253,8 @@ export const cts = {
 
   // ── Live view WebSocket ───────────────────────────────────────────────────
   openLiveSocket(onMessage) {
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const key = getApiKey();
-    const url = `${proto}//${window.location.host}/ws/cts`;
+    const url = wsUrl("/ws/cts");
     // Pass API key via Sec-WebSocket-Protocol header (avoids query-param logging).
     const ws = new WebSocket(url, key ? [key] : undefined);
     ws.onmessage = (ev) => {

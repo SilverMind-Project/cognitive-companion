@@ -8,6 +8,7 @@
  * server sends it the deliveries for its room.
  */
 
+import { wsUrl } from "@/services/apiOrigin";
 import { getApiKey } from "@/services/http";
 
 const NOTIFICATION_TYPES = new Set([
@@ -289,6 +290,5 @@ export class WebSocketClient {
   }
 }
 
-// Default instance - connects relative to current host
-const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
-export const wsClient = new WebSocketClient(`${wsProto}//${location.host}/ws/audio`);
+// Default instance: the companion socket on the API origin.
+export const wsClient = new WebSocketClient(wsUrl("/ws/audio"));

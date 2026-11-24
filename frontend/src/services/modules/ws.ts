@@ -6,6 +6,7 @@
  * Components never construct a WebSocket directly.
  */
 
+import { wsUrl } from "@/services/apiOrigin";
 import { getApiKey } from "@/services/http";
 
 /**
@@ -15,12 +16,8 @@ import { getApiKey } from "@/services/http";
  *   thrown: a single bad frame must not tear down a live console.
  */
 export function openPipelineSocket(onMessage: (data: unknown) => void): WebSocket {
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   const key = getApiKey();
-  const ws = new WebSocket(
-    `${proto}//${window.location.host}/ws/pipeline`,
-    key ? [key] : undefined,
-  );
+  const ws = new WebSocket(wsUrl("/ws/pipeline"), key ? [key] : undefined);
   ws.onmessage = (ev: MessageEvent) => {
     try {
       onMessage(JSON.parse(ev.data));

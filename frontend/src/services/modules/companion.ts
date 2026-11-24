@@ -17,7 +17,7 @@ export const recordCompanionSurfaceHeartbeat = (
 /** Wake one registered screen and chime, so a caregiver can see which screen it is. */
 export const runCompanionSurfaceTest = (
   surfaceId: string,
-  data: components["schemas"]["CompanionSurfaceTestIn"] = {},
+  data: components["schemas"]["CompanionSurfaceTestIn"] = { microphone: false },
 ) =>
   unwrap(
     client.POST("/api/v1/companion-surfaces/{surface_id}/test", {

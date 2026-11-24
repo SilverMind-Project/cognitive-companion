@@ -191,10 +191,14 @@ from her UI exactly as `audio_handler` already hides orchestrator prompts.
 - **Native Android tablet and TV shell (`frontend/android/`).** Built, linted (warnings fail), and tested on the Windows build PC through `scripts/ccwin` (`scripts/windows/README.md`); never on the aarch64 dev box. Its instrumented tests run live against the household server as the room-less surface `ccwin-test-device` with the `companion_test_device` key, and refuse to run while a guided routine is live, because a new `/ws/audio` socket can be linked to a live session or chosen for a summoning one. A Capacitor 8 shell loading the companion page from the household HTTPS origin. `MainActivity` sets `mediaPlaybackRequiresUserGesture = false` and grants its own origin's audio/video capture requests; `CompanionHardwarePlugin` wakes the screen (on a TV, HDMI-CEC wakes the set when enabled), raises volume to a floor (never lowers it), plays the chime, enforces the lease, and runs `FrontCameraAttentionAnalyzer` (CameraX + on-device ML Kit). The camera reports only `face_present` and head angles (`surface_attention_state`, `extra="forbid"`): no image, crop, or embedding ever leaves the device. Audio is captured by the page (WebView getUserMedia with echo cancellation), not natively. The decision logic lives in `frontend/android/companion-core/`, a pure Kotlin module tested on any JDK. On a TV, `frontend/src/composables/useTvNavigation.js` moves focus with the remote's arrows in on-screen order (no wrap) within the topmost dialog, Enter selects, and Back/Escape are deliberately unbound so a stray press never dismisses something she has not read.
 
 **Conversation linkage.** Guided sessions reference `conversation_sessions`
-via `guided_sessions.conversation_session_id`, a nullable FK set once a realtime
-companion session is open (`on_session_opened`, `_begin_session`) or, for a caregiver
-message with no live realtime session, created on demand
-(`RuntimeContext.link_conversation`). Guided session ids and conversation session
+via `guided_sessions.conversation_session_id`, a nullable FK. A companion socket
+creates its `conversation_sessions` row on first activity, never on connect (an idle
+reconnect must leave no empty row): its first turn, or a routine beginning on that
+screen (`_begin_session` asks `ws_manager.conversation_session_id(surface, create=True)`,
+so a later caregiver message shares her transcript). On creation the socket calls
+`on_conversation_started`, which links live sessions with none; `on_session_opened`
+(on connect) only re-checks summoning sessions. With no live socket, a caregiver
+message creates one on demand (`RuntimeContext.link_conversation`). Guided session ids and conversation session
 ids are independent autoincrement sequences; never key a `conversation_manager` read
 or write by a guided session id (`ensure_session(guided_session.id)` was the closed
 G2/F3 bug). Every consumer (`caregiver_say`, `get_detail`, `FullEscalator._recent_transcript`,

@@ -239,7 +239,27 @@ class Presentation:
         The console event (``/ws/pipeline``) carries the full diagnostic detail.
         The companion socket (``/ws/audio``) only ever receives the resident-safe
         ``guided_session_state`` built by :meth:`broadcast_resident_state`.
+
+        Best-effort: the transition is already written when this runs, so a
+        failure here is logged and never raised into the caller (an agent tool
+        call, a scheduled timeout, or the watch tick).
         """
+        try:
+            await self._broadcast(session, event_kind=event_kind, actor=actor, detail=detail, at=at)
+        except Exception:
+            logger.exception(
+                "guided_broadcast_failed", session_id=session.id, event_kind=event_kind
+            )
+
+    async def _broadcast(
+        self,
+        session: GuidedSession,
+        *,
+        event_kind: str,
+        actor: str | None,
+        detail: dict | None,
+        at: Any,
+    ) -> None:
         ctx = self._ctx
         event = GuidedSessionUpdateEvent(
             session_id=session.id,

@@ -242,3 +242,20 @@ async def test_terminal_transitions_release_the_guided_voice(db_session, db_fact
         f"guided_task_start:{completed.id}",
         f"guided_task_start:{abandoned.id}",
     ]
+
+
+@pytest.mark.asyncio
+async def test_a_failing_broadcast_never_fails_the_transition(db_session, db_factory) -> None:
+    routine_id = _seed(db_session)
+
+    async def broken_console(payload: dict) -> None:
+        raise RuntimeError("console unavailable")
+
+    service = _service(db_factory, _Clock(), admin_ws_broadcaster=broken_console)
+    session = await service.start(routine_id, "resident-1")
+
+    result = await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
+
+    assert result["advanced"] is True
+    db_session.expire_all()
+    assert (await service.get_active_step(session.id))["step_ord"] == 1

@@ -1,0 +1,386 @@
+#!/usr/bin/env bash
+# ccwin: build and test the companion Android shell (frontend/android) on the shared
+# Windows x86_64 build PC, from this Linux dev box, over SSH.
+#
+# This host is aarch64 and Google ships no linux-arm64 Android build tools, so every
+# Android build, lint, and emulator or device test runs on the PC as the non-admin
+# builduser account. The web build and `cap sync` run here; the PC needs no Node.
+#
+# Usage: scripts/ccwin <command> [args]
+#   doctor                     Check this box (key, Node 24, CC_COMPANION_URL) and the PC.
+#   status                     The PC's in-use flag, runner lock, and latest run.
+#   install-remote             Copy scripts/windows/*.ps1 to C:\ccwin\bin on the PC.
+#   sync [--allow-dirty]       Web build + cap sync here, then check out the same commit on the PC.
+#   gradle <task>...           Run Gradle tasks in frontend/android on the PC.
+#   check                      The Android gate: core tests, lint, unit tests, debug APK.
+#   test-instrumented <tablet|tv|--device SERIAL>
+#                              Boot a wiped AVD (or use a device), run the instrumented
+#                              tests against the live companion page, stop the AVD.
+#   avd-setup                  Create or repair the tablet and Google TV AVDs.
+#   adb <args>...              adb on the PC (connect ip:port is remembered for later calls).
+#   fetch [run-id|latest]      Copy a run folder back to artifacts/ccwin/<run-id>/.
+#
+# Options (environment):
+#   CCWIN_HOST           SSH host (default buildpc, a ~/.ssh/config entry).
+#   CCWIN_WAIT_SECONDS   Wait this long for the PC's runner lock (default 0: fail at once).
+#   CC_COMPANION_URL     The https:// companion page the shell loads (required by sync).
+#   CCWIN_API_ORIGIN     The household BFF (default https://api.nanai.khoofia.com).
+#   CCWIN_SURFACE_ID     The test surface the device connects as (default ccwin-test-device).
+#   CCWIN_COMPANION_KEY  The test device key (default: CC_COMPANION_TEST_API_KEY in .env).
+#   CCWIN_GUARD_KEY      A caregiver key, used only on this box to check that no guided
+#                        routine is live and to register the test surface (default:
+#                        CC_CAREGIVER_API_KEY in .env). It never reaches the PC.
+#
+# Exit codes: 0 ok, 1 the build or tests failed, 64 usage, 69 a guided routine is live
+# in the household (the live tests refuse to run), 70 harness error, 73 the PC is
+# marked in use by its owner, 74 another job holds the PC's runner lock, 75 the PC is
+# unreachable (asleep, off, or off the network).
+
+set -euo pipefail
+
+readonly EXIT_USAGE=64
+readonly EXIT_HOUSEHOLD_BUSY=69
+readonly EXIT_HARNESS=70
+readonly EXIT_UNREACHABLE=75
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly REPO_ROOT
+readonly CCWIN_HOST="${CCWIN_HOST:-buildpc}"
+readonly CCWIN_WAIT_SECONDS="${CCWIN_WAIT_SECONDS:-0}"
+readonly REMOTE_BIN='C:\ccwin\bin'
+readonly REMOTE_BIN_SCP='C:/ccwin/bin/'
+readonly REMOTE_STAGING_SCP='C:/ccwin/staging/nanai/'
+readonly REMOTE_RUNS_SCP='C:/ccwin/runs'
+readonly WORKSPACE='nanai'
+readonly REPO_NAME='cognitive-companion'
+readonly CHECK_TASKS=':companion-core:test :app:lintDebug :app:testDebugUnitTest :app:assembleDebug'
+readonly INSTRUMENTED_TASKS=':app:connectedDebugAndroidTest'
+readonly CCWIN_API_ORIGIN="${CCWIN_API_ORIGIN:-https://api.nanai.khoofia.com}"
+readonly CCWIN_SURFACE_ID="${CCWIN_SURFACE_ID:-ccwin-test-device}"
+# Every status in which a guided routine is live (services/guided_task/domain.py
+# LIVE_STATUSES). A test socket opened during one could be taken for her tablet.
+readonly LIVE_GUIDED_STATUSES=(summoning active waiting escalated caregiver_takeover)
+# Fail fast on a sleeping PC, but never kill a long, quiet Gradle step: a dead link is
+# noticed after ServerAliveInterval * ServerAliveCountMax seconds.
+readonly SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=30 -o ServerAliveCountMax=4)
+
+die() {
+  local code="$1"
+  shift
+  echo "ccwin: $*" >&2
+  exit "$code"
+}
+
+usage() {
+  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  exit "$EXIT_USAGE"
+}
+
+new_run_id() {
+  echo "cc-$(date -u +%Y%m%dT%H%M%SZ)-$1"
+}
+
+# Runs ssh, streaming its output, and turns a connection failure (ssh's own 255 with
+# a network error, not a remote command that exited 255) into exit 75.
+remote() {
+  local errfile rc=0
+  errfile="$(mktemp)"
+  ssh "${SSH_OPTS[@]}" "$CCWIN_HOST" "$@" 2> >(tee "$errfile" >&2) || rc=$?
+  wait
+  if [[ $rc -eq 255 ]] && grep -qiE 'connection (timed out|refused|closed by)|no route to host|could not resolve|network is unreachable|operation timed out|host is down' "$errfile"; then
+    rm -f "$errfile"
+    die "$EXIT_UNREACHABLE" "the Windows PC ($CCWIN_HOST) is unreachable; is it awake and on the network?"
+  fi
+  rm -f "$errfile"
+  return "$rc"
+}
+
+copy_to_remote() {
+  local dest="$1"
+  shift
+  local errfile rc=0
+  errfile="$(mktemp)"
+  scp -q "${SSH_OPTS[@]}" "$@" "$CCWIN_HOST:$dest" 2>"$errfile" || rc=$?
+  if [[ $rc -ne 0 ]]; then
+    cat "$errfile" >&2
+    if grep -qiE 'connection (timed out|refused|closed by)|no route to host|could not resolve|network is unreachable|operation timed out|host is down' "$errfile"; then
+      rm -f "$errfile"
+      die "$EXIT_UNREACHABLE" "the Windows PC ($CCWIN_HOST) is unreachable"
+    fi
+    rm -f "$errfile"
+    die "$EXIT_HARNESS" "copying to $CCWIN_HOST:$dest failed"
+  fi
+  rm -f "$errfile"
+}
+
+# The PC's default SSH shell is Windows PowerShell, so the remote harness is run with
+# -File (exact exit codes, plain-text output) and the arguments are PowerShell
+# single-quoted. Callers pass only validated values.
+ps_quote() {
+  local value="${1//\'/\'\'}"
+  printf "'%s'" "$value"
+}
+
+run_remote_harness() {
+  local command="$1"
+  shift
+  local line="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ${REMOTE_BIN}\\ccwin-remote.ps1 ${command}"
+  line+=" -Workspace ${WORKSPACE} -Repo ${REPO_NAME} -WaitSeconds ${CCWIN_WAIT_SECONDS}"
+  local arg
+  for arg in "$@"; do
+    line+=" $(ps_quote "$arg")"
+  done
+  remote "${line}; exit \$LASTEXITCODE"
+}
+
+validate_tasks() {
+  local task
+  for task in "$@"; do
+    [[ "$task" =~ ^[A-Za-z0-9:._=/-]+$ ]] || die "$EXIT_USAGE" "invalid Gradle argument '$task'"
+  done
+}
+
+with_node() {
+  local nvm_sh="${NVM_DIR:-$HOME/.nvm}/nvm.sh"
+  [[ -s "$nvm_sh" ]] || die "$EXIT_HARNESS" "nvm not found at $nvm_sh"
+  local version
+  version="$(cat "$REPO_ROOT/frontend/.nvmrc")"
+  bash -c 'set -e; . "$1"; nvm use "$2" >/dev/null; cd "$3"; shift 3; "$@"' _ \
+    "$nvm_sh" "$version" "$REPO_ROOT/frontend" "$@"
+}
+
+require_companion_url() {
+  [[ "${CC_COMPANION_URL:-}" == https://* ]] ||
+    die "$EXIT_USAGE" "set CC_COMPANION_URL to the household's https:// companion page (for this household: https://nanai.khoofia.com/companion?kiosk=1)"
+}
+
+# A fingerprint of everything tracked (or trackable) under frontend/android relative to
+# the commit being built, so a `cap sync` that rewrites a tracked file is caught.
+android_tree_fingerprint() {
+  local commit="$1"
+  {
+    git -C "$REPO_ROOT" status --porcelain=v1 --untracked-files=all -- frontend/android
+    git -C "$REPO_ROOT" diff "$commit" -- frontend/android
+  } | sha256sum | cut -d' ' -f1
+}
+
+# The commit to build: HEAD on a clean tree, or with --allow-dirty a snapshot commit of
+# the working tree made through a private index, so no branch, index, or stash changes.
+build_commit() {
+  local allow_dirty="$1"
+  if [[ -z "$(git -C "$REPO_ROOT" status --porcelain)" ]]; then
+    git -C "$REPO_ROOT" rev-parse HEAD
+    return
+  fi
+  [[ "$allow_dirty" == "1" ]] ||
+    die "$EXIT_USAGE" "the working tree has uncommitted changes; commit them or pass --allow-dirty to build a snapshot"
+  local index tree
+  index="$(mktemp)"
+  GIT_INDEX_FILE="$index" git -C "$REPO_ROOT" read-tree HEAD
+  GIT_INDEX_FILE="$index" git -C "$REPO_ROOT" add -A
+  tree="$(GIT_INDEX_FILE="$index" git -C "$REPO_ROOT" write-tree)"
+  rm -f "$index"
+  git -C "$REPO_ROOT" commit-tree "$tree" -p HEAD -m "ccwin working-tree snapshot"
+}
+
+cmd_doctor() {
+  local ok=1
+  echo "== this box"
+  [[ -f "$HOME/.ssh/buildpc_ed25519" ]] && echo "ssh key: ok" || { echo "ssh key: missing ~/.ssh/buildpc_ed25519"; ok=0; }
+  if with_node node --version >/dev/null 2>&1; then
+    echo "node: $(with_node node --version)"
+  else
+    echo "node: nvm Node $(cat "$REPO_ROOT/frontend/.nvmrc") unavailable"
+    ok=0
+  fi
+  if [[ "${CC_COMPANION_URL:-}" == https://* ]]; then
+    echo "CC_COMPANION_URL: $CC_COMPANION_URL"
+  else
+    echo "CC_COMPANION_URL: not set to an https:// URL (sync needs it)"
+  fi
+  [[ -n "$(env_or_dotenv CCWIN_COMPANION_KEY CC_COMPANION_TEST_API_KEY)" ]] && echo "test device key: set" || echo "test device key: not set (test-instrumented needs CC_COMPANION_TEST_API_KEY in .env)"
+  echo "== $CCWIN_HOST"
+  run_remote_harness doctor || ok=0
+  [[ $ok -eq 1 ]] || exit 1
+}
+
+cmd_install_remote() {
+  copy_to_remote "$REMOTE_BIN_SCP" "$REPO_ROOT"/scripts/windows/*.ps1
+  echo "installed $(cd "$REPO_ROOT/scripts/windows" && ls ./*.ps1 | tr '\n' ' ')to $REMOTE_BIN"
+}
+
+cmd_sync() {
+  local allow_dirty=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --allow-dirty) allow_dirty=1 ;;
+      *) die "$EXIT_USAGE" "sync: unknown option '$1'" ;;
+    esac
+    shift
+  done
+  require_companion_url
+  local commit base dirty
+  base="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+  commit="$(build_commit "$allow_dirty")"
+  dirty=$([[ "$commit" == "$base" ]] && echo false || echo true)
+
+  local before after
+  before="$(android_tree_fingerprint "$commit")"
+  echo "ccwin: web build and cap sync (Node $(cat "$REPO_ROOT/frontend/.nvmrc"))"
+  with_node npm run build --silent
+  with_node npx cap sync android
+  after="$(android_tree_fingerprint "$commit")"
+  [[ "$before" == "$after" ]] ||
+    die "$EXIT_HARNESS" "cap sync changed tracked files under frontend/android; commit what it generated (git status frontend/android) and sync again"
+
+  local stage
+  stage="$(mktemp -d)"
+  trap 'rm -rf "$stage"; trap - RETURN' RETURN
+  git -C "$REPO_ROOT" update-ref refs/ccwin/build "$commit"
+  git -C "$REPO_ROOT" bundle create "$stage/repo.bundle" refs/ccwin/build 2>/dev/null
+  # Exactly what Gradle needs that git does not carry: the gitignored cap-sync outputs
+  # and the Capacitor Android library it compiles from node_modules.
+  tar -czf "$stage/cap-android-deps.tar.gz" -C "$REPO_ROOT/frontend" \
+    android/capacitor-cordova-android-plugins \
+    android/app/src/main/assets \
+    android/app/src/main/res/xml/config.xml \
+    node_modules/@capacitor/android/capacitor
+  cat >"$stage/sync-manifest.json" <<EOF
+{"commit": "$commit", "base_commit": "$base", "dirty": $dirty, "companion_url": "$CC_COMPANION_URL", "synced_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+EOF
+  copy_to_remote "$REMOTE_STAGING_SCP" "$stage/repo.bundle" "$stage/cap-android-deps.tar.gz" "$stage/sync-manifest.json"
+  run_remote_harness sync -Commit "$commit"
+  echo "ccwin: synced $commit (base $base, dirty $dirty)"
+}
+
+run_gradle() {
+  local run_id
+  run_id="$(new_run_id gradle)"
+  validate_tasks "$@"
+  echo "ccwin: run $run_id"
+  run_remote_harness gradle -RunId "$run_id" -Tasks "$*"
+}
+
+# A value from the environment, or else from this repository's gitignored .env (the
+# same file the deployed backend reads), so the keys are configured in one place.
+env_or_dotenv() {
+  local env_name="$1" dotenv_name="$2" value
+  value="${!env_name:-}"
+  if [[ -z "$value" && -f "$REPO_ROOT/.env" ]]; then
+    value="$(sed -n "s/^${dotenv_name}=//p" "$REPO_ROOT/.env" | tail -n 1)"
+    value="${value%\"}"
+    value="${value#\"}"
+  fi
+  printf '%s' "$value"
+}
+
+# Calls the household BFF with $1 as the key. The key goes to curl on stdin (its
+# config), so it never appears in a process list.
+bff() {
+  local key="$1" method="$2" path="$3" body="${4:-}"
+  local args=(-sS --fail-with-body --max-time 15 -X "$method" -K - "$CCWIN_API_ORIGIN/api/v1$path")
+  [[ -z "$body" ]] || args+=(-H 'Content-Type: application/json' --data "$body")
+  printf 'header = "x-api-key: %s"\n' "$key" | curl "${args[@]}"
+}
+
+# The live tests open a companion socket on the household server. While a guided
+# routine is live, that socket could be linked to it or chosen to start it on, so
+# the run refuses. Checked from this box with the caregiver key, which never goes to
+# the test device (a screen's key must not read sessions).
+household_guard() {
+  local guard_key="$1" status total live=()
+  for status in "${LIVE_GUIDED_STATUSES[@]}"; do
+    total="$(bff "$guard_key" GET "/guided-sessions?status=${status}&limit=1" | jq -r '.total')" ||
+      die "$EXIT_HARNESS" "could not read guided sessions from $CCWIN_API_ORIGIN"
+    [[ "$total" == "0" ]] || live+=("${total} ${status}")
+  done
+  [[ ${#live[@]} -eq 0 ]] ||
+    die "$EXIT_HOUSEHOLD_BUSY" "a guided routine is live in the household (${live[*]}); the live device tests refuse to run until it ends"
+}
+
+# The device connects as its own registered surface with no room: never a delivery
+# target, and the only screen the test endpoint is asked to wake. Idempotent.
+register_test_surface() {
+  local guard_key="$1" kind="$2" payload
+  payload="$(jq -nc --arg id "$CCWIN_SURFACE_ID" --arg kind "$kind" \
+    '{id: $id, name: "Test device (ccwin)", surface_type: "fixed", kind: $kind, room_id: null, is_enabled: true}')"
+  bff "$guard_key" POST /companion-surfaces "$payload" >/dev/null ||
+    die "$EXIT_HARNESS" "could not register the test surface $CCWIN_SURFACE_ID"
+}
+
+cmd_test_instrumented() {
+  local target_args=() kind surface_kind
+  case "${1:-}" in
+    tablet | tv) target_args=(-Avd "$1"); kind="$1"; surface_kind="$1" ;;
+    --device)
+      [[ -n "${2:-}" && "$2" =~ ^[A-Za-z0-9._:-]+$ ]] || die "$EXIT_USAGE" "test-instrumented --device needs a serial"
+      target_args=(-Device "$2"); kind=device; surface_kind=tablet ;;
+    *) die "$EXIT_USAGE" "test-instrumented needs tablet, tv, or --device SERIAL" ;;
+  esac
+  [[ "$CCWIN_SURFACE_ID" =~ ^[A-Za-z0-9._-]+$ ]] || die "$EXIT_USAGE" "invalid CCWIN_SURFACE_ID"
+  local device_key guard_key
+  device_key="$(env_or_dotenv CCWIN_COMPANION_KEY CC_COMPANION_TEST_API_KEY)"
+  guard_key="$(env_or_dotenv CCWIN_GUARD_KEY CC_CAREGIVER_API_KEY)"
+  [[ -n "$device_key" ]] ||
+    die "$EXIT_USAGE" "no test device key: set CC_COMPANION_TEST_API_KEY in .env (and deploy it) or CCWIN_COMPANION_KEY"
+  [[ -n "$guard_key" ]] ||
+    die "$EXIT_USAGE" "no caregiver key for the household guard: set CC_CAREGIVER_API_KEY in .env or CCWIN_GUARD_KEY"
+
+  household_guard "$guard_key"
+  register_test_surface "$guard_key" "$surface_kind"
+
+  local run_id
+  run_id="$(new_run_id "instrumented-$kind")"
+  echo "ccwin: run $run_id (surface $CCWIN_SURFACE_ID, $CCWIN_API_ORIGIN)"
+  # The arguments travel on stdin, never on a command line on either machine.
+  printf 'ccApiKey=%s\nccApiOrigin=%s\nccSurfaceId=%s\n' "$device_key" "$CCWIN_API_ORIGIN" "$CCWIN_SURFACE_ID" |
+    run_remote_harness test-instrumented -RunId "$run_id" -Tasks "$INSTRUMENTED_TASKS" -ReadSecrets "${target_args[@]}"
+}
+
+cmd_adb() {
+  [[ $# -gt 0 ]] || die "$EXIT_USAGE" "adb needs arguments"
+  local arg
+  for arg in "$@"; do
+    [[ "$arg" != *'"'* ]] || die "$EXIT_USAGE" "adb arguments may not contain double quotes (they do not survive the Windows command line)"
+  done
+  run_remote_harness adb -ArgsBase64 "$(printf '%s\0' "$@" | base64 -w0)"
+}
+
+cmd_fetch() {
+  local run_id="${1:-latest}"
+  if [[ "$run_id" == "latest" ]]; then
+    run_id="$(remote 'Get-Content C:\ccwin\runs\ccwin-latest.txt' | tr -d '\r\n')"
+    [[ -n "$run_id" ]] || die "$EXIT_HARNESS" "no runs recorded on $CCWIN_HOST"
+  fi
+  [[ "$run_id" =~ ^[A-Za-z0-9._-]+$ ]] || die "$EXIT_USAGE" "invalid run id '$run_id'"
+  local dest="$REPO_ROOT/artifacts/ccwin"
+  mkdir -p "$dest"
+  rm -rf "${dest:?}/$run_id"
+  scp -q -r "${SSH_OPTS[@]}" "$CCWIN_HOST:$REMOTE_RUNS_SCP/$run_id" "$dest/" ||
+    die "$EXIT_HARNESS" "fetching run $run_id failed"
+  echo "$dest/$run_id"
+}
+
+main() {
+  [[ $# -gt 0 ]] || usage
+  local command="$1"
+  shift
+  case "$command" in
+    doctor) cmd_doctor ;;
+    status) run_remote_harness status ;;
+    install-remote) cmd_install_remote ;;
+    sync) cmd_sync "$@" ;;
+    gradle)
+      [[ $# -gt 0 ]] || die "$EXIT_USAGE" "gradle needs at least one task"
+      run_gradle "$@" ;;
+    check) read -r -a tasks <<<"$CHECK_TASKS"; run_gradle "${tasks[@]}" ;;
+    test-instrumented) cmd_test_instrumented "$@" ;;
+    avd-setup) run_remote_harness avd-setup ;;
+    adb) cmd_adb "$@" ;;
+    fetch) cmd_fetch "$@" ;;
+    -h | --help | help) usage ;;
+    *) die "$EXIT_USAGE" "unknown command '$command' (scripts/ccwin --help)" ;;
+  esac
+}
+
+main "$@"

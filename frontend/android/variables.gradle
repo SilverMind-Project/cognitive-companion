@@ -12,6 +12,7 @@ ext {
     junitVersion = '4.13.2'
     androidxJunitVersion = '1.3.0'
     androidxEspressoCoreVersion = '3.7.0'
+    androidxTestRunnerVersion = '1.7.0'
     cordovaAndroidVersion = '14.0.1'
     cameraxVersion = '1.4.2'
     mlkitFaceDetectionVersion = '16.1.7'

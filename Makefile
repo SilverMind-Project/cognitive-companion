@@ -47,6 +47,8 @@ help:
 	@echo "  make typecheck-core    Mypy over backend.core only (strict)"
 	@echo "  make check             lint + typecheck-core + test-core (fast gate)"
 	@echo "  make check-all         lint + typecheck-core + test (all backend tests) + frontend lint/typecheck/tests on Node $(FRONTEND_NODE_VERSION)"
+	@echo "  make check-android-remote  Android shell gate on the Windows build PC (scripts/ccwin)"
+	@echo "  make check-android-live    Live device tests on the tablet and Google TV emulators"
 	@echo "  make migrate           Run Alembic migrations (upgrade to head)"
 	@echo "  make migration         Generate new Alembic migration (autogenerate)"
 	@echo "  make migration-history Show Alembic migration history"
@@ -234,3 +236,18 @@ init-db:
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache htmlcov .coverage coverage.xml
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
+
+# The Android companion shell, built and tested on the Windows build PC over SSH
+# (scripts/ccwin, scripts/windows/README.md). Never part of check or check-all, which
+# must pass with that PC off. Needs CC_COMPANION_URL (the https:// companion page).
+.PHONY: check-android-remote
+check-android-remote:
+	scripts/ccwin sync
+	scripts/ccwin check
+
+# The live device tests on both emulators, against the household server. Refuses to
+# run while a guided routine is live (exit 69).
+.PHONY: check-android-live
+check-android-live:
+	scripts/ccwin test-instrumented tablet
+	scripts/ccwin test-instrumented tv

@@ -6,10 +6,13 @@ tap from the resident. One APK serves both form factors.
 
 ## Status
 
-**Unbuilt.** Authored in M08 on an aarch64 Linux host with no Android SDK (Google
-ships no linux-arm64 build tools). Building it, its lint, and emulator and device
-tests are M09 (`ccwin`, the Windows x86_64 SSH harness). Only `companion-core/`
-has been compiled and tested so far.
+**Built and tested on the Windows build PC** (`scripts/ccwin`, see
+`scripts/windows/README.md`): this Linux host is aarch64 and Google ships no
+linux-arm64 build tools. The gate is `scripts/ccwin check`: `companion-core` tests,
+Android lint with warnings as errors (reviewed exceptions in `app/lint.xml`), and the
+debug APK. The instrumented tests (`app/src/androidTest/`) run live against the
+household server on wiped tablet and Google TV emulators
+(`scripts/ccwin test-instrumented tablet|tv`).
 
 ## Layout
 
@@ -33,13 +36,13 @@ capture when it runs out unrenewed (and tells the page with `leaseExpired`), so 
 lost release can never leave a microphone or camera open. The camera reports only
 `facePresenceChanged` (`facePresent`, `yaw`, `pitch`).
 
-## Building (M09)
+## Building
+
+From the repository root (the web build and `cap sync` run here, Gradle on the PC):
 
 ```bash
-cd frontend
-npm ci && npm run build
-CC_COMPANION_URL="https://<household-server>/companion?kiosk=1" npx cap sync android
-cd android && ./gradlew :app:assembleDebug :app:lintDebug
+export CC_COMPANION_URL='https://nanai.khoofia.com/companion?kiosk=1'
+scripts/ccwin sync && scripts/ccwin check
 ```
 
 `CC_COMPANION_URL` must be HTTPS: microphone capture needs a secure origin. On the
@@ -47,7 +50,7 @@ home network that is `https://nanai.khoofia.com/companion?kiosk=1`, served by th
 cluster ingress with a Let's Encrypt certificate (`kubernetes/edge/` at the workspace
 root); the page calls the API on `https://api.nanai.khoofia.com`.
 
-Core logic only, on any JDK 21 host:
+Core logic only, on any JDK 21 host (including this one):
 
 ```bash
 cd frontend/android/companion-core && ../gradlew -p . test

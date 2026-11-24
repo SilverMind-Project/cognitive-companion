@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from backend.core.config import Settings
-from backend.models.guided_task import GuidedSession, Routine, RoutineStep
+from backend.models.guided_task import GuidedSession, GuidedSessionEvent, Routine, RoutineStep
 from backend.models.person import HouseholdMember
 from backend.models.room import Room
 from backend.models.room_zone import RoomZone
@@ -49,6 +49,9 @@ class _ZoneService:
 
     def get_zone(self, zone_id: int) -> _Zone:
         return _Zone(id=zone_id, room_id=self.room_id)
+
+    def cameras_for_zone(self, zone_id: int) -> list[str]:
+        return ["cam-1"]
 
 
 class _Signals:
@@ -172,25 +175,20 @@ async def test_wandered_off_emits_high(db_session, db_factory) -> None:
 
     events = await watch.evaluate(session=session)
 
-    assert {
-        "condition": "abandoned",
-        "severity": "high",
-        "detail": {"reason": "left_expected_room"},
-    } in events
+    assert [event["condition"] for event in events] == ["left_expected_room"]
+    assert events[0]["severity"] == "high"
 
 
-async def test_idle_beyond_timeout_emits_high(db_session, db_factory) -> None:
+async def test_idle_beyond_timeout_is_not_a_safety_event(db_session, db_factory) -> None:
+    """Idle time belongs to the state machine's timeout ladder. The watch used to
+    emit an "abandoned" event here, racing the ladder and escalating a step the
+    vision watch had just marked as making progress (nag suppression)."""
     session_id = _seed(db_session)
     session = db_session.get(GuidedSession, session_id)
-    clock = _Clock(now=session.last_activity_at + timedelta(seconds=301))
+    clock = _Clock(now=session.last_activity_at + timedelta(seconds=3000))
     watch = _watch(db_factory, clock, settings=_settings(step_timeout_s=300))
 
-    events = await watch.evaluate(session=session)
-
-    assert any(
-        event["condition"] == "abandoned" and event["detail"]["reason"] == "idle_timeout"
-        for event in events
-    )
+    assert await watch.evaluate(session=session) == []
 
 
 async def test_hazard_emits_emergency(db_session, db_factory) -> None:
@@ -384,3 +382,245 @@ async def test_missing_perception_services_graceful(db_session, db_factory) -> N
     watch = _watch(db_factory, _Clock())
 
     assert await watch.evaluate(session=session) == []
+
+
+# ---------------------------------------------------------------------------
+# Arming: each condition fires once per step, re-armed by a caregiver release
+# ---------------------------------------------------------------------------
+
+
+def _record_safety_event(db_factory, session_id: int, condition: str, at: datetime) -> None:
+    GuidedTaskStore(db_factory).add_event(
+        session_id=session_id,
+        at=at,
+        kind="safety_event",
+        step_ord=0,
+        actor="system",
+        detail={"condition": condition, "severity": "high"},
+    )
+
+
+class _TimedSignals:
+    def __init__(self, received_at: datetime) -> None:
+        self.received_at = received_at
+
+    async def list_recent(self, **kwargs):
+        return [
+            {
+                "signal_type": "fall_suspected",
+                "severity": "emergency",
+                "received_at": self.received_at.isoformat(),
+            }
+        ]
+
+
+async def test_conditions_fire_once_per_step_then_rearm_on_release(db_session, db_factory) -> None:
+    session_id = _seed(db_session, safety_critical=True)
+    session = db_session.get(GuidedSession, session_id)
+    clock = _Clock(now=session.started_at + timedelta(seconds=60))
+    watch = _watch(
+        db_factory,
+        clock,
+        person_location_service=_LocationService(room_id=2),
+        zone_service=_ZoneService(room_id=1),
+        signals_service=_TimedSignals(session.started_at + timedelta(seconds=30)),
+        bucketizer=_Bucketizer(),
+        scene_analysis_client=_Scene([_Hazard()]),
+        minio_client=_Minio(),
+    )
+
+    first = {event["condition"] for event in await watch.evaluate(session=session)}
+    assert first == {"left_expected_room", "no_motion", "hazard_active"}
+    for condition in first:
+        _record_safety_event(db_factory, session_id, condition, clock.now)
+
+    clock.now += timedelta(seconds=20)
+    assert await watch.evaluate(session=session) == []
+
+    # A caregiver hands the session back while the stove is still on: every
+    # condition is armed again, so the hazard escalates once more.
+    GuidedTaskStore(db_factory).add_event(
+        session_id=session_id,
+        at=clock.now,
+        kind="takeover_ended",
+        step_ord=0,
+        actor="caregiver",
+    )
+    clock.now += timedelta(seconds=20)
+    rearmed = {event["condition"] for event in await watch.evaluate(session=session)}
+    assert "hazard_active" in rearmed
+    assert "left_expected_room" in rearmed
+    # The fall signal arrived before the release, so it is not raised again.
+    assert "no_motion" not in rearmed
+
+
+async def test_fall_signal_before_step_entry_is_ignored(db_session, db_factory) -> None:
+    session_id = _seed(db_session)
+    session = db_session.get(GuidedSession, session_id)
+    stale = session.started_at - timedelta(minutes=5)
+    watch = _watch(db_factory, _Clock(now=session.started_at), signals_service=_TimedSignals(stale))
+
+    assert await watch.evaluate(session=session) == []
+
+
+async def test_fall_signal_before_a_retry_still_fires(db_session, db_factory) -> None:
+    """A retry bumps last_activity_at; anchoring on it would hide this fall."""
+    session_id = _seed(db_session)
+    session = db_session.get(GuidedSession, session_id)
+    fall_at = session.started_at + timedelta(seconds=5)
+    session.last_activity_at = session.started_at + timedelta(seconds=10)
+    db_session.commit()
+    clock = _Clock(now=session.started_at + timedelta(seconds=15))
+    watch = _watch(db_factory, clock, signals_service=_TimedSignals(fall_at))
+
+    events = await watch.evaluate(session=session)
+
+    assert [event["condition"] for event in events] == ["no_motion"]
+
+
+async def test_blocked_reports_count_only_since_the_step_was_armed(db_session, db_factory) -> None:
+    session_id = _seed(db_session)
+    session = db_session.get(GuidedSession, session_id)
+    store = GuidedTaskStore(db_factory)
+    entered = session.started_at + timedelta(seconds=60)
+    store.add_event(
+        session_id=session_id,
+        at=session.started_at + timedelta(seconds=10),
+        kind="step_blocked",
+        step_ord=0,
+        actor="resident",
+    )
+    store.add_event(
+        session_id=session_id, at=entered, kind="step_entered", step_ord=0, actor="system"
+    )
+    store.add_event(
+        session_id=session_id,
+        at=entered + timedelta(seconds=5),
+        kind="step_blocked",
+        step_ord=0,
+        actor="resident",
+    )
+    watch = _watch(db_factory, _Clock(now=entered + timedelta(seconds=10)))
+
+    assert await watch.evaluate(session=session) == []
+
+
+class _ReCameraAggregator:
+    def __init__(self) -> None:
+        self.sensors: list[str] = []
+
+    async def query_media_by_sensor(self, *, sensor_ids_ordered, **kwargs):
+        self.sensors = list(sensor_ids_ordered)
+        return ["https://minio/recamera/recam-1/20261123_090000.jpg"]
+
+
+class _ReCameraMinio(_Minio):
+    def __init__(self) -> None:
+        self.fetched: list[str] = []
+
+    def extract_object_name(self, url: str) -> str:
+        return url.removeprefix("https://minio/")
+
+    async def async_get_object(self, object_name: str) -> bytes:
+        self.fetched.append(object_name)
+        return b"image"
+
+
+async def test_hazard_uses_recamera_frames_without_cts(db_session, db_factory) -> None:
+    """A reCamera-only kitchen (no CTS bucketizer) must still be checked for hazards."""
+    session_id = _seed(db_session, safety_critical=True)
+    db_session.query(RoutineStep).update({"camera_ids": ["recam-1"]})
+    db_session.commit()
+    session = db_session.get(GuidedSession, session_id)
+    aggregator = _ReCameraAggregator()
+    minio = _ReCameraMinio()
+    watch = _watch(
+        db_factory,
+        _Clock(),
+        event_aggregator=aggregator,
+        camera_source_resolver=lambda _camera_id: "recamera",
+        scene_analysis_client=_Scene([_Hazard()]),
+        minio_client=minio,
+    )
+
+    events = await watch.evaluate(session=session)
+
+    assert aggregator.sensors == ["recam-1"]
+    assert minio.fetched == ["recamera/recam-1/20261123_090000.jpg"]
+    hazard = next(event for event in events if event["condition"] == "hazard_active")
+    assert hazard["detail"]["cameras"] == [{"id": "recam-1", "source": "recamera"}]
+    assert hazard["detail"]["source"] == "recamera"
+
+
+# ---------------------------------------------------------------------------
+# Watch.tick: one escalation per tick, never on a summoning session
+# ---------------------------------------------------------------------------
+
+
+class _FixedSafetyWatch:
+    def __init__(self, events: list[dict]) -> None:
+        self.events = events
+        self.calls = 0
+
+    async def evaluate(self, *, session):
+        self.calls += 1
+        return [dict(event) for event in self.events]
+
+
+async def test_tick_coalesces_conditions_into_one_escalation(db_session, db_factory) -> None:
+    routine_id = _seed_service_routine(db_session)
+    clock = _Clock()
+    escalator = _RecordingEscalator()
+    safety = _FixedSafetyWatch(
+        [
+            {"condition": "left_expected_room", "severity": "high", "detail": {}},
+            {"condition": "hazard_active", "severity": "emergency", "detail": {}},
+            {"condition": "confusion_distress", "severity": "high", "detail": {}},
+        ]
+    )
+    service = GuidedTaskService(
+        db_factory=db_factory,
+        escalator=escalator,
+        safety_watch=safety,
+        settings=_settings(),
+        time_fn=clock,
+    )
+    session = await service.start(routine_id, "resident-1")
+
+    clock.now += timedelta(seconds=20)
+    await service.tick(clock.now)
+
+    assert escalator.calls == [(session.id, "hazard_active", True)]
+    rows = (
+        db_session.query(GuidedSessionEvent)
+        .filter_by(session_id=session.id, kind="safety_event")
+        .order_by(GuidedSessionEvent.id)
+        .all()
+    )
+    assert sorted(row.detail["condition"] for row in rows) == [
+        "confusion_distress",
+        "hazard_active",
+        "left_expected_room",
+    ]
+    assert {row.detail.get("coalesced_into") for row in rows} == {"hazard_active", None}
+
+
+async def test_tick_skips_safety_for_summoning_session(db_session, db_factory) -> None:
+    session_id = _seed(db_session)
+    db_session.get(GuidedSession, session_id).status = "summoning"
+    db_session.commit()
+    safety = _FixedSafetyWatch([{"condition": "left_expected_room", "severity": "high"}])
+    escalator = _RecordingEscalator()
+    clock = _Clock()
+    service = GuidedTaskService(
+        db_factory=db_factory,
+        escalator=escalator,
+        safety_watch=safety,
+        settings=_settings(),
+        time_fn=clock,
+    )
+
+    await service.tick(clock.now + timedelta(seconds=20))
+
+    assert safety.calls == 0
+    assert escalator.calls == []

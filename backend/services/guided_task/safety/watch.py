@@ -1,4 +1,17 @@
-"""Read-only guided-task safety watch."""
+"""Read-only guided-task safety watch.
+
+The watch owns perception conditions only: the resident left the step's room,
+a hazard is visible, a no-motion or fall signal arrived, or she reported being
+blocked repeatedly. Step timeouts and the attempts ladder belong to the state
+machine's ``timeout_tick``; an idle check here would race it and defeat the
+vision watch's nag suppression.
+
+Each condition is evaluated against evidence gathered since the step was
+"armed" and fires at most once per arm window. A step is armed when it is
+entered and re-armed when a caregiver releases takeover, so a hazard that is
+still present after the caregiver hands the session back escalates again,
+while a condition that already escalated never re-fires on every tick.
+"""
 
 from __future__ import annotations
 
@@ -12,10 +25,13 @@ from backend.core.config import Settings
 from backend.core.config import settings as default_settings
 from backend.core.logging import get_logger
 from backend.models.guided_task import RoutineStep
-from backend.services.guided_task.camera_selection import IdentityResolver, select_cameras
-from backend.services.guided_task.policy import resolve_policy
+from backend.services.guided_task.camera_selection import (
+    IdentityResolver,
+    ResolvedCamera,
+    select_cameras_tagged,
+)
 from backend.services.guided_task.store import GuidedTaskStore
-from backend.services.media_window_frames import CtsFrameWindowConfig, collect_recent_cts_frames
+from backend.services.media_window_frames import collect_recent_frames_multi_source
 
 logger = get_logger(__name__)
 
@@ -27,15 +43,21 @@ _NO_MOTION_SIGNAL_KINDS = frozenset(
     }
 )
 
-# D14 "repeated confusion/distress": the number of step_blocked reports that
-# trigger a caregiver-visible confusion_distress signal. Attempts-exhausted
-# escalation belongs exclusively to the state machine's timeout_tick ladder;
-# this threshold governs only the blocked-report signal.
+# D14 "repeated confusion/distress": the number of step_blocked reports in one
+# arm window that trigger a caregiver-visible confusion_distress signal.
+# Attempts-exhausted escalation belongs exclusively to the state machine's
+# timeout_tick ladder; this threshold governs only the blocked-report signal.
 _CONFUSION_DISTRESS_BLOCKED_THRESHOLD = 2
+
+# Hazard frames: a short recent window from at most two cameras is enough to
+# see a stove left on, and keeps the per-tick VLM cost bounded.
+_HAZARD_MAX_CAMERAS = 2
+_HAZARD_MAX_FRAMES = 3
+_HAZARD_LOOKBACK_S = 10.0
 
 
 class GuidedTaskSafetyWatch:
-    """Evaluate M7 guided-task safety conditions without mutating state."""
+    """Evaluate guided-task safety conditions without mutating state."""
 
     def __init__(
         self,
@@ -44,6 +66,8 @@ class GuidedTaskSafetyWatch:
         person_location_service: Any | None = None,
         zone_service: Any | None = None,
         bucketizer: Any | None = None,
+        event_aggregator: Any | None = None,
+        camera_source_resolver: Any | None = None,
         camera_topology: Any | None = None,
         identity_resolver: IdentityResolver | None = None,
         scene_analysis_client: Any | None = None,
@@ -52,10 +76,13 @@ class GuidedTaskSafetyWatch:
         settings: Settings | None = None,
         time_fn: Callable[[], datetime] | None = None,
     ) -> None:
+        self._db_factory = db_factory
         self._store = GuidedTaskStore(db_factory)
         self._person_location_service = person_location_service
         self._zone_service = zone_service
         self._bucketizer = bucketizer
+        self._event_aggregator = event_aggregator
+        self._camera_source_resolver = camera_source_resolver
         self._camera_topology = camera_topology
         self._identity_resolver = identity_resolver
         self._scene_analysis_client = scene_analysis_client
@@ -65,55 +92,50 @@ class GuidedTaskSafetyWatch:
         self._time_fn = time_fn or (lambda: datetime.now(UTC))
 
     async def evaluate(self, *, session: Any) -> list[dict]:
-        routine = self._store.get_routine(session.routine_id)
         steps = self._store.list_steps(session.routine_id)
-        if routine is None or not steps:
-            return []
         step = _step_by_ord(steps, session.current_step_ord)
         if step is None:
             return []
 
-        policy = resolve_policy(routine, step, self._settings)
-        now = self._now()
+        armed_at = self._armed_at(session, step)
         events: list[dict] = []
 
+        def fresh(condition: str) -> bool:
+            return not self._store.has_event(
+                session_id=session.id,
+                kind="safety_event",
+                step_ord=step.ord,
+                detail_condition=condition,
+                since=armed_at,
+            )
+
+        # The raw room check also gates the hazard look below, so it is not
+        # suppressed when the left-room escalation itself already fired.
         left_expected_room = await self._left_expected_room(session, step)
-        if left_expected_room:
+        if left_expected_room and fresh("left_expected_room"):
             events.append(
                 {
-                    "condition": "abandoned",
+                    "condition": "left_expected_room",
                     "severity": "high",
-                    "detail": {"reason": "left_expected_room"},
+                    "detail": {"expected_zone_id": step.zone_id},
                 }
             )
 
-        idle_s = (now - session.last_activity_at).total_seconds()
-        if idle_s > policy.step_timeout_s:
-            events.append(
-                {
-                    "condition": "abandoned",
-                    "severity": "high",
-                    "detail": {"reason": "idle_timeout", "idle_s": idle_s},
-                }
-            )
+        if fresh("no_motion"):
+            no_motion = await self._no_motion_signal(session.person_id, since=armed_at)
+            if no_motion is not None:
+                events.append(
+                    {
+                        "condition": "no_motion",
+                        "severity": "emergency",
+                        "detail": no_motion,
+                    }
+                )
 
-        no_motion = await self._no_motion_signal(session.person_id)
-        if no_motion is not None:
-            events.append(
-                {
-                    "condition": "no_motion",
-                    "severity": "emergency",
-                    "detail": no_motion,
-                }
-            )
-
-        blocked_count = self._blocked_count(session)
-        if blocked_count >= _CONFUSION_DISTRESS_BLOCKED_THRESHOLD and not self._store.has_event(
-            session_id=session.id,
-            kind="safety_event",
-            step_ord=step.ord,
-            detail_condition="confusion_distress",
-        ):
+        blocked_count = self._store.count_events(
+            session_id=session.id, kind="step_blocked", step_ord=step.ord, since=armed_at
+        )
+        if blocked_count >= _CONFUSION_DISTRESS_BLOCKED_THRESHOLD and fresh("confusion_distress"):
             events.append(
                 {
                     "condition": "confusion_distress",
@@ -125,7 +147,7 @@ class GuidedTaskSafetyWatch:
                 }
             )
 
-        if left_expected_room or step.is_safety_critical:
+        if (left_expected_room or step.is_safety_critical) and fresh("hazard_active"):
             hazard = await self._hazard_event(session, step)
             if hazard is not None:
                 events.append(hazard)
@@ -138,6 +160,20 @@ class GuidedTaskSafetyWatch:
                 severity=event["severity"],
             )
         return events
+
+    def _armed_at(self, session: Any, step: RoutineStep) -> datetime:
+        """When the current step's conditions were last armed.
+
+        Step entry, or a later caregiver release of takeover on this step.
+        ``last_activity_at`` is deliberately not the anchor: every retry bumps
+        it, which would hide a fall signal that arrived just before a retry.
+        """
+        candidates = [session.started_at]
+        for kind in ("step_entered", "takeover_ended"):
+            at = self._store.latest_event_at(session_id=session.id, kind=kind, step_ord=step.ord)
+            if at is not None:
+                candidates.append(at)
+        return max(candidates)
 
     def _now(self) -> datetime:
         now = self._time_fn()
@@ -165,7 +201,7 @@ class GuidedTaskSafetyWatch:
         room_id = getattr(zone, "room_id", None)
         return int(room_id) if room_id is not None else None
 
-    async def _no_motion_signal(self, person_id: str) -> dict | None:
+    async def _no_motion_signal(self, person_id: str, *, since: datetime) -> dict | None:
         signals = self._signals_service
         if signals is None:
             return None
@@ -178,46 +214,48 @@ class GuidedTaskSafetyWatch:
         )
         for signal in recent:
             kind = str(signal.get("signal_type") or signal.get("kind") or "")
-            if kind in _NO_MOTION_SIGNAL_KINDS:
-                return signal
+            if kind not in _NO_MOTION_SIGNAL_KINDS:
+                continue
+            received_at = _parse_timestamp(signal.get("received_at"))
+            # A signal from before the step was armed belongs to an earlier
+            # moment; it must not raise a fresh fall emergency now. A signal
+            # with no timestamp is kept, since dropping a real fall is worse.
+            if received_at is not None and received_at < since:
+                continue
+            return signal
         return None
 
-    def _blocked_count(self, session: Any) -> int:
-        return self._store.count_events(session_id=session.id, kind="step_blocked")
-
     async def _hazard_event(self, session: Any, step: RoutineStep) -> dict | None:
-        if (
-            self._scene_analysis_client is None
-            or self._bucketizer is None
-            or self._minio_client is None
-        ):
+        if self._scene_analysis_client is None or self._minio_client is None:
             return None
-        cameras = await select_cameras(
+        cameras: list[ResolvedCamera] = await select_cameras_tagged(
             person_id=session.person_id,
             step=step,
             zone_service=self._zone_service,
             person_location=self._person_location_service,
             bucketizer=self._bucketizer,
+            event_aggregator=self._event_aggregator,
             camera_topology=self._camera_topology,
             identity_resolver=self._identity_resolver,
-            max_cameras=2,
+            camera_source_resolver=self._camera_source_resolver,
+            max_cameras=_HAZARD_MAX_CAMERAS,
         )
         if not cameras:
             return None
-        collected = await collect_recent_cts_frames(
+        collected = await collect_recent_frames_multi_source(
             bucketizer=self._bucketizer,
+            event_aggregator=self._event_aggregator,
             minio_client=self._minio_client,
-            config=CtsFrameWindowConfig(
-                window_id=f"guided_safety_{session.id}_{step.ord}",
-                cameras=cameras,
-                lookback_s=10.0,
-                lookahead_s=0.0,
-                sample_period_s=1.0,
-                max_frames=3,
-                now=self._now(),
-            ),
+            db_factory=self._db_factory,
+            cameras=cameras,
+            rooms=[],
+            lookback_s=_HAZARD_LOOKBACK_S,
+            lookahead_s=0.0,
+            sample_period_s=1.0,
+            max_frames=_HAZARD_MAX_FRAMES,
+            now=self._now(),
         )
-        for frame in collected.frames:
+        for frame in collected.get("frames", []):
             minio_key = frame.get("minio_key")
             if not minio_key:
                 continue
@@ -238,7 +276,9 @@ class GuidedTaskSafetyWatch:
                     "condition": "hazard_active",
                     "severity": "emergency",
                     "detail": {
-                        "cameras": cameras,
+                        "cameras": [{"id": c.id, "source": c.source} for c in cameras],
+                        "camera_id": str(frame.get("camera_id", "")),
+                        "source": frame.get("source"),
                         "hazards": [
                             {
                                 "name": getattr(hazard, "name", ""),
@@ -250,6 +290,19 @@ class GuidedTaskSafetyWatch:
                     },
                 }
         return None
+
+
+def _parse_timestamp(raw: Any) -> datetime | None:
+    if isinstance(raw, datetime):
+        value = raw
+    elif isinstance(raw, str):
+        try:
+            value = datetime.fromisoformat(raw)
+        except ValueError:
+            return None
+    else:
+        return None
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _step_by_ord(steps: list[RoutineStep], step_ord: int) -> RoutineStep | None:

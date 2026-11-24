@@ -193,5 +193,7 @@ def _current_step(steps: list[RoutineStep], ord_: int) -> RoutineStep | None:
 
 def _human_reason(reason: str) -> str:
     if reason == "hazard_active":
-        return "the stove or another hazard may still be active while she is away"
+        return "the stove or another hazard may be active"
+    if reason == "left_expected_room":
+        return "she left the room this step takes place in"
     return reason.replace("_", " ")

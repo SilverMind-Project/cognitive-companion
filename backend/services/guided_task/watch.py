@@ -27,6 +27,8 @@ from backend.services.guided_task.state_machine import GuidedTaskStateMachine
 
 logger = get_logger(__name__)
 
+_SEVERITY_RANK = {"emergency": 4, "high": 3, "medium": 2, "low": 1}
+
 
 class Watch:
     """Live session tick: vision watch, resume-grace abandon, safety events."""
@@ -92,25 +94,62 @@ class Watch:
                 )
                 continue
 
-            for safety_event in await ctx.safety_watch.evaluate(session=session):
-                decision = GuidedTaskStateMachine.decide(
-                    ctx.session_view(session, steps),
-                    ctx.step_view(step),
-                    "safety_event",
-                    policy,
-                    tick_at,
-                    evidence=safety_event,
+            # A summoning resident is, by definition, not yet in the step's room;
+            # perception conditions apply only once the routine is under way.
+            if session.status not in ("active", "waiting"):
+                continue
+            safety_events = await ctx.safety_watch.evaluate(session=session)
+            if safety_events:
+                await self._escalate_safety(
+                    session, routine, steps, step, policy, safety_events, tick_at
                 )
-                await self._runtime.apply_decision(
-                    session=session,
-                    routine=routine,
-                    steps=steps,
-                    decision=decision,
-                    now=tick_at,
-                    event_kind="safety_event",
-                    actor="system",
-                    detail=safety_event,
-                )
+
+    async def _escalate_safety(
+        self,
+        session: GuidedSession,
+        routine: Routine,
+        steps: list[RoutineStep],
+        step: RoutineStep,
+        policy: Any,
+        safety_events: list[dict],
+        at: datetime,
+    ) -> None:
+        """Escalate once per tick, on the most severe condition.
+
+        Every condition is still recorded as its own ``safety_event`` row, for the
+        audit trail and so each one is de-duplicated until the step is re-armed;
+        the primary one is written by ``apply_decision`` itself.
+        """
+        primary = max(safety_events, key=lambda e: _SEVERITY_RANK.get(str(e.get("severity")), 0))
+        for secondary in safety_events:
+            if secondary is primary:
+                continue
+            self._ctx.store.add_event(
+                session_id=session.id,
+                at=at,
+                kind="safety_event",
+                step_ord=step.ord,
+                actor="system",
+                detail={**secondary, "coalesced_into": primary["condition"]},
+            )
+        decision = GuidedTaskStateMachine.decide(
+            self._ctx.session_view(session, steps),
+            self._ctx.step_view(step),
+            "safety_event",
+            policy,
+            at,
+            evidence=primary,
+        )
+        await self._runtime.apply_decision(
+            session=session,
+            routine=routine,
+            steps=steps,
+            decision=decision,
+            now=at,
+            event_kind="safety_event",
+            actor="system",
+            detail=primary,
+        )
 
     async def _abandon_escalated_unanswered(
         self,

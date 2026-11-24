@@ -85,9 +85,11 @@ async def wire_guided_task(
     guided_camera_topology = SensorRoomCameraTopology(get_session)
     guided_safety_watch = GuidedTaskSafetyWatch(
         db_factory=get_session,
-        person_location_service=None,
+        person_location_service=person_location_service,
         zone_service=zone_service,
         bucketizer=None,
+        event_aggregator=event_aggregator,
+        camera_source_resolver=camera_source_resolver,
         camera_topology=guided_camera_topology,
         identity_resolver=lambda person_id: {person_id},
         scene_analysis_client=scene_analysis_client,

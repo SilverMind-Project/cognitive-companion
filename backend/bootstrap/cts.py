@@ -138,6 +138,8 @@ async def wire_cts(
             person_location_service=person_location_service,
             zone_service=zone_service,
             bucketizer=cts_runtime.bucketizer,
+            event_aggregator=app.state.event_aggregator,
+            camera_source_resolver=app.state.camera_source_resolver,
             camera_topology=guided_camera_topology,
             identity_resolver=lambda person_id: {person_id},
             scene_analysis_client=scene_analysis_client,

@@ -310,23 +310,43 @@ class GuidedTaskStore:
         finally:
             db.close()
 
-    def count_events(self, *, session_id: int, kind: str) -> int:
+    def count_events(
+        self,
+        *,
+        session_id: int,
+        kind: str,
+        step_ord: int | None = None,
+        since: datetime | None = None,
+    ) -> int:
+        """Count a session's events of ``kind``, optionally on one step and at or after ``since``."""
         db = self._db_factory()
         try:
-            return int(
-                db.query(GuidedSessionEvent)
-                .filter(
-                    GuidedSessionEvent.session_id == session_id,
-                    GuidedSessionEvent.kind == kind,
-                )
-                .count()
+            stmt = select(func.count(GuidedSessionEvent.id)).where(
+                GuidedSessionEvent.session_id == session_id,
+                GuidedSessionEvent.kind == kind,
             )
+            if step_ord is not None:
+                stmt = stmt.where(GuidedSessionEvent.step_ord == step_ord)
+            if since is not None:
+                stmt = stmt.where(GuidedSessionEvent.at >= since)
+            return int(db.execute(stmt).scalar_one())
         finally:
             db.close()
 
     def has_event(
-        self, *, session_id: int, kind: str, step_ord: int | None, detail_condition: str
+        self,
+        *,
+        session_id: int,
+        kind: str,
+        step_ord: int | None,
+        detail_condition: str,
+        since: datetime | None = None,
     ) -> bool:
+        """Whether an event of ``kind`` with ``detail.condition`` exists on the step.
+
+        ``since`` limits the check to events at or after that instant, which is
+        how a condition is re-armed after a caregiver releases takeover.
+        """
         db = self._db_factory()
         try:
             step_filter = (
@@ -344,6 +364,8 @@ class GuidedTaskStore:
                 )
                 .limit(1)
             )
+            if since is not None:
+                stmt = stmt.where(GuidedSessionEvent.at >= since)
             return db.execute(stmt).scalars().first() is not None
         finally:
             db.close()

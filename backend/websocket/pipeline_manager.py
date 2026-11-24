@@ -28,14 +28,18 @@ class PipelineConnectionManager:
         self._lock: asyncio.Lock = asyncio.Lock()
         self.max_connections = max_connections
 
-    async def connect(self, websocket: WebSocket) -> bool:
-        """Accept and register the connection; returns False if limit reached."""
+    async def connect(self, websocket: WebSocket, *, subprotocol: str | None = None) -> bool:
+        """Accept and register the connection; returns False if limit reached.
+
+        ``subprotocol`` echoes the key a browser offered as its
+        ``Sec-WebSocket-Protocol``; without it the browser drops the connection.
+        """
         async with self._lock:
             if len(self.active_connections) >= self.max_connections:
                 logger.warning("pipeline_ws_max_connections_reached")
                 await websocket.close(code=1013, reason="Max connections reached")
                 return False
-            await websocket.accept()
+            await websocket.accept(subprotocol=subprotocol)
             self.active_connections.append(websocket)
             logger.info(
                 "pipeline_ws_client_connected",

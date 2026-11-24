@@ -10,23 +10,18 @@ receive two kinds of messages:
   revision is applied. Lets the client show a non-blocking toast and
   refresh affected rows.
 
-Authentication: the upgrade request carries the same ``X-API-Key`` / query
-param as REST endpoints. The fnmatch permission ``cts.live.subscribe`` is
-required. When ``cts.enabled=False`` the upgrade is rejected with 1008
-(Policy Violation) so clients can fail fast.
+Authentication: the key comes from the ``x-api-key`` header or, from a
+browser, the ``Sec-WebSocket-Protocol`` header (echoed on accept), and must
+hold ``cts.live:read``. When ``cts.enabled=False`` the upgrade is rejected
+with 1008 (Policy Violation) so clients can fail fast.
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.core.auth import (
-    _resolve_key,
-    declare_tokens,
-    has_token,
-)
+from backend.core.auth import WS_ROUTE_TOKENS, authenticate_websocket, declare_tokens
 from backend.core.config import settings
-from backend.core.exceptions import AuthenticationError
 from backend.core.logging import get_logger
 from backend.websocket.connection_manager import ConnectionManager
 
@@ -34,7 +29,7 @@ logger = get_logger(__name__)
 
 router = APIRouter(tags=["cts-live"])
 
-_CTS_LIVE_TOKEN = "cts.live:read"
+_CTS_LIVE_TOKEN = WS_ROUTE_TOKENS["/ws/cts"]
 declare_tokens(_CTS_LIVE_TOKEN)
 
 
@@ -49,30 +44,10 @@ async def cts_live_websocket(websocket: WebSocket) -> None:
         await websocket.close(code=1008, reason="cts.disabled")
         return
 
-    raw_key = (
-        websocket.headers.get("x-api-key")
-        or websocket.headers.get("sec-websocket-protocol", "").strip()
-    )
-    if not raw_key:
-        logger.warning("cts_live_ws_rejected_no_key", client=client_ip)
-        await websocket.close(code=1008, reason="auth_required")
+    ws_auth = await authenticate_websocket(websocket, _CTS_LIVE_TOKEN, channel="cts_live")
+    if ws_auth is None:
         return
-
-    try:
-        auth = _resolve_key(raw_key)
-    except AuthenticationError:
-        logger.warning("cts_live_ws_rejected_auth_failed", client=client_ip)
-        await websocket.close(code=1008, reason="auth_failed")
-        return
-
-    if not has_token(auth, _CTS_LIVE_TOKEN):
-        logger.warning(
-            "cts_live_ws_rejected_permission_denied",
-            client=client_ip,
-            name=auth.name,
-        )
-        await websocket.close(code=1008, reason="permission_denied")
-        return
+    auth = ws_auth.auth
 
     # Its own manager: CTS frames must never reach a resident's companion surface,
     # and an admin live view must never count as a companion surface being open.
@@ -82,7 +57,7 @@ async def cts_live_websocket(websocket: WebSocket) -> None:
         await websocket.close(code=1011, reason="server_not_ready")
         return
 
-    accepted = await manager.connect(websocket)
+    accepted = await manager.connect(websocket, subprotocol=ws_auth.subprotocol)
     if not accepted:
         logger.warning(
             "cts_live_ws_rejected_manager_full",

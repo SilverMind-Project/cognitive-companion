@@ -11,7 +11,7 @@ from typing import Any
 
 from backend.core.logging import get_logger
 from backend.core.template import render_template
-from backend.steps.base import TriggerContext
+from backend.steps.base import ServiceContainer, TriggerContext
 
 logger = get_logger(__name__)
 
@@ -73,3 +73,19 @@ def resolve_person_id(
             return event_person_id
 
     return None
+
+
+async def resolve_surface_id(services: ServiceContainer, person_id: str | None) -> str | None:
+    """The companion surface in ``person_id``'s room, for room-targeted delivery.
+
+    Never fails the step: an unknown person, location, or surface (or a lookup
+    error) returns None, and the delivery falls back to every companion screen.
+    """
+    surfaces = services.companion_surfaces
+    if surfaces is None or not person_id:
+        return None
+    try:
+        return await surfaces.surface_for_person(person_id)
+    except Exception:
+        logger.exception("step_surface_resolve_failed")
+        return None

@@ -114,6 +114,7 @@ roles:
     - "admin.channels:read"
     - "admin.config:read"
     - "admin:read"
+    - "companion.audio:act"
     - "companion_surfaces:read"
     - "companion_surfaces:write"
     - "conversations:read"
@@ -180,6 +181,7 @@ roles:
     - "admin.channels:read"
     - "admin.config:read"
     - "admin:read"
+    - "companion.audio:act"
     - "companion_surfaces:read"
     - "companion_surfaces:write"
     - "conversations:read"
@@ -288,6 +290,7 @@ roles:
     - "device.recamera:ingest"
 
   device_reterminal:
+    - "companion.audio:act"
     - "companion_surfaces:heartbeat"
     - "guided_sessions.resident_state:read"
     - "image:read"

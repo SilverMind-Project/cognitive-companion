@@ -14,7 +14,7 @@ from backend.schemas.companion_surface import (
     CompanionSurfaceOut,
     CompanionSurfaceUpdate,
 )
-from backend.services.companion_surface import CompanionSurfaceService
+from backend.services.companion_surface import CompanionSurfaceService, SurfaceDeviceState
 
 router = APIRouter(prefix="/companion-surfaces", tags=["companion-surfaces"])
 
@@ -76,5 +76,14 @@ def record_companion_surface_heartbeat(
     svc: CompanionSurfaceService = Depends(get_companion_surface_service),
     _auth: AuthContext = Depends(require_permission("companion_surfaces:heartbeat")),
 ) -> CompanionSurfaceHeartbeatOut:
-    svc.record_heartbeat(surface_id, reported_room_id=payload.reported_room_id)
+    svc.record_heartbeat(
+        surface_id,
+        reported_room_id=payload.reported_room_id,
+        device=SurfaceDeviceState(
+            platform=payload.platform,
+            mic_active=payload.mic_active,
+            camera_active=payload.camera_active,
+            screen_awake=payload.screen_awake,
+        ),
+    )
     return CompanionSurfaceHeartbeatOut(status="ok")

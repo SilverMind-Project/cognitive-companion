@@ -27,6 +27,7 @@ from backend.schemas.guided_task import (
     GuidedSessionTurnOut,
 )
 from backend.schemas.guided_task_ws import GuidedSessionStateEvent, GuidedSessionUpdateEvent
+from backend.services.guided_task import surface_lease
 from backend.services.guided_task.agent_voice import GUIDED_TASK_DELIVERY_TYPE
 from backend.services.guided_task.context import RuntimeContext
 from backend.services.guided_task.domain import STEP_IN_PROGRESS_STATUSES, Decision
@@ -141,6 +142,7 @@ class Presentation:
             total_steps=len(ctx.store.list_steps(session.routine_id)),
             language_override=routine.language_override,
             voice_override=routine.voice_override,
+            capture_lease_s=surface_lease.step_lease_seconds(ctx, routine, step),
         )
         await ctx.voice.speak_step(
             session=voice_session,
@@ -149,11 +151,13 @@ class Presentation:
             is_retry=is_retry,
         )
 
-    async def release_voice(self, session_id: int) -> None:
-        """Restore the companion's base persona once a session has ended.
+    async def release_resident(self, session_id: int) -> None:
+        """Hand the resident's surface back once a session has ended.
 
-        Owner-keyed, so it only clears an instruction this session set and never
-        strips a quiz or info card that has since taken over the realtime voice.
+        Restores the companion's base persona (owner-keyed, so it only clears an
+        instruction this session set and never strips a quiz or info card that has
+        since taken over the realtime voice) and closes the microphone lease on the
+        session's surface.
         """
         ws_manager = self._ctx.ws_manager
         if ws_manager is None:
@@ -161,6 +165,7 @@ class Presentation:
         await ws_manager.release_voice_instruction(
             voice_owner_key(GUIDED_TASK_DELIVERY_TYPE, session_id)
         )
+        await surface_lease.release(self._ctx, session_id)
 
     async def step_descriptor(
         self,
@@ -279,16 +284,19 @@ class Presentation:
         if ctx.ws_manager is None:
             return
         event = await self.resident_state(session, at=at)
-        await ctx.ws_manager.broadcast(event.model_dump(mode="json"))
+        await ctx.ws_manager.send_to_surface(session.surface_id, event.model_dump(mode="json"))
+        if session.status in STEP_IN_PROGRESS_STATUSES:
+            await surface_lease.renew(ctx, session)
 
     async def current_resident_state(
-        self, person_id: str | None = None
+        self, person_id: str | None = None, *, surface_id: str | None = None
     ) -> GuidedSessionStateEvent | None:
         """The resident-safe state of the newest session with a step in progress.
 
         Only one session per person can be live, so with ``person_id`` there is
         at most one. A summoning session is left out: its step has not been put
-        to her, so her screen has nothing to show yet.
+        to her, so her screen has nothing to show yet. ``surface_id`` is the
+        reading screen: it sees the sessions the live broadcast would reach it with.
         """
         ctx = self._ctx
         sessions = [
@@ -296,11 +304,24 @@ class Presentation:
             for s in ctx.store.list_live_sessions()
             if s.status in STEP_IN_PROGRESS_STATUSES
             and (person_id is None or s.person_id == person_id)
+            and self._shown_on(s, surface_id)
         ]
         if not sessions:
             return None
         session = max(sessions, key=lambda s: (s.started_at, s.id))
         return await self.resident_state(session, at=ctx.now())
+
+    def _shown_on(self, session: GuidedSession, viewer_surface_id: str | None) -> bool:
+        """Whether ``broadcast_resident_state`` reaches the screen ``viewer_surface_id``.
+
+        Mirrors ``send_to_surface``: a session goes to its own surface while that
+        surface is connected, and to every screen when it has none or it is offline.
+        """
+        target = session.surface_id
+        if target is None or target == viewer_surface_id:
+            return True
+        ws_manager = self._ctx.ws_manager
+        return ws_manager is None or not ws_manager.is_surface_connected(target)
 
     async def resident_state(self, session: GuidedSession, *, at: Any) -> GuidedSessionStateEvent:
         """The resident-safe view of ``session``: what her screen may show.

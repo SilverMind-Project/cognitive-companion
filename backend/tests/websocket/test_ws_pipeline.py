@@ -34,7 +34,7 @@ class TestPipelineWSAuth:
 
         with (
             patch(
-                "backend.routers.ws._resolve_key",
+                "backend.core.auth._resolve_key",
                 side_effect=Exception("should not reach"),
             ),
             TestClient(app, raise_server_exceptions=False) as tc,
@@ -55,7 +55,7 @@ class TestPipelineWSAuth:
 
         with (
             patch(
-                "backend.routers.ws._resolve_key",
+                "backend.core.auth._resolve_key",
                 side_effect=AuthenticationError(),
             ),
             TestClient(app, raise_server_exceptions=False) as tc,
@@ -75,12 +75,12 @@ class TestPipelineWSAuth:
 
         with (
             patch(
-                "backend.routers.ws._resolve_key",
+                "backend.core.auth._resolve_key",
                 return_value=AuthContext(
                     key="device-key", name="device", roles=["device_recamera"]
                 ),
             ),
-            patch("backend.routers.ws.has_token", return_value=False),
+            patch("backend.core.auth.has_token", return_value=False),
             TestClient(app, raise_server_exceptions=False) as tc,
         ):
             try:
@@ -98,10 +98,10 @@ class TestPipelineWSConnection:
 
         app, manager = _build_app()
         p1 = patch(
-            "backend.routers.ws._resolve_key",
+            "backend.core.auth._resolve_key",
             return_value=AuthContext(key="valid-key", name="admin", roles=["admin"]),
         )
-        p2 = patch("backend.routers.ws.has_token", return_value=True)
+        p2 = patch("backend.core.auth.has_token", return_value=True)
 
         with p1, p2, TestClient(app, raise_server_exceptions=False) as tc:  # noqa: SIM117
             with tc.websocket_connect("/ws/pipeline", headers={"x-api-key": "valid-key"}):
@@ -112,10 +112,10 @@ class TestPipelineWSConnection:
 
         app, manager = _build_app()
         p1 = patch(
-            "backend.routers.ws._resolve_key",
+            "backend.core.auth._resolve_key",
             return_value=AuthContext(key="valid-key", name="admin", roles=["admin"]),
         )
-        p2 = patch("backend.routers.ws.has_token", return_value=True)
+        p2 = patch("backend.core.auth.has_token", return_value=True)
 
         with p1, p2, TestClient(app, raise_server_exceptions=False) as tc:  # noqa: SIM117
             with tc.websocket_connect("/ws/pipeline", headers={"x-api-key": "valid-key"}):
@@ -132,10 +132,10 @@ class TestPipelineWSConnection:
 
         with (
             patch(
-                "backend.routers.ws._resolve_key",
+                "backend.core.auth._resolve_key",
                 return_value=AuthContext(key="valid-key", name="admin", roles=["admin"]),
             ),
-            patch("backend.routers.ws.has_token", return_value=True),
+            patch("backend.core.auth.has_token", return_value=True),
             TestClient(app, raise_server_exceptions=False) as tc,
         ):
             try:

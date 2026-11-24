@@ -1,0 +1,43 @@
+/*
+ * Ten-foot companion screen (Google TV / Android TV), switched on by
+ * useTvNavigation adding `cc-tv-mode` to <html>. Dialogs render in an overlay
+ * outside the companion root, so the rules hang off <html>, not the view.
+ * Text is sized for reading across a room and every control a remote can reach
+ * shows a heavy focus ring; nothing else about the screen changes.
+ */
+html.cc-tv-mode {
+  --cc-tv-title-size: 2.75rem;
+  --cc-tv-body-size: 2rem;
+  --cc-tv-btn-size: 1.75rem;
+  --cc-tv-btn-height: 88px;
+}
+
+html.cc-tv-mode .guided-title,
+html.cc-tv-mode .quiz-title,
+html.cc-tv-mode .prompt-title,
+html.cc-tv-mode .info-card-dialog .v-card-title {
+  font-size: var(--cc-tv-title-size);
+  line-height: 1.25;
+}
+
+html.cc-tv-mode .guided-prompt-text,
+html.cc-tv-mode .guided-help-banner,
+html.cc-tv-mode .intro-text,
+html.cc-tv-mode .prompt-message,
+html.cc-tv-mode .info-card-dialog .body-text,
+html.cc-tv-mode .info-card-dialog .side-text {
+  font-size: var(--cc-tv-body-size);
+  line-height: 1.4;
+}
+
+html.cc-tv-mode .companion-app .v-btn,
+html.cc-tv-mode .v-overlay__content .v-btn,
+html.cc-tv-mode .action-btn {
+  min-height: var(--cc-tv-btn-height);
+  font-size: var(--cc-tv-btn-size);
+}
+
+html.cc-tv-mode :focus-visible {
+  outline: 4px solid var(--cc-brand);
+  outline-offset: 4px;
+}

@@ -1,6 +1,14 @@
 /**
- * WebSocket client for real-time audio and push notifications.
+ * WebSocket client for real-time audio and push notifications (`/ws/audio`).
+ *
+ * The socket carries resident prompts and opens microphones, so it authenticates:
+ * the API key goes in the `Sec-WebSocket-Protocol` header (a browser cannot set
+ * other headers on a WebSocket, and a key in the URL would land in access logs).
+ * A screen registered as a companion surface names itself in the URL so the
+ * server sends it the deliveries for its room.
  */
+
+import { getApiKey } from "@/services/http";
 
 const NOTIFICATION_TYPES = new Set([
   "command",
@@ -18,10 +26,19 @@ const KNOWLEDGE_ANSWER_TYPE = "knowledge_answer";
 const GUIDED_SESSION_STATE_TYPE = "guided_session_state";
 const GUIDED_STEP_ACTION_TYPE = "guided_step_action";
 const GUIDED_STEP_ACTION_RESULT_TYPE = "guided_step_action_result";
+const SURFACE_HARDWARE_COMMAND_TYPE = "surface_hardware_command";
+const SURFACE_ATTENTION_STATE_TYPE = "surface_attention_state";
 
 export class WebSocketClient {
-  constructor(url) {
-    this.url = url;
+  /**
+   * @param {string} baseUrl The socket URL without the surface query.
+   * @param {{ keyProvider?: () => string }} [options]
+   */
+  constructor(baseUrl, { keyProvider = getApiKey } = {}) {
+    this.baseUrl = baseUrl;
+    this.surfaceId = "";
+    this.platform = "";
+    this._keyProvider = keyProvider;
     this.socket = null;
     this.reconnectInterval = 2000;
     this.maxReconnectAttempts = 10;
@@ -45,7 +62,37 @@ export class WebSocketClient {
       onKnowledgeAnswer: [],
       onGuidedSessionState: [],
       onGuidedStepActionResult: [],
+      onSurfaceHardwareCommand: [],
     };
+  }
+
+  /** The URL for the current surface context. */
+  get url() {
+    const params = new URLSearchParams();
+    if (this.surfaceId) params.set("surface_id", this.surfaceId);
+    if (this.platform) params.set("platform", this.platform);
+    const query = params.toString();
+    return query ? `${this.baseUrl}?${query}` : this.baseUrl;
+  }
+
+  /**
+   * Name the companion surface this screen is (empty for none) and its platform.
+   * An open socket reconnects so the server routes this room's deliveries to it.
+   */
+  setSurfaceContext({ surfaceId = "", platform = "" } = {}) {
+    const nextSurface = surfaceId?.trim() || "";
+    const nextPlatform = platform || "";
+    if (nextSurface === this.surfaceId && nextPlatform === this.platform) return;
+    this.surfaceId = nextSurface;
+    this.platform = nextPlatform;
+    if (this.socket && this.socket.readyState <= WebSocket.OPEN) {
+      // Swap the socket without letting the old one's close start a reconnect loop.
+      const previous = this.socket;
+      previous.onclose = null;
+      previous.close();
+      this.socket = null;
+      this.connect();
+    }
   }
 
   connect({ resetAttempts = true } = {}) {
@@ -59,7 +106,18 @@ export class WebSocketClient {
       this.attempts = 0;
     }
 
-    this.socket = new WebSocket(this.url);
+    const key = this._keyProvider();
+    try {
+      this.socket = new WebSocket(this.url, key ? [key] : undefined);
+    } catch (err) {
+      // A key that is not a valid subprotocol token (RFC 7230: no spaces, commas,
+      // slashes, or "=") throws here. Retrying cannot fix it, and throwing would
+      // abort the page's start-up, so report it and stay disconnected.
+      console.error("Companion socket could not be opened:", err);
+      this.socket = null;
+      this._notify("onDisconnect");
+      return;
+    }
     this.socket.binaryType = "arraybuffer";
 
     this.socket.onopen = () => {
@@ -121,6 +179,8 @@ export class WebSocketClient {
           this._notify("onGuidedSessionState", data);
         } else if (data.type === GUIDED_STEP_ACTION_RESULT_TYPE) {
           this._notify("onGuidedStepActionResult", data);
+        } else if (data.type === SURFACE_HARDWARE_COMMAND_TYPE) {
+          this._notify("onSurfaceHardwareCommand", data);
         } else if (NOTIFICATION_TYPES.has(data.type)) {
           this._notify("onCommand", data);
         } else {
@@ -172,6 +232,20 @@ export class WebSocketClient {
       session_id: sessionId,
       action,
       step_ord: stepOrd,
+    });
+  }
+
+  /**
+   * Whether someone is facing this screen, from the native shell's on-device face
+   * detection. Only presence and head angles: an image never leaves the device.
+   */
+  sendSurfaceAttentionState({ facePresent, headYawDeg = null, headPitchDeg = null }) {
+    this._sendJson({
+      type: SURFACE_ATTENTION_STATE_TYPE,
+      face_present: Boolean(facePresent),
+      head_yaw_deg: headYawDeg,
+      head_pitch_deg: headPitchDeg,
+      timestamp: new Date().toISOString(),
     });
   }
 

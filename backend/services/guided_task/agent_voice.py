@@ -9,9 +9,10 @@ from cachetools import TTLCache
 from backend.core.config import Settings
 from backend.core.config import settings as default_settings
 from backend.core.logging import get_logger
+from backend.services.companion_surface.hardware import capture_lease_seconds, engage_surface
 from backend.services.guided_task.language import compose_language_directive
 from backend.services.interactive_session.prompt_injection import inject_session_prompt
-from backend.services.interactive_session.tagging import register_session_prefix
+from backend.services.interactive_session.tagging import register_session_prefix, voice_owner_key
 
 if TYPE_CHECKING:
     from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
@@ -111,10 +112,24 @@ class AgentSessionVoice:
                     reason="realtime_provider_cannot_switch_voice_mid_session",
                 )
 
-        # She answers aloud, so the tablet microphone must be live before the
-        # step is spoken; an idle tablet would otherwise hear nothing.
-        await self._ws_manager.broadcast(
-            {"type": "enable_microphone", "reason": "guided_task", "session_id": session.id}
+        # She answers aloud, so the microphone in her room must be live before the
+        # step is spoken; an idle tablet would otherwise hear nothing. The native
+        # shell also wakes its screen; the lease is renewed by every spoken step.
+        surface_id = getattr(session, "surface_id", None)
+        await engage_surface(
+            self._ws_manager,
+            surface_id,
+            owner=voice_owner_key(GUIDED_TASK_DELIVERY_TYPE, session.id),
+            reason=GUIDED_TASK_DELIVERY_TYPE,
+            lease_seconds=getattr(session, "capture_lease_s", None)
+            or capture_lease_seconds(
+                self._settings.get("guided_task.step_timeout_s", 300), settings=self._settings
+            ),
+            settings=self._settings,
+        )
+        await self._ws_manager.send_to_surface(
+            surface_id,
+            {"type": "enable_microphone", "reason": "guided_task", "session_id": session.id},
         )
         await inject_session_prompt(
             self._ws_manager,
@@ -124,6 +139,7 @@ class AgentSessionVoice:
             execution_id=session.execution_id,
             voice_instruction=voice_instruction or None,
             extra_metadata=extra_metadata,
+            surface_id=surface_id,
         )
         logger.info(
             "guided_step_spoken",

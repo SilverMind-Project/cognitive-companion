@@ -199,6 +199,19 @@ The graph validator rejects unknown step IDs, unknown source ports, cycles that 
 | Home Assistant sync | `POST /ha/sync/rooms`, `POST /ha/sync/sensors`, `GET /ha/entities`, `GET /ha/media-players` |
 | Webhooks | `POST /webhooks/{rule_id}`, `POST /webhooks/{rule_id}/generate-secret` |
 
+## Companion surfaces and the companion socket
+
+`/ws/audio` is the resident's companion socket. It requires a key holding `companion.audio:act` (`x-api-key` header, or from a browser the `Sec-WebSocket-Protocol` header, which the server echoes on accept). Optional query parameters:
+
+| Parameter | Meaning |
+| --- | --- |
+| `surface_id` | The registered, enabled companion surface this screen is; it then receives its room's deliveries. Unknown or disabled: closed with 1008 `unknown_surface`. |
+| `platform` | `web`, `android_tablet`, or `android_tv` (logged). |
+
+Resident content for a surface goes only to that surface while it is connected, else to every companion screen. `surface_hardware_command` (`lease_owner`, `wake_screen`, `enable_microphone`, `enable_camera`, `volume_min_pct`, `attention_chime`, `lease_seconds`) goes only to its surface and is never broadcast. Leases are per `lease_owner` (one delivery): the device keeps the screen awake while any lease is live and the microphone (camera) open while any live lease asks for it; `lease_seconds: 0` ends only that owner's lease, and capture closes on the device when a lease runs out unrenewed. A `surface_id` that is unknown or disabled connects without room routing. A surface may send `surface_attention_state` (`face_present`, `head_yaw_deg`, `head_pitch_deg`, `timestamp`); any other field, such as an image, is rejected.
+
+`POST /companion-surfaces/{id}/heartbeat` also accepts `platform`, `mic_active`, `camera_active`, and `screen_awake`; an omitted field keeps its last value. `GET /guided-sessions/resident-state?surface_id=` shows a screen the routine the broadcast would send it. Surface kinds are `tablet`, `speaker`, `display`, and `tv`.
+
 ## Media observability
 
 Both endpoints require the admin permission.

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from backend.steps._helpers import resolve_person_id
+from types import SimpleNamespace
+
+import pytest
+
+from backend.steps._helpers import resolve_person_id, resolve_surface_id
 
 
 class TestResolvePersonId:
@@ -59,3 +63,39 @@ class TestResolvePersonId:
 
     def test_blank_person_id_still_uses_the_pipeline_fallbacks(self):
         assert resolve_person_id({"person_id": "  "}, {"person_id": "alice"}) == "alice"
+
+
+class _Surfaces:
+    def __init__(self, result: str | None = None, error: Exception | None = None) -> None:
+        self.result, self.error = result, error
+        self.asked: list[str] = []
+
+    async def surface_for_person(self, person_id: str) -> str | None:
+        self.asked.append(person_id)
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+
+class TestResolveSurfaceId:
+    @pytest.mark.asyncio
+    async def test_returns_the_surface_in_her_room(self):
+        surfaces = _Surfaces("kitchen-tablet")
+        services = SimpleNamespace(companion_surfaces=surfaces)
+
+        assert await resolve_surface_id(services, "resident-1") == "kitchen-tablet"  # type: ignore[arg-type]
+        assert surfaces.asked == ["resident-1"]
+
+    @pytest.mark.asyncio
+    async def test_no_person_or_registry_means_every_screen(self):
+        surfaces = _Surfaces("kitchen-tablet")
+
+        assert await resolve_surface_id(SimpleNamespace(companion_surfaces=surfaces), None) is None  # type: ignore[arg-type]
+        assert await resolve_surface_id(SimpleNamespace(companion_surfaces=None), "r") is None  # type: ignore[arg-type]
+        assert surfaces.asked == []
+
+    @pytest.mark.asyncio
+    async def test_a_lookup_failure_never_fails_the_step(self):
+        services = SimpleNamespace(companion_surfaces=_Surfaces(error=RuntimeError("db down")))
+
+        assert await resolve_surface_id(services, "resident-1") is None  # type: ignore[arg-type]

@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from backend.integrations.scene_analysis_client import SceneAnalysisClient
     from backend.integrations.semantic_memory_client import SemanticMemoryClient
     from backend.services.activity.service import ActivityService
+    from backend.services.companion_surface import CompanionSurfaceService
     from backend.services.cts.event_bucketizer import CtsEventBucketizer
     from backend.services.daily_report import DailyReportService
     from backend.services.event_aggregator import EventAggregator
@@ -140,6 +141,9 @@ class ServiceContainer:
     # The companion tablet socket (/ws/audio), for steps that prompt the resident
     # directly (popups, voice prompts, microphone wake).
     ws_manager: ConnectionManager | None = None
+    # The companion surface registry: which surface is in the resident's room, so a
+    # step's prompt and microphone go to her room's screen only.
+    companion_surfaces: CompanionSurfaceService | None = None
 
 
 # ---------------------------------------------------------------------------

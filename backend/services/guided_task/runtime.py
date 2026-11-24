@@ -238,14 +238,14 @@ class Runtime:
         guided_metrics.guided_sessions_total.labels(outcome=outcome).inc()
         await self._memory_bridge.on_session_terminal(updated)
         resume_owning_pipeline(ctx.scheduler, updated.execution_id, now=now)
-        await self._presentation.release_voice(session_id)
+        await self._presentation.release_resident(session_id)
         return updated
 
     async def abandon(self, session_id: int, *, now: datetime, outcome: str) -> GuidedSession:
         """Single funnel for every abandon route; mirrors ``complete()``."""
         updated = self._ctx.mark_abandoned(session_id, now=now, outcome=outcome)
         await self._memory_bridge.on_session_terminal(updated)
-        await self._presentation.release_voice(session_id)
+        await self._presentation.release_resident(session_id)
         return updated
 
     async def apply_decision(

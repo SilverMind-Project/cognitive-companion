@@ -8,9 +8,10 @@ from backend.core.config import Settings
 from backend.services.guided_task.agent_voice import AgentSessionVoice
 from backend.services.interactive_session.tagging import prefix_for_delivery
 from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
+from backend.tests.factories.companion_socket import CompanionSocketRouting
 
 
-class _Ws:
+class _Ws(CompanionSocketRouting):
     def __init__(self) -> None:
         self.calls: list[dict] = []
         self.broadcasts: list[dict] = []
@@ -76,6 +77,7 @@ async def test_speak_step_injects_with_guided_prefix_metadata() -> None:
                 "session_id": 3,
                 "execution_id": 42,
             },
+            "surface_id": None,
         }
     ]
 

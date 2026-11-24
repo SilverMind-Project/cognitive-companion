@@ -13,6 +13,7 @@ from backend.models.person import HouseholdMember
 from backend.services.guided_task.agent_voice import AgentSessionVoice
 from backend.services.guided_task.service import GuidedTaskService
 from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
+from backend.tests.factories.companion_socket import CompanionSocketRouting
 
 
 def _settings(**guided_task_overrides) -> Settings:
@@ -46,7 +47,7 @@ def _voice_config() -> VoiceInstructionConfig:
     )
 
 
-class _Ws:
+class _Ws(CompanionSocketRouting):
     def __init__(self) -> None:
         self.calls: list[dict] = []
         self.broadcasts: list[dict] = []

@@ -11,6 +11,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
 from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
+from backend.tests.factories.companion_socket import CompanionSocketRouting
 
 BASE_PERSONA = "You are Nila, the household companion."
 VOICE = VoiceInstructionConfig(
@@ -22,7 +23,7 @@ VOICE = VoiceInstructionConfig(
 
 
 @dataclass
-class RecordingWs:
+class RecordingWs(CompanionSocketRouting):
     broadcasts: list[dict[str, Any]] = field(default_factory=list)
     backend_tasks: list[dict[str, Any]] = field(default_factory=list)
     releases: list[str] = field(default_factory=list)

@@ -9,7 +9,7 @@ from backend.core.logging import get_logger
 from backend.models.knowledge import InfoCard
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
-from backend.steps._helpers import make_trigger_vars, resolve_person_id
+from backend.steps._helpers import make_trigger_vars, resolve_person_id, resolve_surface_id
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -127,6 +127,7 @@ class InfoCardStep(StepHandler):
                 success=False, data={"error": "knowledge delivery service not available"}
             )
 
+        senior_id = resolve_person_id(config, pipeline_data, make_trigger_vars(trigger))
         result = await delivery_svc.deliver_info_card(
             card=card,
             channels=channels,
@@ -136,9 +137,10 @@ class InfoCardStep(StepHandler):
             speak=("voice" in channels),
             dismiss_seconds=dismiss_seconds,
             eink_expiry_minutes=eink_expiry,
-            senior_id=resolve_person_id(config, pipeline_data, make_trigger_vars(trigger)),
+            senior_id=senior_id,
             template_data=pipeline_data,
             trigger_vars=make_trigger_vars(trigger),
+            surface_id=await resolve_surface_id(services, senior_id),
         )
 
         logger.info(

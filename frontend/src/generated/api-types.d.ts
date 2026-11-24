@@ -2918,7 +2918,9 @@ export interface paths {
          *
          *     Its own token, because a tablet must not need ``guided_sessions:read``,
          *     which exposes failure reasons and transcripts. No MCP twin: the agent reads
-         *     the same session through ``get_active_guided_step``.
+         *     the same session through ``get_active_guided_step``. ``surface_id`` is the
+         *     reading screen's registered surface: a session bound to another, connected
+         *     surface is not shown on it, matching the room-targeted broadcast.
          */
         get: operations["get_resident_guided_state"];
         put?: never;
@@ -7000,7 +7002,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "tablet" | "speaker" | "display";
+            kind: "tablet" | "speaker" | "display" | "tv";
             /** Name */
             name: string;
             /** Room Id */
@@ -7011,10 +7013,24 @@ export interface components {
              */
             surface_type: "fixed" | "movable";
         };
-        /** CompanionSurfaceHeartbeat */
+        /**
+         * CompanionSurfaceHeartbeat
+         * @description A surface's periodic check-in, with the device state it can report.
+         *
+         *     Whether a face is in front of the screen is deliberately not accepted here:
+         *     it is a fact about the resident, not the device, and is never stored.
+         */
         CompanionSurfaceHeartbeat: {
+            /** Camera Active */
+            camera_active?: boolean | null;
+            /** Mic Active */
+            mic_active?: boolean | null;
+            /** Platform */
+            platform?: ("web" | "android_tablet" | "android_tv") | null;
             /** Reported Room Id */
             reported_room_id?: number | null;
+            /** Screen Awake */
+            screen_awake?: boolean | null;
         };
         /** CompanionSurfaceHeartbeatOut */
         CompanionSurfaceHeartbeatOut: {
@@ -7030,6 +7046,8 @@ export interface components {
         };
         /** CompanionSurfaceOut */
         CompanionSurfaceOut: {
+            /** Camera Active */
+            camera_active?: boolean | null;
             /**
              * Created At
              * Format: date-time
@@ -7043,11 +7061,15 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "tablet" | "speaker" | "display";
+            kind: "tablet" | "speaker" | "display" | "tv";
             /** Last Seen At */
             last_seen_at: string | null;
+            /** Mic Active */
+            mic_active?: boolean | null;
             /** Name */
             name: string;
+            /** Platform */
+            platform?: ("web" | "android_tablet" | "android_tv") | null;
             /** Room Id */
             room_id: number | null;
             /** Room Mismatch */
@@ -7057,6 +7079,8 @@ export interface components {
              * @enum {string}
              */
             room_source: "caregiver" | "cts_inferred";
+            /** Screen Awake */
+            screen_awake?: boolean | null;
             /**
              * Surface Type
              * @enum {string}
@@ -7073,7 +7097,7 @@ export interface components {
             /** Is Enabled */
             is_enabled?: boolean | null;
             /** Kind */
-            kind?: ("tablet" | "speaker" | "display") | null;
+            kind?: ("tablet" | "speaker" | "display" | "tv") | null;
             /** Name */
             name?: string | null;
             /** Room Id */
@@ -18861,6 +18885,7 @@ export interface operations {
         parameters: {
             query?: {
                 person_id?: string | null;
+                surface_id?: string | null;
             };
             header?: never;
             path?: never;

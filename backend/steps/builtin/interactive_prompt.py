@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from backend.core.logging import get_logger
 from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.services.companion_surface.hardware import capture_lease_seconds, engage_surface
 from backend.steps import StepRegistry
-from backend.steps._helpers import make_trigger_vars
+from backend.steps._helpers import make_trigger_vars, resolve_person_id, resolve_surface_id
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -237,13 +238,29 @@ class InteractivePromptHandler(StepHandler):
         popup_sent = False
         voice_sent = False
 
+        # The prompt, its microphone, and the screen wake go to the companion surface
+        # in the resident's room when the pipeline names a person whose room has one.
+        # There is no explicit release: the lease is the countdown plus a margin.
+        surface_id = await resolve_surface_id(
+            services, resolve_person_id({}, pipeline_data, make_trigger_vars(trigger))
+        )
+        await engage_surface(
+            services.ws_manager,
+            surface_id,
+            owner=f"interactive_prompt:{execution.id}:{step.id}",
+            reason="interactive_prompt",
+            lease_seconds=capture_lease_seconds(countdown_seconds),
+            microphone=bool(rendered_voice_prompt),
+        )
+
         # Send interactive_prompt message via WebSocket for popup channel
         if rendered_popup_message:
             ws_manager = services.ws_manager
 
             if ws_manager:
                 try:
-                    await ws_manager.broadcast(
+                    await ws_manager.send_to_surface(
+                        surface_id,
                         {
                             "type": "interactive_prompt",
                             "execution_id": execution.id,
@@ -255,7 +272,7 @@ class InteractivePromptHandler(StepHandler):
                             "dismiss_button_text": dismiss_button_text,
                             "countdown_seconds": countdown_seconds,
                             "server_timestamp": server_timestamp,
-                        }
+                        },
                     )
                     popup_sent = True
                     logger.info(
@@ -307,6 +324,7 @@ class InteractivePromptHandler(StepHandler):
                             "step_id": step.id,
                             "step_type": "interactive_prompt",
                         },
+                        surface_id=surface_id,
                     )
                     voice_sent = True
                     logger.info(
@@ -319,13 +337,14 @@ class InteractivePromptHandler(StepHandler):
                     # Signal frontend to auto-enable microphone so the user
                     # can respond to Gemini Live without tapping the mic.
                     try:
-                        await ws_manager.broadcast(
+                        await ws_manager.send_to_surface(
+                            surface_id,
                             {
                                 "type": "enable_microphone",
                                 "reason": "interactive_prompt_voice",
                                 "execution_id": execution.id,
                                 "step_id": step.id,
-                            }
+                            },
                         )
                     except Exception as broadcast_error:  # noqa: BLE001
                         logger.error(

@@ -288,6 +288,7 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
         person_location_service=person_location_service,
     )
     app.state.companion_surface_service = companion_surface_service
+    container.companion_surfaces = companion_surface_service
     zone_service = ZoneService(
         db_factory=get_session,
         person_location_service=person_location_service,

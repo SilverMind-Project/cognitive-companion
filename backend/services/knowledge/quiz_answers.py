@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
 from backend.models.knowledge import QuizQuestion, QuizResponse, QuizSession
-from backend.services.interactive_session import inject_session_prompt
+from backend.services.interactive_session import inject_session_prompt, voice_owner_key
 from backend.services.knowledge.delivery_context import DeliveryContextMixin
 from backend.services.knowledge.quiz_messages import (
     QUIZ_DELIVERY_TYPE,
@@ -307,7 +307,8 @@ class QuizAnswersMixin(DeliveryContextMixin):
 
     async def _announce_answer(self, result: dict[str, Any]) -> None:
         try:
-            await self._ws_manager.broadcast(
+            await self._send_to_resident(
+                voice_owner_key(QUIZ_DELIVERY_TYPE, result["session_id"]),
                 {
                     "type": "quiz_answer_recorded",
                     "session_id": result["session_id"],
@@ -315,7 +316,7 @@ class QuizAnswersMixin(DeliveryContextMixin):
                     "is_correct": result["is_correct"],
                     "explanation": result["explanation"],
                     "advance": result["advance"],
-                }
+                },
             )
         except Exception:
             logger.exception("quiz_answer_recorded_broadcast_failed")
@@ -347,6 +348,9 @@ class QuizAnswersMixin(DeliveryContextMixin):
                     ),
                     delivery_type=QUIZ_DELIVERY_TYPE,
                     session_id=session_id,
+                    surface_id=self._resident_surface(
+                        voice_owner_key(QUIZ_DELIVERY_TYPE, session_id)
+                    ),
                 )
             except Exception:
                 logger.exception("quiz_voice_sync_failed", session_id=session_id)
@@ -369,6 +373,7 @@ class QuizAnswersMixin(DeliveryContextMixin):
                 ),
                 delivery_type=QUIZ_DELIVERY_TYPE,
                 session_id=session_id,
+                surface_id=self._resident_surface(voice_owner_key(QUIZ_DELIVERY_TYPE, session_id)),
             )
         except Exception:
             logger.exception("quiz_voice_end_relay_failed", session_id=session_id)

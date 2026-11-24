@@ -18,7 +18,17 @@ logger = get_logger(__name__)
 
 VALID_SURFACE_TYPES = frozenset({"fixed", "movable"})
 VALID_ROOM_SOURCES = frozenset({"caregiver", "cts_inferred"})
-VALID_KINDS = frozenset({"tablet", "speaker", "display"})
+VALID_KINDS = frozenset({"tablet", "speaker", "display", "tv"})
+
+
+@dataclass(frozen=True)
+class SurfaceDeviceState:
+    """What a surface's own heartbeat reports about the device (all optional)."""
+
+    platform: str | None = None
+    mic_active: bool | None = None
+    camera_active: bool | None = None
+    screen_awake: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -34,6 +44,10 @@ class SurfaceView:
     room_mismatch: bool
     created_at: datetime
     updated_at: datetime
+    platform: str | None = None
+    mic_active: bool | None = None
+    camera_active: bool | None = None
+    screen_awake: bool | None = None
 
 
 def _to_view(surface: CompanionSurface) -> SurfaceView:
@@ -49,6 +63,10 @@ def _to_view(surface: CompanionSurface) -> SurfaceView:
         room_mismatch=surface.room_mismatch,
         created_at=surface.created_at,
         updated_at=surface.updated_at,
+        platform=surface.platform,
+        mic_active=surface.mic_active,
+        camera_active=surface.camera_active,
+        screen_awake=surface.screen_awake,
     )
 
 
@@ -176,7 +194,33 @@ class CompanionSurfaceService:
         finally:
             db.close()
 
-    def record_heartbeat(self, surface_id: str, *, reported_room_id: int | None) -> None:
+    async def surface_for_person(self, person_id: str | None) -> str | None:
+        """The enabled surface in the room ``person_id`` is in now, if any.
+
+        None when the person, their location, or a surface in that room is unknown;
+        the delivery then reaches every companion screen, as before surfaces were
+        routed. With several surfaces in one room, the first by name is chosen.
+        """
+        if not person_id or self._person_location_service is None:
+            return None
+        location = await self._person_location_service.where_is(person_id)
+        if location is None or location.room_id is None:
+            return None
+        surfaces = self.surfaces_in_room(location.room_id)
+        return surfaces[0].id if surfaces else None
+
+    def record_heartbeat(
+        self,
+        surface_id: str,
+        *,
+        reported_room_id: int | None,
+        device: SurfaceDeviceState | None = None,
+    ) -> None:
+        """Mark a surface seen and keep the device state it reported.
+
+        A field the device did not report keeps its last value, so a browser
+        heartbeat (which knows none of them) never erases what the native shell said.
+        """
         now = self._now()
         db = self._db_factory()
         try:
@@ -184,6 +228,11 @@ class CompanionSurfaceService:
             if surface is None:
                 raise NotFoundError("Companion surface", surface_id)
             surface.last_seen_at = now
+            if device is not None:
+                for field_name in ("platform", "mic_active", "camera_active", "screen_awake"):
+                    value = getattr(device, field_name)
+                    if value is not None:
+                        setattr(surface, field_name, value)
             if (
                 reported_room_id is not None
                 and surface.surface_type == "movable"

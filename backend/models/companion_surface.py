@@ -12,7 +12,7 @@ from backend.core.time import UTCDateTime
 
 
 class CompanionSurface(Base):
-    """A tablet, speaker, or display that can host or summon guided tasks."""
+    """A tablet, speaker, display, or TV that can host or summon guided tasks."""
 
     __tablename__ = "companion_surfaces"
 
@@ -25,6 +25,11 @@ class CompanionSurface(Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     room_mismatch: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Last heartbeat's device report; None until a surface that knows reports it.
+    platform: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    mic_active: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    camera_active: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    screen_awake: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), nullable=False, server_default=func.now()
     )

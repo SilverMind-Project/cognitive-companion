@@ -1,11 +1,34 @@
 <template>
-  <v-app class="companion-app">
+  <v-app ref="appRoot" class="companion-app">
     <!-- Header -->
     <v-app-bar flat color="transparent" class="px-4">
       <v-app-bar-title>
         <span class="text-h5 font-weight-bold cc-gradient-text">Cognitive Companion</span>
       </v-app-bar-title>
       <v-spacer />
+      <!-- She can always see when the screen is listening or watching. -->
+      <v-chip
+        v-if="recording"
+        color="primary"
+        size="small"
+        variant="tonal"
+        class="mr-2"
+        data-test="capture-mic"
+      >
+        <v-icon start size="12">mdi-microphone</v-icon>
+        Listening
+      </v-chip>
+      <v-chip
+        v-if="hardware.state.cameraActive"
+        color="primary"
+        size="small"
+        variant="tonal"
+        class="mr-2"
+        data-test="capture-camera"
+      >
+        <v-icon start size="12">mdi-camera</v-icon>
+        Camera active
+      </v-chip>
       <v-chip :color="connected ? 'success' : undefined" size="small" variant="tonal" class="mr-2">
         <v-icon start size="12">{{ connected ? "mdi-wifi" : "mdi-wifi-off" }}</v-icon>
         {{ connected ? "Connected" : "Disconnected" }}
@@ -61,14 +84,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import { wsClient } from "../services/WebSocketClient.js";
 import { getWidgets } from "../components/companion/WidgetRegistry.js";
 import KioskGate from "../components/companion/KioskGate.vue";
 import { useKioskMode } from "../composables/useKioskMode.js";
+import { useNativeCompanionHardware } from "../composables/useNativeCompanionHardware.js";
 import { useResidentGuidedSession } from "../composables/useResidentGuidedSession.js";
+import { useTvNavigation } from "../composables/useTvNavigation.js";
 import { api } from "../services/api.js";
+import "../styles/companion-tv.css";
 
 // Register built-in widgets
 import "../components/companion/index.js";
@@ -81,9 +107,28 @@ const alertDialog = ref(false);
 const alertMessage = ref("");
 const alertType = ref("info");
 const connected = ref(false);
+const appRoot = ref(null);
 const route = useRoute();
-const kiosk = useKioskMode({ route });
-const guided = useResidentGuidedSession({ ws: wsClient, api });
+const hardware = useNativeCompanionHardware({
+  ws: wsClient,
+  isRecording: () => recording.value,
+  startCapture: () => startRecordingFromGesture(),
+  stopCapture: stopRecording,
+});
+const kiosk = useKioskMode({ route, deviceState: () => hardware.actions.deviceState() });
+const guided = useResidentGuidedSession({
+  ws: wsClient,
+  // This screen sees the routine the server is sending to its own surface.
+  api: {
+    getResidentGuidedState: () =>
+      api.getResidentGuidedState(kiosk.state.settings.surfaceId || undefined),
+  },
+});
+const tv = useTvNavigation({
+  route,
+  deviceIsTelevision: () => hardware.state.isTelevision,
+  root: () => appRoot.value?.$el ?? null,
+});
 
 // Interactive prompt state
 const interactivePromptVisible = ref(false);
@@ -219,10 +264,14 @@ async function startRecordingFromGesture() {
   audioState.value = "listening";
 }
 
+function stopRecording() {
+  recording.value = false;
+  audioState.value = "idle";
+}
+
 function toggleRecording() {
   if (recording.value) {
-    recording.value = false;
-    audioState.value = "idle";
+    stopRecording();
     return;
   }
   void startRecordingFromGesture();
@@ -230,6 +279,25 @@ function toggleRecording() {
 
 function beginKioskSession() {
   void kiosk.actions.begin(startRecordingFromGesture);
+}
+
+/**
+ * The Android shell plays audio without a tap, so its kiosk starts by itself
+ * after a reboot or crash, idle until the server asks it to listen, instead of
+ * waiting behind a tap screen she cannot be expected to use.
+ */
+async function beginNativeKiosk() {
+  await kiosk.actions.begin(async () => {
+    const ctx = getPlaybackContext();
+    if (ctx.state === "suspended") await ctx.resume();
+  });
+}
+
+function applySurfaceContext() {
+  wsClient.setSurfaceContext({
+    surfaceId: kiosk.state.settings.surfaceId,
+    platform: hardware.state.platform,
+  });
 }
 
 function onAudioData(buffer) {
@@ -352,13 +420,32 @@ function flushAnnouncementBuffer() {
   playPcmChunk(merged.buffer, announcementSampleRate);
 }
 
-onMounted(() => {
+watch(
+  () => kiosk.state.settings.surfaceId,
+  () => {
+    applySurfaceContext();
+    void guided.actions.hydrate();
+  },
+);
+watch(
+  () => tv.state.active,
+  () => tv.actions.syncClass(),
+);
+
+onMounted(async () => {
+  // The shell is detected first so the socket names its platform from the start.
+  await hardware.actions.mount();
+  tv.actions.mount();
   // Connect immediately so push notifications (alerts, reminders) are
   // delivered as soon as the page loads, regardless of whether the user
   // has tapped the mic button.  The backend holds the connection open
   // without starting a Gemini session until audio activity arrives.
+  applySurfaceContext();
   wsClient.connect();
   guided.actions.mount();
+  if (hardware.state.native && kiosk.state.gateVisible) {
+    await beginNativeKiosk();
+  }
 
   wsClient.on("onTranscript", (data) => {
     transcript.value.push({
@@ -449,6 +536,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  hardware.actions.unmount();
+  tv.actions.unmount();
   guided.actions.unmount();
   wsClient.disconnect();
   if (playbackContext) {

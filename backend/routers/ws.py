@@ -5,36 +5,49 @@ and /ws/pipeline endpoint for live pipeline execution events.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from starlette.concurrency import run_in_threadpool
 
-from backend.core.auth import (
-    _resolve_key,
-    declare_tokens,
-    has_token,
-)
-from backend.core.exceptions import AuthenticationError
+from backend.core.auth import WS_ROUTE_TOKENS, authenticate_websocket, declare_tokens
 from backend.core.logging import get_logger
+from backend.schemas.companion_surface_ws import SurfacePlatform
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/ws", tags=["websocket"])
 
-_PIPELINE_EVENTS_TOKEN = "pipeline.events:read"
-declare_tokens(_PIPELINE_EVENTS_TOKEN)
+_AUDIO_TOKEN = WS_ROUTE_TOKENS["/ws/audio"]
+_PIPELINE_EVENTS_TOKEN = WS_ROUTE_TOKENS["/ws/pipeline"]
+declare_tokens(_AUDIO_TOKEN, _PIPELINE_EVENTS_TOKEN)
 
 
 @router.websocket("/audio")
-async def websocket_audio(websocket: WebSocket):
-    """Bidirectional audio WebSocket endpoint.
+async def websocket_audio(
+    websocket: WebSocket,
+    surface_id: str | None = Query(default=None, min_length=1, max_length=128),
+    platform: SurfacePlatform | None = Query(default=None),
+) -> None:
+    """Bidirectional audio WebSocket endpoint for companion surfaces.
 
     Accepts audio bytes and text commands from the client, forwards them
-    to the configured realtime backend, and relays responses back.
+    to the configured realtime backend, and relays responses back. The
+    socket carries resident prompts and opens microphones, so it requires
+    a key holding ``companion.audio:act``. A client that names a registered,
+    enabled ``surface_id`` receives that surface's room-targeted deliveries.
+    Any other ``surface_id`` (a stale or mistyped kiosk setting, a disabled
+    surface) connects as a surface-less screen and is logged: cutting a
+    companion screen off entirely would be worse than losing its room routing.
     """
     from backend.integrations.llm.base import RealtimeLLMProvider
     from backend.mcp.gemini_adapter import GeminiToolAdapter
+    from backend.services.companion_surface import CompanionSurfaceService
     from backend.services.conversation_manager import ConversationManager
     from backend.websocket.audio_handler import AudioSessionHandler
     from backend.websocket.connection_manager import ConnectionManager
+
+    ws_auth = await authenticate_websocket(websocket, _AUDIO_TOKEN, channel="companion_audio")
+    if ws_auth is None:
+        return
 
     # Pull shared objects from app.state
     app = websocket.app
@@ -47,9 +60,25 @@ async def websocket_audio(websocket: WebSocket):
         await websocket.close(code=1011, reason="Server not ready")
         return
 
-    accepted = await manager.connect(websocket)
+    if surface_id is not None:
+        surfaces: CompanionSurfaceService | None = app.state.companion_surface_service
+        surface = (
+            await run_in_threadpool(surfaces.get_surface, surface_id)
+            if surfaces is not None
+            else None
+        )
+        if surface is None or not surface.is_enabled:
+            logger.warning("ws_audio_unknown_surface_unbound", surface_id=surface_id)
+            surface_id = None
+
+    accepted = await manager.connect(
+        websocket, surface_id=surface_id, subprotocol=ws_auth.subprotocol
+    )
     if not accepted:
         return
+    logger.info(
+        "ws_audio_connected", name=ws_auth.auth.name, surface_id=surface_id, platform=platform
+    )
     guided_task_service = getattr(app.state, "guided_task_service", None)
     if guided_task_service is not None:
         try:
@@ -64,6 +93,7 @@ async def websocket_audio(websocket: WebSocket):
             realtime_provider=realtime_provider,
             conversation_manager=conversation_manager,
             tool_adapter=gemini_adapter,
+            surface_id=surface_id,
         )
         await handler.run()
     except WebSocketDisconnect:
@@ -80,37 +110,16 @@ async def websocket_pipeline(websocket: WebSocket) -> None:
     """Read-only WebSocket that streams PipelineExecutionEvents to subscribers.
 
     Auth: API key via ``x-api-key`` header or ``sec-websocket-protocol``
-    (same pattern as ``/ws/cts``).  Requires the ``pipeline.stream``
-    permission entry in auth.yaml.  Closes with 1008 on auth failure.
+    (same pattern as ``/ws/cts``).  Requires ``pipeline.events:read``.
+    Closes with 1008 on auth failure.
     """
     from backend.websocket.pipeline_manager import PipelineConnectionManager
 
     client_ip = websocket.client.host if websocket.client else "unknown"
-
-    raw_key = (
-        websocket.headers.get("x-api-key")
-        or websocket.headers.get("sec-websocket-protocol", "").strip()
-    )
-    if not raw_key:
-        logger.warning("pipeline_ws_rejected_no_key", client=client_ip)
-        await websocket.close(code=1008, reason="auth_required")
+    ws_auth = await authenticate_websocket(websocket, _PIPELINE_EVENTS_TOKEN, channel="pipeline")
+    if ws_auth is None:
         return
-
-    try:
-        auth = _resolve_key(raw_key)
-    except AuthenticationError:
-        logger.warning("pipeline_ws_rejected_auth_failed", client=client_ip)
-        await websocket.close(code=1008, reason="auth_failed")
-        return
-
-    if not has_token(auth, _PIPELINE_EVENTS_TOKEN):
-        logger.warning(
-            "pipeline_ws_rejected_permission_denied",
-            client=client_ip,
-            name=auth.name,
-        )
-        await websocket.close(code=1008, reason="permission_denied")
-        return
+    auth = ws_auth.auth
 
     manager: PipelineConnectionManager | None = getattr(
         websocket.app.state, "pipeline_ws_manager", None
@@ -120,7 +129,7 @@ async def websocket_pipeline(websocket: WebSocket) -> None:
         await websocket.close(code=1011, reason="server_not_ready")
         return
 
-    accepted = await manager.connect(websocket)
+    accepted = await manager.connect(websocket, subprotocol=ws_auth.subprotocol)
     if not accepted:
         return
 

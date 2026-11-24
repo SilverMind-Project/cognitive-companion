@@ -48,6 +48,8 @@ ALWAYS_REQUIRED: frozenset[str] = frozenset(
         # home_state filter/step entity_id extension; see the note on the
         # ServiceContainer field before deleting it for lack of a consumer.
         "ha_state_cache",
+        # perception.wire_perception constructs the surface registry unconditionally.
+        "companion_surfaces",
     }
 )
 

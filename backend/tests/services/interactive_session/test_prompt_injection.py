@@ -18,6 +18,7 @@ class _FakeConnectionManager:
         callback: Any = None,
         voice_instruction: str | None = None,
         metadata: dict[str, Any] | None = None,
+        surface_id: str | None = None,
     ) -> None:
         self.calls.append(
             {
@@ -25,6 +26,7 @@ class _FakeConnectionManager:
                 "callback": callback,
                 "voice_instruction": voice_instruction,
                 "metadata": metadata,
+                "surface_id": surface_id,
             }
         )
 
@@ -52,6 +54,7 @@ async def test_inject_session_prompt_builds_metadata() -> None:
                 "session_id": 7,
                 "execution_id": 42,
             },
+            "surface_id": None,
         }
     ]
 
@@ -97,3 +100,18 @@ async def test_inject_session_prompt_merges_extra_metadata() -> None:
         "execution_id": 42,
         "quiz_id": 3,
     }
+
+
+@pytest.mark.asyncio
+async def test_inject_session_prompt_routes_to_the_residents_surface() -> None:
+    ws_manager = _FakeConnectionManager()
+
+    await inject_session_prompt(
+        ws_manager,
+        prompt="Fill the kettle.",
+        delivery_type="guided_task_start",
+        session_id=3,
+        surface_id="kitchen-tablet",
+    )
+
+    assert ws_manager.calls[0]["surface_id"] == "kitchen-tablet"

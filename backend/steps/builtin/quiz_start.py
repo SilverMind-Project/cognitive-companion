@@ -13,7 +13,7 @@ from backend.models.knowledge import Quiz, QuizSession
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.services.knowledge.voice_instructions import QUIZ_INTERACTION_MODES
 from backend.steps import StepRegistry
-from backend.steps._helpers import make_trigger_vars, resolve_person_id
+from backend.steps._helpers import make_trigger_vars, resolve_person_id, resolve_surface_id
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -193,6 +193,7 @@ class QuizStartStep(StepHandler):
                 success=False, data={"error": "knowledge delivery service not available"}
             )
 
+        senior_id = resolve_person_id(config, pipeline_data, make_trigger_vars(trigger))
         try:
             result = await delivery_svc.start_quiz_session(
                 quiz=quiz,
@@ -204,9 +205,10 @@ class QuizStartStep(StepHandler):
                 randomize_order=config.get("randomize_order", False),
                 session_timeout_minutes=config.get("session_timeout_minutes", 10),
                 interaction_mode=interaction_mode,
-                senior_id=resolve_person_id(config, pipeline_data, make_trigger_vars(trigger)),
+                senior_id=senior_id,
                 template_data=pipeline_data,
                 trigger_vars=make_trigger_vars(trigger),
+                surface_id=await resolve_surface_id(services, senior_id),
             )
         except ValidationError as exc:
             return StepResult(success=False, data={"error": exc.message})

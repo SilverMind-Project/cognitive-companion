@@ -68,6 +68,15 @@ export const getGuidedMetricsDashboard = (params: MetricsParams) =>
 
 export type GuidedSessionState = Schemas["GuidedSessionStateEvent"];
 
-/** The resident-safe state of the session in progress (`session: null` when idle). */
-export const getResidentGuidedState = () =>
-  unwrap(client.GET("/api/v1/guided-sessions/resident-state", {}));
+/**
+ * The resident-safe state of the session in progress (`session: null` when idle).
+ *
+ * `surfaceId` is this screen's registered companion surface: a routine running on
+ * another, connected surface is not shown here, matching the room-targeted broadcast.
+ */
+export const getResidentGuidedState = (surfaceId?: string) =>
+  unwrap(
+    client.GET("/api/v1/guided-sessions/resident-state", {
+      params: { query: surfaceId ? { surface_id: surfaceId } : {} },
+    }),
+  );

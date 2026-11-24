@@ -14,6 +14,7 @@ Read before adding or changing a route. Part of the `engineering-standards` skil
 
 - Every guarded route, WebSocket endpoint, and MCP tool declares exactly one D4 `<resource>:<action>` token (actions from the closed `ALLOWED_ACTIONS` set in `backend/core/auth.py`). Roles are token sets defined exclusively under `roles:` in `config/auth.yaml`, and authorization checks pure token membership.
 - Use `require_permission("<resource>:<action>")` on every HTTP route. List every token on at least one role in `config/auth.yaml` (admin-only tokens appear explicitly under `admin:` alongside `"*"`) and regenerate `docs/api/permissions.md` via `backend/scripts/export_route_permissions.py`.
+- Every WebSocket route authenticates through `backend.core.auth.authenticate_websocket(websocket, token, channel=...)` and lists its token in `WS_ROUTE_TOKENS`. A browser cannot set headers on a WebSocket, so it offers the key as its `Sec-WebSocket-Protocol`; the route must accept with `subprotocol=ws_auth.subprotocol`, or the browser drops the connection (close 1006). Never put a key in a WebSocket URL.
 - Keys come from the `X-API-Key` header. Only device endpoints (`get_auth_context_device`, opted into per route) also accept a `?api_key` query parameter or a body `device_key`; never add those key paths to a browser-facing route (`testing.md`, "Envelope and authorization tests").
 
 ### Input validation

@@ -35,6 +35,7 @@ def list_guided_sessions(
 @router.get("/resident-state", response_model=ResidentGuidedStateOut)
 async def get_resident_guided_state(
     person_id: str | None = Query(default=None),
+    surface_id: str | None = Query(default=None, min_length=1, max_length=128),
     svc: GuidedTaskService = Depends(get_guided_task_service),
     _auth: AuthContext = Depends(require_permission("guided_sessions.resident_state:read")),
 ) -> ResidentGuidedStateOut:
@@ -43,9 +44,13 @@ async def get_resident_guided_state(
 
     Its own token, because a tablet must not need ``guided_sessions:read``,
     which exposes failure reasons and transcripts. No MCP twin: the agent reads
-    the same session through ``get_active_guided_step``.
+    the same session through ``get_active_guided_step``. ``surface_id`` is the
+    reading screen's registered surface: a session bound to another, connected
+    surface is not shown on it, matching the room-targeted broadcast.
     """
-    return ResidentGuidedStateOut(session=await svc.get_resident_state(person_id))
+    return ResidentGuidedStateOut(
+        session=await svc.get_resident_state(person_id, surface_id=surface_id)
+    )
 
 
 @router.get("/{session_id}/detail", response_model=GuidedSessionDetailOut)

@@ -30,6 +30,7 @@ _GUARDED_MODULES = [
     "routine_admin.py",
     "presentation.py",
     "retention.py",
+    "surface_lease.py",
     "runtime.py",
     "resident_actions.py",
     "summon.py",

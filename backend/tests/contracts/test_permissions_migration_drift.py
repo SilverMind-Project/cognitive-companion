@@ -37,7 +37,7 @@ def test_route_inventory_is_non_vacuous_and_every_declared_token_is_d4_valid() -
     ws_rows = [r for r in rows if r.auth_kind == "ws"]
 
     assert len(http_rows) >= 300, f"Expected >= 300 guarded HTTP routes, got {len(http_rows)}"
-    assert {r.path for r in ws_rows} == {"/ws/cts", "/ws/pipeline"}
+    assert {r.path for r in ws_rows} == {"/ws/audio", "/ws/cts", "/ws/pipeline"}
 
     for row in rows:
         assert is_valid_d4_token(row.declared_token), (

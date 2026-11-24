@@ -93,7 +93,7 @@ class Summon:
             if surfaces:
                 selected_surface_id = surfaces[0].id
 
-        if selected_surface_id is not None and self._has_live_realtime_session():
+        if selected_surface_id is not None and self._reaches_surface(selected_surface_id):
             session = ctx.store.create_session(
                 routine_id=routine_id,
                 person_id=person_id,
@@ -200,8 +200,8 @@ class Summon:
         )
         if updated is None:
             raise NotFoundError("Guided session", session_id)
-        if updated.conversation_session_id is None and self._has_live_realtime_session():
-            live_conversation_id = ctx.ws_manager.current_conversation_session_id
+        if updated.conversation_session_id is None and self._reaches_surface(updated.surface_id):
+            live_conversation_id = ctx.ws_manager.conversation_session_id(updated.surface_id)
             if live_conversation_id is not None:
                 updated = ctx.link_conversation(
                     updated, live_conversation_id, now=begin_at, actor="system"
@@ -268,7 +268,7 @@ class Summon:
                 surface_id = surfaces[0].id
                 ctx.store.update_session(session.id, surface_id=surface_id, last_activity_at=now)
 
-        if surface_id is not None and self._has_live_realtime_session():
+        if surface_id is not None and self._reaches_surface(surface_id):
             await self._begin_session(session.id, routine=routine, steps=steps, now=now)
             return
 
@@ -293,15 +293,17 @@ class Summon:
             return []
         return companion_surfaces.surfaces_in_room(room_id)
 
-    def _has_live_realtime_session(self) -> bool:
+    def _reaches_surface(self, surface_id: str | None) -> bool:
+        """Whether a step spoken now would reach a companion screen for ``surface_id``.
+
+        True when that surface is connected, or when it is not and another companion
+        screen is (the delivery then falls back to every screen, as before surfaces
+        were routed). An admin CTS live view is never a companion screen.
+        """
         ws_manager = self._ctx.ws_manager
         if ws_manager is None:
             return False
-        # TODO(multi-surface): route websocket presence by companion surface id.
-        has_connections = ws_manager.has_connections
-        if callable(has_connections):
-            return bool(has_connections())
-        return bool(has_connections)
+        return bool(ws_manager.reaches_surface(surface_id))
 
     def _location_room_name(self, location: Any | None) -> str:
         if location is None:

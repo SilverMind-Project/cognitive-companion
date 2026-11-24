@@ -37,6 +37,7 @@ class FakeServiceContainer:
     knowledge_delivery: Mock | None = None
     notification_dispatcher: Mock | None = None
     scheduler: Mock | None = None
+    companion_surfaces: Mock | None = None
 
 
 @dataclass
@@ -210,6 +211,7 @@ class TestInfoCardStepExecute:
             senior_id=None,
             template_data={},
             trigger_vars={"room_name": "", "sensor_id": ""},
+            surface_id=None,
         )
         assert result.data["_cooloff_triggered"] is True
 

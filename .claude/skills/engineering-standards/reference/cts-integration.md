@@ -103,7 +103,8 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 
 ### WebSocket security
 
-- The `/ws/cts` WebSocket reads the API key from `sec-websocket-protocol` header, not from a query parameter.
+- The `/ws/cts` WebSocket reads the API key from `sec-websocket-protocol` header, not from a query parameter, and echoes it on accept (see `authenticate_websocket` in `api-and-security.md`).
+- `/ws/cts` has its own manager, `app.state.cts_ws_manager`, which the CTS runtime publishes to. Never publish CTS frames on `app.state.ws_manager`: that is the resident's companion socket, and an admin live view on it would also count as an open companion screen.
 - Frame image URLs (`GET /api/v1/cts/frames/{key}`) use query-param auth as a known limitation (browser `<img>` tags cannot set headers).
 - Nginx uses `location ^~ /api/` and `location ^~ /ws` to prevent regex static-cache locations from stealing proxied URLs.
 

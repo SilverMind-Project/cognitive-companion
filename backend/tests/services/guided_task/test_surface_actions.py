@@ -15,6 +15,7 @@ from backend.models.person import HouseholdMember
 from backend.services.guided_task import runtime as runtime_module
 from backend.services.guided_task.resident_actions import HELP_REPAGE_AFTER_S
 from backend.services.guided_task.service import GuidedTaskService
+from backend.tests.factories.companion_socket import CompanionSocketRouting
 
 
 class _Clock:
@@ -42,7 +43,7 @@ class _Escalator:
 
 
 @dataclass
-class _ResidentSocket:
+class _ResidentSocket(CompanionSocketRouting):
     broadcasts: list[dict] = field(default_factory=list)
     has_connections: bool = False
 

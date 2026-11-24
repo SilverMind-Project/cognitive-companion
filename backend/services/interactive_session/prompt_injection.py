@@ -21,8 +21,13 @@ async def inject_session_prompt(
     voice_instruction: str | None = None,
     callback: Callable | None = None,
     extra_metadata: dict[str, Any] | None = None,
+    surface_id: str | None = None,
 ) -> None:
-    """Inject a prompt for an interactive session into the live agent."""
+    """Inject a prompt for an interactive session into the live agent.
+
+    ``surface_id`` is the companion surface in the resident's room: the prompt is
+    spoken there when that surface has a live session, else by any session.
+    """
     metadata: dict[str, Any] = dict(extra_metadata or {})
     metadata.update(
         {
@@ -38,9 +43,11 @@ async def inject_session_prompt(
         callback=callback,
         voice_instruction=voice_instruction or None,
         metadata=metadata,
+        surface_id=surface_id,
     )
     logger.info(
         "interactive_session_prompt_injected",
         delivery_type=delivery_type,
         session_id=session_id,
+        surface_id=surface_id,
     )

@@ -13,6 +13,7 @@ from backend.models.guided_task import GuidedSession, GuidedSessionEvent, Routin
 from backend.models.person import HouseholdMember
 from backend.services.companion_surface import SurfaceView
 from backend.services.guided_task.service import GuidedTaskService
+from backend.tests.factories.companion_socket import CompanionSocketRouting
 
 
 @dataclass(frozen=True)
@@ -41,7 +42,7 @@ class _Surfaces:
         self.cross_checks.append((surface_id, person_id))
 
 
-class _Ws:
+class _Ws(CompanionSocketRouting):
     def __init__(self, live: bool, conversation_session_id: int | None = None) -> None:
         self.has_connections = live
         self.current_conversation_session_id = conversation_session_id

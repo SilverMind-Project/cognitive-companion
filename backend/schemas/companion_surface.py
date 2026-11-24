@@ -7,8 +7,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from backend.schemas.companion_surface_ws import SurfacePlatform
+
 SurfaceType = Literal["fixed", "movable"]
-SurfaceKind = Literal["tablet", "speaker", "display"]
+SurfaceKind = Literal["tablet", "speaker", "display", "tv"]
 RoomSource = Literal["caregiver", "cts_inferred"]
 
 
@@ -34,9 +36,19 @@ class CompanionSurfaceUpdate(BaseModel):
 
 
 class CompanionSurfaceHeartbeat(BaseModel):
+    """A surface's periodic check-in, with the device state it can report.
+
+    Whether a face is in front of the screen is deliberately not accepted here:
+    it is a fact about the resident, not the device, and is never stored.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     reported_room_id: int | None = None
+    platform: SurfacePlatform | None = None
+    mic_active: bool | None = None
+    camera_active: bool | None = None
+    screen_awake: bool | None = None
 
 
 class CompanionSurfaceOut(BaseModel):
@@ -51,6 +63,10 @@ class CompanionSurfaceOut(BaseModel):
     is_enabled: bool
     last_seen_at: datetime | None
     room_mismatch: bool
+    platform: SurfacePlatform | None = None
+    mic_active: bool | None = None
+    camera_active: bool | None = None
+    screen_awake: bool | None = None
     created_at: datetime
     updated_at: datetime
 

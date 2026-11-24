@@ -13,10 +13,11 @@ from backend.models.person import HouseholdMember
 from backend.routers import routines
 from backend.routers.dependencies import get_guided_task_service
 from backend.services.guided_task.service import GuidedTaskService
+from backend.tests.factories.companion_socket import CompanionSocketRouting
 
 
 @dataclass
-class _WsManager:
+class _WsManager(CompanionSocketRouting):
     broadcasts: list[dict] = field(default_factory=list)
 
     async def broadcast(self, payload: dict) -> None:

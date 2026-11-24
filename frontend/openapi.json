@@ -2685,7 +2685,8 @@
             "enum": [
               "tablet",
               "speaker",
-              "display"
+              "display",
+              "tv"
             ],
             "title": "Kind",
             "type": "string"
@@ -2727,7 +2728,46 @@
       },
       "CompanionSurfaceHeartbeat": {
         "additionalProperties": false,
+        "description": "A surface's periodic check-in, with the device state it can report.\n\nWhether a face is in front of the screen is deliberately not accepted here:\nit is a fact about the resident, not the device, and is never stored.",
         "properties": {
+          "camera_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Camera Active"
+          },
+          "mic_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mic Active"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "enum": [
+                  "web",
+                  "android_tablet",
+                  "android_tv"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
           "reported_room_id": {
             "anyOf": [
               {
@@ -2738,6 +2778,17 @@
               }
             ],
             "title": "Reported Room Id"
+          },
+          "screen_awake": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screen Awake"
           }
         },
         "title": "CompanionSurfaceHeartbeat",
@@ -2781,6 +2832,17 @@
       },
       "CompanionSurfaceOut": {
         "properties": {
+          "camera_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Camera Active"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -2798,7 +2860,8 @@
             "enum": [
               "tablet",
               "speaker",
-              "display"
+              "display",
+              "tv"
             ],
             "title": "Kind",
             "type": "string"
@@ -2815,9 +2878,36 @@
             ],
             "title": "Last Seen At"
           },
+          "mic_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mic Active"
+          },
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "enum": [
+                  "web",
+                  "android_tablet",
+                  "android_tv"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
           },
           "room_id": {
             "anyOf": [
@@ -2841,6 +2931,17 @@
             ],
             "title": "Room Source",
             "type": "string"
+          },
+          "screen_awake": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screen Awake"
           },
           "surface_type": {
             "enum": [
@@ -2892,7 +2993,8 @@
                 "enum": [
                   "tablet",
                   "speaker",
-                  "display"
+                  "display",
+                  "tv"
                 ],
                 "type": "string"
               },
@@ -30827,7 +30929,7 @@
     },
     "/api/v1/guided-sessions/resident-state": {
       "get": {
-        "description": "The companion tablet's hydration read: what a ``guided_session_state``\nbroadcast would show for the session in progress (none, when idle).\n\nIts own token, because a tablet must not need ``guided_sessions:read``,\nwhich exposes failure reasons and transcripts. No MCP twin: the agent reads\nthe same session through ``get_active_guided_step``.",
+        "description": "The companion tablet's hydration read: what a ``guided_session_state``\nbroadcast would show for the session in progress (none, when idle).\n\nIts own token, because a tablet must not need ``guided_sessions:read``,\nwhich exposes failure reasons and transcripts. No MCP twin: the agent reads\nthe same session through ``get_active_guided_step``. ``surface_id`` is the\nreading screen's registered surface: a session bound to another, connected\nsurface is not shown on it, matching the room-targeted broadcast.",
         "operationId": "get_resident_guided_state",
         "parameters": [
           {
@@ -30844,6 +30946,24 @@
                 }
               ],
               "title": "Person Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "surface_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Surface Id"
             }
           }
         ],

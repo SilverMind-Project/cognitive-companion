@@ -19,6 +19,7 @@ import { useIdentityReadiness } from "@/composables/useIdentityReadiness";
 import { useInferenceTelemetry } from "@/composables/useInferenceTelemetry.js";
 import { useKioskMode } from "@/composables/useKioskMode.js";
 import { useMedicationSchedule } from "@/composables/useMedicationSchedule.js";
+import { useNativeCompanionHardware } from "@/composables/useNativeCompanionHardware.js";
 import { usePHDetail } from "@/composables/usePHDetail.js";
 import { usePHLifecycle } from "@/composables/usePHLifecycle.js";
 import { usePHList } from "@/composables/usePHList.js";
@@ -28,6 +29,7 @@ import { useQuizzesAdmin } from "@/composables/useQuizzesAdmin.js";
 import { useReIDReview } from "@/composables/useReIDReview.js";
 import { useResidentGuidedSession } from "@/composables/useResidentGuidedSession.js";
 import { useRoutineBuilder } from "@/composables/useRoutineBuilder.js";
+import { useTvNavigation } from "@/composables/useTvNavigation.js";
 import { useVisitorReview } from "@/composables/useVisitorReview.js";
 import { useWearables } from "@/composables/useWearables";
 
@@ -101,6 +103,14 @@ const ENFORCED_SERVER_COMPOSABLES: Record<string, () => Record<string, unknown>>
       string,
       unknown
     >,
+  "useNativeCompanionHardware.js": () =>
+    useNativeCompanionHardware({
+      ws: { on: vi.fn(), off: vi.fn(), sendSurfaceAttentionState: vi.fn() },
+      isRecording: () => false,
+      startCapture: vi.fn(),
+      stopCapture: vi.fn(),
+      isNative: () => false,
+    }) as unknown as Record<string, unknown>,
   "usePHDetail.js": () => usePHDetail() as unknown as Record<string, unknown>,
   "usePHLifecycle.js": () => usePHLifecycle(makeNotify()) as unknown as Record<string, unknown>,
   "usePHList.js": () => usePHList() as unknown as Record<string, unknown>,
@@ -118,6 +128,7 @@ const ENFORCED_SERVER_COMPOSABLES: Record<string, () => Record<string, unknown>>
     }) as unknown as Record<string, unknown>,
   "useRoutineBuilder.js": () =>
     useRoutineBuilder({ notify: makeNotify() }) as unknown as Record<string, unknown>,
+  "useTvNavigation.js": () => useTvNavigation() as unknown as Record<string, unknown>,
   "useVisitorReview.js": () => useVisitorReview(makeNotify()) as unknown as Record<string, unknown>,
   "useWearables.ts": () => useWearables(makeNotify()) as unknown as Record<string, unknown>,
 };

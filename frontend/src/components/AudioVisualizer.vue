@@ -51,14 +51,31 @@ function _emitState(state) {
   }
 }
 
-// ─── Recording prop drives listening/idle transitions ────────────────────────
-// The mic always runs for calibration, but the status pill must only change
-// state when the user has tapped the button.
+// ─── Recording prop drives capture and listening/idle transitions ────────────
+// The microphone is open only while `recording` is true. Opening it on mount would
+// capture in a room nobody asked to listen to, and, before any tap, leave its
+// AudioContext suspended by the browser's autoplay policy so it never produced
+// audio. The ambient noise floor is calibrated at the start of each recording.
+
+// Bumped on every recording change so a slow `startMic` that finishes after the
+// recording was turned off again closes what it opened instead of keeping it.
+let captureGeneration = 0;
 
 watch(
   () => props.recording,
-  (active) => {
+  async (active) => {
     _emitState(active ? "listening" : "idle");
+    const generation = ++captureGeneration;
+    if (!active) {
+      stopMic();
+      return;
+    }
+    if (!audioContext) {
+      await startMic();
+    } else if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+    if (generation !== captureGeneration && !props.recording) stopMic();
   },
   { immediate: true },
 );
@@ -174,6 +191,11 @@ async function startMic() {
     audioContext = new (window.AudioContext || window.webkitAudioContext)({
       sampleRate: 16000,
     });
+    // Created outside a tap (a server-sent "listen now"), the context may start
+    // suspended; it is resumed here because nothing else would.
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true },
     });
@@ -261,7 +283,6 @@ onMounted(() => {
   resizeObserver = new ResizeObserver(resizeCanvas);
   if (containerRef.value) resizeObserver.observe(containerRef.value);
   draw();
-  startMic();
 });
 
 onUnmounted(() => {

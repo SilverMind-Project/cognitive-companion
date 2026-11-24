@@ -49,6 +49,7 @@ class FakeServiceContainer:
     knowledge_delivery: Mock | None = None
     notification_dispatcher: Mock | None = None
     scheduler: Mock | None = None
+    companion_surfaces: Mock | None = None
 
 
 @dataclass

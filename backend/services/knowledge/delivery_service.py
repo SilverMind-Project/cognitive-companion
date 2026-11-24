@@ -12,6 +12,7 @@ from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from cachetools import TTLCache
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -59,6 +60,9 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
         self._base_instruction = base_instruction
         self._scheduler = scheduler
         self._voice_sessions: set[int] = set()
+        # Bounded: an entry is dropped when its delivery ends, and the TTL only caps
+        # memory for a card nobody ever closed (its device lease has long expired).
+        self._delivery_surfaces: TTLCache[str, str] = TTLCache(maxsize=1024, ttl=24 * 3600)
 
     def attach_scheduler(self, scheduler: WorkflowResumeScheduler) -> None:
         """Bind the scheduler once it exists (it is built after the knowledge phase).
@@ -83,12 +87,14 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
         senior_id: str | None = None,
         template_data: Mapping[str, Any] | None = None,
         trigger_vars: Mapping[str, Any] | None = None,
+        surface_id: str | None = None,
     ) -> DeliveryResult:
         """Show the card on the tablet and e-ink and read it aloud, as ``channels`` ask.
 
         ``{{ }}`` templates in the card's title, body, and voice instruction (and the
         step's ``voice_instruction``) render against the pipeline data, trigger, and
-        ``senior_name``.
+        ``senior_name``. ``surface_id`` is the companion surface in her room: the card
+        and its voice go there (every screen when None), and that surface is woken.
         """
         db: Session = self._db_factory()
         try:
@@ -110,6 +116,15 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
         context = self._template_context(template_data, trigger_vars, senior_id)
         title = self._render(card.title, context)
         body = self._render(card.body_text, context)
+        owner = voice_owner_key(INFO_CARD_DELIVERY_TYPE, delivery_id)
+        if "pwa" in channels or speak:
+            await self._engage_resident_surface(
+                owner,
+                surface_id,
+                reason=INFO_CARD_DELIVERY_TYPE,
+                turn_seconds=dismiss_seconds,
+                microphone=speak,
+            )
 
         if "pwa" in channels:
             await self._broadcast_info_card(card, delivery_id, title, body, dismiss_seconds)
@@ -139,6 +154,7 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
                         "execution_id": execution_id,
                         "info_card_id": card.id,
                     },
+                    surface_id=self._resident_surface(owner),
                 )
             except Exception:
                 logger.exception("info_card_voice_delivery_failed", delivery_id=delivery_id)
@@ -179,7 +195,8 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
                 }
             )
         try:
-            await self._ws_manager.broadcast(
+            await self._send_to_resident(
+                voice_owner_key(INFO_CARD_DELIVERY_TYPE, delivery_id),
                 {
                     "type": "info_card",
                     "delivery_id": delivery_id,
@@ -189,7 +206,7 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
                     "image_slots": image_slots,
                     "dismiss_seconds": dismiss_seconds,
                     "server_timestamp": datetime.now(UTC).isoformat(),
-                }
+                },
             )
         except Exception:
             logger.exception("info_card_ws_broadcast_failed")
@@ -232,7 +249,10 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
         """Record a tablet event on a delivered card; closing it drops the card persona."""
         delivery = self.record_info_card_event(delivery_id, action)
         if action in _CLOSING_CARD_ACTIONS:
-            await self._release_voice(voice_owner_key(INFO_CARD_DELIVERY_TYPE, delivery_id))
+            await self._release_resident(
+                voice_owner_key(INFO_CARD_DELIVERY_TYPE, delivery_id),
+                reason=INFO_CARD_DELIVERY_TYPE,
+            )
         return delivery
 
     def record_info_card_event(self, delivery_id: int, action: str) -> InfoCardDelivery | None:

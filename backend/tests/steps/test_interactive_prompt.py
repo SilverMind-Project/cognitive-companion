@@ -46,6 +46,7 @@ class FakeServiceContainer:
     interactive_response_service: Mock | None = None
     knowledge_delivery: Mock | None = None
     ws_manager: Mock | None = None
+    companion_surfaces: Mock | None = None
 
 
 @pytest.fixture
@@ -63,6 +64,15 @@ def mock_connection_manager():
     manager = Mock()
     manager.broadcast = AsyncMock()
     manager.send_backend_task = AsyncMock()
+
+    # These pipelines name no resident with a surface, so a surface-targeted message
+    # takes the real fallback: a broadcast to every companion screen.
+    async def send_to_surface(surface_id, payload):
+        await manager.broadcast(payload)
+        return 1
+
+    manager.send_to_surface = AsyncMock(side_effect=send_to_surface)
+    manager.send_hardware_command = AsyncMock(return_value=0)
     return manager
 
 

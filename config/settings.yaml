@@ -254,6 +254,20 @@ websocket:
   audio_backend: "gemini_live"
   lazy_connect: true
 
+# Hardware cues for the companion surface in the resident's room (the native
+# Android tablet / TV shell acts on them; a browser surface only opens its
+# microphone). Sent to that one surface, never broadcast.
+companion_surface:
+  # Raise a muted or near-silent device to at least this share of max volume
+  # before speaking to her; null leaves the device volume alone.
+  volume_min_pct: 65
+  # A soft chime before a prompt so a sleeping screen waking is not startling;
+  # null for none.
+  attention_chime: "gentle"
+  # Added to a delivery's own duration (a step's timeout, a prompt's countdown)
+  # so the microphone lease outlives the turn it was opened for.
+  lease_margin_s: 30
+
 # MCP server
 mcp:
   enabled: true

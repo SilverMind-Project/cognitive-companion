@@ -7,9 +7,10 @@ from datetime import UTC, datetime
 
 import pytest
 
+from backend.core.exceptions import ValidationError
 from backend.models.companion_surface import CompanionSurface
 from backend.models.room import Room
-from backend.services.companion_surface import CompanionSurfaceService
+from backend.services.companion_surface import CompanionSurfaceService, SurfaceDeviceState
 
 
 @dataclass(frozen=True)
@@ -186,3 +187,107 @@ async def test_missing_person_location_is_graceful(db_factory, db_session):
     await svc.cross_check_room("tablet", "person-1")
 
     assert db_session.get(CompanionSurface, "tablet").room_mismatch is False
+
+
+def test_create_and_heartbeat_tv_surface_with_hardware_telemetry(db_factory, db_session):
+    room = _add_room(db_session, "Living Room")
+    svc = CompanionSurfaceService(db_factory=db_factory)
+    svc.upsert_surface(
+        surface_id="living-tv",
+        name="Living Room TV",
+        surface_type="fixed",
+        kind="tv",
+        room_id=room.id,
+    )
+
+    svc.record_heartbeat(
+        "living-tv",
+        reported_room_id=room.id,
+        device=SurfaceDeviceState(
+            platform="android_tv", mic_active=True, camera_active=False, screen_awake=True
+        ),
+    )
+
+    surface = svc.get_surface("living-tv")
+    assert surface is not None
+    assert surface.kind == "tv"
+    assert surface.platform == "android_tv"
+    assert (surface.mic_active, surface.camera_active, surface.screen_awake) == (True, False, True)
+
+
+def test_a_browser_heartbeat_keeps_the_device_state_the_shell_reported(db_factory, db_session):
+    """A field a heartbeat does not report keeps its last value, so a plain browser
+    heartbeat never hides that the native shell's microphone is on."""
+    svc = CompanionSurfaceService(db_factory=db_factory)
+    svc.upsert_surface(
+        surface_id="kitchen-tablet",
+        name="Kitchen",
+        surface_type="fixed",
+        kind="tablet",
+        room_id=None,
+    )
+    svc.record_heartbeat(
+        "kitchen-tablet",
+        reported_room_id=None,
+        device=SurfaceDeviceState(platform="android_tablet", mic_active=True),
+    )
+
+    svc.record_heartbeat("kitchen-tablet", reported_room_id=None)
+    svc.record_heartbeat("kitchen-tablet", reported_room_id=None, device=SurfaceDeviceState())
+
+    surface = svc.get_surface("kitchen-tablet")
+    assert surface is not None
+    assert (surface.platform, surface.mic_active) == ("android_tablet", True)
+
+
+def test_unknown_kind_is_rejected(db_factory):
+    svc = CompanionSurfaceService(db_factory=db_factory)
+
+    with pytest.raises(ValidationError, match="tv"):
+        svc.upsert_surface(
+            surface_id="x", name="X", surface_type="fixed", kind="projector", room_id=None
+        )
+
+
+@pytest.mark.asyncio
+async def test_surface_for_person_is_the_enabled_surface_in_her_room(db_factory, db_session):
+    kitchen = _add_room(db_session, "Kitchen")
+    bedroom = _add_room(db_session, "Bedroom")
+    svc = CompanionSurfaceService(
+        db_factory=db_factory, person_location_service=_PersonLocation(_Location(kitchen.id))
+    )
+    svc.upsert_surface(
+        surface_id="b-kitchen-off",
+        name="B kitchen (off)",
+        surface_type="fixed",
+        kind="tablet",
+        room_id=kitchen.id,
+        is_enabled=False,
+    )
+    svc.upsert_surface(
+        surface_id="kitchen-tablet",
+        name="Kitchen",
+        surface_type="fixed",
+        kind="tablet",
+        room_id=kitchen.id,
+    )
+    svc.upsert_surface(
+        surface_id="bedroom-tablet",
+        name="A bedroom",
+        surface_type="fixed",
+        kind="tablet",
+        room_id=bedroom.id,
+    )
+
+    assert await svc.surface_for_person("resident-1") == "kitchen-tablet"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("location", [None, _Location(room_id=999_999)])
+async def test_surface_for_person_is_none_without_a_room_surface(db_factory, location):
+    svc = CompanionSurfaceService(
+        db_factory=db_factory, person_location_service=_PersonLocation(location)
+    )
+
+    assert await svc.surface_for_person("resident-1") is None
+    assert await svc.surface_for_person(None) is None

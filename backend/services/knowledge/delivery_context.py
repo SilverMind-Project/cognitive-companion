@@ -8,13 +8,18 @@ base persona, never in place of it.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, MutableMapping
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.orm import Session
 
 from backend.core.template import render_template
 from backend.models.person import HouseholdMember
+from backend.services.companion_surface.hardware import (
+    capture_lease_seconds,
+    engage_surface,
+    release_surface,
+)
 from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
 
 if TYPE_CHECKING:
@@ -22,12 +27,15 @@ if TYPE_CHECKING:
 
 
 class DeliveryContextMixin:
-    """Template context, instruction composition, and persona release for deliveries."""
+    """Template context, instruction composition, surface routing, and release."""
 
     _db_factory: Callable[[], Session]
     _ws_manager: ConnectionManager
     _voice: VoiceInstructionConfig | None
     _base_instruction: str
+    # The companion surface each live delivery was sent to, keyed by its voice owner
+    # key. In memory: a restart ends every realtime session and device lease too.
+    _delivery_surfaces: MutableMapping[str, str]
 
     def _template_context(
         self,
@@ -110,6 +118,41 @@ class DeliveryContextMixin:
             or None
         )
 
-    async def _release_voice(self, owner: str) -> None:
-        """Restore the base persona if this delivery's instruction is still active."""
+    async def _engage_resident_surface(
+        self,
+        owner: str,
+        surface_id: str | None,
+        *,
+        reason: str,
+        turn_seconds: float,
+        microphone: bool,
+    ) -> None:
+        """Bind a delivery to the surface in her room and wake it before it speaks."""
+        if surface_id is None:
+            return
+        self._delivery_surfaces[owner] = surface_id
+        await engage_surface(
+            self._ws_manager,
+            surface_id,
+            owner=owner,
+            reason=reason,
+            lease_seconds=capture_lease_seconds(turn_seconds),
+            microphone=microphone,
+        )
+
+    async def _send_to_resident(self, owner: str, payload: dict[str, Any]) -> None:
+        """Send a delivery's screen message to its surface (or every screen)."""
+        await self._ws_manager.send_to_surface(self._delivery_surfaces.get(owner), payload)
+
+    def _resident_surface(self, owner: str) -> str | None:
+        """The surface a delivery was bound to, for its realtime prompts."""
+        return self._delivery_surfaces.get(owner)
+
+    async def _release_resident(self, owner: str, *, reason: str) -> None:
+        """Restore the base persona and close the delivery's microphone lease.
+
+        The persona is released only if this delivery's instruction is still active.
+        """
         await self._ws_manager.release_voice_instruction(owner)
+        surface_id = self._delivery_surfaces.pop(owner, None)
+        await release_surface(self._ws_manager, surface_id, owner=owner, reason=reason)

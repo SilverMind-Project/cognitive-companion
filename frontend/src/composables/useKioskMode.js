@@ -44,6 +44,9 @@ export function useKioskMode({
   wakeLock = globalThis.navigator?.wakeLock,
   documentRef = globalThis.document,
   heartbeatMs = 30000,
+  // The device's own report (platform, microphone, camera, screen); fields it
+  // cannot tell are null and the server keeps their last value.
+  deviceState = () => ({}),
 } = {}) {
   const stored = readSettings(storage);
   const state = reactive({
@@ -90,6 +93,7 @@ export function useKioskMode({
 
     try {
       await apiClient.recordCompanionSurfaceHeartbeat(state.settings.surfaceId, {
+        ...deviceState(),
         reported_room_id: normalizeRoomId(state.settings.roomId),
       });
       state.heartbeatStatus = "ok";

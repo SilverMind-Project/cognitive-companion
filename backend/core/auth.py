@@ -30,7 +30,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from fastapi import Depends, Query, Request
+from fastapi import Depends, Query, Request, WebSocket
 from fastapi.security import APIKeyHeader
 
 from backend.core.config import Settings, settings
@@ -43,8 +43,10 @@ __all__ = [
     "WS_ROUTE_TOKENS",
     "AuthContext",
     "KeyStore",
+    "WebSocketAuth",
     "actor_from_auth",
     "assert_declared_tokens_known",
+    "authenticate_websocket",
     "declare_internal_tokens",
     "declare_tokens",
     "get_auth_context",
@@ -83,6 +85,7 @@ D4_TOKEN_RE: re.Pattern[str] = re.compile(
 
 # Authenticated WebSocket routes and their required D4 tokens.
 WS_ROUTE_TOKENS: dict[str, str] = {
+    "/ws/audio": "companion.audio:act",
     "/ws/cts": "cts.live:read",
     "/ws/pipeline": "pipeline.events:read",
 }
@@ -425,3 +428,51 @@ def require_permission(
 
     _mark_checker(_checker, permissions)
     return _checker
+
+
+@dataclass(frozen=True)
+class WebSocketAuth:
+    """An authenticated WebSocket upgrade.
+
+    ``subprotocol`` must be passed to ``websocket.accept(subprotocol=...)``: a browser
+    that offered the key as its ``Sec-WebSocket-Protocol`` drops the connection
+    (close 1006) unless the server selects that subprotocol in its handshake.
+    """
+
+    auth: AuthContext
+    subprotocol: str | None
+
+
+async def authenticate_websocket(
+    websocket: WebSocket, token: str, *, channel: str
+) -> WebSocketAuth | None:
+    """Authenticate a WebSocket upgrade against one D4 ``token``.
+
+    The key comes from the ``x-api-key`` header (non-browser clients) or the
+    ``Sec-WebSocket-Protocol`` header (browsers, which cannot set headers on a
+    WebSocket and must not put a key in the URL). On failure the socket is closed
+    with 1008 and a reason (``auth_required``, ``auth_failed``,
+    ``permission_denied``), a ``ws_rejected_*`` event naming ``channel`` is
+    logged, and None is returned. Never logs key material.
+    """
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    header_key = websocket.headers.get("x-api-key")
+    protocol_key = websocket.headers.get("sec-websocket-protocol", "").strip()
+    raw_key = header_key or protocol_key
+    if not raw_key:
+        logger.warning("ws_rejected_no_key", channel=channel, client=client_ip)
+        await websocket.close(code=1008, reason="auth_required")
+        return None
+    try:
+        auth = _resolve_key(raw_key)
+    except AuthenticationError:
+        logger.warning("ws_rejected_auth_failed", channel=channel, client=client_ip)
+        await websocket.close(code=1008, reason="auth_failed")
+        return None
+    if not has_token(auth, token):
+        logger.warning(
+            "ws_rejected_permission_denied", channel=channel, client=client_ip, name=auth.name
+        )
+        await websocket.close(code=1008, reason="permission_denied")
+        return None
+    return WebSocketAuth(auth=auth, subprotocol=None if header_key else protocol_key)

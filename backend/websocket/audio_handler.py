@@ -13,8 +13,10 @@ Key design points:
 - Supports pluggable backends via RealtimeLLMProvider.
 - Conversation history is preserved across backend reconnects.
 - A continuous prompt-bridge task transfers orchestrator prompts from the
-  connection manager queue into the per-session queue so that incoming
-  prompts can wake an idle session.
+  connection manager's shared queue into the per-session queue so that
+  incoming prompts can wake an idle session. A prompt aimed at this session's
+  companion surface is put on the per-session queue directly
+  (``enqueue_prompt``), so it is never spoken in another room.
 """
 
 from __future__ import annotations
@@ -32,13 +34,14 @@ from pydantic import ValidationError
 from backend.core.exceptions import NotFoundError
 from backend.core.logging import get_logger
 from backend.integrations.llm.base import RealtimeLLMProvider, RealtimeSession
+from backend.schemas.companion_surface_ws import SurfaceAttentionStateIn
 from backend.schemas.guided_task_ws import GuidedStepActionIn, GuidedStepActionResultEvent
 from backend.schemas.interactive_response import InteractiveResponseMessage
 from backend.services.conversation_manager import ConversationManager
 from backend.services.interactive_response import InteractiveResponseService
 from backend.services.interactive_session.tagging import prefix_for_delivery, voice_owner_for
 from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
-from backend.websocket.connection_manager import ConnectionManager
+from backend.websocket.connection_manager import ConnectionManager, PromptItem
 
 logger = get_logger(__name__)
 
@@ -63,8 +66,13 @@ class AudioSessionHandler:
         realtime_provider: RealtimeLLMProvider | None,
         conversation_manager: ConversationManager | None = None,
         tool_adapter=None,
+        *,
+        surface_id: str | None = None,
     ) -> None:
         self.ws = websocket
+        # The companion surface this socket authenticated as (None for a surface-less
+        # connection, which only receives house-wide deliveries).
+        self.surface_id = surface_id
         self.manager = manager
         self.provider = realtime_provider
         self.conv_manager = conversation_manager
@@ -119,8 +127,7 @@ class AudioSessionHandler:
         # Create conversation session
         if self.conv_manager:
             self._session_id = self.conv_manager.create_session()
-            self.manager.current_conversation_session_id = self._session_id
-        self.manager.register_audio_handler(self)
+        self.manager.register_audio_handler(self, surface_id=self.surface_id)
 
         # Best-effort: a freshly opened realtime session may satisfy a guided-task
         # session that is summoning the resident to a companion surface. Re-check
@@ -145,8 +152,6 @@ class AudioSessionHandler:
 
         # Cleanup
         self.manager.unregister_audio_handler(self)
-        if self.manager.current_conversation_session_id == self._session_id:
-            self.manager.current_conversation_session_id = None
         if self.conv_manager and self._session_id:
             self.conv_manager.end_session(self._session_id)
 
@@ -179,6 +184,8 @@ class AudioSessionHandler:
                         await self._handle_info_card_event(data)
                     elif msg_type == "guided_step_action":
                         await self._handle_guided_step_action(data)
+                    elif msg_type == "surface_attention_state":
+                        self._handle_surface_attention(data)
         except WebSocketDisconnect:
             logger.info("ws_client_disconnected_in_reader")
         except Exception as exc:
@@ -582,6 +589,15 @@ class AudioSessionHandler:
             return self._replay.popleft()
         return await self._client_to_backend.get()
 
+    @property
+    def conversation_session_id(self) -> int | None:
+        """The ``conversation_sessions`` row this socket's turns are written to."""
+        return self._session_id
+
+    def enqueue_prompt(self, item: PromptItem) -> None:
+        """Take a prompt routed to this session's surface (see ``send_backend_task``)."""
+        self._client_to_backend.put_nowait(("prompt", item))
+
     async def release_voice_instruction(self, owner: str) -> bool:
         """Restore the base persona if ``owner`` set the active system instruction.
 
@@ -770,6 +786,22 @@ class AudioSessionHandler:
             await delivery.handle_info_card_event(delivery_id, action)
         except Exception:
             logger.exception("info_card_event_handler_error", delivery_id=delivery_id)
+
+    def _handle_surface_attention(self, data: dict) -> None:
+        """Record whether someone is facing this surface (no image, no identity).
+
+        Readings from a socket with no surface are ignored: attention only means
+        something for a registered surface in a known room.
+        """
+        if self.surface_id is None:
+            logger.warning("surface_attention_without_surface")
+            return
+        try:
+            reading = SurfaceAttentionStateIn.model_validate(data)
+        except ValidationError:
+            logger.warning("surface_attention_invalid", surface_id=self.surface_id)
+            return
+        self.manager.record_attention(self.surface_id, reading)
 
     async def _handle_guided_step_action(self, data: dict) -> None:
         """A tap on the resident's guided-task widget (I'm Done, Repeat, I Need Help).

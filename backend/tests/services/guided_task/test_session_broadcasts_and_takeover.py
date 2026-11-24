@@ -13,6 +13,7 @@ from backend.core.config import Settings
 from backend.models.guided_task import GuidedSessionEvent, Routine, RoutineStep
 from backend.models.person import HouseholdMember
 from backend.services.guided_task.service import GuidedTaskService
+from backend.tests.factories.companion_socket import CompanionSocketRouting
 
 _RESIDENT_KEYS = {
     "type",
@@ -37,7 +38,7 @@ class _Clock:
 
 
 @dataclass
-class _ResidentSocket:
+class _ResidentSocket(CompanionSocketRouting):
     """The companion tablet socket (``/ws/audio``)."""
 
     broadcasts: list[dict] = field(default_factory=list)

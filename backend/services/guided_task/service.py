@@ -257,10 +257,13 @@ class GuidedTaskService:
             )
 
     async def get_resident_state(
-        self, person_id: str | None = None
+        self, person_id: str | None = None, *, surface_id: str | None = None
     ) -> GuidedSessionStateEvent | None:
-        """The resident-safe state of the session whose step is in progress, if any."""
-        return await self._presentation.current_resident_state(person_id)
+        """The resident-safe state of the session whose step is in progress, if any.
+
+        ``surface_id`` is the reading screen; it sees what a broadcast would show it.
+        """
+        return await self._presentation.current_resident_state(person_id, surface_id=surface_id)
 
     async def repeat_step(self, session_id: int) -> dict:
         return await self._resident_actions.repeat_step(session_id)

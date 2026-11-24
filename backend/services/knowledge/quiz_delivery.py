@@ -76,12 +76,16 @@ class QuizDeliveryMixin(QuizAnswersMixin):
         senior_id: str | None = None,
         template_data: Mapping[str, Any] | None = None,
         trigger_vars: Mapping[str, Any] | None = None,
+        surface_id: str | None = None,
     ) -> DeliveryResult:
         """Create the session, show question 1 on the tablet, and ask it aloud.
 
         Raises ``ValidationError`` for a quiz with no questions, before any session row
         is written. Schedules the session timeout; the result's ``timeout_at`` is when
         an unfinished session becomes ``timed_out`` and its pipeline resumes.
+        ``surface_id`` is the companion surface in her room: every message of the
+        session goes there (every screen when None), and it holds the microphone
+        until the session ends.
         """
         channels = list(channels or ["pwa", "voice"])
         questions = sorted(quiz.questions or [], key=lambda q: q.ord)
@@ -124,10 +128,18 @@ class QuizDeliveryMixin(QuizAnswersMixin):
         context = self._template_context(template_data, trigger_vars, senior_id)
         intro = self._render(quiz.intro_voice_template or "", context)
         speak = "voice" in channels
+        await self._engage_resident_surface(
+            voice_owner_key(QUIZ_DELIVERY_TYPE, session_id),
+            surface_id,
+            reason=QUIZ_DELIVERY_TYPE,
+            turn_seconds=session_timeout_minutes * 60,
+            microphone=speak,
+        )
 
         if "pwa" in channels:
             try:
-                await self._ws_manager.broadcast(
+                await self._send_to_resident(
+                    voice_owner_key(QUIZ_DELIVERY_TYPE, session_id),
                     {
                         "type": "quiz_start",
                         "session_id": session_id,
@@ -137,7 +149,7 @@ class QuizDeliveryMixin(QuizAnswersMixin):
                         "total_questions": total,
                         "interaction_mode": interaction_mode,
                         "voice": speak,
-                    }
+                    },
                 )
                 await self._send_question_ws(session_id, first, 0, total, interaction_mode)
             except Exception:
@@ -192,12 +204,13 @@ class QuizDeliveryMixin(QuizAnswersMixin):
         try:
             # The senior answers aloud, so the tablet microphone must be live before
             # the question is spoken; an idle tablet would otherwise hear nothing.
-            await self._ws_manager.broadcast(
+            await self._send_to_resident(
+                voice_owner_key(QUIZ_DELIVERY_TYPE, session_id),
                 {
                     "type": "enable_microphone",
                     "reason": "quiz_voice",
                     "session_id": session_id,
-                }
+                },
             )
             await inject_session_prompt(
                 self._ws_manager,
@@ -207,6 +220,7 @@ class QuizDeliveryMixin(QuizAnswersMixin):
                 execution_id=execution_id,
                 voice_instruction=composed or None,
                 extra_metadata={"quiz_id": quiz.id},
+                surface_id=self._resident_surface(voice_owner_key(QUIZ_DELIVERY_TYPE, session_id)),
             )
         except Exception:
             logger.exception("quiz_voice_delivery_failed", session_id=session_id)
@@ -279,13 +293,14 @@ class QuizDeliveryMixin(QuizAnswersMixin):
 
         cancel_session_timeout(self._scheduler, job_id=quiz_timeout_job_id(session_id))
         try:
-            await self._ws_manager.broadcast(
+            await self._send_to_resident(
+                voice_owner_key(QUIZ_DELIVERY_TYPE, session_id),
                 {
                     "type": "quiz_complete",
                     "session_id": session_id,
                     "num_correct": num_correct,
                     "num_answered": num_answered,
-                }
+                },
             )
         except Exception:
             logger.exception("quiz_complete_broadcast_failed", session_id=session_id)
@@ -330,16 +345,21 @@ class QuizDeliveryMixin(QuizAnswersMixin):
             db.close()
 
         try:
-            await self._ws_manager.broadcast({"type": "quiz_timeout", "session_id": session_id})
+            await self._send_to_resident(
+                voice_owner_key(QUIZ_DELIVERY_TYPE, session_id),
+                {"type": "quiz_timeout", "session_id": session_id},
+            )
         except Exception:
             logger.exception("quiz_timeout_broadcast_failed", session_id=session_id)
         await self._end_session_side_effects(session_id, execution_id)
         logger.info("quiz_session_timed_out", session_id=session_id)
 
     async def _end_session_side_effects(self, session_id: int, execution_id: int | None) -> None:
-        """Drop the quiz persona and let the pipeline parked on this session continue."""
+        """Drop the quiz persona, hand back the surface, and resume the parked pipeline."""
         self._voice_sessions.discard(session_id)
-        await self._release_voice(voice_owner_key(QUIZ_DELIVERY_TYPE, session_id))
+        await self._release_resident(
+            voice_owner_key(QUIZ_DELIVERY_TYPE, session_id), reason=QUIZ_DELIVERY_TYPE
+        )
         resume_owning_pipeline(self._scheduler, execution_id)
 
     # -- helpers ---------------------------------------------------------------
@@ -397,4 +417,4 @@ class QuizDeliveryMixin(QuizAnswersMixin):
         }
         if interaction_mode is not None:
             payload["interaction_mode"] = interaction_mode
-        await self._ws_manager.broadcast(payload)
+        await self._send_to_resident(voice_owner_key(QUIZ_DELIVERY_TYPE, session_id), payload)

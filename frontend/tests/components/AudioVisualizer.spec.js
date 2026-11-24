@@ -74,4 +74,33 @@ describe("AudioVisualizer capture", () => {
     expect(contexts[0].close).toHaveBeenCalled();
     wrapper.unmount();
   });
+
+  it("reports the microphone live only once it is really open, and closed again after", async () => {
+    const wrapper = mount(AudioVisualizer, { props: { recording: true } });
+    await flushPromises();
+    await wrapper.setProps({ recording: false });
+    await flushPromises();
+
+    expect(wrapper.emitted("capture-change")).toEqual([
+      [{ live: true, error: null }],
+      [{ live: false, error: null }],
+    ]);
+    wrapper.unmount();
+  });
+
+  it("reports a microphone that could not be opened instead of claiming to listen", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    getUserMedia.mockRejectedValueOnce(
+      Object.assign(new Error("denied"), { name: "NotAllowedError" }),
+    );
+    const wrapper = mount(AudioVisualizer, { props: { recording: true } });
+    await flushPromises();
+
+    expect(wrapper.emitted("capture-change")).toEqual([
+      [{ live: false, error: "NotAllowedError" }],
+    ]);
+    // The half-built pipeline is torn down so the next recording starts afresh.
+    expect(contexts[0].close).toHaveBeenCalled();
+    wrapper.unmount();
+  });
 });

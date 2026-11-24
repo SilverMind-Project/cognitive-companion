@@ -6,9 +6,10 @@
         <span class="text-h5 font-weight-bold cc-gradient-text">Cognitive Companion</span>
       </v-app-bar-title>
       <v-spacer />
-      <!-- She can always see when the screen is listening or watching. -->
+      <!-- She can always see when the screen is listening or watching, and is never
+           told it is listening when the microphone could not be opened. -->
       <v-chip
-        v-if="recording"
+        v-if="recording && micCapture.live"
         color="primary"
         size="small"
         variant="tonal"
@@ -17,6 +18,17 @@
       >
         <v-icon start size="12">mdi-microphone</v-icon>
         Listening
+      </v-chip>
+      <v-chip
+        v-else-if="recording && micCapture.error"
+        color="warning"
+        size="small"
+        variant="tonal"
+        class="mr-2"
+        data-test="capture-mic-unavailable"
+      >
+        <v-icon start size="12">mdi-microphone-off</v-icon>
+        Microphone unavailable
       </v-chip>
       <v-chip
         v-if="hardware.state.cameraActive"
@@ -109,6 +121,9 @@ import "../components/companion/index.js";
 
 // Reactive state shared across widgets
 const recording = ref(false);
+// Whether the microphone is really open (from the voice widget), as opposed to
+// `recording`, the wish to listen.
+const micCapture = ref({ live: false, error: null });
 const audioState = ref("idle");
 const transcript = ref([]);
 const alertDialog = ref(false);
@@ -120,6 +135,7 @@ const route = useRoute();
 const hardware = useNativeCompanionHardware({
   ws: wsClient,
   isRecording: () => recording.value,
+  isCapturing: () => micCapture.value.live,
   startCapture: () => startRecordingFromGesture(),
   stopCapture: stopRecording,
 });
@@ -239,6 +255,9 @@ function getWidgetEvents(widgetId) {
         "toggle-recording": toggleRecording,
         "audio-data": onAudioData,
         "state-change": onAudioStateChange,
+        "capture-change": (capture) => {
+          micCapture.value = capture;
+        },
       };
     case "transcript":
       return {

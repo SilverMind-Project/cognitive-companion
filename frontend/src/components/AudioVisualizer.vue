@@ -15,7 +15,10 @@ const props = defineProps({
   recording: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(["audio-data", "state-change"]);
+// `capture-change` reports whether the microphone is really open ({ live, error }),
+// which `recording` alone cannot: recording is the wish to listen, and a denied or
+// missing microphone must never be shown to her as "Listening".
+const emit = defineEmits(["audio-data", "state-change", "capture-change"]);
 
 const canvasRef = ref(null);
 const containerRef = ref(null);
@@ -199,6 +202,7 @@ async function startMic() {
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true },
     });
+    emit("capture-change", { live: true, error: null });
 
     const source = audioContext.createMediaStreamSource(mediaStream);
 
@@ -261,10 +265,13 @@ async function startMic() {
     };
   } catch (err) {
     console.error("Mic error:", err);
+    stopMic();
+    emit("capture-change", { live: false, error: err?.name || "Error" });
   }
 }
 
 function stopMic() {
+  if (mediaStream) emit("capture-change", { live: false, error: null });
   processor?.disconnect();
   highPassFilter?.disconnect();
   mediaStream?.getTracks().forEach((t) => t.stop());

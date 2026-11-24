@@ -31,7 +31,9 @@ const CompanionHardware = registerPlugin("CompanionHardware");
 /**
  * @param {object} deps
  * @param {any} deps.ws The companion socket (`wsClient`).
- * @param {() => boolean} deps.isRecording Whether the microphone is capturing now.
+ * @param {() => boolean} deps.isRecording Whether the page wants the microphone open now.
+ * @param {() => boolean} [deps.isCapturing] Whether the microphone really is open (it may
+ *   have failed to open); reported as `mic_active`. Defaults to `isRecording`.
  * @param {() => Promise<void> | void} deps.startCapture Start capturing (and sending) audio.
  * @param {() => void} deps.stopCapture Stop capturing audio.
  * @param {any} [deps.plugin] The native plugin (injectable for tests).
@@ -42,6 +44,7 @@ const CompanionHardware = registerPlugin("CompanionHardware");
 export function useNativeCompanionHardware({
   ws,
   isRecording,
+  isCapturing = isRecording,
   startCapture,
   stopCapture,
   plugin = CompanionHardware,
@@ -183,7 +186,7 @@ export function useNativeCompanionHardware({
   function deviceState() {
     return {
       platform: state.platform,
-      mic_active: isRecording(),
+      mic_active: isCapturing(),
       camera_active: state.native ? state.cameraActive : null,
       screen_awake: state.screenAwake,
     };

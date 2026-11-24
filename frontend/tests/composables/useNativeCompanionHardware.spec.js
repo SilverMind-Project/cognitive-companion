@@ -25,7 +25,7 @@ const RELEASE = {
   lease_seconds: 0,
 };
 
-function harness({ native = true, isTelevision = false } = {}) {
+function harness({ native = true, isTelevision = false, isCapturing } = {}) {
   const ws = { handlers: {} };
   ws.on = vi.fn((event, cb) => (ws.handlers[event] = cb));
   ws.off = vi.fn();
@@ -49,6 +49,7 @@ function harness({ native = true, isTelevision = false } = {}) {
   const hardware = useNativeCompanionHardware({
     ws,
     isRecording: () => recording,
+    ...(isCapturing ? { isCapturing } : {}),
     startCapture,
     stopCapture,
     plugin,
@@ -161,6 +162,17 @@ describe("useNativeCompanionHardware", () => {
       camera_active: null,
       screen_awake: null,
     });
+  });
+
+  it("reports the microphone as active only when it really opened", async () => {
+    // The page wants to listen, but the microphone failed to open (denied, or none).
+    const h = harness({ native: false, isCapturing: () => false });
+    await h.hardware.actions.mount();
+
+    await h.hardware.actions.applyCommand(COMMAND);
+
+    expect(h.startCapture).toHaveBeenCalledOnce();
+    expect(h.hardware.actions.deviceState().mic_active).toBe(false);
   });
 
   it("reports a TV platform and stops listening on unmount", async () => {

@@ -13,6 +13,7 @@
         :recording="recording"
         @audio-data="$emit('audio-data', $event)"
         @state-change="$emit('state-change', $event)"
+        @capture-change="$emit('capture-change', $event)"
       />
     </div>
 
@@ -42,7 +43,7 @@ const props = defineProps({
   audioState: { type: String, default: "idle" },
 });
 
-defineEmits(["audio-data", "state-change", "toggle-recording"]);
+defineEmits(["audio-data", "state-change", "capture-change", "toggle-recording"]);
 
 const STATUS_MAP = {
   idle: "Ready",

@@ -27,6 +27,18 @@ class CaptureLeaseTest {
     }
 
     @Test
+    fun `a release closes its own capture at once, without waiting for expiry`() {
+        val lease = CaptureLease()
+        lease.apply(command(camera = true), nowMs = 0)
+
+        val released = lease.apply(command(mic = false, lease = 0), nowMs = 5_000)
+
+        assertEquals(State.AMBIENT, released)
+        assertNull(lease.nextExpiryMs())
+        assertEquals(emptyList(), lease.expireDue(120_000))
+    }
+
+    @Test
     fun `one delivery ending never closes another's microphone`() {
         val lease = CaptureLease()
         lease.apply(command(), nowMs = 0)

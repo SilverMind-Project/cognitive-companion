@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -31,9 +32,11 @@ class CompanionForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         ensureChannel()
+        // A TV on Ethernet may have no Wi-Fi at all (and no WifiManager): it needs no
+        // lock to keep its connection.
         wifiLock = getSystemService(WifiManager::class.java)
-            .createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "companion:socket")
-            .apply {
+            ?.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "companion:socket")
+            ?.apply {
                 setReferenceCounted(false)
                 acquire()
             }
@@ -42,11 +45,31 @@ class CompanionForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val microphone = intent?.getBooleanExtra(EXTRA_MICROPHONE, false) ?: false
         val camera = intent?.getBooleanExtra(EXTRA_CAMERA, false) ?: false
-        var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-        if (microphone) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-        if (camera) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(microphone, camera), types)
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            notification(microphone, camera),
+            foregroundTypes(microphone, camera),
+        )
         return START_STICKY
+    }
+
+    /**
+     * The service types to declare on this Android version. `specialUse` exists from
+     * Android 14 and the capture types from Android 11; an older release has no such
+     * type, and requires none, so it is declared without one rather than with a bit
+     * that release does not define.
+     */
+    private fun foregroundTypes(microphone: Boolean, camera: Boolean): Int {
+        var types = 0
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (microphone) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            if (camera) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+        }
+        return types
     }
 
     override fun onDestroy() {

@@ -20,6 +20,15 @@ android {
     kotlinOptions {
         jvmTarget = '21'
     }
+    lint {
+        // The gate fails on any warning lint is not told about in lint.xml, so a new
+        // finding is fixed or consciously excepted, never left to accumulate.
+        abortOnError = true
+        warningsAsErrors = true
+        checkDependencies = false
+        lintConfig = file('lint.xml')
+        sarifReport = true
+    }
     buildTypes {
         release {
             minifyEnabled false
@@ -45,7 +54,6 @@ dependencies {
     implementation "androidx.camera:camera-camera2:$cameraxVersion"
     implementation "androidx.camera:camera-lifecycle:$cameraxVersion"
     implementation "com.google.mlkit:face-detection:$mlkitFaceDetectionVersion"
-    testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')

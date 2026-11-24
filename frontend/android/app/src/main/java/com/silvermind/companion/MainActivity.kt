@@ -4,8 +4,10 @@ import android.Manifest
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.webkit.PermissionRequest
+import androidx.core.net.toUri
 import com.getcapacitor.BridgeActivity
 import com.getcapacitor.BridgeWebChromeClient
 
@@ -48,7 +50,7 @@ class MainActivity : BridgeActivity() {
     private fun enterKiosk() {
         val dpm = getSystemService(DevicePolicyManager::class.java)
         val admin = CompanionDeviceAdminReceiver.component(this)
-        for (permission in KIOSK_PERMISSIONS) {
+        for (permission in kioskPermissions()) {
             dpm.setPermissionGrantState(
                 admin,
                 packageName,
@@ -68,7 +70,7 @@ class MainActivity : BridgeActivity() {
     private class CompanionChromeClient(private val activity: MainActivity) :
         BridgeWebChromeClient(activity.bridge) {
         override fun onPermissionRequest(request: PermissionRequest) {
-            val ownOrigin = activity.bridge.serverUrl?.let { android.net.Uri.parse(it) }
+            val ownOrigin = activity.bridge.serverUrl?.toUri()
             val fromOwnOrigin = ownOrigin != null &&
                 request.origin.scheme == ownOrigin.scheme &&
                 request.origin.host == ownOrigin.host
@@ -82,11 +84,14 @@ class MainActivity : BridgeActivity() {
     }
 
     companion object {
-        private val KIOSK_PERMISSIONS = listOf(
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.CAMERA,
-            Manifest.permission.POST_NOTIFICATIONS,
-        )
+        /** The runtime permissions a kiosk grants itself; notifications are one only from Android 13. */
+        private fun kioskPermissions(): List<String> = buildList {
+            add(Manifest.permission.RECORD_AUDIO)
+            add(Manifest.permission.CAMERA)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
         private val CAPTURE_RESOURCES = setOf(
             PermissionRequest.RESOURCE_AUDIO_CAPTURE,
             PermissionRequest.RESOURCE_VIDEO_CAPTURE,

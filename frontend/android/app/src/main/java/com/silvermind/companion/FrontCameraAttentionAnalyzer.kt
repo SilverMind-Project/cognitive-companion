@@ -1,6 +1,8 @@
 package com.silvermind.companion
 
+import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -57,6 +59,9 @@ class FrontCameraAttentionAnalyzer(
         tracker.reset()
     }
 
+    // ImageProxy.image is the only way to hand a CameraX frame to ML Kit without a copy;
+    // the frame is closed on every path below, which is the contract the opt-in asks for.
+    @OptIn(markerClass = [ExperimentalGetImage::class])
     private fun analyse(image: ImageProxy) {
         val now = System.currentTimeMillis()
         if (now - lastFrameMs < FRAME_INTERVAL_MS) {

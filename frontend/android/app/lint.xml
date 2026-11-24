@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lint runs with warnings as errors (build.gradle). Each entry below is a known,
+     reviewed exception; anything new fails the Android gate. -->
+<lint>
+    <!-- Versions are pinned on purpose and raised as a deliberate upgrade, not by lint. -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
+    <issue id="NewerVersionAvailable" severity="ignore" />
+
+    <!-- Capacitor template resources. AppTheme.NoActionBar is set by Capacitor's
+         BridgeActivity (another module, which lint cannot see); the strings are part of
+         the template's contract with the Capacitor CLI; config.xml is written by
+         `cap sync`. -->
+    <issue id="UnusedResources">
+        <ignore path="src/main/res/values/styles.xml" />
+        <ignore path="src/main/res/values/strings.xml" />
+        <ignore path="src/main/res/xml/config.xml" />
+        <ignore path="src/main/res/drawable/ic_launcher_background.xml" />
+        <ignore path="src/main/res/drawable-v24/ic_launcher_foreground.xml" />
+    </issue>
+
+    <!-- Template launcher icon and splash images, to be replaced by designed assets
+         together (the TV banner is a placeholder too). -->
+    <issue id="MonochromeLauncherIcon" severity="ignore" />
+    <issue id="IconDipSize" severity="ignore" />
+    <issue id="IconDuplicatesConfig" severity="ignore" />
+    <issue id="IconLocation" severity="ignore" />
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/drawable-v24" />
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+</lint>

@@ -274,38 +274,21 @@
     <!-- Zone presence config -->
     <template v-if="gate.kinds.includes('zone_presence')">
       <ZonePicker
-        :model-value="gate.zone?.zone_id ?? null"
+        :model-value="gate.zone_presence?.zone_id ?? null"
         :room-id="roomId"
-        label="Target zone"
+        label="Target zone (leave empty for the step's zone)"
         class="mb-2"
-        @update:model-value="updateSub('zone', 'zone_id', $event)"
+        @update:model-value="updateSub('zone_presence', 'zone_id', $event ?? null)"
       />
     </template>
 
     <!-- Activity signal config -->
     <template v-if="gate.kinds.includes('activity_signal')">
-      <v-row class="mt-0">
-        <v-col cols="6">
-          <v-text-field
-            :model-value="gate.activity?.activity_type ?? ''"
-            label="Activity type"
-            density="compact"
-            hide-details
-            placeholder="e.g. pour_liquid"
-            @update:model-value="updateSub('activity', 'activity_type', $event)"
-          />
-        </v-col>
-        <v-col cols="6">
-          <v-text-field
-            :model-value="gate.activity?.window_s ?? ''"
-            label="Window (seconds)"
-            type="number"
-            density="compact"
-            hide-details
-            @update:model-value="updateSub('activity', 'window_s', parseInt($event) || null)"
-          />
-        </v-col>
-      </v-row>
+      <ActivitySignalFields
+        :model-value="gate.activity ?? null"
+        activity-hint="Complete when this activity is recorded."
+        @update:model-value="emit('update:modelValue', { ...gate, activity: $event })"
+      />
     </template>
   </v-card>
 </template>
@@ -313,6 +296,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import ZonePicker from "./ZonePicker.vue";
+import ActivitySignalFields from "./ActivitySignalFields.vue";
 import GateEditorDialog from "./GateEditorDialog.vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";

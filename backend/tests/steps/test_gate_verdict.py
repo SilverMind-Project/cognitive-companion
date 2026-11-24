@@ -227,3 +227,11 @@ async def test_writes_gate_verdict_key_with_clamped_confidence():
     # Confidence is -0.5, should be clamped to 0.0
     result = await handler.execute(step, _FakeExecution(), {"conf": -0.5}, _trigger(), MagicMock())
     assert result.data["gate_verdict"]["confidence"] == 0.0
+
+
+def test_a_new_verdict_node_inherits_the_profile_threshold() -> None:
+    """A default stored on the node would shadow the step profile's threshold forever."""
+    meta = GateVerdictHandler.metadata()
+
+    assert "min_confidence" not in meta.default_config
+    assert meta.config_schema["properties"]["min_confidence"]["type"] == ["number", "null"]

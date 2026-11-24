@@ -11,6 +11,7 @@ import copy
 from typing import Any
 
 from backend.core.logging import get_logger
+from backend.models.person import ActivityTypeEnum
 
 logger = get_logger(__name__)
 
@@ -38,12 +39,67 @@ _WATCH_KEYS: tuple[str, ...] = (
 )
 
 
+ACTIVITY_TYPES: frozenset[str] = frozenset(member.value for member in ActivityTypeEnum)
+# The activity evaluator's own default look-back.
+DEFAULT_ACTIVITY_WINDOW_MINUTES = 10
+
+
+def _canonical_activity(raw: dict[str, Any]) -> dict[str, Any]:
+    """The ``activity`` sub-config in the one shape the evaluator reads.
+
+    Older editors wrote ``window_s`` (seconds) and a free-text type; the
+    evaluator never read ``window_s``, so a configured window silently became
+    10 minutes, and an unknown type could never match a recorded activity.
+    """
+    activity_type = raw.get("activity_type") or raw.get("type")
+    if not activity_type:
+        raise ValueError("The activity gate needs an activity type.")
+    if activity_type not in ACTIVITY_TYPES:
+        raise ValueError(
+            f"Unknown activity type {activity_type!r}; expected one of {sorted(ACTIVITY_TYPES)}."
+        )
+    window = raw.get("window_minutes", raw.get("within_minutes"))
+    if window is None and raw.get("window_s") is not None:
+        logger.warning("legacy_activity_gate_window_s_converted", window_s=raw["window_s"])
+        window = float(raw["window_s"]) / 60
+    window = DEFAULT_ACTIVITY_WINDOW_MINUTES if window is None else float(window)
+    if window <= 0:
+        raise ValueError("The activity gate's look-back window must be positive.")
+    canonical: dict[str, Any] = {"activity_type": activity_type, "window_minutes": window}
+    for key in ("min_confidence", "room_name"):
+        if raw.get(key) is not None:
+            canonical[key] = raw[key]
+    return canonical
+
+
+def _normalize_activity_and_zone(result: dict[str, Any]) -> None:
+    """Canonicalize the activity and zone sub-configs in place.
+
+    ``activity`` holds ``{activity_type, window_minutes}`` and ``zone_presence``
+    holds ``{zone_id}``. The old ``zone`` key was never read, so the editor's
+    target zone silently fell back to the step's zone.
+    """
+    raw_activity = result.pop("activity_signal", None)
+    raw_activity = result.pop("activity", raw_activity)
+    if "activity_signal" in (result.get("kinds") or []):
+        # Only an enabled activity gate is validated and kept: a sub-config left
+        # behind by unticking the kind is never evaluated, so it is dropped.
+        result["activity"] = _canonical_activity(
+            raw_activity if isinstance(raw_activity, dict) else {}
+        )
+    legacy_zone = result.pop("zone", None)
+    if isinstance(legacy_zone, dict) and "zone_presence" not in result:
+        result["zone_presence"] = {"zone_id": legacy_zone.get("zone_id")}
+
+
 def normalize_completion_gate(gate: Any) -> Any:
-    """Normalize a completion_gate dictionary, preserving all valid confirm and watch fields."""
+    """Normalize a completion_gate dictionary, preserving all valid confirm and watch fields,
+    and canonicalizing the activity and zone sub-configs."""
     if not isinstance(gate, dict):
         return gate
 
     result = copy.deepcopy(gate)
+    _normalize_activity_and_zone(result)
     vision = result.get("vision") or result.get("vision_confirm")
     if isinstance(vision, dict):
         legacy_keys: list[str] = []

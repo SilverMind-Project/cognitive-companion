@@ -3,12 +3,50 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from backend.models.person import ActivityTypeEnum
-from backend.schemas._completion_gate import normalize_completion_gate
+from backend.schemas._completion_gate import (
+    DEFAULT_ACTIVITY_WINDOW_MINUTES,
+    normalize_completion_gate,
+)
+
+# ---------------------------------------------------------------------------
+# Skip conditions: the only shapes the runtime evaluates. Anything else is a
+# 422, never a stored condition that silently never fires.
+# ---------------------------------------------------------------------------
+
+
+class SkipResponseSaysDone(BaseModel):
+    """Skip when she says she had already done the step before being asked."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["response_says_done"]
+
+
+class SkipActivitySignal(BaseModel):
+    """Skip on entry when this activity was recorded within the look-back window."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["activity_signal"]
+    activity_type: ActivityTypeEnum
+    window_minutes: float = Field(default=DEFAULT_ACTIVITY_WINDOW_MINUTES, gt=0, le=1440)
+
+
+class SkipZonePresence(BaseModel):
+    """Skip on entry when she is already in the zone (the step's zone when unset)."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["zone_presence"]
+    zone_id: int | None = None
+
+
+SkipCondition = Annotated[
+    SkipResponseSaysDone | SkipActivitySignal | SkipZonePresence,
+    Field(discriminator="kind"),
+]
 
 # ---------------------------------------------------------------------------
 # Routine CRUD
@@ -21,7 +59,7 @@ class RoutineStepIn(BaseModel):
     ord: int = Field(ge=0)
     prompt_template: str = Field(min_length=1)
     completion_gate: dict[str, Any] = Field(default_factory=lambda: {"kinds": ["response"]})
-    skip_condition: dict[str, Any] | None = None
+    skip_condition: SkipCondition | None = None
     camera_ids: list[str] | None = None
     zone_id: int | None = None
     min_duration_s: int | None = Field(default=None, ge=0)

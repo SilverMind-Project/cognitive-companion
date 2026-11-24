@@ -59,4 +59,18 @@ describe("GateVerdictConfig", () => {
     await minConf.trigger("input");
     expect(wrapper.emitted("update:modelValue").at(-1)[0].min_confidence).toBe(0.8);
   });
+
+  it("inherits the profile threshold unless one is typed", async () => {
+    // A stored default would shadow the confirm/watch profile's threshold forever.
+    expect("min_confidence" in stepDefaults).toBe(false);
+
+    const wrapper = mountConfig({ min_confidence: 0.8 });
+    const minConf = wrapper.find('[data-label="Minimum confidence"]');
+    minConf.element.value = "";
+    await minConf.trigger("input");
+
+    const emitted = wrapper.emitted("update:modelValue").at(-1)[0];
+    expect("min_confidence" in emitted).toBe(false);
+    expect(emitted.complete_if).toBe("");
+  });
 });

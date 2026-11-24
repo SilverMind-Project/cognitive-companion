@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 
 const mocks = vi.hoisted(() => ({
-  api: { getGatePresets: vi.fn(), createGateGraph: vi.fn() },
+  api: {
+    getGatePresets: vi.fn(),
+    createGateGraph: vi.fn(),
+    getActivityTypeOptions: vi.fn().mockResolvedValue({ activity_types: ["cooking"] }),
+  },
   notify: { error: vi.fn() },
 }));
 
@@ -58,7 +62,11 @@ const stubs = {
       @input="$emit('update:modelValue', $event.target.value)" />`,
   },
   "v-btn": { template: "<button><slot /></button>" },
-  ZonePicker: { template: "<div class='zone-picker-stub' />" },
+  ZonePicker: {
+    props: ["modelValue"],
+    emits: ["update:modelValue"],
+    template: "<button class='zone-picker-stub' @click=\"$emit('update:modelValue', 5)\" />",
+  },
   GateEditorDialog: {
     name: "GateEditorDialog",
     props: ["modelValue", "gate"],
@@ -138,5 +146,20 @@ describe("CompletionGateEditor (VG08)", () => {
     await maxFrames.trigger("input");
     const emitted = wrapper.emitted("update:modelValue").at(-1)[0];
     expect(emitted.vision.confirm.max_frames).toBe(5);
+  });
+
+  it("writes the activity and zone keys the evaluators read", async () => {
+    const wrapper = mountEditor({ kinds: ["response", "activity_signal", "zone_presence"] });
+    await flushPromises();
+
+    await wrapper.find("[data-test=activity-type]").setValue("cooking");
+    expect(wrapper.emitted("update:modelValue").at(-1)[0].activity).toEqual({
+      activity_type: "cooking",
+    });
+
+    await wrapper.find(".zone-picker-stub").trigger("click");
+    const gate = wrapper.emitted("update:modelValue").at(-1)[0];
+    expect(gate.zone_presence).toEqual({ zone_id: 5 });
+    expect(gate.zone).toBeUndefined();
   });
 });

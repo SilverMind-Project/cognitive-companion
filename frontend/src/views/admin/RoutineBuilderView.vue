@@ -266,6 +266,7 @@
 import { ref, reactive, computed, watch, onMounted } from "vue";
 import { useRoutineBuilder } from "@/composables/useRoutineBuilder.js";
 import { useNotify } from "@/composables/useNotify.js";
+import { useActivityTypeOptions } from "@/composables/useActivityTypeOptions.js";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { api } from "@/services/api.js";
 import RoutineStepCard from "@/components/routines/RoutineStepCard.vue";
@@ -309,25 +310,7 @@ const languageItems = computed(() =>
   })),
 );
 
-const activityTypes = ref([]);
-
-async function fetchActivityTypeOptions() {
-  try {
-    const res = await api.getActivityTypeOptions();
-    activityTypes.value = res.activity_types ?? [];
-  } catch {
-    activityTypes.value = [];
-  }
-}
-
-// Generated from the backend ActivityTypeEnum (DL-M05 Part F), never
-// hand-typed here.
-const activityTypeItems = computed(() =>
-  activityTypes.value.map((value) => ({
-    title: value.replaceAll("_", " "),
-    value,
-  })),
-);
+const { items: activityTypeItems } = useActivityTypeOptions();
 
 const routineEdit = reactive({
   name: "",
@@ -387,6 +370,5 @@ onMounted(() => {
   actions.load(props.id);
   fetchRooms();
   fetchLanguageOptions();
-  fetchActivityTypeOptions();
 });
 </script>

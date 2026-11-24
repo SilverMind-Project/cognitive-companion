@@ -19,6 +19,20 @@ vi.mock("@/components/routines/ZonePicker.vue", () => ({
   },
 }));
 
+const notifyError = vi.hoisted(() => vi.fn());
+vi.mock("@/composables/useNotify.js", () => ({
+  useNotify: () => ({ notify: { error: notifyError } }),
+}));
+
+vi.mock("@/components/routines/SkipConditionEditor.vue", () => ({
+  default: {
+    name: "SkipConditionEditor",
+    props: ["modelValue", "roomId"],
+    emits: ["update:modelValue"],
+    template: "<div class='skip-condition-stub' />",
+  },
+}));
+
 vi.mock("@/components/routines/CameraPicker.vue", () => ({
   default: {
     name: "CameraPicker",
@@ -145,5 +159,32 @@ describe("RoutineStepCard", () => {
     await textarea.setValue("New Prompt Text");
     await wrapper.find(".cancel-btn").trigger("click");
     expect(wrapper.emitted("update")).toBeFalsy();
+  });
+
+  it("edits the skip condition with the structured editor, never JSON", async () => {
+    const wrapper = mountStepCard();
+    await wrapper.find("button.v-btn-stub").trigger("click");
+
+    expect(wrapper.text()).not.toContain("already_done");
+    const editor = wrapper.findComponent({ name: "SkipConditionEditor" });
+    editor.vm.$emit("update:modelValue", { kind: "zone_presence", zone_id: 3 });
+    await wrapper.find(".confirm-btn").trigger("click");
+
+    expect(wrapper.emitted("update")[0][0].skip_condition).toEqual({
+      kind: "zone_presence",
+      zone_id: 3,
+    });
+  });
+
+  it("keeps the dialog open when an activity condition names no activity", async () => {
+    const wrapper = mountStepCard();
+    await wrapper.find("button.v-btn-stub").trigger("click");
+    const editor = wrapper.findComponent({ name: "SkipConditionEditor" });
+    editor.vm.$emit("update:modelValue", { kind: "activity_signal" });
+    await wrapper.find(".confirm-btn").trigger("click");
+
+    expect(notifyError).toHaveBeenCalled();
+    expect(wrapper.emitted("update")).toBeFalsy();
+    expect(wrapper.find(".app-dialog-stub").exists()).toBe(true);
   });
 });

@@ -40,20 +40,21 @@
     />
 
     <v-text-field
-      :model-value="modelValue.min_confidence"
+      :model-value="modelValue.min_confidence ?? ''"
       label="Minimum confidence"
       type="number"
       step="0.05"
       min="0"
       max="1"
       density="compact"
-      hide-details
-      hint="If complete is true but confidence is below this, the verdict is forced to false."
+      clearable
+      placeholder="Inherit from the step's vision profile"
+      persistent-placeholder
+      hint="If complete is true but confidence is below this, the verdict is forced to false. Leave empty to use the confirm or watch profile's threshold."
       persistent-hint
-      style="max-width: 240px"
-      @update:model-value="
-        emit('update:modelValue', { ...modelValue, min_confidence: parseFloat($event) })
-      "
+      style="max-width: 360px"
+      data-test="gate-verdict-min-confidence"
+      @update:model-value="updateMinConfidence"
     />
   </div>
 </template>
@@ -63,7 +64,6 @@ export const stepDefaults = {
   complete_if: "",
   confidence_path: "",
   reason_path: "",
-  min_confidence: 0.7,
 };
 export const stepTabs = [];
 </script>
@@ -71,11 +71,22 @@ export const stepTabs = [];
 <script setup>
 import TemplateInput from "./_shared/TemplateInput.vue";
 
-defineProps({
+const props = defineProps({
   modelValue: { type: Object, required: true },
   tab: { type: String, default: "general" },
 });
 const emit = defineEmits(["update:modelValue"]);
+
+// Empty means inherit: the key is removed rather than stored, because any
+// stored value would override the step profile's threshold for good.
+function updateMinConfidence(raw) {
+  const { min_confidence: _dropped, ...rest } = props.modelValue;
+  const value = raw === "" || raw === null || raw === undefined ? NaN : Number(raw);
+  emit(
+    "update:modelValue",
+    Number.isFinite(value) ? { ...rest, min_confidence: Math.min(1, Math.max(0, value)) } : rest,
+  );
+}
 </script>
 
 <style scoped>

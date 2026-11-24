@@ -125,16 +125,8 @@
           </v-col>
         </v-row>
 
-        <!-- Skip condition (JSON) -->
-        <v-textarea
-          v-model="localSkipConditionText"
-          label="Skip condition (JSON, optional)"
-          rows="2"
-          density="compact"
-          hide-details
-          class="mt-2 font-monospace"
-          placeholder='{"kind": "already_done"}'
-        />
+        <!-- Skip condition -->
+        <SkipConditionEditor v-model="localStep.skip_condition" :room-id="roomId" class="mt-2" />
 
         <!-- Override fields -->
         <v-expansion-panels variant="accordion" class="mt-3" flat>
@@ -197,6 +189,7 @@ import AppDialog from "@/components/common/AppDialog.vue";
 import CompletionGateEditor from "./CompletionGateEditor.vue";
 import ZonePicker from "./ZonePicker.vue";
 import CameraPicker from "./CameraPicker.vue";
+import SkipConditionEditor from "./SkipConditionEditor.vue";
 import { useNotify } from "@/composables/useNotify.js";
 
 const props = defineProps({
@@ -215,7 +208,6 @@ const { notify } = useNotify();
 
 const editDialogOpen = ref(false);
 const localStep = ref(JSON.parse(JSON.stringify(props.step)));
-const localSkipConditionText = ref("");
 
 // Sync localStep when props.step changes
 watch(
@@ -228,9 +220,6 @@ watch(
 
 function openEditDialog() {
   localStep.value = JSON.parse(JSON.stringify(props.step));
-  localSkipConditionText.value = localStep.value.skip_condition
-    ? JSON.stringify(localStep.value.skip_condition, null, 2)
-    : "";
   editDialogOpen.value = true;
 }
 
@@ -239,17 +228,19 @@ function closeEdit() {
 }
 
 function saveEdit() {
-  // Parse skip condition
-  const skipText = localSkipConditionText.value.trim();
-  if (!skipText) {
-    localStep.value.skip_condition = null;
-  } else {
-    try {
-      localStep.value.skip_condition = JSON.parse(skipText);
-    } catch {
-      notify.error("Invalid JSON in skip condition. Please correct it.");
-      return;
-    }
+  // An activity condition without an activity can never match; the server
+  // rejects it, so say which field is missing before the routine is saved.
+  if (
+    localStep.value.skip_condition?.kind === "activity_signal" &&
+    !localStep.value.skip_condition.activity_type
+  ) {
+    notify.error("Choose the activity that lets this step be skipped.");
+    return;
+  }
+  const gate = localStep.value.completion_gate;
+  if (gate?.kinds?.includes("activity_signal") && !gate.activity?.activity_type) {
+    notify.error("Choose the activity for the activity completion check.");
+    return;
   }
 
   // Clean empty numbers
@@ -272,9 +263,5 @@ function saveEdit() {
 .step-card--dragging {
   opacity: 0.7;
   box-shadow: var(--cc-shadow-md);
-}
-
-.font-monospace {
-  font-family: var(--cc-font-mono);
 }
 </style>

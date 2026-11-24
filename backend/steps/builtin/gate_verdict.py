@@ -65,9 +65,15 @@ class GateVerdictHandler(StepHandler):
                         "description": "Dotted or JMESPath path to the string reason value.",
                     },
                     "min_confidence": {
-                        "type": "number",
-                        "default": default_min_conf,
-                        "description": "If complete is True, but confidence is below this value, the verdict is forced to False.",
+                        "type": ["number", "null"],
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": (
+                            "If complete is True but confidence is below this value, the "
+                            "verdict is forced to False. Leave unset to inherit the step "
+                            "profile's min_confidence, then the global default "
+                            f"({default_min_conf})."
+                        ),
                     },
                 },
                 "required": ["complete_if"],
@@ -76,7 +82,6 @@ class GateVerdictHandler(StepHandler):
                 "complete_if": "",
                 "confidence_path": "",
                 "reason_path": "",
-                "min_confidence": default_min_conf,
             },
             output_schema={
                 "type": "object",

@@ -35,6 +35,8 @@ class CompanionAudioSession(Protocol):
     @property
     def conversation_session_id(self) -> int | None: ...
 
+    def ensure_conversation_session(self) -> int | None: ...
+
     async def release_voice_instruction(self, owner: str) -> bool: ...
 
     def enqueue_prompt(self, item: PromptItem) -> None: ...
@@ -296,12 +298,16 @@ class ConnectionManager:
         """Stop tracking an audio session that has ended."""
         self._audio_handlers.pop(handler, None)
 
-    def conversation_session_id(self, surface_id: str | None = None) -> int | None:
+    def conversation_session_id(
+        self, surface_id: str | None = None, *, create: bool = False
+    ) -> int | None:
         """The conversation of the audio session that would speak to ``surface_id``.
 
         The surface's own session when it has one, else the most recently opened
         session that has a conversation (the one an untargeted prompt is most
-        likely to reach in a single-tablet home).
+        likely to reach in a single-tablet home). A session creates its conversation
+        only on first activity; with ``create`` (a routine is about to speak on it),
+        the session that would speak creates one now if it has none.
         """
         handler = self._handler_for(surface_id)
         if handler is not None and handler.conversation_session_id is not None:
@@ -309,6 +315,10 @@ class ConnectionManager:
         for candidate in reversed(list(self._audio_handlers)):
             if candidate.conversation_session_id is not None:
                 return candidate.conversation_session_id
+        if create:
+            speaker = handler or next(reversed(list(self._audio_handlers)), None)
+            if speaker is not None:
+                return speaker.ensure_conversation_session()
         return None
 
     async def release_voice_instruction(self, owner: str) -> bool:

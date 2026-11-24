@@ -94,7 +94,9 @@ class AudioSessionHandler:
         self._callback_task: asyncio.Task | None = None
         self._is_orchestrator_turn: bool = False
 
-        # Conversation session ID
+        # The conversation_sessions row this socket's turns go to. Created on first
+        # activity (see ensure_conversation_session), never on connect: an idle screen
+        # reconnecting must not leave an empty conversation behind each time.
         self._session_id: int | None = None
 
         # Lazy connection flag
@@ -124,9 +126,6 @@ class AudioSessionHandler:
 
     async def run(self) -> None:
         """Main entry point - run until the client disconnects."""
-        # Create conversation session
-        if self.conv_manager:
-            self._session_id = self.conv_manager.create_session()
         self.manager.register_audio_handler(self, surface_id=self.surface_id)
 
         # Best-effort: a freshly opened realtime session may satisfy a guided-task
@@ -137,7 +136,7 @@ class AudioSessionHandler:
         guided_task_service = getattr(self.ws.app.state, "guided_task_service", None)
         if guided_task_service is not None:
             asyncio.create_task(  # noqa: RUF006
-                guided_task_service.on_session_opened(self._session_id),
+                guided_task_service.on_session_opened(),
                 name="guided-on-session-opened",
             )
 
@@ -411,13 +410,16 @@ class AudioSessionHandler:
             )
 
             # Persist to DB
-            if self.conv_manager and self._session_id:
-                if is_orchestrator and prompt_text:
-                    self.conv_manager.add_turn(self._session_id, "orchestrator", prompt_text)
-                elif user_text:
-                    self.conv_manager.add_turn(self._session_id, "user", user_text)
-                if assistant_text:
-                    self.conv_manager.add_turn(self._session_id, "assistant", assistant_text)
+            has_turn = (is_orchestrator and prompt_text) or user_text or assistant_text
+            if self.conv_manager and has_turn:
+                session_id = self.ensure_conversation_session()
+                if session_id is not None:
+                    if is_orchestrator and prompt_text:
+                        self.conv_manager.add_turn(session_id, "orchestrator", prompt_text)
+                    elif user_text:
+                        self.conv_manager.add_turn(session_id, "user", user_text)
+                    if assistant_text:
+                        self.conv_manager.add_turn(session_id, "assistant", assistant_text)
 
             # Send transcripts to client.
             # Orchestrator prompts are never shown to the senior  they are
@@ -507,9 +509,10 @@ class AudioSessionHandler:
             tool_names.append(fc.name)
 
             # Log tool call in conversation
-            if self.conv_manager and self._session_id:
+            session_id = self.ensure_conversation_session()
+            if self.conv_manager is not None and session_id is not None:
                 self.conv_manager.add_turn(
-                    self._session_id,
+                    session_id,
                     "system",
                     f"Tool call: {fc.name}",
                     metadata={
@@ -596,7 +599,28 @@ class AudioSessionHandler:
 
     @property
     def conversation_session_id(self) -> int | None:
-        """The ``conversation_sessions`` row this socket's turns are written to."""
+        """The ``conversation_sessions`` row this socket's turns are written to, or
+        None while the socket has had no activity."""
+        return self._session_id
+
+    def ensure_conversation_session(self) -> int | None:
+        """The socket's conversation row, created on first need.
+
+        First need is the first turn written, or a guided routine beginning on this
+        screen (it is about to speak, and its transcript must be this conversation).
+        On creation, live guided sessions with no conversation yet are linked to it,
+        fire-and-forget, as on connect before. None without a conversation manager.
+        """
+        if self.conv_manager is None:
+            return None
+        if self._session_id is None:
+            self._session_id = self.conv_manager.create_session()
+            guided_task_service = getattr(self.ws.app.state, "guided_task_service", None)
+            if guided_task_service is not None:
+                asyncio.create_task(  # noqa: RUF006
+                    guided_task_service.on_conversation_started(self._session_id),
+                    name="guided-on-conversation-started",
+                )
         return self._session_id
 
     def enqueue_prompt(self, item: PromptItem) -> None:

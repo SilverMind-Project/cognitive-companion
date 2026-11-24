@@ -179,6 +179,35 @@ async def test_present_with_live_session_begins_immediately(db_factory, db_sessi
 
 
 @pytest.mark.asyncio
+async def test_a_routine_beginning_on_a_quiet_screen_links_that_screens_new_conversation(
+    db_factory, db_session
+):
+    """A screen creates its conversation only on first activity. A routine beginning
+    on a screen that has not spoken yet must still share its conversation, or a
+    caregiver message would open a second one and split her transcript."""
+    from backend.services.conversation_manager import ConversationManager
+
+    routine = _add_routine(db_session)
+    ws = _Ws(live=True)
+    ws.create_conversation = ConversationManager(db_factory).create_session
+    svc = GuidedTaskService(
+        db_factory=db_factory,
+        scheduler=_Scheduler(),
+        person_location_service=_PersonLocation(_Location(room_id=1)),
+        companion_surface_service=_Surfaces([_surface(1)]),
+        ws_manager=ws,
+        settings=_settings(),
+        time_fn=lambda: datetime(2026, 6, 17, 12, 0, tzinfo=UTC),
+    )
+
+    session = await svc.request_start(routine.id, "person-1")
+
+    assert session.status == "active"
+    assert ws.current_conversation_session_id is not None
+    assert session.conversation_session_id == ws.current_conversation_session_id
+
+
+@pytest.mark.asyncio
 async def test_present_without_live_session_summons_and_parks(db_factory, db_session):
     routine = _add_routine(db_session)
     dispatcher = _Dispatcher()
@@ -402,7 +431,7 @@ async def test_on_session_opened_uses_original_summon_budget(db_factory, db_sess
     # step_timeout_s=300 the old (wrong) budget would have used.
     clock.advance(50)
 
-    await svc.on_session_opened(conversation_session_id=None)
+    await svc.on_session_opened()
 
     db_session.expire_all()
     stored = db_session.get(GuidedSession, session.id)

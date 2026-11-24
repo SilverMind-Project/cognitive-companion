@@ -30,8 +30,17 @@ class CompanionSocketRouting:
         has_connections = getattr(self, "has_connections", False)
         return bool(has_connections() if callable(has_connections) else has_connections)
 
-    def conversation_session_id(self, surface_id: str | None = None) -> int | None:
-        return getattr(self, "current_conversation_session_id", None)
+    def conversation_session_id(
+        self, surface_id: str | None = None, *, create: bool = False
+    ) -> int | None:
+        # Like a real socket, a conversation exists only once created; a fake given a
+        # ``create_conversation`` factory creates one when a routine is about to speak.
+        current = getattr(self, "current_conversation_session_id", None)
+        creator = getattr(self, "create_conversation", None)
+        if current is None and create and creator is not None:
+            current = creator()
+            self.current_conversation_session_id = current
+        return current
 
     async def send_hardware_command(self, command: SurfaceHardwareCommand) -> int:
         self.__dict__.setdefault("hardware_commands", []).append(command)

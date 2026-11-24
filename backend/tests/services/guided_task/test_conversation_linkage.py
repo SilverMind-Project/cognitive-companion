@@ -100,7 +100,7 @@ def _seed_session(
 
 
 @pytest.mark.asyncio
-async def test_on_session_opened_links_conversation(db_session, db_factory):
+async def test_on_conversation_started_links_conversation(db_session, db_factory):
     routine_id = _seed_routine(db_session)
     session = _seed_session(db_session, routine_id, status="summoning")
     conversation_manager = ConversationManager(db_factory)
@@ -112,7 +112,7 @@ async def test_on_session_opened_links_conversation(db_session, db_factory):
         time_fn=_Clock(),
     )
 
-    await service.on_session_opened(conversation_id)
+    await service.on_conversation_started(conversation_id)
 
     db_session.expire_all()
     stored = db_session.get(GuidedSession, session.id)
@@ -127,7 +127,9 @@ async def test_on_session_opened_links_conversation(db_session, db_factory):
 
 
 @pytest.mark.asyncio
-async def test_on_session_opened_does_not_relink_already_linked_session(db_session, db_factory):
+async def test_on_conversation_started_does_not_relink_already_linked_session(
+    db_session, db_factory
+):
     routine_id = _seed_routine(db_session)
     conversation_manager = ConversationManager(db_factory)
     existing_conversation_id = conversation_manager.create_session()
@@ -145,7 +147,7 @@ async def test_on_session_opened_does_not_relink_already_linked_session(db_sessi
         time_fn=_Clock(),
     )
 
-    await service.on_session_opened(new_conversation_id)
+    await service.on_conversation_started(new_conversation_id)
 
     db_session.expire_all()
     stored = db_session.get(GuidedSession, session.id)

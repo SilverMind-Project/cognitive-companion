@@ -38,11 +38,18 @@ class _AudioSession:
     conversation_session_id: int | None = None
     prompts: list[PromptItem] = field(default_factory=list)
 
+    created_id: int = 100
+
     async def release_voice_instruction(self, owner: str) -> bool:
         return False
 
     def enqueue_prompt(self, item: PromptItem) -> None:
         self.prompts.append(item)
+
+    def ensure_conversation_session(self) -> int | None:
+        if self.conversation_session_id is None:
+            self.conversation_session_id = self.created_id
+        return self.conversation_session_id
 
 
 def _command(surface_id: str, **overrides: Any) -> SurfaceHardwareCommand:
@@ -177,3 +184,20 @@ def test_attention_reading_rejects_an_image() -> None:
         SurfaceAttentionStateIn.model_validate(
             {"type": "surface_attention_state", "face_present": True, "snapshot_base64": "AAAA"}
         )
+
+
+@pytest.mark.asyncio
+async def test_a_conversation_is_created_only_when_a_routine_will_speak() -> None:
+    manager = ConnectionManager()
+    kitchen = _AudioSession(created_id=21)
+    bedroom = _AudioSession(created_id=22)
+    manager.register_audio_handler(kitchen, surface_id="kitchen")
+    manager.register_audio_handler(bedroom, surface_id="bedroom")
+
+    # An idle screen has no conversation, and reading never creates one.
+    assert manager.conversation_session_id("kitchen") is None
+    assert kitchen.conversation_session_id is None
+
+    # A routine about to speak on the kitchen screen: that screen creates its own.
+    assert manager.conversation_session_id("kitchen", create=True) == 21
+    assert bedroom.conversation_session_id is None

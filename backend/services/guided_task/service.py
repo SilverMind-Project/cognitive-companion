@@ -233,8 +233,11 @@ class GuidedTaskService:
             summon_timeout_s=summon_timeout_s,
         )
 
-    async def on_session_opened(self, conversation_session_id: int | None = None) -> None:
-        return await self._summon.on_session_opened(conversation_session_id)
+    async def on_session_opened(self) -> None:
+        return await self._summon.on_session_opened()
+
+    async def on_conversation_started(self, conversation_session_id: int) -> None:
+        return await self._summon.on_conversation_started(conversation_session_id)
 
     # ------------------------------------------------------------------
     # Session runtime

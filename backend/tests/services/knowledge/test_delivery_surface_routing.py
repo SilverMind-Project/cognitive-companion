@@ -60,6 +60,10 @@ class _AudioSession:
     def enqueue_prompt(self, item: PromptItem) -> None:
         self.prompts.append(item)
 
+    def ensure_conversation_session(self) -> int | None:
+        # These tests do not exercise conversations; a real session would create one.
+        return self.conversation_session_id
+
 
 async def _house(db_factory) -> tuple[KnowledgeDeliveryService, _Socket, _Socket, _AudioSession]:
     manager = ConnectionManager()

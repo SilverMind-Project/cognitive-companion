@@ -72,6 +72,10 @@ class _AudioSession:
     def enqueue_prompt(self, item: PromptItem) -> None:
         self.prompts.append(item)
 
+    def ensure_conversation_session(self) -> int | None:
+        # These tests do not exercise conversations; a real session would create one.
+        return self.conversation_session_id
+
 
 def _seed(db_session, *, step_timeout_s: int | None = None) -> int:
     db_session.add(HouseholdMember(id="resident-1", name="Ruth"))

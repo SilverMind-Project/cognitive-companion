@@ -79,13 +79,6 @@ async def websocket_audio(
     logger.info(
         "ws_audio_connected", name=ws_auth.auth.name, surface_id=surface_id, platform=platform
     )
-    guided_task_service = getattr(app.state, "guided_task_service", None)
-    if guided_task_service is not None:
-        try:
-            await guided_task_service.on_session_opened()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("guided_session_open_hook_failed", error=str(exc))
-
     try:
         handler = AudioSessionHandler(
             websocket=websocket,

@@ -138,30 +138,35 @@ class Summon:
         )
         return session
 
-    async def on_session_opened(self, conversation_session_id: int | None = None) -> None:
+    async def on_conversation_started(self, conversation_session_id: int) -> None:
+        """Best-effort hook called when a companion socket creates its conversation.
+
+        A socket creates its ``conversation_sessions`` row on first activity, not on
+        connect. Any live guided session with no conversation yet is linked to it, so
+        escalation and detail reads see her actual turns. Invoked fire-and-forget from
+        the audio handler, so it never raises.
+        """
+        ctx = self._ctx
+        for session in ctx.store.list_live_sessions():
+            if session.status not in {"summoning", "active", "waiting"}:
+                continue
+            if session.conversation_session_id is not None:
+                continue
+            try:
+                ctx.link_conversation(
+                    session, conversation_session_id, now=ctx.now(), actor="system"
+                )
+            except Exception:
+                logger.exception("guided_conversation_link_failed", session_id=session.id)
+
+    async def on_session_opened(self) -> None:
         """Best-effort hook called when a realtime companion session opens.
 
         Invoked fire-and-forget from the websocket connect path, so it must never
         raise into the audio loop: a failure to re-check one summoning session is
-        logged and the rest are still attempted. ``conversation_session_id`` is the
-        ``conversation_sessions`` row the just-opened realtime session created; it
-        links any live guided session that does not yet have a linked conversation
-        so escalation and detail reads see her actual turns (M24).
+        logged and the rest are still attempted.
         """
         ctx = self._ctx
-        if conversation_session_id is not None:
-            for session in ctx.store.list_live_sessions():
-                if session.status not in {"summoning", "active", "waiting"}:
-                    continue
-                if session.conversation_session_id is not None:
-                    continue
-                try:
-                    ctx.link_conversation(
-                        session, conversation_session_id, now=ctx.now(), actor="system"
-                    )
-                except Exception:
-                    logger.exception("guided_on_session_opened_link_failed", session_id=session.id)
-
         for session in ctx.store.list_summoning_sessions():
             try:
                 summon_timeout_s = ctx.store.summon_timeout_for(session.id)
@@ -201,7 +206,10 @@ class Summon:
         if updated is None:
             raise NotFoundError("Guided session", session_id)
         if updated.conversation_session_id is None and self._reaches_surface(updated.surface_id):
-            live_conversation_id = ctx.ws_manager.conversation_session_id(updated.surface_id)
+            # The routine is about to speak on that socket: its conversation is this one.
+            live_conversation_id = ctx.ws_manager.conversation_session_id(
+                updated.surface_id, create=True
+            )
             if live_conversation_id is not None:
                 updated = ctx.link_conversation(
                     updated, live_conversation_id, now=begin_at, actor="system"

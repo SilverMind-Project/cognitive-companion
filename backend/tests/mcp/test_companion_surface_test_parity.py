@@ -87,3 +87,11 @@ def test_mcp_reports_an_unknown_or_disabled_surface_as_an_error(
 
 def test_the_tool_needs_the_same_token_as_the_route():
     assert mcp_server.tool_token("run_companion_surface_test") == "companion_surfaces.test:execute"
+
+
+def test_the_voice_companion_can_never_call_the_screen_test():
+    """The resident's voice model must not wake screens or open microphones itself:
+    the tool is a caregiver action, so it stays off the voice agent's allowlist."""
+    from backend.core.config import settings
+
+    assert "run_companion_surface_test" not in settings.as_list("mcp.gemini_tools")

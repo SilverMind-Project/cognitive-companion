@@ -170,9 +170,11 @@ const progressPercent = computed(() => {
   font-size: 1.25rem;
 }
 
+/* One full-width button per row: the same order and place every time, and no
+   lone button wrapping onto its own row. */
 .guided-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 

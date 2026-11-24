@@ -97,3 +97,31 @@ def test_routine_admin_sanitize_completion_gate_matches_schema_validator() -> No
     assert via_service["vision"]["confirm"]["max_cameras"] == 2
     assert via_service["vision"]["watch"]["max_cameras"] == 1
     assert via_service["vision"]["watch"]["min_confidence"] == 0.85
+
+
+def test_profile_overrides_survive_save_and_runtime_parse() -> None:
+    """Every per-profile override a caregiver saves must reach the runtime model.
+
+    The sanitizer kept these keys, but the runtime's Pydantic profile models
+    ignored unknown fields, so ``max_cameras`` and the watch ``min_confidence``
+    were saved and then silently dropped on every evaluation.
+    """
+    from backend.services.guided_task.domain import CompletionGateConfig
+
+    gate = {
+        "kinds": ["response", "vision_confirm"],
+        "vision": {
+            "gate_graph_rule_id": 42,
+            "confirm": {"max_disagreements": 3, "max_cameras": 2},
+            "watch": {"enabled": True, "max_cameras": 1, "min_confidence": 0.85},
+        },
+    }
+    saved = sanitize_completion_gate(_normalize(gate))
+    parsed = CompletionGateConfig.model_validate(saved).vision
+    assert parsed is not None
+    assert parsed.confirm is not None
+    assert parsed.watch is not None
+    assert parsed.confirm.max_disagreements == 3
+    assert parsed.confirm.max_cameras == 2
+    assert parsed.watch.max_cameras == 1
+    assert parsed.watch.min_confidence == 0.85

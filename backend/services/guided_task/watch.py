@@ -209,7 +209,12 @@ class Watch:
             int,
             3,
         )
-        max_cameras = resolve_val(None, "guided_task.vision.max_cameras", int, 3)
+        max_cameras = resolve_val(
+            watch_cfg.max_cameras if watch_cfg else None,
+            "guided_task.vision.max_cameras",
+            int,
+            3,
+        )
         model_id = resolve_val(
             watch_cfg.model_id if watch_cfg else None, "guided_task.vision.watch.model_id", str
         )
@@ -217,7 +222,11 @@ class Watch:
 
         # Watch has no dedicated min_confidence default; fall back to the confirm
         # threshold (step -> global -> 0.7) when watch leaves it unset.
-        min_confidence = resolve_val(None, "guided_task.vision.watch.min_confidence", float)
+        min_confidence = resolve_val(
+            watch_cfg.min_confidence if watch_cfg else None,
+            "guided_task.vision.watch.min_confidence",
+            float,
+        )
         if min_confidence is None:
             min_confidence = resolve_vision_override(
                 confirm_cfg.min_confidence if confirm_cfg else None,

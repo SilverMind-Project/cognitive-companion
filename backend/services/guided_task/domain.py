@@ -21,6 +21,7 @@ class VisionConfirmConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     window_s: float | None = None
     max_frames: int | None = None
+    max_cameras: int | None = None
     min_confidence: float | None = None
     min_interval_s: float | None = None
     model_id: str | None = None
@@ -34,6 +35,8 @@ class VisionWatchConfig(BaseModel):
     tick_s: int | None = None
     window_s: float | None = None
     max_frames: int | None = None
+    max_cameras: int | None = None
+    min_confidence: float | None = None
     model_id: str | None = None
     auto_advance: bool | None = None
     auto_advance_k: int | None = None

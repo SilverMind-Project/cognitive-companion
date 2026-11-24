@@ -113,7 +113,12 @@ class VisionEvaluator:
             int,
             9,
         )
-        max_cameras = resolve_val(None, "guided_task.vision.max_cameras", int, 3)
+        max_cameras = resolve_val(
+            confirm_cfg.max_cameras if confirm_cfg else None,
+            "guided_task.vision.max_cameras",
+            int,
+            3,
+        )
         min_confidence = resolve_val(
             confirm_cfg.min_confidence if confirm_cfg else None,
             "guided_task.vision.confirm.min_confidence",

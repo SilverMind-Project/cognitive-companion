@@ -68,6 +68,21 @@ function Set-AvdHardware([string]$ConfigPath, [System.Collections.IDictionary]$H
     [System.IO.File]::WriteAllLines($ConfigPath, $lines, (New-Object System.Text.UTF8Encoding($false)))
 }
 
+# The emulator finds an AVD only through <name>.ini in ANDROID_AVD_HOME. `avdmanager
+# create avd -p <dir>` (as the Windows setup guide runs it) writes that pointer under
+# the creating account's own profile instead, so an AVD made that way exists on disk but
+# is invisible to builduser. Writing the pointer here makes every AVD bootable by builduser.
+function Set-AvdPointer([string]$Name, [string]$Package, [string]$AvdDir) {
+    $apiLevel = (($Package -split ';')[1]) -replace '^android-', ''
+    $pointer = @(
+        'avd.ini.encoding=UTF-8',
+        "path=$AvdDir",
+        "path.rel=avd\$Name.avd",
+        "target=android-$apiLevel"
+    )
+    [System.IO.File]::WriteAllLines((Join-Path $avdHome "$Name.ini"), $pointer, (New-Object System.Text.UTF8Encoding($false)))
+}
+
 foreach ($avd in $avds) {
     $imageDir = Join-Path $sdk ('system-images\' + (($avd.Package -split ';')[1..3] -join '\'))
     if (-not (Test-Path (Join-Path $imageDir 'system.img'))) {
@@ -87,6 +102,16 @@ foreach ($avd in $avds) {
         if ($code -ne 0) { [Console]::Error.WriteLine("ERROR: creating $($avd.Name) failed"); exit 1 }
     }
     Set-AvdHardware (Join-Path $avdDir 'config.ini') $avd.Hardware
-    [Console]::Out.WriteLine("ready $($avd.Name) ($($avd.Package))")
+    Set-AvdPointer $avd.Name $avd.Package $avdDir
+    [Console]::Out.WriteLine("configured $($avd.Name) ($($avd.Package))")
 }
+
+# The emulator, not the files on disk, decides whether an AVD exists.
+$listed = @(& cmd.exe /d /s /c "`"`"$(Join-Path $sdk 'emulator\emulator.exe')`" -list-avds 2>&1`"" | ForEach-Object { "$_".Trim() })
+$missing = @($avds | Where-Object { $listed -notcontains $_.Name } | ForEach-Object { $_.Name })
+if ($missing.Count -gt 0) {
+    [Console]::Error.WriteLine("ERROR: the emulator does not list: $($missing -join ', ')")
+    exit 1
+}
+[Console]::Out.WriteLine("ready: $(($avds | ForEach-Object { $_.Name }) -join ', ')")
 exit 0

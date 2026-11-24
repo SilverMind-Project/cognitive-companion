@@ -5,6 +5,7 @@ import android.os.PowerManager
 import android.view.WindowManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -28,11 +29,41 @@ class ZeroTouchLiveCompanionTest {
     }
 
     @Test
+    fun the_page_is_granted_the_microphone_without_a_prompt_or_a_tap() {
+        LiveCompanion.launchConnected().use { scenario ->
+            // evaluateJavascript carries no user gesture, so this is the zero-tap path:
+            // only the shell's own grant for its origin can let it through.
+            LiveCompanion.js(
+                scenario,
+                "window.__ccMic = 'pending';" +
+                    "navigator.mediaDevices.getUserMedia({audio: true})" +
+                    ".then(s => { window.__ccMic = 'live:' + s.getAudioTracks()[0].readyState;" +
+                    " s.getTracks().forEach(t => t.stop()); })" +
+                    ".catch(e => { window.__ccMic = 'error:' + e.name; }); 'started'",
+            )
+            var outcome = "\"pending\""
+            LiveCompanion.waitUntil("getUserMedia to settle", 15_000) {
+                outcome = LiveCompanion.js(scenario, "window.__ccMic")
+                outcome != "\"pending\""
+            }
+            if (LiveCompanion.requireMicrophone) {
+                assertEquals("the microphone did not open: $outcome", "\"live:live\"", outcome)
+            } else {
+                // NotReadableError or NotFoundError: granted, but this emulator has no
+                // readable input. Only a refusal means the shell failed to grant it.
+                val refused = LiveCompanion.REFUSED.any { outcome == "\"error:$it\"" }
+                assertFalse("the shell did not grant the microphone: $outcome", refused)
+            }
+        }
+    }
+
+    @Test
     fun a_server_command_wakes_the_screen_and_opens_the_microphone_until_its_lease_ends() {
         LiveCompanion.launchConnected().use { scenario ->
-            val result = LiveCompanion.testSurface(microphone = true)
             // The server reached this surface's own socket: the command was routed to
-            // this screen, not broadcast.
+            // this screen, not broadcast. The page names its surface when it connects,
+            // so once it shows "connected" there is no unbound window to retry over.
+            val result = LiveCompanion.testSurface(microphone = true)
             assertEquals(LiveCompanion.surfaceId, result.getString("surface_id"))
             assertTrue("the test surface was not connected: $result", result.getInt("reached") >= 1)
             val leaseMs = result.getInt("lease_seconds") * 1000L
@@ -40,19 +71,27 @@ class ZeroTouchLiveCompanionTest {
             LiveCompanion.waitUntil("the screen to be held awake", 15_000) {
                 keepsScreenOn(scenario) && isInteractive()
             }
-            // The page's own capture started with no tap: the shell granted its origin
-            // the microphone without a prompt.
+            // The page started capture with no tap. It shows "Listening" only while the
+            // microphone is really open and "Microphone unavailable" when it could not be
+            // (an emulator here has no readable input); a device must really listen.
+            val shown = if (LiveCompanion.requireMicrophone) LISTENING else "$LISTENING, $MIC_UNAVAILABLE"
             LiveCompanion.waitUntil("the page to show it is listening", 15_000) {
-                LiveCompanion.js(scenario, "document.querySelector('[data-test=capture-mic]') !== null") == "true"
+                LiveCompanion.js(scenario, "document.querySelector(${JSONObject.quote(shown)}) !== null") == "true"
             }
 
             // No release is ever sent for a test: the device's own lease timer must
             // close the microphone and let the screen rest.
+            val eitherPill = JSONObject.quote("$LISTENING, $MIC_UNAVAILABLE")
             LiveCompanion.waitUntil("the lease to end capture", leaseMs + 20_000) {
                 !keepsScreenOn(scenario) &&
-                    LiveCompanion.js(scenario, "document.querySelector('[data-test=capture-mic]') === null") == "true"
+                    LiveCompanion.js(scenario, "document.querySelector($eitherPill) === null") == "true"
             }
         }
+    }
+
+    private companion object {
+        const val LISTENING = "[data-test=capture-mic]"
+        const val MIC_UNAVAILABLE = "[data-test=capture-mic-unavailable]"
     }
 
     private fun keepsScreenOn(scenario: androidx.test.core.app.ActivityScenario<MainActivity>): Boolean {

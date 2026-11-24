@@ -19,7 +19,9 @@ import java.util.concurrent.TimeUnit
  * test-instrumented` registers and passes in (it also refuses to start while a
  * guided routine is live, so the test socket cannot be mistaken for her tablet).
  *
- * Instrumentation arguments: `ccApiKey` (secret), `ccApiOrigin`, `ccSurfaceId`.
+ * Instrumentation arguments: `ccApiKey` (secret), `ccApiOrigin`, `ccSurfaceId`, and
+ * `ccRequireMicrophone` (true on a physical device; an emulator on the build PC has no
+ * readable audio input, so there only the grant, not a live capture, can be proven).
  */
 object LiveCompanion {
     private const val API_KEY_STORAGE = "cc_api_key"
@@ -33,6 +35,11 @@ object LiveCompanion {
     val apiKey: String get() = arg("ccApiKey")
     val apiOrigin: String get() = arg("ccApiOrigin").trimEnd('/')
     val surfaceId: String get() = arg("ccSurfaceId")
+    val requireMicrophone: Boolean
+        get() = InstrumentationRegistry.getArguments().getString("ccRequireMicrophone") == "true"
+
+    /** getUserMedia failures that mean the page was refused, not that no device exists. */
+    val REFUSED = setOf("NotAllowedError", "SecurityError")
 
     /**
      * Load the page, give it the test key and the test surface (as a provisioned kiosk
@@ -48,15 +55,22 @@ object LiveCompanion {
             .put("surfaceId", surfaceId)
             .put("roomId", JSONObject.NULL)
             .put("pin", "1234")
+        // Storage outlives a test method, so the page may already be connected from an
+        // earlier one. The old document is marked before reloading, and only a new,
+        // unmarked document that has connected counts; otherwise the test would run
+        // against a page that is about to be torn down.
         js(
             scenario,
             "localStorage.setItem('$API_KEY_STORAGE', ${JSONObject.quote(apiKey)});" +
                 "localStorage.setItem('$KIOSK_STORAGE', ${JSONObject.quote(settings.toString())});" +
-                "location.reload(); 'reloading'",
+                "window.__ccStaleDocument = true; location.reload(); 'reloading'",
         )
-        waitUntil("the companion socket to connect") {
-            js(scenario, "document.querySelector('[data-test=connection-status]')?.dataset.connected") ==
-                "\"true\""
+        waitUntil("the reloaded companion page to connect") {
+            js(
+                scenario,
+                "window.__ccStaleDocument !== true && document.readyState === 'complete' &&" +
+                    " document.querySelector('[data-test=connection-status]')?.dataset.connected === 'true'",
+            ) == "true"
         }
         return scenario
     }

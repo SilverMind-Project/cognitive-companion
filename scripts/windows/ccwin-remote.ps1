@@ -99,13 +99,13 @@ function Initialize-Toolchain {
 
 # Runs a native tool with stderr folded into stdout (Windows PowerShell 5.1 would
 # otherwise wrap stderr lines as error records), streaming each line and, when given,
-# appending it to a UTF-8 log. Returns the tool's exit code.
-function Invoke-Native([string]$CommandLine, [string]$LogPath = '') {
+# appending it to a UTF-8 log (with -Quiet, only to the log). Returns its exit code.
+function Invoke-Native([string]$CommandLine, [string]$LogPath = '', [switch]$Quiet) {
     $writer = $null
     if ($LogPath) { $writer = New-Object System.IO.StreamWriter($LogPath, $true, (New-Object System.Text.UTF8Encoding($false))) }
     try {
         & cmd.exe /d /s /c "`"$CommandLine 2>&1`"" | ForEach-Object {
-            [Console]::Out.WriteLine($_)
+            if (-not $Quiet) { [Console]::Out.WriteLine($_) }
             if ($writer) { $writer.WriteLine($_) }
         }
         return $LASTEXITCODE
@@ -224,7 +224,10 @@ function Save-RecordedDevice([string]$Target) {
 
 function Start-Avd([string]$Name, [string]$RunDir) {
     $avdDir = Join-Path $env:ANDROID_AVD_HOME "$Name.avd"
-    if (-not (Test-Path $avdDir)) { Fail $ExitHarness "AVD $Name not found; run 'scripts/ccwin avd-setup'" }
+    # The emulator resolves an AVD through <name>.ini in ANDROID_AVD_HOME, not the folder.
+    if (-not (Test-Path $avdDir) -or -not (Test-Path (Join-Path $env:ANDROID_AVD_HOME "$Name.ini"))) {
+        Fail $ExitHarness "AVD $Name is not bootable by builduser; run 'scripts/ccwin avd-setup'"
+    }
     $log = Join-Path $RunDir "emulator-$Name.log"
     # Headless and wiped: every run starts from the same device state, so a run never
     # depends on what an earlier one left behind (a stored key, a granted permission).
@@ -403,25 +406,77 @@ function Invoke-GradleCommand {
     if ($code -ne 0) { exit $ExitJobFailed }
 }
 
-# Secrets (the live test key) arrive on stdin as KEY=VALUE lines, never on a command
-# line, and reach the test only as Gradle instrumentation arguments in this process's
-# environment. They are not written to the run folder.
-function Read-SecretArguments {
+# Test arguments arrive on stdin as NAME=VALUE lines, never on a command line, and
+# reach the test as Gradle instrumentation arguments in this process's environment.
+# A NAME ending in "Key" is a secret: its value is scrubbed from every output the run
+# leaves on disk (see Remove-Secrets).
+$script:SecretValues = @()
+
+function Read-TestArguments {
     $result = @{}
     if (-not $ReadSecrets) { return $result }
     while ($null -ne ($line = [Console]::In.ReadLine())) {
         if ($line -match '^([A-Za-z][A-Za-z0-9_]*)=(.*)$') {
-            $result["ORG_GRADLE_PROJECT_android.testInstrumentationRunnerArguments.$($Matches[1])"] = $Matches[2]
+            # Copied out first: the next -match would overwrite $Matches.
+            $name = $Matches[1]
+            $value = $Matches[2]
+            $result["ORG_GRADLE_PROJECT_android.testInstrumentationRunnerArguments.$name"] = $value
+            if ($name -match 'Key$' -and $value) { $script:SecretValues += $value }
         }
     }
     return $result
+}
+
+# Android's test platform logs its whole configuration, instrumentation arguments
+# included, into androidTest-results/**/utp.*.log. Every secret is overwritten in place
+# with asterisks of the same length (byte for byte, through Latin-1, so a binary
+# result file keeps its structure) in the build outputs and the run folder, and the
+# run fails if any copy survives.
+function Remove-Secrets([string[]]$Roots) {
+    if ($script:SecretValues.Count -eq 0) { return }
+    $latin1 = [System.Text.Encoding]::GetEncoding(28591)
+    $scrubbed = 0
+    foreach ($root in $Roots) {
+        if (-not (Test-Path $root)) { continue }
+        foreach ($file in Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue) {
+            if ($file.Length -gt 200MB) { continue }
+            $text = $latin1.GetString([System.IO.File]::ReadAllBytes($file.FullName))
+            $changed = $false
+            foreach ($secret in $script:SecretValues) {
+                if ($text.Contains($secret)) {
+                    $text = $text.Replace($secret, ('*' * $secret.Length))
+                    $changed = $true
+                }
+            }
+            if ($changed) {
+                [System.IO.File]::WriteAllBytes($file.FullName, $latin1.GetBytes($text))
+                $scrubbed++
+            }
+        }
+    }
+    Write-Out "secrets: scrubbed from $scrubbed file(s)"
+}
+
+function Assert-NoSecrets([string[]]$Roots) {
+    if ($script:SecretValues.Count -eq 0) { return }
+    $latin1 = [System.Text.Encoding]::GetEncoding(28591)
+    foreach ($root in $Roots) {
+        if (-not (Test-Path $root)) { continue }
+        foreach ($file in Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue) {
+            if ($file.Length -gt 200MB) { continue }
+            $text = $latin1.GetString([System.IO.File]::ReadAllBytes($file.FullName))
+            foreach ($secret in $script:SecretValues) {
+                if ($text.Contains($secret)) { Fail $ExitHarness "a secret survived in $($file.FullName)" }
+            }
+        }
+    }
 }
 
 function Invoke-TestInstrumented {
     if (-not $Avd -and -not $Device) { Fail $ExitUsage 'give -Avd tablet|tv or -Device <serial>' }
     Initialize-Toolchain
     Assert-Synced
-    $secrets = Read-SecretArguments
+    $secrets = Read-TestArguments
     $runDir = New-RunDir
     $emulator = $null
     $serial = $Device
@@ -430,7 +485,6 @@ function Invoke-TestInstrumented {
         if ($Avd) {
             $emulator = Start-Avd $AvdNames[$Avd] $runDir
             $serial = $EmulatorSerial
-            $null = Invoke-Native "adb -s $serial wait-for-device"
             Wait-AvdBoot $emulator
         } else {
             Connect-RecordedDevices
@@ -438,11 +492,15 @@ function Invoke-TestInstrumented {
         $null = Invoke-Native "adb -s $serial logcat -c"
         $secrets['ANDROID_SERIAL'] = $serial
         $code = Invoke-Gradle "$Tasks" $runDir $secrets
-        $null = Invoke-Native "adb -s $serial logcat -d -v threadtime" (Join-Path $runDir 'logcat.txt')
+        $null = Invoke-Native "adb -s $serial logcat -d -v threadtime" (Join-Path $runDir 'logcat.txt') -Quiet
     } finally {
+        $outputs = @((Join-Path $AndroidDir 'app\build\outputs'), (Join-Path $AndroidDir 'app\build\reports'))
+        Remove-Secrets $outputs
         Save-GradleOutputs $runDir
+        Remove-Secrets @($runDir)
         Stop-Avd $emulator
     }
+    Assert-NoSecrets ($outputs + $runDir)
     Write-Out "run=$RunId target=$serial gradle_exit=$code"
     if ($code -ne 0) { exit $ExitJobFailed }
 }

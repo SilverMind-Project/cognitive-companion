@@ -164,6 +164,11 @@ class AudioSessionHandler:
         try:
             while True:
                 msg = await self.ws.receive()
+                # receive() returns the raw ASGI message, so a client closing arrives as
+                # a message rather than an exception; reading again after it raises.
+                if msg.get("type") == "websocket.disconnect":
+                    logger.info("ws_client_disconnected_in_reader", code=msg.get("code"))
+                    return
                 if "bytes" in msg:
                     await self._client_to_backend.put(("audio", msg["bytes"]))
                 elif "text" in msg:

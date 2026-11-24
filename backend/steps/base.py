@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from backend.services.scene_intel.service import SceneIntelService
     from backend.services.scheduler import SchedulerBridge
     from backend.services.signals.service import SignalsService
+    from backend.websocket.connection_manager import ConnectionManager
 
 # ---------------------------------------------------------------------------
 # Data transfer objects
@@ -136,6 +137,9 @@ class ServiceContainer:
     # canonical media poll step and its CTS alias.
     bucketizer: CtsEventBucketizer | None = None
     camera_source_resolver: CameraSourceResolver | None = None
+    # The companion tablet socket (/ws/audio), for steps that prompt the resident
+    # directly (popups, voice prompts, microphone wake).
+    ws_manager: ConnectionManager | None = None
 
 
 # ---------------------------------------------------------------------------

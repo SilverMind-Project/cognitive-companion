@@ -45,6 +45,7 @@ class FakeServiceContainer:
     scheduler: Mock | None = None
     interactive_response_service: Mock | None = None
     knowledge_delivery: Mock | None = None
+    ws_manager: Mock | None = None
 
 
 @pytest.fixture
@@ -78,15 +79,10 @@ def mock_scheduler():
 def mock_notification_dispatcher(mock_connection_manager):
     """Create a mock notification dispatcher.
 
-    The handler accesses ws_manager via
-    ``notification_dispatcher._dispatch_services.ws_manager``, so the
-    mock must expose that attribute chain.
+    ``connection_manager`` is the companion socket the tests pass to the
+    container as ``ws_manager`` and assert on.
     """
-    dispatch_services = Mock()
-    dispatch_services.ws_manager = mock_connection_manager
     dispatcher = Mock()
-    dispatcher._dispatch_services = dispatch_services
-    # Also expose connection_manager for tests that assert on it directly
     dispatcher.connection_manager = mock_connection_manager
     return dispatcher
 
@@ -148,6 +144,7 @@ class TestInteractivePromptHandlerExecute:
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
             notification_dispatcher=mock_notification_dispatcher,
+            ws_manager=mock_notification_dispatcher.connection_manager,
             scheduler=mock_scheduler,
         )
 
@@ -205,6 +202,7 @@ class TestInteractivePromptHandlerExecute:
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
             notification_dispatcher=mock_notification_dispatcher,
+            ws_manager=mock_notification_dispatcher.connection_manager,
             scheduler=mock_scheduler,
         )
 
@@ -266,6 +264,7 @@ class TestInteractivePromptHandlerExecute:
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
             notification_dispatcher=mock_notification_dispatcher,
+            ws_manager=mock_notification_dispatcher.connection_manager,
             scheduler=mock_scheduler,
         )
 
@@ -320,6 +319,7 @@ class TestInteractivePromptHandlerExecute:
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
             notification_dispatcher=mock_notification_dispatcher,
+            ws_manager=mock_notification_dispatcher.connection_manager,
             scheduler=mock_scheduler,
         )
 
@@ -371,6 +371,7 @@ class TestInteractivePromptHandlerExecute:
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
             notification_dispatcher=mock_notification_dispatcher,
+            ws_manager=mock_notification_dispatcher.connection_manager,
             scheduler=mock_scheduler,
         )
 
@@ -428,6 +429,7 @@ class TestInteractivePromptHandlerExecute:
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
             notification_dispatcher=mock_notification_dispatcher,
+            ws_manager=mock_notification_dispatcher.connection_manager,
             scheduler=mock_scheduler,
         )
 
@@ -495,6 +497,7 @@ class TestInteractivePromptHandlerExecute:
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
             notification_dispatcher=mock_notification_dispatcher,
+            ws_manager=mock_notification_dispatcher.connection_manager,
             scheduler=mock_scheduler,
         )
 
@@ -552,6 +555,7 @@ class TestInteractivePromptHandlerExecute:
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
             notification_dispatcher=mock_notification_dispatcher,
+            ws_manager=mock_notification_dispatcher.connection_manager,
             scheduler=mock_scheduler,
         )
 
@@ -599,6 +603,7 @@ class TestInteractivePromptHandlerExecute:
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
             notification_dispatcher=mock_notification_dispatcher,
+            ws_manager=mock_notification_dispatcher.connection_manager,
             scheduler=mock_scheduler,
         )
 
@@ -646,6 +651,7 @@ class TestInteractivePromptHandlerExecute:
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
             notification_dispatcher=mock_notification_dispatcher,
+            ws_manager=mock_notification_dispatcher.connection_manager,
             scheduler=mock_scheduler,
         )
 
@@ -694,6 +700,7 @@ class TestInteractivePromptHandlerExecute:
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
             notification_dispatcher=mock_notification_dispatcher,
+            ws_manager=mock_notification_dispatcher.connection_manager,
             scheduler=mock_scheduler,
         )
 

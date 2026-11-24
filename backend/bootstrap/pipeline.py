@@ -47,6 +47,7 @@ def wire_service_container(
         minio_client=app.state.minio_client,
         knowledge_delivery=app.state.knowledge_delivery,
         knowledge_query=app.state.knowledge_query,
+        ws_manager=app.state.ws_manager,
     )
     app.state.service_container = services_container
 

@@ -239,11 +239,7 @@ class InteractivePromptHandler(StepHandler):
 
         # Send interactive_prompt message via WebSocket for popup channel
         if rendered_popup_message:
-            # Get WebSocket manager from notification dispatcher
-            notification_dispatcher = services.notification_dispatcher
-            ws_manager = None
-            if notification_dispatcher and hasattr(notification_dispatcher, "_dispatch_services"):
-                ws_manager = notification_dispatcher._dispatch_services.ws_manager
+            ws_manager = services.ws_manager
 
             if ws_manager:
                 try:
@@ -298,11 +294,7 @@ class InteractivePromptHandler(StepHandler):
                 if services.knowledge_delivery is not None
                 else None
             )
-            # Get WebSocket manager from notification dispatcher
-            notification_dispatcher = services.notification_dispatcher
-            ws_manager = None
-            if notification_dispatcher and hasattr(notification_dispatcher, "_dispatch_services"):
-                ws_manager = notification_dispatcher._dispatch_services.ws_manager
+            ws_manager = services.ws_manager
 
             if ws_manager:
                 try:

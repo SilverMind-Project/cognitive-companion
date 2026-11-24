@@ -537,8 +537,13 @@ function Invoke-Adb {
         Set-Content -Path $DevicesFile -Value $keep -Encoding ascii
     }
     Connect-RecordedDevices
-    $quoted = ($Rest | ForEach-Object { if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } }) -join ' '
-    exit (Invoke-Native "adb $quoted")
+    # adb runs directly with an argument array, not through cmd.exe: an `adb shell`
+    # command such as "getprop a; dumpsys x | grep y" must reach the device as one
+    # argument, and cmd.exe would split it at the pipe. Its stderr records are written
+    # as plain lines (with Stop, Windows PowerShell 5.1 would throw on the first).
+    $ErrorActionPreference = 'Continue'
+    & adb @Rest 2>&1 | ForEach-Object { [Console]::Out.WriteLine("$_") }
+    exit $LASTEXITCODE
 }
 
 function Invoke-AvdSetup {

@@ -214,7 +214,11 @@ guided_task:
   # regardless of the computed summon + routine-scale budget. A safety net for
   # a wedged session, not the normal resume path.
   max_pipeline_park_s: 7200
-  escalation_channels: ["telegram", "pwa_popup_text"]
+  # Escalations carry caregiver diagnostics (reason, transcript, takeover
+  # link), so only caregiver channels apply: telegram and webhook. Any other
+  # channel listed here or in a routine override is dropped and logged, because
+  # a tablet popup or speaker announcement of the dump distresses the resident.
+  escalation_channels: ["telegram"]
   summon_channels: ["ha_speaker_tts", "pwa_popup_text"]
   rephrase_via: "agent"
   # Literal-TTS summon announcement, per resident language.

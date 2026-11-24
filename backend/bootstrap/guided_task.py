@@ -136,7 +136,6 @@ async def wire_guided_task(
         escalator=FullEscalator(
             notifier,
             db_factory=get_session,
-            ws_manager=ws_manager,
             admin_ws_broadcaster=pipeline_ws_manager.broadcast,
             conversation_manager=conversation_manager,
             settings=settings,

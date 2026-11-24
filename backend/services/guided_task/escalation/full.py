@@ -1,4 +1,9 @@
-"""Full guided-task escalation ladder and caregiver takeover notification."""
+"""Full guided-task escalation ladder and caregiver takeover notification.
+
+Every output here is caregiver-facing: notifications go through
+``caregiver_channels`` and the live event goes to the admin console
+broadcaster (``/ws/pipeline``), never to the resident's companion socket.
+"""
 
 from __future__ import annotations
 
@@ -14,20 +19,20 @@ from backend.core.exceptions import NotFoundError
 from backend.core.logging import get_logger
 from backend.models.guided_task import GuidedSession, RoutineStep
 from backend.schemas.guided_task_ws import GuidedEscalationEvent
+from backend.services.guided_task.escalation.channels import caregiver_channels
 from backend.services.guided_task.store import GuidedTaskStore
 
 logger = get_logger(__name__)
 
 
 class FullEscalator:
-    """Escalator implementation with caregiver context, WS events, and emergencies."""
+    """Escalator with caregiver context, console events, and emergency priority."""
 
     def __init__(
         self,
         notification_dispatcher: Any,
         *,
         db_factory: Callable[[], Session],
-        ws_manager: Any = None,
         admin_ws_broadcaster: Any = None,
         conversation_manager: Any = None,
         settings: Settings | None = None,
@@ -35,7 +40,6 @@ class FullEscalator:
     ) -> None:
         self._dispatcher = notification_dispatcher
         self._store = GuidedTaskStore(db_factory)
-        self._ws_manager = ws_manager
         self._admin_ws_broadcaster = admin_ws_broadcaster
         self._conversation_manager = conversation_manager
         self._settings = settings or default_settings
@@ -76,7 +80,11 @@ class FullEscalator:
             detail=detail,
         )
 
-        channels = self._channels(routine.escalation_channels_override, emergency=emergency)
+        channels = caregiver_channels(
+            routine.escalation_channels_override
+            or self._settings.as_list("guided_task.escalation_channels"),
+            session_id=session.id,
+        )
         message = self._message(
             routine_name=routine.name,
             step_text=step.prompt_template if step is not None else "",
@@ -112,12 +120,6 @@ class FullEscalator:
             emergency=emergency,
             channels=results,
         )
-
-    def _channels(self, override: list[str] | None, *, emergency: bool) -> list[str]:
-        channels = list(override or self._settings.as_list("guided_task.escalation_channels"))
-        if emergency and "ha_speaker_tts" not in channels:
-            channels.append("ha_speaker_tts")
-        return channels
 
     def _message(
         self,
@@ -171,8 +173,6 @@ class FullEscalator:
             at=at,
         )
         payload = event.model_dump(mode="json")
-        if self._ws_manager is not None:
-            await self._ws_manager.broadcast(payload)
         if self._admin_ws_broadcaster is not None:
             await self._admin_ws_broadcaster(payload)
 

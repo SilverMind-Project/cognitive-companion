@@ -87,7 +87,7 @@ async def test_escalate_sends_on_routine_channel_override_then_global(
 
 
 @pytest.mark.asyncio
-async def test_emergency_adds_ha_speaker_channel(db_session, db_factory) -> None:
+async def test_emergency_stays_on_caregiver_channels(db_session, db_factory) -> None:
     session = _seed(db_session)
     dispatcher = _Dispatcher()
     escalator = NotifyOnlyEscalator(dispatcher, db_factory=db_factory, settings=_settings())
@@ -95,7 +95,7 @@ async def test_emergency_adds_ha_speaker_channel(db_session, db_factory) -> None
     await escalator.escalate(session=session, reason="hazard", emergency=True)
 
     assert dispatcher.calls[0]["alert_level"] == "emergency"
-    assert "ha_speaker_tts" in dispatcher.calls[0]["rule_config"]["channels"]
+    assert dispatcher.calls[0]["rule_config"]["channels"] == ["telegram"]
 
 
 @pytest.mark.asyncio

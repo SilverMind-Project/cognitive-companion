@@ -13,6 +13,7 @@ from backend.core.config import settings as default_settings
 from backend.core.exceptions import NotFoundError
 from backend.core.logging import get_logger
 from backend.models.guided_task import GuidedSession, RoutineStep
+from backend.services.guided_task.escalation.channels import caregiver_channels
 from backend.services.guided_task.store import GuidedTaskStore
 
 logger = get_logger(__name__)
@@ -65,12 +66,11 @@ class NotifyOnlyEscalator:
             detail={"reason": reason, "emergency": emergency},
         )
 
-        channels = list(
+        channels = caregiver_channels(
             routine.escalation_channels_override
-            or self._settings.as_list("guided_task.escalation_channels")
+            or self._settings.as_list("guided_task.escalation_channels"),
+            session_id=session.id,
         )
-        if emergency and "ha_speaker_tts" not in channels:
-            channels.append("ha_speaker_tts")
 
         message = self._message(
             routine_name=routine.name,

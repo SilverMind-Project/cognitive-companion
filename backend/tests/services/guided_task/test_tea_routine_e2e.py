@@ -184,7 +184,8 @@ async def test_tea_routine_help_request_notifies_caregiver(db_session, db_factor
     stored = db_session.get(GuidedSession, session.id)
     assert result == {"acknowledged": True}
     assert stored.status == "escalated"
-    assert dispatcher.calls[0]["rule_config"]["channels"] == ["telegram", "pwa_popup_text"]
+    # The tablet popup configured above is resident-facing, so the boundary drops it.
+    assert dispatcher.calls[0]["rule_config"]["channels"] == ["telegram"]
 
 
 @pytest.mark.asyncio

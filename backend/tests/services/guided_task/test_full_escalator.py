@@ -111,26 +111,42 @@ async def test_escalate_notifies_with_takeover_link(db_session, db_factory) -> N
 
 
 @pytest.mark.asyncio
-async def test_emergency_uses_all_channels_including_ha_speaker(db_session, db_factory) -> None:
-    session = _seed(db_session, channels=["telegram"])
+async def test_emergency_never_reaches_resident_channels(db_session, db_factory) -> None:
+    """An emergency goes to caregivers only: no forced in-home speaker, no tablet popup."""
+    session = _seed(db_session, channels=["telegram", "pwa_popup_text", "eink"])
     dispatcher = _Dispatcher()
     escalator = FullEscalator(dispatcher, db_factory=db_factory, settings=_settings())
 
     await escalator.escalate(session=session, reason="hazard_active", emergency=True)
 
     assert dispatcher.calls[0]["alert_level"] == "emergency"
-    assert dispatcher.calls[0]["rule_config"]["channels"] == ["telegram", "ha_speaker_tts"]
+    assert dispatcher.calls[0]["rule_config"]["channels"] == ["telegram"]
     assert "hazard" in dispatcher.calls[0]["message"]
 
 
 @pytest.mark.asyncio
-async def test_escalate_broadcasts_ws_event(db_session, db_factory) -> None:
+async def test_resident_only_override_falls_back_to_caregiver_channel(
+    db_session, db_factory
+) -> None:
+    """An empty channel list would make the dispatcher use its alert-level defaults,
+    which include the tablet popup and speakers, so the boundary never returns one."""
+    session = _seed(db_session, channels=["pwa_popup_text", "ha_speaker_tts"])
+    dispatcher = _Dispatcher()
+    escalator = FullEscalator(dispatcher, db_factory=db_factory, settings=_settings())
+
+    await escalator.escalate(session=session, reason="hazard_active", emergency=True)
+
+    assert dispatcher.calls[0]["rule_config"]["channels"] == ["telegram"]
+
+
+@pytest.mark.asyncio
+async def test_escalate_broadcasts_console_event_only(db_session, db_factory) -> None:
     session = _seed(db_session)
     ws = _WsManager()
     escalator = FullEscalator(
         _Dispatcher(),
         db_factory=db_factory,
-        ws_manager=ws,
+        admin_ws_broadcaster=ws.broadcast,
         settings=_settings(),
     )
 
@@ -173,13 +189,13 @@ async def test_escalation_unanswered_after_grace_abandons_and_resumes(
 
 @pytest.mark.asyncio
 async def test_channel_override_precedence(db_session, db_factory) -> None:
-    session = _seed(db_session, channels=["pwa_popup_text"])
+    session = _seed(db_session, channels=["webhook"])
     dispatcher = _Dispatcher()
     escalator = FullEscalator(dispatcher, db_factory=db_factory, settings=_settings())
 
     await escalator.escalate(session=session, reason="stuck", emergency=False)
 
-    assert dispatcher.calls[0]["rule_config"]["channels"] == ["pwa_popup_text"]
+    assert dispatcher.calls[0]["rule_config"]["channels"] == ["webhook"]
 
 
 @pytest.mark.asyncio
@@ -206,7 +222,7 @@ async def test_escalation_event_stamped_with_now(db_session, db_factory) -> None
     escalator = FullEscalator(
         _Dispatcher(),
         db_factory=db_factory,
-        ws_manager=ws,
+        admin_ws_broadcaster=ws.broadcast,
         settings=_settings(),
         time_fn=clock,
     )

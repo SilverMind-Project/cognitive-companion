@@ -1,11 +1,12 @@
-"""WebSocket event schemas for guided-task caregiver consoles."""
+"""Guided-task WebSocket schemas: caregiver console events, the resident-safe
+tablet state, and the tablet's guided-step taps."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, StrictInt
 
 
 class GuidedEscalationEvent(BaseModel):
@@ -55,3 +56,41 @@ class GuidedSessionStateEvent(BaseModel):
     total_steps: int
     prompt_text: str
     at: datetime
+
+
+class ResidentGuidedStateOut(BaseModel):
+    """What the companion tablet shows on load or reconnect: the session with a
+    step in progress, or ``None`` (which clears a widget left over from a
+    session that ended while the tablet was away)."""
+
+    session: GuidedSessionStateEvent | None = None
+
+
+class GuidedStepActionIn(BaseModel):
+    """A tap on the resident's guided-task widget, sent over ``/ws/audio``.
+
+    ``step_ord`` is the step her screen showed. It is required to complete a
+    step, so a tap on a screen that has not caught up never completes a step
+    she has not seen.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    type: Literal["guided_step_action"] = "guided_step_action"
+    session_id: StrictInt
+    action: Literal["done", "repeat", "help"]
+    step_ord: StrictInt | None = None
+
+
+class GuidedStepActionResultEvent(BaseModel):
+    """The tapping tablet's own acknowledgement, so its buttons never stay busy.
+
+    ``reason`` is a code for the screen's logic (for example
+    ``stale_step_completion``), never text to show her.
+    """
+
+    type: Literal["guided_step_action_result"] = "guided_step_action_result"
+    session_id: int
+    action: str
+    accepted: bool
+    reason: str | None = None

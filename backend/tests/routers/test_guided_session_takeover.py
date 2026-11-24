@@ -177,3 +177,59 @@ def test_auth_yaml_covers_takeover_routes() -> None:
 
     assert "guided_sessions:read" in roles["caregiver"]
     assert "guided_sessions:takeover" in roles["admin"]
+
+
+def _tablet() -> AuthContext:
+    return AuthContext(
+        key="tablet",
+        name="Companion tablet",
+        tokens=frozenset({"guided_sessions.resident_state:read"}),
+    )
+
+
+def test_tablet_reads_only_the_resident_safe_state(db_session, db_factory) -> None:
+    session = _seed(db_session, status="active")
+    service = GuidedTaskService(db_factory=db_factory, settings=_settings())
+    client = _client(service, _tablet())
+
+    response = client.get("/api/v1/guided-sessions/resident-state")
+
+    assert response.status_code == 200
+    state = response.json()["session"]
+    assert set(state) == {
+        "type",
+        "session_id",
+        "routine_id",
+        "routine_name",
+        "person_id",
+        "status",
+        "current_step_ord",
+        "total_steps",
+        "prompt_text",
+        "at",
+    }
+    assert (state["session_id"], state["prompt_text"], state["total_steps"]) == (
+        session.id,
+        "Step 0",
+        2,
+    )
+    # The tablet's token never opens the caregiver console's diagnostic reads.
+    assert client.get("/api/v1/guided-sessions").status_code == 403
+
+
+def test_resident_state_is_empty_when_no_step_is_in_progress(db_session, db_factory) -> None:
+    _seed(db_session, status="completed")
+    service = GuidedTaskService(db_factory=db_factory, settings=_settings())
+    client = _client(service, _tablet())
+
+    response = client.get("/api/v1/guided-sessions/resident-state")
+
+    assert response.status_code == 200
+    assert response.json() == {"session": None}
+
+
+def test_auth_yaml_grants_resident_state_to_the_tablet_roles() -> None:
+    roles = yaml.safe_load(Path("config/auth.yaml").read_text())["roles"]
+
+    for role in ("caregiver", "caregiver_admin", "device_reterminal"):
+        assert "guided_sessions.resident_state:read" in roles[role]

@@ -10,6 +10,9 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 TERMINAL_STATUSES = frozenset({"completed", "abandoned", "failed"})
 LIVE_STATUSES = frozenset({"active", "waiting", "summoning", "escalated", "caregiver_takeover"})
+# Live sessions whose current step has been put to the resident (a summoning
+# session has not reached her yet). Only these show a step on her screen.
+STEP_IN_PROGRESS_STATUSES = frozenset({"active", "waiting", "escalated", "caregiver_takeover"})
 # Predicate for the one-live-session-per-person unique index:
 # LIVE_STATUSES plus "pending", for a session state that precedes "active"/
 # "summoning" but should still count as live. Keep in sync with the partial

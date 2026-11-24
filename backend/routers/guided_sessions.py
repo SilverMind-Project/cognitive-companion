@@ -1,4 +1,5 @@
-"""Caregiver takeover endpoints for guided-task sessions."""
+"""Guided-task session endpoints: the caregiver console (list, detail, takeover)
+and the resident's companion screen (its resident-safe state)."""
 
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from backend.schemas.guided_task import (
     GuidedSessionOut,
     GuidedSessionSayIn,
 )
+from backend.schemas.guided_task_ws import ResidentGuidedStateOut
 from backend.services.guided_task.service import GuidedTaskService
 
 router = APIRouter(prefix="/guided-sessions", tags=["guided-sessions"])
@@ -28,6 +30,22 @@ def list_guided_sessions(
     _auth: AuthContext = Depends(require_permission("guided_sessions:read")),
 ) -> GuidedSessionListOut:
     return svc.list_sessions(person_id=person_id, status=status, limit=limit, offset=offset)
+
+
+@router.get("/resident-state", response_model=ResidentGuidedStateOut)
+async def get_resident_guided_state(
+    person_id: str | None = Query(default=None),
+    svc: GuidedTaskService = Depends(get_guided_task_service),
+    _auth: AuthContext = Depends(require_permission("guided_sessions.resident_state:read")),
+) -> ResidentGuidedStateOut:
+    """The companion tablet's hydration read: what a ``guided_session_state``
+    broadcast would show for the session in progress (none, when idle).
+
+    Its own token, because a tablet must not need ``guided_sessions:read``,
+    which exposes failure reasons and transcripts. No MCP twin: the agent reads
+    the same session through ``get_active_guided_step``.
+    """
+    return ResidentGuidedStateOut(session=await svc.get_resident_state(person_id))
 
 
 @router.get("/{session_id}/detail", response_model=GuidedSessionDetailOut)

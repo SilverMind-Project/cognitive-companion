@@ -29,11 +29,8 @@ from backend.schemas.guided_task import (
 from backend.schemas.guided_task_ws import GuidedSessionStateEvent, GuidedSessionUpdateEvent
 from backend.services.guided_task.agent_voice import GUIDED_TASK_DELIVERY_TYPE
 from backend.services.guided_task.context import RuntimeContext
-from backend.services.guided_task.domain import Decision
+from backend.services.guided_task.domain import STEP_IN_PROGRESS_STATUSES, Decision
 from backend.services.interactive_session.tagging import voice_owner_key
-
-# Statuses in which a step is in progress, so the tablet may show its prompt.
-_STEP_IN_PROGRESS_STATUSES = frozenset({"active", "waiting", "escalated", "caregiver_takeover"})
 
 logger = get_logger(__name__)
 
@@ -281,14 +278,45 @@ class Presentation:
         ctx = self._ctx
         if ctx.ws_manager is None:
             return
+        event = await self.resident_state(session, at=at)
+        await ctx.ws_manager.broadcast(event.model_dump(mode="json"))
+
+    async def current_resident_state(
+        self, person_id: str | None = None
+    ) -> GuidedSessionStateEvent | None:
+        """The resident-safe state of the newest session with a step in progress.
+
+        Only one session per person can be live, so with ``person_id`` there is
+        at most one. A summoning session is left out: its step has not been put
+        to her, so her screen has nothing to show yet.
+        """
+        ctx = self._ctx
+        sessions = [
+            s
+            for s in ctx.store.list_live_sessions()
+            if s.status in STEP_IN_PROGRESS_STATUSES
+            and (person_id is None or s.person_id == person_id)
+        ]
+        if not sessions:
+            return None
+        session = max(sessions, key=lambda s: (s.started_at, s.id))
+        return await self.resident_state(session, at=ctx.now())
+
+    async def resident_state(self, session: GuidedSession, *, at: Any) -> GuidedSessionStateEvent:
+        """The resident-safe view of ``session``: what her screen may show.
+
+        One builder for the live broadcast and the tablet's hydration read, so a
+        tablet that reconnects mid-routine shows exactly what a broadcast would.
+        """
+        ctx = self._ctx
         routine, steps = ctx.load_routine_steps(session.routine_id)
         prompt_text = ""
-        if session.status in _STEP_IN_PROGRESS_STATUSES and steps:
+        if session.status in STEP_IN_PROGRESS_STATUSES and steps:
             step = ctx.step_by_ord(steps, session.current_step_ord)
             prompt_text = await self._render_step_prompt(
                 session, routine, step, include_agent_context=False
             )
-        event = GuidedSessionStateEvent(
+        return GuidedSessionStateEvent(
             session_id=session.id,
             routine_id=session.routine_id,
             routine_name=routine.name,
@@ -299,7 +327,6 @@ class Presentation:
             prompt_text=prompt_text,
             at=at,
         )
-        await ctx.ws_manager.broadcast(event.model_dump(mode="json"))
 
     async def _render_step_prompt(
         self,

@@ -31,13 +31,14 @@ from backend.schemas.guided_task import (
     RoutineOut,
     RoutineUpdate,
 )
+from backend.schemas.guided_task_ws import GuidedSessionStateEvent
 from backend.services.guided_task.caregiver import Caregiver
 from backend.services.guided_task.context import RuntimeContext
 from backend.services.guided_task.domain import Decision
 from backend.services.guided_task.memory_bridge import GuidedMemoryBridge
 from backend.services.guided_task.ports import Escalator, NoopSafetyWatch, SafetyWatch, SessionVoice
 from backend.services.guided_task.presentation import Presentation
-from backend.services.guided_task.resident_actions import ResidentActions
+from backend.services.guided_task.resident_actions import ResidentActions, SurfaceAction
 from backend.services.guided_task.retention import Retention
 from backend.services.guided_task.routine_admin import RoutineAdmin, sanitize_completion_gate
 from backend.services.guided_task.runtime import Runtime
@@ -126,7 +127,10 @@ class GuidedTaskService:
         self._memory_bridge = GuidedMemoryBridge(ctx)
         self._runtime = Runtime(ctx, self._presentation, self._memory_bridge)
         self._resident_actions = ResidentActions(
-            ctx, self._presentation, apply_decision=self._runtime.apply_decision
+            ctx,
+            self._presentation,
+            apply_decision=self._runtime.apply_decision,
+            handle_completion=self._runtime.handle_completion,
         )
         self._summon = Summon(ctx, self._runtime, self._presentation)
         self._watch = Watch(ctx, self._runtime, self._presentation)
@@ -240,7 +244,23 @@ class GuidedTaskService:
         return await self._presentation.get_active_step(session_id)
 
     async def handle_completion(self, session_id: int, evidence: dict) -> dict:
-        return await self._runtime.handle_completion(session_id, evidence)
+        async with self._ctx.session_lock(session_id):
+            return await self._runtime.handle_completion(session_id, evidence)
+
+    async def handle_surface_action(
+        self, session_id: int, action: SurfaceAction, *, step_ord: int | None = None
+    ) -> dict:
+        """A tap on the resident's companion screen; see ``ResidentActions.surface_action``."""
+        async with self._ctx.session_lock(session_id):
+            return await self._resident_actions.surface_action(
+                session_id, action, step_ord=step_ord
+            )
+
+    async def get_resident_state(
+        self, person_id: str | None = None
+    ) -> GuidedSessionStateEvent | None:
+        """The resident-safe state of the session whose step is in progress, if any."""
+        return await self._presentation.current_resident_state(person_id)
 
     async def repeat_step(self, session_id: int) -> dict:
         return await self._resident_actions.repeat_step(session_id)

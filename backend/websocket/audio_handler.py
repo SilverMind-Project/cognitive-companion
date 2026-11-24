@@ -29,8 +29,10 @@ from typing import Any
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
+from backend.core.exceptions import NotFoundError
 from backend.core.logging import get_logger
 from backend.integrations.llm.base import RealtimeLLMProvider, RealtimeSession
+from backend.schemas.guided_task_ws import GuidedStepActionIn, GuidedStepActionResultEvent
 from backend.schemas.interactive_response import InteractiveResponseMessage
 from backend.services.conversation_manager import ConversationManager
 from backend.services.interactive_response import InteractiveResponseService
@@ -175,6 +177,8 @@ class AudioSessionHandler:
                         await self._handle_quiz_answer(data)
                     elif msg_type == "info_card_dismiss":
                         await self._handle_info_card_event(data)
+                    elif msg_type == "guided_step_action":
+                        await self._handle_guided_step_action(data)
         except WebSocketDisconnect:
             logger.info("ws_client_disconnected_in_reader")
         except Exception as exc:
@@ -766,3 +770,44 @@ class AudioSessionHandler:
             await delivery.handle_info_card_event(delivery_id, action)
         except Exception:
             logger.exception("info_card_event_handler_error", delivery_id=delivery_id)
+
+    async def _handle_guided_step_action(self, data: dict) -> None:
+        """A tap on the resident's guided-task widget (I'm Done, Repeat, I Need Help).
+
+        The service decides everything, including speaking the next step through
+        the normal voice path, so the agent hears it with its ``[step_ord]``
+        marker. Only the tapping tablet is answered, so its buttons never stay
+        busy when the tap changed nothing (a stale screen, a held gate).
+        """
+        try:
+            action = GuidedStepActionIn.model_validate(data)
+        except ValidationError:
+            logger.warning("guided_step_action_invalid", data=data)
+            return
+
+        accepted, reason = False, "unavailable"
+        guided = getattr(self.ws.app.state, "guided_task_service", None)
+        if guided is None:
+            logger.error("guided_step_action_no_service")
+        else:
+            try:
+                result = await guided.handle_surface_action(
+                    action.session_id, action.action, step_ord=action.step_ord
+                )
+                accepted, reason = bool(result.get("accepted")), result.get("reason")
+            except NotFoundError:
+                reason = "session_not_found"
+            except Exception:
+                logger.exception(
+                    "guided_step_action_failed",
+                    session_id=action.session_id,
+                    action=action.action,
+                )
+                reason = "failed"
+        ack = GuidedStepActionResultEvent(
+            session_id=action.session_id, action=action.action, accepted=accepted, reason=reason
+        )
+        try:
+            await self.ws.send_json(ack.model_dump(mode="json"))
+        except Exception:
+            logger.warning("guided_step_action_ack_failed", session_id=action.session_id)

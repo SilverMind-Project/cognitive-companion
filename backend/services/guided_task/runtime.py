@@ -41,7 +41,11 @@ class Runtime:
         self._presentation = presentation
         self._memory_bridge = memory_bridge
 
-    async def handle_completion(self, session_id: int, evidence: dict) -> dict:
+    async def handle_completion(
+        self, session_id: int, evidence: dict, *, speak_on_advance: bool = False
+    ) -> dict:
+        """``speak_on_advance`` is False for the agent, which speaks the next step
+        from the returned descriptor; a tablet tap has no agent turn to do that."""
         ctx = self._ctx
         now = ctx.now()
         session, routine, steps, step = ctx.load_runtime(session_id)
@@ -70,7 +74,7 @@ class Runtime:
                 event_kind="skip_condition_met",
                 actor="resident",
                 detail={"reason": "response_says_done", "source": "agent"},
-                speak_on_advance=False,
+                speak_on_advance=speak_on_advance,
             )
             return await self._presentation.advance_descriptor(session.id, routine, steps, decision)
 
@@ -129,7 +133,7 @@ class Runtime:
                         event_kind=outcome.event_kind,
                         actor="resident",
                         detail=outcome.detail,
-                        speak_on_advance=False,
+                        speak_on_advance=speak_on_advance,
                     )
                 if outcome.advance:
                     return await self._presentation.advance_descriptor(
@@ -157,7 +161,7 @@ class Runtime:
             event_kind="step_completed",
             actor="resident",
             detail={"completion_reason": result.reason, "gates": evaluation.details},
-            speak_on_advance=False,
+            speak_on_advance=speak_on_advance,
         )
         return await self._presentation.advance_descriptor(session.id, routine, steps, decision)
 

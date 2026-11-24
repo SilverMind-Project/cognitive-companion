@@ -142,6 +142,7 @@ roles:
     - "face_prototypes:write"
     - "gate_graphs:read"
     - "guided_metrics:read"
+    - "guided_sessions.resident_state:read"
     - "guided_sessions:read"
     - "ha:read"
     - "household:read"
@@ -200,6 +201,7 @@ roles:
     - "face_prototypes:read"
     - "gate_graphs:read"
     - "guided_metrics:read"
+    - "guided_sessions.resident_state:read"
     - "guided_sessions:read"
     - "ha:read"
     - "household:read"
@@ -287,4 +289,5 @@ roles:
 
   device_reterminal:
     - "companion_surfaces:heartbeat"
+    - "guided_sessions.resident_state:read"
     - "image:read"

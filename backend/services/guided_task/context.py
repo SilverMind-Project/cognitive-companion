@@ -19,6 +19,8 @@ lives in ``watch.py``; ``_record_vision_confirm_event`` lives in
 
 from __future__ import annotations
 
+import asyncio
+import weakref
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -133,6 +135,26 @@ class RuntimeContext:
         self.progress_seen_at: TTLCache[tuple[int, int], datetime] = TTLCache(
             maxsize=4096, ttl=_RUNTIME_CACHE_TTL_S, timer=lambda: self.time_fn().timestamp()
         )
+        # Weakly held: a lock lives only while a caller holds or waits on it.
+        self._session_locks: weakref.WeakValueDictionary[int, asyncio.Lock] = (
+            weakref.WeakValueDictionary()
+        )
+
+    def session_lock(self, session_id: int) -> asyncio.Lock:
+        """The lock that serializes resident completions of one session.
+
+        She can tap "I'm Done" while saying "done", so the agent's tool call and
+        the tap arrive together. Both would pass the stale-step guard before
+        either advanced, completing a second step she never heard. Holding this
+        lock, the second call sees the advanced ``current_step_ord`` and is
+        rejected as stale. One process runs the guided runtime (its timeouts
+        live in the in-memory scheduler), so an in-process lock is sufficient.
+        """
+        lock = self._session_locks.get(session_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._session_locks[session_id] = lock
+        return lock
 
     # ------------------------------------------------------------------
     # Time and session/step loading

@@ -309,15 +309,12 @@ register_test_surface() {
 }
 
 cmd_test_instrumented() {
-  # An emulator run on the PC has no readable audio input (no audio endpoint in a
-  # non-interactive session), so only a physical device must prove a live capture;
-  # an emulator proves the zero-tap grant.
-  local target_args=() kind surface_kind require_microphone=false
+  local target_args=() kind surface_kind
   case "${1:-}" in
     tablet | tv) target_args=(-Avd "$1"); kind="$1"; surface_kind="$1" ;;
     --device)
       [[ -n "${2:-}" && "$2" =~ ^[A-Za-z0-9._:-]+$ ]] || die "$EXIT_USAGE" "test-instrumented --device needs a serial"
-      target_args=(-Device "$2"); kind=device; surface_kind=tablet; require_microphone=true ;;
+      target_args=(-Device "$2"); kind=device; surface_kind=tablet ;;
     *) die "$EXIT_USAGE" "test-instrumented needs tablet, tv, or --device SERIAL" ;;
   esac
   [[ "$CCWIN_SURFACE_ID" =~ ^[A-Za-z0-9._-]+$ ]] || die "$EXIT_USAGE" "invalid CCWIN_SURFACE_ID"
@@ -336,8 +333,7 @@ cmd_test_instrumented() {
   run_id="$(new_run_id "instrumented-$kind")"
   echo "ccwin: run $run_id (surface $CCWIN_SURFACE_ID, $CCWIN_API_ORIGIN)"
   # The arguments travel on stdin, never on a command line on either machine.
-  printf 'ccApiKey=%s\nccApiOrigin=%s\nccSurfaceId=%s\nccRequireMicrophone=%s\n' \
-    "$device_key" "$CCWIN_API_ORIGIN" "$CCWIN_SURFACE_ID" "$require_microphone" |
+  printf 'ccApiKey=%s\nccApiOrigin=%s\nccSurfaceId=%s\n' "$device_key" "$CCWIN_API_ORIGIN" "$CCWIN_SURFACE_ID" |
     run_remote_harness test-instrumented -RunId "$run_id" -Tasks "$INSTRUMENTED_TASKS" -ReadSecrets "${target_args[@]}"
 }
 

@@ -1,14 +1,18 @@
 package com.silvermind.companion
 
+import android.Manifest
 import android.content.Context
 import android.os.PowerManager
+import android.util.Log
 import android.view.WindowManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.rule.GrantPermissionRule
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -18,6 +22,11 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ZeroTouchLiveCompanionTest {
+    // The one-time Android permission a provisioned screen holds: a device-owner kiosk
+    // grants it to itself, any other device asks once at setup. No tap is involved in
+    // anything the tests then check.
+    @get:Rule
+    val microphonePermission: GrantPermissionRule = GrantPermissionRule.grant(Manifest.permission.RECORD_AUDIO)
 
     @Test
     fun the_page_may_play_audio_without_a_tap() {
@@ -46,14 +55,8 @@ class ZeroTouchLiveCompanionTest {
                 outcome = LiveCompanion.js(scenario, "window.__ccMic")
                 outcome != "\"pending\""
             }
-            if (LiveCompanion.requireMicrophone) {
-                assertEquals("the microphone did not open: $outcome", "\"live:live\"", outcome)
-            } else {
-                // NotReadableError or NotFoundError: granted, but this emulator has no
-                // readable input. Only a refusal means the shell failed to grant it.
-                val refused = LiveCompanion.REFUSED.any { outcome == "\"error:$it\"" }
-                assertFalse("the shell did not grant the microphone: $outcome", refused)
-            }
+            Log.i(TAG, "getUserMedia outcome: $outcome")
+            assertEquals("the microphone did not open: $outcome", "\"live:live\"", outcome)
         }
     }
 
@@ -71,12 +74,10 @@ class ZeroTouchLiveCompanionTest {
             LiveCompanion.waitUntil("the screen to be held awake", 15_000) {
                 keepsScreenOn(scenario) && isInteractive()
             }
-            // The page started capture with no tap. It shows "Listening" only while the
-            // microphone is really open and "Microphone unavailable" when it could not be
-            // (an emulator here has no readable input); a device must really listen.
-            val shown = if (LiveCompanion.requireMicrophone) LISTENING else "$LISTENING, $MIC_UNAVAILABLE"
+            // The page started capture with no tap, and "Listening" shows only while the
+            // microphone is really open.
             LiveCompanion.waitUntil("the page to show it is listening", 15_000) {
-                LiveCompanion.js(scenario, "document.querySelector(${JSONObject.quote(shown)}) !== null") == "true"
+                LiveCompanion.js(scenario, "document.querySelector(${JSONObject.quote(LISTENING)}) !== null") == "true"
             }
 
             // No release is ever sent for a test: the device's own lease timer must
@@ -90,6 +91,7 @@ class ZeroTouchLiveCompanionTest {
     }
 
     private companion object {
+        const val TAG = "CompanionLiveTest"
         const val LISTENING = "[data-test=capture-mic]"
         const val MIC_UNAVAILABLE = "[data-test=capture-mic-unavailable]"
     }

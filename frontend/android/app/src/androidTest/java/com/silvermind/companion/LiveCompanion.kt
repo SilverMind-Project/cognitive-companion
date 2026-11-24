@@ -19,9 +19,7 @@ import java.util.concurrent.TimeUnit
  * test-instrumented` registers and passes in (it also refuses to start while a
  * guided routine is live, so the test socket cannot be mistaken for her tablet).
  *
- * Instrumentation arguments: `ccApiKey` (secret), `ccApiOrigin`, `ccSurfaceId`, and
- * `ccRequireMicrophone` (true on a physical device; an emulator on the build PC has no
- * readable audio input, so there only the grant, not a live capture, can be proven).
+ * Instrumentation arguments: `ccApiKey` (secret), `ccApiOrigin`, `ccSurfaceId`.
  */
 object LiveCompanion {
     private const val API_KEY_STORAGE = "cc_api_key"
@@ -35,11 +33,6 @@ object LiveCompanion {
     val apiKey: String get() = arg("ccApiKey")
     val apiOrigin: String get() = arg("ccApiOrigin").trimEnd('/')
     val surfaceId: String get() = arg("ccSurfaceId")
-    val requireMicrophone: Boolean
-        get() = InstrumentationRegistry.getArguments().getString("ccRequireMicrophone") == "true"
-
-    /** getUserMedia failures that mean the page was refused, not that no device exists. */
-    val REFUSED = setOf("NotAllowedError", "SecurityError")
 
     /**
      * Load the page, give it the test key and the test surface (as a provisioned kiosk

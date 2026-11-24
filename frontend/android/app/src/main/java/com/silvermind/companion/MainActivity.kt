@@ -64,8 +64,15 @@ class MainActivity : BridgeActivity() {
     }
 
     /**
-     * Grants the page's own capture requests (microphone, camera) without a prompt.
-     * Any other origin, or any other resource, is denied.
+     * Lets the page's own origin capture the microphone and camera; any other origin,
+     * or any request for anything else, is denied.
+     *
+     * Granting the WebView's request is not enough on its own: Chromium can open the
+     * microphone only if the app holds Android's RECORD_AUDIO (CAMERA) permission, or it
+     * fails with NotReadableError. Capacitor's handler asks Android for exactly those
+     * permissions before granting, so an own-origin capture request is handed to it. A
+     * device-owner kiosk already holds them (granted silently in [enterKiosk]), so no
+     * prompt is shown there; any other device asks once, at setup.
      */
     private class CompanionChromeClient(private val activity: MainActivity) :
         BridgeWebChromeClient(activity.bridge) {
@@ -74,9 +81,10 @@ class MainActivity : BridgeActivity() {
             val fromOwnOrigin = ownOrigin != null &&
                 request.origin.scheme == ownOrigin.scheme &&
                 request.origin.host == ownOrigin.host
-            val allowed = request.resources.filter { it in CAPTURE_RESOURCES }
-            if (fromOwnOrigin && allowed.isNotEmpty()) {
-                request.grant(allowed.toTypedArray())
+            val captureOnly = request.resources.isNotEmpty() &&
+                request.resources.all { it in CAPTURE_RESOURCES }
+            if (fromOwnOrigin && captureOnly) {
+                super.onPermissionRequest(request)
             } else {
                 request.deny()
             }

@@ -222,8 +222,6 @@ def test_live_tests_register_the_surface_and_send_the_key_only_on_stdin(harness)
     sent = harness.stdin_log.read_text()
     assert "ccApiKey=device-secret" in sent
     assert "ccSurfaceId=ccwin-test-device" in sent
-    # An emulator cannot prove a live capture (no readable input on the PC).
-    assert "ccRequireMicrophone=false" in sent
     assert "caregiver-secret" not in sent
 
 

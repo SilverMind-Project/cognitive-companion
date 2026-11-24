@@ -194,3 +194,45 @@ def test_terminal_session_any_event_noop():
 
     assert decision.kind == "noop"
     assert decision.reason == "terminal_session"
+
+
+def test_timeout_with_recent_progress_is_suppressed_within_the_ladder_budget():
+    decision = GuidedTaskStateMachine.decide(
+        _session(step_entered_at=NOW - timedelta(seconds=899)),
+        _step(),
+        "timeout_tick",
+        _policy(),
+        NOW,
+        evidence={"progress_seen_at": NOW - timedelta(seconds=10)},
+    )
+
+    assert (decision.kind, decision.reason) == ("noop", "nag_suppressed")
+    assert decision.attempts == 0
+
+
+def test_timeout_with_progress_past_the_ladder_budget_escalates():
+    decision = GuidedTaskStateMachine.decide(
+        _session(step_entered_at=NOW - timedelta(seconds=900)),
+        _step(),
+        "timeout_tick",
+        _policy(),
+        NOW,
+        evidence={"progress_seen_at": NOW - timedelta(seconds=10)},
+    )
+
+    assert decision.kind == "escalate"
+    assert decision.reason == "step_overrun_with_progress"
+    assert decision.emergency is False
+
+
+def test_timeout_with_stale_progress_runs_the_ladder():
+    decision = GuidedTaskStateMachine.decide(
+        _session(),
+        _step(),
+        "timeout_tick",
+        _policy(),
+        NOW,
+        evidence={"progress_seen_at": NOW - timedelta(seconds=300)},
+    )
+
+    assert (decision.kind, decision.reason) == ("retry", "timeout_retry")

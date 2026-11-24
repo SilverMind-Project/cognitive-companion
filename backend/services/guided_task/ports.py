@@ -21,7 +21,10 @@ class SessionVoice(Protocol):
 
 
 class SafetyWatch(Protocol):
-    async def evaluate(self, *, session: Any) -> list[dict]: ...
+    async def evaluate(self, *, session: Any) -> list[dict]:
+        """Escalation events, plus ``{"condition": ..., "cleared": True}`` entries
+        recording that an alerted state condition has ended."""
+        ...
 
 
 class Escalator(Protocol):

@@ -270,17 +270,22 @@ async def test_no_progress_does_not_suppress(db_session, monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_abandonment_follows_the_last_vision_progress(db_session, monkeypatch) -> None:
+async def test_suppression_delays_but_never_cancels_escalation(db_session, monkeypatch) -> None:
+    """Vision progress holds off the retry prompts, never the caregiver.
+
+    With a 100 s step timeout and 3 attempts, a step the camera keeps seeing in
+    progress is not nagged for its whole 300 s ladder budget; after that a
+    caregiver is told (escalation, not abandonment), so a camera stuck on a false
+    "progress" cannot hold a session open indefinitely.
+    """
     from backend.services.guided_task.camera_selection import ResolvedCamera
 
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
     )
-
     clock = _Clock()
     gate_runner = FakeGateGraphRunner()
-    # Progress is seen
     gate_runner.verdict_to_return = GateVerdict(
         complete=True,
         confidence=0.8,
@@ -289,43 +294,31 @@ async def test_abandonment_follows_the_last_vision_progress(db_session, monkeypa
         cost={},
         profile="watch",
     )
-
-    routine_id = _seed_routine_with_watch(
-        db_session, watch_enabled=True, step_timeout_s=100, resume_grace_s=600
-    )
+    routine_id = _seed_routine_with_watch(db_session, watch_enabled=True, step_timeout_s=100)
+    escalator = _RecordingEscalator()
     svc = GuidedTaskService(
         db_factory=lambda: db_session,
         voice=_RecordingVoice(),
-        escalator=_RecordingEscalator(),
-        settings=_settings(step_timeout_s=100, resume_grace_s=600),
+        escalator=escalator,
+        settings=_settings(step_timeout_s=100),
         time_fn=clock,
         gate_runner=gate_runner,
     )
     session = await svc.start(routine_id, "resident-1")
 
-    # Run watch -> progress seen
-    await svc.tick(clock.now)
+    for _ in range(14):  # 280 s of visible progress, a timeout every 20 s
+        clock.advance(20)
+        await svc.tick(clock.now)
+        decision = await svc.on_step_timeout(session.id)
+        assert decision.reason == "nag_suppressed"
 
-    # Vision progress holds off the idle backstop while it keeps coming (an
-    # owner decision that relaxes the original "suppression only delays" rule).
-    clock.advance(650)
+    clock.advance(25)
     await svc.tick(clock.now)
-    db_session.expire_all()
-    assert svc._store.get_session(session.id).status == "active"
+    decision = await svc.on_step_timeout(session.id)
 
-    # Once progress stops, the backstop abandons after the step timeout plus
-    # the resume grace (100 + 600 s) measured from the last progress.
-    gate_runner.verdict_to_return = GateVerdict(
-        complete=False,
-        confidence=0.2,
-        reason="no_progress",
-        node_results={},
-        cost={},
-        profile="watch",
-    )
-    clock.advance(701)
-    await svc.tick(clock.now)
-
+    assert decision.kind == "escalate"
+    assert decision.reason == "step_overrun_with_progress"
+    assert escalator.calls == [(session.id, "step_overrun_with_progress", False)]
     db_session.expire_all()
     session = svc._store.get_session(session.id)
-    assert session.status == "abandoned"
+    assert session.status == "escalated"

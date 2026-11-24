@@ -414,7 +414,9 @@ class _TimedSignals:
         ]
 
 
-async def test_conditions_fire_once_per_step_then_rearm_on_release(db_session, db_factory) -> None:
+async def test_release_rearms_hazard_but_not_a_room_she_already_left(
+    db_session, db_factory
+) -> None:
     session_id = _seed(db_session, safety_critical=True)
     session = db_session.get(GuidedSession, session_id)
     clock = _Clock(now=session.started_at + timedelta(seconds=60))
@@ -448,10 +450,10 @@ async def test_conditions_fire_once_per_step_then_rearm_on_release(db_session, d
     )
     clock.now += timedelta(seconds=20)
     rearmed = {event["condition"] for event in await watch.evaluate(session=session)}
-    assert "hazard_active" in rearmed
-    assert "left_expected_room" in rearmed
-    # The fall signal arrived before the release, so it is not raised again.
-    assert "no_motion" not in rearmed
+    assert rearmed == {"hazard_active"}
+    # She is still out of the room, but the caregiver who released has seen
+    # that: a state condition alerts when it starts, not again on release. The
+    # fall signal arrived before the release, so it is not raised again either.
 
 
 async def test_fall_signal_before_step_entry_is_ignored(db_session, db_factory) -> None:
@@ -624,3 +626,81 @@ async def test_tick_skips_safety_for_summoning_session(db_session, db_factory) -
 
     assert safety.calls == 0
     assert escalator.calls == []
+
+
+class _MovableLocation:
+    def __init__(self, room_id: int | None) -> None:
+        self.room_id = room_id
+
+    async def where_is(self, person_id: str) -> _Location | None:
+        return None if self.room_id is None else _Location(room_id=self.room_id)
+
+
+async def test_left_room_alerts_again_only_after_she_came_back(db_session, db_factory) -> None:
+    session_id = _seed(db_session)
+    session = db_session.get(GuidedSession, session_id)
+    location = _MovableLocation(room_id=2)
+    clock = _Clock(now=session.started_at + timedelta(seconds=30))
+    watch = _watch(
+        db_factory, clock, person_location_service=location, zone_service=_ZoneService(room_id=1)
+    )
+    store = GuidedTaskStore(db_factory)
+
+    def record(observations: list[dict]) -> None:
+        for observation in observations:
+            store.add_event(
+                session_id=session_id,
+                at=clock.now,
+                kind="safety_condition_cleared" if observation.get("cleared") else "safety_event",
+                step_ord=0,
+                actor="system",
+                detail={"condition": observation["condition"]},
+            )
+
+    first = await watch.evaluate(session=session)
+    assert [e["condition"] for e in first] == ["left_expected_room"]
+    record(first)
+
+    clock.now += timedelta(seconds=20)
+    assert await watch.evaluate(session=session) == []
+
+    # A gap in location data neither alerts nor closes the episode.
+    location.room_id = None
+    clock.now += timedelta(seconds=20)
+    assert await watch.evaluate(session=session) == []
+
+    location.room_id = 1
+    clock.now += timedelta(seconds=20)
+    back = await watch.evaluate(session=session)
+    assert back == [{"condition": "left_expected_room", "cleared": True}]
+    record(back)
+
+    location.room_id = 2
+    clock.now += timedelta(seconds=20)
+    again = await watch.evaluate(session=session)
+    assert [e["condition"] for e in again] == ["left_expected_room"]
+
+
+async def test_tick_records_a_cleared_condition_without_escalating(db_session, db_factory) -> None:
+    routine_id = _seed_service_routine(db_session)
+    escalator = _RecordingEscalator()
+    safety = _FixedSafetyWatch([{"condition": "left_expected_room", "cleared": True}])
+    clock = _Clock()
+    service = GuidedTaskService(
+        db_factory=db_factory,
+        escalator=escalator,
+        safety_watch=safety,
+        settings=_settings(),
+        time_fn=clock,
+    )
+    session = await service.start(routine_id, "resident-1")
+
+    await service.tick(clock.now + timedelta(seconds=20))
+
+    assert escalator.calls == []
+    row = (
+        db_session.query(GuidedSessionEvent)
+        .filter_by(session_id=session.id, kind="safety_condition_cleared")
+        .one()
+    )
+    assert row.detail == {"condition": "left_expected_room"}

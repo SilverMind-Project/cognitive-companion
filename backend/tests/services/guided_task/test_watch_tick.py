@@ -514,49 +514,43 @@ async def test_watch_error_isolated_from_safety_watch(db_session, monkeypatch) -
     assert safety.evaluated is True
 
 
-@pytest.mark.asyncio
-async def test_long_step_is_not_abandoned_before_its_own_timeout(db_session) -> None:
-    """A step timeout longer than the resume grace (a long steep) used to be
-    abandoned by the tick at the grace, before its own timeout fired."""
-    from backend.models.guided_task import GuidedSession
+class _FakeApscheduler:
+    """Just enough of APScheduler for the timeout repair: jobs by id."""
 
-    member = db_session.get(HouseholdMember, "resident-1")
-    if not member:
+    def __init__(self) -> None:
+        self.jobs: dict[str, datetime] = {}
+
+    def add_job(self, func, trigger, *, run_date, id, args, replace_existing) -> None:
+        self.jobs[id] = run_date
+
+    def get_job(self, job_id: str):
+        return self.jobs.get(job_id)
+
+    def remove_job(self, job_id: str) -> None:
+        self.jobs.pop(job_id, None)
+
+
+def _seed_long_step(db_session, timeout_s: int = 900) -> int:
+    if db_session.get(HouseholdMember, "resident-1") is None:
         db_session.add(HouseholdMember(id="resident-1", name="Resident"))
         db_session.flush()
     routine = Routine(name="Steep tea", person_id="resident-1", is_enabled=True)
-    routine.steps.append(RoutineStep(ord=0, prompt_template="Steep", step_timeout_s_override=900))
+    routine.steps.append(
+        RoutineStep(ord=0, prompt_template="Steep", step_timeout_s_override=timeout_s)
+    )
     db_session.add(routine)
     db_session.commit()
-    clock = _Clock()
-    svc = GuidedTaskService(
-        db_factory=lambda: db_session,
-        voice=_RecordingVoice(),
-        escalator=_RecordingEscalator(),
-        settings=_settings(),
-        time_fn=clock,
-        safety_watch=FakeSafetyWatch(),
-    )
-    session = await svc.start(routine.id, "resident-1")
-
-    clock.advance(601)
-    await svc.tick(clock.now)
-    db_session.expire_all()
-    assert db_session.get(GuidedSession, session.id).status == "active"
-
-    # The step timeout never fired (a job lost on restart): the tick is the
-    # backstop once the step's timeout plus the grace has passed.
-    clock.advance(900)
-    await svc.tick(clock.now)
-    db_session.expire_all()
-    assert db_session.get(GuidedSession, session.id).status == "abandoned"
+    return routine.id
 
 
 @pytest.mark.asyncio
-async def test_vision_progress_holds_off_the_idle_backstop(db_session) -> None:
+async def test_tick_never_abandons_a_step_in_progress(db_session) -> None:
+    """The tick used to abandon any step idle past the 600 s resume grace, so a
+    900 s steep was abandoned before its own timeout. Idleness on a step in
+    progress belongs to the timeout ladder alone."""
     from backend.models.guided_task import GuidedSession
 
-    routine_id = _seed_routine_with_watch(db_session, watch_enabled=False)
+    routine_id = _seed_long_step(db_session)
     clock = _Clock()
     svc = GuidedTaskService(
         db_factory=lambda: db_session,
@@ -568,10 +562,47 @@ async def test_vision_progress_holds_off_the_idle_backstop(db_session) -> None:
     )
     session = await svc.start(routine_id, "resident-1")
 
-    clock.advance(800)
-    svc._progress_seen_at[(session.id, 0)] = clock.now
-    clock.advance(800)
-    await svc.tick(clock.now)
+    for seconds in (601, 2000):
+        clock.advance(seconds)
+        await svc.tick(clock.now)
+        db_session.expire_all()
+        assert db_session.get(GuidedSession, session.id).status == "active"
 
-    db_session.expire_all()
-    assert db_session.get(GuidedSession, session.id).status == "active"
+
+@pytest.mark.asyncio
+async def test_tick_rearms_a_timeout_lost_on_restart(db_session) -> None:
+    routine_id = _seed_long_step(db_session)
+    clock = _Clock()
+    scheduler = _FakeApscheduler()
+    svc = GuidedTaskService(
+        db_factory=lambda: db_session,
+        scheduler=scheduler,
+        voice=_RecordingVoice(),
+        escalator=_RecordingEscalator(),
+        settings=_settings(),
+        time_fn=clock,
+        safety_watch=FakeSafetyWatch(),
+    )
+    session = await svc.start(routine_id, "resident-1")
+    job_id = f"guided_session_timeout_{session.id}"
+    deadline = scheduler.jobs[job_id]
+    assert deadline == clock.now + timedelta(seconds=900)
+
+    # A restart drops the in-memory job; before the deadline it goes back at
+    # the original deadline.
+    scheduler.jobs.clear()
+    clock.advance(300)
+    await svc.tick(clock.now)
+    assert scheduler.jobs[job_id] == deadline
+
+    # Just past the deadline a missing job may be one the scheduler is running
+    # right now, so it is left alone rather than applied twice.
+    scheduler.jobs.clear()
+    clock.advance(630)
+    await svc.tick(clock.now)
+    assert job_id not in scheduler.jobs
+
+    # Well past it, the job is treated as lost and fires now.
+    clock.advance(60)
+    await svc.tick(clock.now)
+    assert scheduler.jobs[job_id] == clock.now

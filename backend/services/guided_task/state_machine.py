@@ -68,6 +68,24 @@ class GuidedTaskStateMachine:
             )
 
         if event == "timeout_tick":
+            # Vision progress delays the ladder (no nagging a resident who is
+            # visibly working) but never cancels it: once the step has used its
+            # whole ladder budget, a caregiver is told instead.
+            progress_seen_at = (evidence or {}).get("progress_seen_at")
+            if (
+                progress_seen_at is not None
+                and (now - progress_seen_at).total_seconds() < policy.step_timeout_s
+            ):
+                on_step_s = (now - session.step_entered_at).total_seconds()
+                if on_step_s < policy.step_timeout_s * policy.max_step_attempts:
+                    return Decision.hold(session, "noop", "nag_suppressed")
+                return Decision(
+                    kind="escalate",
+                    next_status="escalated",
+                    next_step_ord=session.current_step_ord,
+                    attempts=session.attempts,
+                    reason="step_overrun_with_progress",
+                )
             if session.attempts + 1 >= policy.max_step_attempts:
                 return Decision(
                     kind="escalate",

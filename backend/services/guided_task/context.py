@@ -49,6 +49,9 @@ from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
 logger = get_logger(__name__)
 
 _RUNTIME_CACHE_TTL_S = 86400
+# How long past a step's deadline a missing timeout job is treated as lost rather
+# than in flight (a running job is no longer listed by the scheduler).
+_TIMEOUT_REARM_MARGIN_S = 60
 
 
 class RuntimeContext:
@@ -299,6 +302,42 @@ class RuntimeContext:
             finalize=finalize,
             args=[session.id],
         )
+
+    def ensure_timeout(
+        self,
+        session: GuidedSession,
+        routine: Routine,
+        step: RoutineStep,
+        now: datetime,
+        *,
+        finalize: Callable[[int], Any],
+    ) -> bool:
+        """Re-arm the step timeout if its job is missing; return whether it did.
+
+        Timeout jobs hold a bound method, so they live only in the scheduler's
+        memory: a restart drops them, and a job the scheduler could not start in
+        time is dropped as a misfire. Before the step's deadline a missing job is
+        simply put back at the deadline. After it, the scheduler removes a job as
+        it starts running it, so a missing job may be one still in flight; it is
+        re-armed only once the deadline is ``_TIMEOUT_REARM_MARGIN_S`` behind,
+        which would otherwise apply a second timeout to the same step.
+        """
+        from backend.services.guided_task.policy import resolve_policy
+
+        apscheduler = getattr(self.scheduler, "apscheduler", self.scheduler)
+        get_job = getattr(apscheduler, "get_job", None)
+        if get_job is None or get_job(f"guided_session_timeout_{session.id}") is not None:
+            return False
+        timeout = timedelta(seconds=resolve_policy(routine, step, self.settings).step_timeout_s)
+        deadline = session.last_activity_at + timeout
+        if deadline <= now < deadline + timedelta(seconds=_TIMEOUT_REARM_MARGIN_S):
+            return False
+        run_at = max(deadline, now)
+        self.schedule_timeout(session, routine, step, run_at - timeout, finalize=finalize)
+        logger.warning(
+            "guided_timeout_rearmed", session_id=session.id, step_ord=step.ord, run_at=run_at
+        )
+        return True
 
     # ------------------------------------------------------------------
     # Misc cross-cutting helpers (2+ collaborator modules)

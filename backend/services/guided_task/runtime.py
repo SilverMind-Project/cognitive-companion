@@ -168,30 +168,27 @@ class Runtime:
         if session.status == "caregiver_takeover":
             return Decision.hold(session, "noop", "caregiver_takeover_paused")
 
-        # Nag suppression (Part B)
-        progress_seen_at = ctx.progress_seen_at.get((session.id, step.ord))
         policy = resolve_policy(routine, step, ctx.settings)
-        if progress_seen_at is not None:
-            elapsed = (now - progress_seen_at).total_seconds()
-            if elapsed < policy.step_timeout_s:
-                logger.info(
-                    "nag_suppressed",
-                    session_id=session.id,
-                    step_ord=step.ord,
-                    progress_seen_at=progress_seen_at,
-                )
-                ctx.schedule_timeout(
-                    session, routine, step, progress_seen_at, finalize=self.on_step_timeout
-                )
-                return Decision.hold(session, "noop", "nag_suppressed")
-
+        progress_seen_at = ctx.progress_seen_at.get((session.id, step.ord))
         decision = GuidedTaskStateMachine.decide(
             ctx.session_view(session, steps),
             ctx.step_view(step),
             "timeout_tick",
             policy,
             now,
+            evidence={"progress_seen_at": progress_seen_at},
         )
+        if decision.reason == "nag_suppressed" and progress_seen_at is not None:
+            logger.info(
+                "nag_suppressed",
+                session_id=session.id,
+                step_ord=step.ord,
+                progress_seen_at=progress_seen_at,
+            )
+            ctx.schedule_timeout(
+                session, routine, step, progress_seen_at, finalize=self.on_step_timeout
+            )
+            return decision
         await self.apply_decision(
             session=session,
             routine=routine,

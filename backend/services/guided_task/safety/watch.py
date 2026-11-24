@@ -6,11 +6,20 @@ blocked repeatedly. Step timeouts and the attempts ladder belong to the state
 machine's ``timeout_tick``; an idle check here would race it and defeat the
 vision watch's nag suppression.
 
-Each condition is evaluated against evidence gathered since the step was
-"armed" and fires at most once per arm window. A step is armed when it is
-entered and re-armed when a caregiver releases takeover, so a hazard that is
-still present after the caregiver hands the session back escalates again,
-while a condition that already escalated never re-fires on every tick.
+Conditions come in two kinds and are de-duplicated differently.
+
+* Events (a fall or no-motion signal, repeated "stuck" reports) are new
+  evidence. Each fires at most once per arm window and counts only evidence
+  from inside it. A step is armed on entry and re-armed when a caregiver
+  releases takeover.
+* States (she is out of the step's room, a hazard is visible) last as long as
+  they are true, so re-arming them would alert again for the same situation.
+  Leaving the room alerts when it starts and again only after she has come
+  back (recorded as a ``safety_condition_cleared`` observation) and left
+  again; a release does not re-arm it, because the caregiver releasing has
+  already seen it. A hazard is an emergency, so it is the exception: a release
+  re-arms it, and a stove still on after the caregiver hands the session back
+  alerts again.
 """
 
 from __future__ import annotations
@@ -92,6 +101,12 @@ class GuidedTaskSafetyWatch:
         self._time_fn = time_fn or (lambda: datetime.now(UTC))
 
     async def evaluate(self, *, session: Any) -> list[dict]:
+        """Return escalation events, plus cleared-state observations.
+
+        An entry with ``"cleared": True`` is not an escalation: it records that a
+        state condition which alerted has ended, and the caller writes it to the
+        timeline as ``safety_condition_cleared``.
+        """
         steps = self._store.list_steps(session.routine_id)
         step = _step_by_ord(steps, session.current_step_ord)
         if step is None:
@@ -110,16 +125,20 @@ class GuidedTaskSafetyWatch:
             )
 
         # The raw room check also gates the hazard look below, so it is not
-        # suppressed when the left-room escalation itself already fired.
+        # suppressed when the left-room alert itself already fired.
         left_expected_room = await self._left_expected_room(session, step)
-        if left_expected_room and fresh("left_expected_room"):
-            events.append(
-                {
-                    "condition": "left_expected_room",
-                    "severity": "high",
-                    "detail": {"expected_zone_id": step.zone_id},
-                }
-            )
+        if left_expected_room is not None:
+            episode_open = self._state_episode_open(session.id, step.ord, "left_expected_room")
+            if left_expected_room and not episode_open:
+                events.append(
+                    {
+                        "condition": "left_expected_room",
+                        "severity": "high",
+                        "detail": {"expected_zone_id": step.zone_id},
+                    }
+                )
+            elif not left_expected_room and episode_open:
+                events.append({"condition": "left_expected_room", "cleared": True})
 
         if fresh("no_motion"):
             no_motion = await self._no_motion_signal(session.person_id, since=armed_at)
@@ -154,12 +173,30 @@ class GuidedTaskSafetyWatch:
 
         for event in events:
             logger.info(
-                "safety_event",
+                "safety_condition_cleared" if event.get("cleared") else "safety_event",
                 session_id=session.id,
                 condition=event["condition"],
-                severity=event["severity"],
+                severity=event.get("severity"),
             )
         return events
+
+    def _state_episode_open(self, session_id: int, step_ord: int, condition: str) -> bool:
+        """Whether ``condition`` alerted on this step and has not been seen to end."""
+        fired_at = self._store.latest_event_at(
+            session_id=session_id,
+            kind="safety_event",
+            step_ord=step_ord,
+            detail_condition=condition,
+        )
+        if fired_at is None:
+            return False
+        cleared_at = self._store.latest_event_at(
+            session_id=session_id,
+            kind="safety_condition_cleared",
+            step_ord=step_ord,
+            detail_condition=condition,
+        )
+        return cleared_at is None or cleared_at < fired_at
 
     def _armed_at(self, session: Any, step: RoutineStep) -> datetime:
         """When the current step's conditions were last armed.
@@ -181,13 +218,19 @@ class GuidedTaskSafetyWatch:
             raise ValueError("GuidedTaskSafetyWatch time_fn must return timezone-aware datetimes")
         return now
 
-    async def _left_expected_room(self, session: Any, step: RoutineStep) -> bool:
+    async def _left_expected_room(self, session: Any, step: RoutineStep) -> bool | None:
+        """Whether she is outside the step's room; ``None`` when that is unknown.
+
+        Unknown (no expected room, no location service, no current location) is
+        kept apart from "in the room", so a gap in location data never closes an
+        open left-room episode.
+        """
         expected_room_id = self._expected_room_id(step)
         if expected_room_id is None or self._person_location_service is None:
-            return False
+            return None
         location = await self._person_location_service.where_is(session.person_id)
         if location is None:
-            return False
+            return None
         return getattr(location, "room_id", None) != expected_room_id
 
     def _expected_room_id(self, step: RoutineStep) -> int | None:

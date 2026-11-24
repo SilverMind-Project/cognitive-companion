@@ -194,6 +194,11 @@ def _current_step(steps: list[RoutineStep], ord_: int) -> RoutineStep | None:
 def _human_reason(reason: str) -> str:
     if reason == "hazard_active":
         return "the stove or another hazard may be active"
+    if reason == "step_overrun_with_progress":
+        return (
+            "this step is taking far longer than planned, although the camera shows her "
+            "working on it"
+        )
     if reason == "left_expected_room":
         return "she left the room this step takes place in"
     return reason.replace("_", " ")

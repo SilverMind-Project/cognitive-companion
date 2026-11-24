@@ -268,11 +268,13 @@ class GuidedTaskStore:
         kind: str,
         step_ord: int | None,
         any_step: bool = False,
+        detail_condition: str | None = None,
     ) -> datetime | None:
         """When the latest event of ``kind`` happened.
 
         ``step_ord=None`` matches session-level events (no step); ``any_step``
-        ignores the step entirely.
+        ignores the step entirely. ``detail_condition`` narrows to events whose
+        ``detail.condition`` matches.
         """
         db = self._db_factory()
         try:
@@ -292,6 +294,8 @@ class GuidedTaskStore:
                 )
                 .order_by(GuidedSessionEvent.at.desc())
             )
+            if detail_condition is not None:
+                stmt = stmt.where(GuidedSessionEvent.detail["condition"].astext == detail_condition)
             return db.execute(stmt).scalars().first()
         finally:
             db.close()

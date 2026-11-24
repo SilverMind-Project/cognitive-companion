@@ -13,9 +13,18 @@ from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
 class _Ws:
     def __init__(self) -> None:
         self.calls: list[dict] = []
+        self.broadcasts: list[dict] = []
+        self.released: list[str] = []
 
     async def send_backend_task(self, **kwargs) -> None:
         self.calls.append(kwargs)
+
+    async def broadcast(self, payload: dict) -> None:
+        self.broadcasts.append(payload)
+
+    async def release_voice_instruction(self, owner: str) -> bool:
+        self.released.append(owner)
+        return True
 
 
 BASE = "You are the household companion."
@@ -121,3 +130,34 @@ def test_guided_prefix_registered() -> None:
         prefix_for_delivery({"delivery_type": "guided_task_start", "session_id": 3})
         == "[guided task session 3]"
     )
+
+
+@pytest.mark.asyncio
+async def test_speak_step_turns_the_tablet_microphone_on_first() -> None:
+    """She answers aloud; an idle tablet with its microphone off would hear nothing."""
+    order: list[str] = []
+    ws = _Ws()
+
+    async def broadcast(payload: dict) -> None:
+        order.append(payload["type"])
+        ws.broadcasts.append(payload)
+
+    async def send_backend_task(**kwargs) -> None:
+        order.append("prompt")
+
+    ws.broadcast = broadcast  # type: ignore[method-assign]
+    ws.send_backend_task = send_backend_task  # type: ignore[method-assign]
+
+    await _speaker(ws).speak_step(
+        session=_session(),
+        step=SimpleNamespace(ord=0),
+        rendered_prompt="Pour water.",
+        is_retry=False,
+    )
+
+    assert order == ["enable_microphone", "prompt"]
+    assert ws.broadcasts[0] == {
+        "type": "enable_microphone",
+        "reason": "guided_task",
+        "session_id": 3,
+    }

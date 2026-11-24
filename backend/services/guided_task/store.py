@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -262,15 +262,26 @@ class GuidedTaskStore:
             db.close()
 
     def latest_event_at(
-        self, *, session_id: int, kind: str, step_ord: int | None
+        self,
+        *,
+        session_id: int,
+        kind: str,
+        step_ord: int | None,
+        any_step: bool = False,
     ) -> datetime | None:
+        """When the latest event of ``kind`` happened.
+
+        ``step_ord=None`` matches session-level events (no step); ``any_step``
+        ignores the step entirely.
+        """
         db = self._db_factory()
         try:
-            step_filter = (
-                GuidedSessionEvent.step_ord.is_(None)
-                if step_ord is None
-                else GuidedSessionEvent.step_ord == step_ord
-            )
+            if any_step:
+                step_filter = true()
+            elif step_ord is None:
+                step_filter = GuidedSessionEvent.step_ord.is_(None)
+            else:
+                step_filter = GuidedSessionEvent.step_ord == step_ord
             stmt = (
                 select(GuidedSessionEvent.at)
                 .where(

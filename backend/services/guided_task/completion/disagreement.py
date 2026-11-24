@@ -96,13 +96,7 @@ async def resolve_vision_disagreement(
         db.close()
 
     if total_disagreements < max_disagreements:
-        decision = Decision(
-            kind="wait",
-            next_status=session.status,
-            next_step_ord=session.current_step_ord,
-            attempts=session.attempts,
-            reason=vision_detail.get("reason") or result_reason,
-        )
+        decision = Decision.hold(session, "wait", vision_detail.get("reason") or result_reason)
         return DisagreementOutcome(decision=decision, apply=False, advance=False)
 
     # Bounded disagreement threshold reached: defer to her word or escalate

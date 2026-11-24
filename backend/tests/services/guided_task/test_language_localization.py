@@ -49,9 +49,18 @@ def _voice_config() -> VoiceInstructionConfig:
 class _Ws:
     def __init__(self) -> None:
         self.calls: list[dict] = []
+        self.broadcasts: list[dict] = []
+        self.released: list[str] = []
 
     async def send_backend_task(self, **kwargs) -> None:
         self.calls.append(kwargs)
+
+    async def broadcast(self, payload: dict) -> None:
+        self.broadcasts.append(payload)
+
+    async def release_voice_instruction(self, owner: str) -> bool:
+        self.released.append(owner)
+        return True
 
 
 class _Dispatcher:
@@ -183,7 +192,11 @@ async def test_caregiver_relay_includes_directive(db_factory, db_session) -> Non
 
 
 @pytest.mark.asyncio
-async def test_caregiver_relay_without_override_unchanged(db_factory, db_session) -> None:
+async def test_caregiver_relay_without_override_keeps_guided_default(
+    db_factory, db_session
+) -> None:
+    """A relay used to send no instruction when the routine had no override, so the
+    realtime session kept whatever persona was active instead of the guided one."""
     routine = _add_routine(db_session)
 
     ws = _Ws()
@@ -198,7 +211,7 @@ async def test_caregiver_relay_without_override_unchanged(db_factory, db_session
 
     await svc._inject_caregiver_message(session, routine, "Time for a cup of tea.")
 
-    assert ws.calls[0]["voice_instruction"] is None
+    assert ws.calls[0]["voice_instruction"] == "Speak one step at a time."
 
 
 def _add_session(db_session, routine: Routine, now: datetime) -> SimpleNamespace:

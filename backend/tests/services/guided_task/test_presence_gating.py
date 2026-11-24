@@ -45,6 +45,15 @@ class _Ws:
     def __init__(self, live: bool, conversation_session_id: int | None = None) -> None:
         self.has_connections = live
         self.current_conversation_session_id = conversation_session_id
+        self.broadcasts: list[dict] = []
+        self.released: list[str] = []
+
+    async def broadcast(self, payload: dict) -> None:
+        self.broadcasts.append(payload)
+
+    async def release_voice_instruction(self, owner: str) -> bool:
+        self.released.append(owner)
+        return True
 
 
 class _Dispatcher:

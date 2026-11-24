@@ -40,14 +40,18 @@ class ResidentActions:
 
     async def repeat_step(self, session_id: int) -> dict:
         ctx = self._ctx
+        now = ctx.now()
         session, routine, steps, step = ctx.load_runtime(session_id)
         ctx.store.add_event(
             session_id=session.id,
-            at=ctx.now(),
+            at=now,
             kind="step_repeated",
             step_ord=step.ord,
             actor="resident",
             detail={"source": "agent"},
+        )
+        await self._presentation.broadcast_session_update(
+            session, event_kind="step_repeated", actor="resident", detail=None, at=now
         )
         descriptor = await self._presentation.step_descriptor(session, routine, steps, step)
         return {
@@ -57,14 +61,19 @@ class ResidentActions:
 
     async def report_blocked(self, session_id: int, reason: str) -> dict:
         ctx = self._ctx
+        now = ctx.now()
         session, _routine, _steps, step = ctx.load_runtime(session_id)
+        detail = {"reason": reason, "source": "agent"}
         ctx.store.add_event(
             session_id=session.id,
-            at=ctx.now(),
+            at=now,
             kind="step_blocked",
             step_ord=step.ord,
             actor="resident",
-            detail={"reason": reason, "source": "agent"},
+            detail=detail,
+        )
+        await self._presentation.broadcast_session_update(
+            session, event_kind="step_blocked", actor="resident", detail=detail, at=now
         )
         logger.info("guided_step_blocked", session_id=session.id, step_ord=step.ord)
         return {"acknowledged": True}
@@ -93,6 +102,13 @@ class ResidentActions:
             session=updated,
             reason=help_reason,
             emergency=False,
+        )
+        await self._presentation.broadcast_session_update(
+            ctx.require_session(session.id),
+            event_kind="help_requested",
+            actor="resident",
+            detail={"reason": help_reason},
+            at=updated.last_activity_at,
         )
         logger.info("guided_help_requested", session_id=session.id, step_ord=step.ord)
         return {"acknowledged": True}

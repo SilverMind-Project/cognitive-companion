@@ -34,3 +34,24 @@ class GuidedSessionUpdateEvent(BaseModel):
     actor: str | None = None
     detail: dict[str, Any] | None = None
     at: datetime
+
+
+class GuidedSessionStateEvent(BaseModel):
+    """Resident-safe guided-session state for the companion tablet (``/ws/audio``).
+
+    Carries only what the resident's screen may show: no failure reasons,
+    transcript, escalation detail, or takeover links. ``prompt_text`` is the
+    step prompt rendered without the agent-only memory and preference context,
+    and is empty when no step is in progress.
+    """
+
+    type: Literal["guided_session_state"] = "guided_session_state"
+    session_id: int
+    routine_id: int
+    routine_name: str
+    person_id: str
+    status: str
+    current_step_ord: int
+    total_steps: int
+    prompt_text: str
+    at: datetime

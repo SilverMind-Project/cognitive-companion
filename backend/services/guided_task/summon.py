@@ -129,6 +129,13 @@ class Summon:
         self._schedule_summon_recheck(session.id, summon_timeout_s, now)
         if selected_surface_id is not None:
             await self._cross_check_surface(selected_surface_id, person_id)
+        await self._presentation.broadcast_session_update(
+            session,
+            event_kind="summon_started",
+            actor="system",
+            detail={"summon_timeout_s": summon_timeout_s},
+            at=now,
+        )
         return session
 
     async def on_session_opened(self, conversation_session_id: int | None = None) -> None:
@@ -215,13 +222,16 @@ class Summon:
             now=begin_at,
             speak_on_advance=True,
         )
-        if skipped_further:
-            return ctx.require_session(session_id)
-        await self._presentation.speak(updated, step, is_retry=False)
-        ctx.schedule_timeout(
-            updated, routine, step, begin_at, finalize=self._runtime.on_step_timeout
+        if not skipped_further:
+            await self._presentation.speak(updated, step, is_retry=False)
+            ctx.schedule_timeout(
+                updated, routine, step, begin_at, finalize=self._runtime.on_step_timeout
+            )
+        landed = ctx.require_session(session_id)
+        await self._presentation.broadcast_session_update(
+            landed, event_kind="session_started", actor="system", detail=None, at=begin_at
         )
-        return updated
+        return landed
 
     async def summon_recheck(self, session_id: int, summon_timeout_s: int) -> None:
         ctx = self._ctx
@@ -231,7 +241,7 @@ class Summon:
             return
         routine, steps = ctx.load_routine_steps(session.routine_id)
         if (now - session.started_at).total_seconds() > summon_timeout_s:
-            await self._runtime.abandon(session.id, now=now, outcome="summon_timeout")
+            abandoned = await self._runtime.abandon(session.id, now=now, outcome="summon_timeout")
             ctx.store.add_event(
                 session_id=session.id,
                 at=now,
@@ -239,6 +249,13 @@ class Summon:
                 step_ord=None,
                 actor="system",
                 detail={"outcome": "summon_timeout"},
+            )
+            await self._presentation.broadcast_session_update(
+                abandoned,
+                event_kind="session_abandoned",
+                actor="system",
+                detail={"outcome": "summon_timeout"},
+                at=now,
             )
             logger.info("guided_summon_timeout", session_id=session.id, person_id=session.person_id)
             return

@@ -26,9 +26,14 @@ from backend.schemas.guided_task import (
     GuidedSessionStepOut,
     GuidedSessionTurnOut,
 )
-from backend.schemas.guided_task_ws import GuidedSessionUpdateEvent
+from backend.schemas.guided_task_ws import GuidedSessionStateEvent, GuidedSessionUpdateEvent
+from backend.services.guided_task.agent_voice import GUIDED_TASK_DELIVERY_TYPE
 from backend.services.guided_task.context import RuntimeContext
 from backend.services.guided_task.domain import Decision
+from backend.services.interactive_session.tagging import voice_owner_key
+
+# Statuses in which a step is in progress, so the tablet may show its prompt.
+_STEP_IN_PROGRESS_STATUSES = frozenset({"active", "waiting", "escalated", "caregiver_takeover"})
 
 logger = get_logger(__name__)
 
@@ -146,6 +151,19 @@ class Presentation:
             is_retry=is_retry,
         )
 
+    async def release_voice(self, session_id: int) -> None:
+        """Restore the companion's base persona once a session has ended.
+
+        Owner-keyed, so it only clears an instruction this session set and never
+        strips a quiz or info card that has since taken over the realtime voice.
+        """
+        ws_manager = self._ctx.ws_manager
+        if ws_manager is None:
+            return
+        await ws_manager.release_voice_instruction(
+            voice_owner_key(GUIDED_TASK_DELIVERY_TYPE, session_id)
+        )
+
     async def step_descriptor(
         self,
         session: GuidedSession,
@@ -216,6 +234,12 @@ class Presentation:
         detail: dict | None,
         at: Any,
     ) -> None:
+        """Announce a session transition to the caregiver console and the tablet.
+
+        The console event (``/ws/pipeline``) carries the full diagnostic detail.
+        The companion socket (``/ws/audio``) only ever receives the resident-safe
+        ``guided_session_state`` built by :meth:`broadcast_resident_state`.
+        """
         ctx = self._ctx
         event = GuidedSessionUpdateEvent(
             session_id=session.id,
@@ -228,20 +252,53 @@ class Presentation:
             detail=detail,
             at=at,
         )
-        payload = event.model_dump(mode="json")
-        if ctx.ws_manager is not None:
-            await ctx.ws_manager.broadcast(payload)
         if ctx.admin_ws_broadcaster is not None:
-            await ctx.admin_ws_broadcaster(payload)
+            await ctx.admin_ws_broadcaster(event.model_dump(mode="json"))
+        await self.broadcast_resident_state(session, at=at)
+
+    async def broadcast_resident_state(self, session: GuidedSession, *, at: Any) -> None:
+        ctx = self._ctx
+        if ctx.ws_manager is None:
+            return
+        routine, steps = ctx.load_routine_steps(session.routine_id)
+        prompt_text = ""
+        if session.status in _STEP_IN_PROGRESS_STATUSES and steps:
+            step = ctx.step_by_ord(steps, session.current_step_ord)
+            prompt_text = await self._render_step_prompt(
+                session, routine, step, include_agent_context=False
+            )
+        event = GuidedSessionStateEvent(
+            session_id=session.id,
+            routine_id=session.routine_id,
+            routine_name=routine.name,
+            person_id=session.person_id,
+            status=session.status,
+            current_step_ord=session.current_step_ord,
+            total_steps=len(steps),
+            prompt_text=prompt_text,
+            at=at,
+        )
+        await ctx.ws_manager.broadcast(event.model_dump(mode="json"))
 
     async def _render_step_prompt(
         self,
         session: GuidedSession,
         routine: Routine,
         step: RoutineStep,
+        *,
+        include_agent_context: bool = True,
     ) -> str:
-        memory_context = await self._memory_context(session, routine)
-        preferences = self._preferences(session.person_id)
+        """Render a step prompt.
+
+        ``memory_context`` and ``preferences`` are context for the agent (for
+        example how the routine went last time); they are left blank when the
+        text is for the resident's screen.
+        """
+        memory_context = ""
+        preferences: list[str] = []
+        if include_agent_context:
+            memory_context = await self._memory_context(session, routine)
+            preferences = self._preferences(session.person_id)
         return render_template(
             step.prompt_template,
             {

@@ -1,16 +1,9 @@
-"""Session runtime around the pure state machine (M29).
+"""Session runtime around the pure state machine.
 
-Depends on ``presentation.py`` (rendering/voice/broadcast) and
-``memory_bridge.py`` (ledger/episode write on every terminal transition),
-both leaf modules; never imported by them (no cycle). ``summon.py``,
-``watch.py``, and ``caregiver.py`` depend on this module's public methods
-(``apply_decision``, ``maybe_skip_step``, ``complete``, ``abandon``).
-
-``abandon()`` is the single funnel for every abandon route (DL-M05): it
-wraps ``ctx.mark_abandoned`` (state write) with the same memory-bridge call
-``complete()`` makes, so a session that never finishes still gets its
-episodic observation. ``summon.py`` and ``watch.py`` call this instead of
-``ctx.mark_abandoned`` directly for that reason.
+Depends on the leaf modules ``presentation.py`` and ``memory_bridge.py``;
+``summon.py``, ``watch.py``, and ``caregiver.py`` depend on this module's
+public methods. ``complete()`` and ``abandon()`` are the only terminal
+transitions: both write the episode and release the guided voice persona.
 """
 
 from __future__ import annotations
@@ -54,13 +47,7 @@ class Runtime:
         session, routine, steps, step = ctx.load_runtime(session_id)
         expected_step_ord = evidence.get("step_ord")
         if expected_step_ord is not None and expected_step_ord != session.current_step_ord:
-            decision = Decision(
-                kind="noop",
-                next_status=session.status,
-                next_step_ord=session.current_step_ord,
-                attempts=session.attempts,
-                reason="stale_step_completion",
-            )
+            decision = Decision.hold(session, "noop", "stale_step_completion")
             return self._presentation.decision_descriptor(decision)
 
         if (
@@ -150,13 +137,7 @@ class Runtime:
                     )
                 return self._presentation.decision_descriptor(outcome.decision)
 
-            decision = Decision(
-                kind="wait",
-                next_status=session.status,
-                next_step_ord=session.current_step_ord,
-                attempts=session.attempts,
-                reason=result.reason,
-            )
+            decision = Decision.hold(session, "wait", result.reason)
             return self._presentation.decision_descriptor(decision)
 
         decision = GuidedTaskStateMachine.decide(
@@ -185,13 +166,7 @@ class Runtime:
         now = ctx.now()
         session, routine, steps, step = ctx.load_runtime(session_id)
         if session.status == "caregiver_takeover":
-            return Decision(
-                kind="noop",
-                next_status=session.status,
-                next_step_ord=session.current_step_ord,
-                attempts=session.attempts,
-                reason="caregiver_takeover_paused",
-            )
+            return Decision.hold(session, "noop", "caregiver_takeover_paused")
 
         # Nag suppression (Part B)
         progress_seen_at = ctx.progress_seen_at.get((session.id, step.ord))
@@ -208,13 +183,7 @@ class Runtime:
                 ctx.schedule_timeout(
                     session, routine, step, progress_seen_at, finalize=self.on_step_timeout
                 )
-                return Decision(
-                    kind="noop",
-                    next_status=session.status,
-                    next_step_ord=session.current_step_ord,
-                    attempts=session.attempts,
-                    reason="nag_suppressed",
-                )
+                return Decision.hold(session, "noop", "nag_suppressed")
 
         decision = GuidedTaskStateMachine.decide(
             ctx.session_view(session, steps),
@@ -268,22 +237,57 @@ class Runtime:
         guided_metrics.guided_sessions_total.labels(outcome=outcome).inc()
         await self._memory_bridge.on_session_terminal(updated)
         resume_owning_pipeline(ctx.scheduler, updated.execution_id, now=now)
+        await self._presentation.release_voice(session_id)
         return updated
 
     async def abandon(self, session_id: int, *, now: datetime, outcome: str) -> GuidedSession:
-        """Single funnel for every abandon route (mirrors ``complete()``).
-
-        Wraps ``ctx.mark_abandoned`` (the DB write + cache eviction + pipeline
-        resume) with the same memory-bridge call ``complete()`` makes, so the
-        episodic observation is written on every terminal outcome, not just
-        completion (DL9's headline test: abandon still writes the episode,
-        never the ledger row).
-        """
+        """Single funnel for every abandon route; mirrors ``complete()``."""
         updated = self._ctx.mark_abandoned(session_id, now=now, outcome=outcome)
         await self._memory_bridge.on_session_terminal(updated)
+        await self._presentation.release_voice(session_id)
         return updated
 
     async def apply_decision(
+        self,
+        *,
+        session: GuidedSession,
+        routine: Routine,
+        steps: list[RoutineStep],
+        decision: Decision,
+        now: datetime,
+        event_kind: str,
+        actor: str,
+        detail: dict | None,
+        speak_on_advance: bool = True,
+        speak_prefix: str | None = None,
+    ) -> None:
+        """Apply ``decision``, then announce the resulting state exactly once.
+
+        A skip cascade re-enters ``_apply``, not this method, so the console and
+        the tablet see the step the cascade lands on, not every step it passes.
+        """
+        await self._apply(
+            session=session,
+            routine=routine,
+            steps=steps,
+            decision=decision,
+            now=now,
+            event_kind=event_kind,
+            actor=actor,
+            detail=detail,
+            speak_on_advance=speak_on_advance,
+            speak_prefix=speak_prefix,
+        )
+        if decision.kind != "noop":
+            await self._presentation.broadcast_session_update(
+                self._ctx.require_session(session.id),
+                event_kind=event_kind,
+                actor=actor,
+                detail=detail,
+                at=now,
+            )
+
+    async def _apply(
         self,
         *,
         session: GuidedSession,
@@ -446,22 +450,15 @@ class Runtime:
         now: datetime,
         speak_on_advance: bool,
     ) -> bool:
-        """Evaluate ``step``'s skip_condition on entry (D8, G4).
+        """Evaluate ``step``'s entry skip_condition and dispatch it if met.
 
-        Only ``activity_signal`` and ``zone_presence`` are evaluated here;
-        ``response_says_done`` fires solely via the ``already_done`` evidence
-        path in ``handle_completion``. When satisfied, dispatches
-        ``skip_condition_met`` through :meth:`apply_decision`, which
-        recurses back into this method for the newly-entered step -- bounded
-        automatically because each skip strictly advances
-        ``current_step_ord``. ``speak_on_advance`` is forwarded unchanged
-        through the whole cascade, so the caller's original intent (speak the
-        step actually landed on, or stay silent because the agent's own turn
-        owns the announcement) survives any number of skips. Returns ``True``
-        when the step was skipped (the caller must not speak or schedule a
-        timeout for it itself; a landed, non-skipped step deeper in the
-        cascade was already spoken/scheduled here if ``speak_on_advance`` was
-        set), ``False`` otherwise.
+        Only ``activity_signal`` and ``zone_presence`` are evaluated here
+        (``response_says_done`` arrives through ``handle_completion``). A met
+        condition re-enters ``_apply``, which recurses here for the next step;
+        each skip strictly advances the step, so the cascade is bounded, and
+        ``speak_on_advance`` is forwarded unchanged. Returns ``True`` when the
+        step was skipped, in which case the caller must not speak it or
+        schedule its timeout.
         """
         ctx = self._ctx
         evaluator = build_skip_evaluator(
@@ -481,7 +478,7 @@ class Runtime:
             resolve_policy(routine, step, ctx.settings),
             now,
         )
-        await self.apply_decision(
+        await self._apply(
             session=session,
             routine=routine,
             steps=steps,

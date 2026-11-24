@@ -56,18 +56,11 @@ class Caregiver:
             steps=steps,
             decision=decision,
             now=now,
-            event_kind="caregiver_takeover",
+            event_kind="takeover_started",
             actor="caregiver",
             detail={"reason": decision.reason},
         )
         updated = ctx.require_session(session.id)
-        await self._presentation.broadcast_session_update(
-            updated,
-            event_kind="takeover_started",
-            actor="caregiver",
-            detail={"reason": decision.reason},
-            at=now,
-        )
         logger.info("guided_takeover_started", session_id=session.id, step_ord=step.ord)
         return self._presentation.session_out(updated)
 
@@ -144,6 +137,18 @@ class Caregiver:
         if decision.kind == "complete":
             await self._runtime.complete(session.id, "escalated_resolved", actor="caregiver")
         elif decision.kind in {"advance", "skip"}:
+            if session.status == "escalated":
+                # Advancing an escalated session is how a caregiver takes it over
+                # without pressing "take over" first; the trail must say so, and
+                # release relies on this marker to know a new step was entered.
+                ctx.store.add_event(
+                    session_id=session.id,
+                    at=now,
+                    kind="takeover_started",
+                    step_ord=step.ord,
+                    actor="caregiver",
+                    detail={"reason": "caregiver_advance"},
+                )
             updated_step = ctx.step_by_ord(steps, decision.next_step_ord)
             ctx.store.update_session(
                 session.id,
@@ -189,6 +194,7 @@ class Caregiver:
         session, routine, _steps, step = ctx.load_runtime(session_id)
         if session.status != "caregiver_takeover":
             raise ValidationError("Guided session is not in caregiver takeover")
+        entered_during_takeover = self._entered_during_takeover(session.id, step.ord)
         updated = ctx.store.update_session(session.id, status="active", last_activity_at=now)
         if updated is None:
             raise NotFoundError("Guided session", session.id)
@@ -200,6 +206,10 @@ class Caregiver:
             actor="caregiver",
             detail={"status": "active"},
         )
+        if entered_during_takeover:
+            # The caregiver moved her on to this step, so she has not heard it
+            # yet; without this she would sit in silence until the step timed out.
+            await self._presentation.speak(updated, step, is_retry=False)
         ctx.schedule_timeout(updated, routine, step, now, finalize=self._runtime.on_step_timeout)
         await self._presentation.broadcast_session_update(
             updated,
@@ -230,7 +240,15 @@ class Caregiver:
             f"Tell {resident_name} the following, in her language and in your own warm voice, "
             f"as if it is your idea: {text}"
         )
-        voice_instruction = routine.system_instruction_override or None
+        # The same instruction the step prompts use, so a caregiver relay keeps
+        # the companion's persona and the guided-task guidance.
+        voice_instruction = ctx.voice_instructions.compose(
+            step_type="guided_task",
+            base_instruction=ctx.settings.get("llm.realtime.system_instruction", ""),
+            step_override=None,
+            resource_override=routine.system_instruction_override or None,
+            context={"resident_name": resident_name, "person_id": session.person_id},
+        )
         directive = compose_language_directive(
             ctx.settings, ctx.voice_instructions, routine.language_override
         )
@@ -244,6 +262,17 @@ class Caregiver:
             delivery_type=GUIDED_TASK_DELIVERY_TYPE,
             session_id=session.id,
             execution_id=session.execution_id,
-            voice_instruction=voice_instruction,
+            voice_instruction=voice_instruction or None,
             extra_metadata={"actor": "caregiver", "caregiver_text_hidden": True},
         )
+
+    def _entered_during_takeover(self, session_id: int, step_ord: int) -> bool:
+        """Whether the current step was entered after the latest takeover began."""
+        store = self._ctx.store
+        started = store.latest_event_at(
+            session_id=session_id, kind="takeover_started", step_ord=None, any_step=True
+        )
+        entered = store.latest_event_at(
+            session_id=session_id, kind="step_entered", step_ord=step_ord
+        )
+        return started is not None and entered is not None and entered >= started

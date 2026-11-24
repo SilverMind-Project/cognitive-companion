@@ -96,3 +96,14 @@ class Decision:
     attempts: int
     reason: str
     emergency: bool = False
+
+    @classmethod
+    def hold(cls, session: Any, kind: str, reason: str) -> Decision:
+        """A decision that leaves ``session`` where it is (``noop`` or ``wait``)."""
+        return cls(
+            kind=kind,
+            next_status=session.status,
+            next_step_ord=session.current_step_ord,
+            attempts=session.attempts,
+            reason=reason,
+        )

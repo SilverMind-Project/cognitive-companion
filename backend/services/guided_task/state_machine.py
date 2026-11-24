@@ -27,25 +27,13 @@ class GuidedTaskStateMachine:
         evidence: dict | None = None,
     ) -> Decision:
         if session.status in TERMINAL_STATUSES:
-            return Decision(
-                kind="noop",
-                next_status=session.status,
-                next_step_ord=session.current_step_ord,
-                attempts=session.attempts,
-                reason="terminal_session",
-            )
+            return Decision.hold(session, "noop", "terminal_session")
 
         if event == "step_completed":
             if step.min_duration_s is not None:
                 elapsed_s = (now - session.step_entered_at).total_seconds()
                 if elapsed_s < step.min_duration_s:
-                    return Decision(
-                        kind="wait",
-                        next_status=session.status,
-                        next_step_ord=session.current_step_ord,
-                        attempts=session.attempts,
-                        reason="min_duration_not_elapsed",
-                    )
+                    return Decision.hold(session, "wait", "min_duration_not_elapsed")
             if session.current_step_ord == session.num_steps - 1:
                 return Decision(
                     kind="complete",
@@ -135,10 +123,4 @@ class GuidedTaskStateMachine:
                 reason="resume_grace_exceeded",
             )
 
-        return Decision(
-            kind="noop",
-            next_status=session.status,
-            next_step_ord=session.current_step_ord,
-            attempts=session.attempts,
-            reason="unhandled_event",
-        )
+        return Decision.hold(session, "noop", "unhandled_event")

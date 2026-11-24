@@ -98,6 +98,11 @@ class AgentSessionVoice:
                     reason="realtime_provider_cannot_switch_voice_mid_session",
                 )
 
+        # She answers aloud, so the tablet microphone must be live before the
+        # step is spoken; an idle tablet would otherwise hear nothing.
+        await self._ws_manager.broadcast(
+            {"type": "enable_microphone", "reason": "guided_task", "session_id": session.id}
+        )
         await inject_session_prompt(
             self._ws_manager,
             prompt=rendered_prompt,

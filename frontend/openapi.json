@@ -6619,6 +6619,67 @@
         "title": "GuidedSessionSayIn",
         "type": "object"
       },
+      "GuidedSessionStateEvent": {
+        "description": "Resident-safe guided-session state for the companion tablet (``/ws/audio``).\n\nCarries only what the resident's screen may show: no failure reasons,\ntranscript, escalation detail, or takeover links. ``prompt_text`` is the\nstep prompt rendered without the agent-only memory and preference context,\nand is empty when no step is in progress.",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "current_step_ord": {
+            "title": "Current Step Ord",
+            "type": "integer"
+          },
+          "person_id": {
+            "title": "Person Id",
+            "type": "string"
+          },
+          "prompt_text": {
+            "title": "Prompt Text",
+            "type": "string"
+          },
+          "routine_id": {
+            "title": "Routine Id",
+            "type": "integer"
+          },
+          "routine_name": {
+            "title": "Routine Name",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "total_steps": {
+            "title": "Total Steps",
+            "type": "integer"
+          },
+          "type": {
+            "const": "guided_session_state",
+            "default": "guided_session_state",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "routine_id",
+          "routine_name",
+          "person_id",
+          "status",
+          "current_step_ord",
+          "total_steps",
+          "prompt_text",
+          "at"
+        ],
+        "title": "GuidedSessionStateEvent",
+        "type": "object"
+      },
       "GuidedSessionStepOut": {
         "properties": {
           "completion_gate": {
@@ -13905,6 +13966,23 @@
         "title": "RerunRequest",
         "type": "object"
       },
+      "ResidentGuidedStateOut": {
+        "description": "What the companion tablet shows on load or reconnect: the session with a\nstep in progress, or ``None`` (which clears a widget left over from a\nsession that ended while the tablet was away).",
+        "properties": {
+          "session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuidedSessionStateEvent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "ResidentGuidedStateOut",
+        "type": "object"
+      },
       "ReviewCandidateDetailResponse": {
         "properties": {
           "candidate": {
@@ -16609,8 +16687,25 @@
           "skip_condition": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "discriminator": {
+                  "mapping": {
+                    "activity_signal": "#/components/schemas/SkipActivitySignal",
+                    "response_says_done": "#/components/schemas/SkipResponseSaysDone",
+                    "zone_presence": "#/components/schemas/SkipZonePresence"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/SkipResponseSaysDone"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SkipActivitySignal"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SkipZonePresence"
+                  }
+                ]
               },
               {
                 "type": "null"
@@ -18752,6 +18847,76 @@
           "z_m"
         ],
         "title": "SiteConfigNodeOut",
+        "type": "object"
+      },
+      "SkipActivitySignal": {
+        "additionalProperties": false,
+        "description": "Skip on entry when this activity was recorded within the look-back window.",
+        "properties": {
+          "activity_type": {
+            "$ref": "#/components/schemas/ActivityTypeEnum"
+          },
+          "kind": {
+            "const": "activity_signal",
+            "title": "Kind",
+            "type": "string"
+          },
+          "window_minutes": {
+            "default": 10,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1440.0,
+            "title": "Window Minutes",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "activity_type"
+        ],
+        "title": "SkipActivitySignal",
+        "type": "object"
+      },
+      "SkipResponseSaysDone": {
+        "additionalProperties": false,
+        "description": "Skip when she says she had already done the step before being asked.",
+        "properties": {
+          "kind": {
+            "const": "response_says_done",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "SkipResponseSaysDone",
+        "type": "object"
+      },
+      "SkipZonePresence": {
+        "additionalProperties": false,
+        "description": "Skip on entry when she is already in the zone (the step's zone when unset).",
+        "properties": {
+          "kind": {
+            "const": "zone_presence",
+            "title": "Kind",
+            "type": "string"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "SkipZonePresence",
         "type": "object"
       },
       "SourceInfo": {
@@ -30655,6 +30820,61 @@
           }
         ],
         "summary": "List Guided Sessions",
+        "tags": [
+          "guided-sessions"
+        ]
+      }
+    },
+    "/api/v1/guided-sessions/resident-state": {
+      "get": {
+        "description": "The companion tablet's hydration read: what a ``guided_session_state``\nbroadcast would show for the session in progress (none, when idle).\n\nIts own token, because a tablet must not need ``guided_sessions:read``,\nwhich exposes failure reasons and transcripts. No MCP twin: the agent reads\nthe same session through ``get_active_guided_step``.",
+        "operationId": "get_resident_guided_state",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "person_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Person Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResidentGuidedStateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Resident Guided State",
         "tags": [
           "guided-sessions"
         ]

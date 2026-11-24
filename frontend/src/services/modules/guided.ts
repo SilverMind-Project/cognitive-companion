@@ -63,3 +63,11 @@ export const releaseGuidedSession = (id: number) =>
 /** `person_id` is required by the endpoint; the sole caller already supplies it. */
 export const getGuidedMetricsDashboard = (params: MetricsParams) =>
   unwrap(client.GET("/api/v1/guided-metrics/dashboard", { params: { query: params } }));
+
+// ─── Resident companion screen ─────────────────────────────────────────────
+
+export type GuidedSessionState = Schemas["GuidedSessionStateEvent"];
+
+/** The resident-safe state of the session in progress (`session: null` when idle). */
+export const getResidentGuidedState = () =>
+  unwrap(client.GET("/api/v1/guided-sessions/resident-state", {}));

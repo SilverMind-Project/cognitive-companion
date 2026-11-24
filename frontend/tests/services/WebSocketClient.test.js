@@ -53,4 +53,35 @@ describe("WebSocketClient", () => {
     vi.advanceTimersByTime(1);
     expect(sockets).toHaveLength(3);
   });
+
+  it("routes guided-task messages and sends a tap with the step on screen", async () => {
+    const { WebSocketClient } = await import("@/services/WebSocketClient.js");
+    const client = new WebSocketClient("ws://example.test/audio");
+    const states = [];
+    const results = [];
+    const status = [];
+    client.on("onGuidedSessionState", (d) => states.push(d));
+    client.on("onGuidedStepActionResult", (d) => results.push(d));
+    client.on("onStatus", (d) => status.push(d));
+    client.connect();
+    const socket = sockets[0];
+    socket.readyState = 1;
+    const sent = [];
+    socket.send = (payload) => sent.push(JSON.parse(payload));
+
+    socket.onmessage({ data: JSON.stringify({ type: "guided_session_state", session_id: 4 }) });
+    socket.onmessage({
+      data: JSON.stringify({ type: "guided_step_action_result", session_id: 4, accepted: true }),
+    });
+    // Quiz dismissal keeps arriving through onStatus, where QuizDialog listens.
+    socket.onmessage({ data: JSON.stringify({ type: "quiz_timeout", session_id: 9 }) });
+    client.sendGuidedStepAction(4, "done", 2);
+
+    expect(states.map((d) => d.session_id)).toEqual([4]);
+    expect(results.map((d) => d.accepted)).toEqual([true]);
+    expect(status.map((d) => d.type)).toEqual(["quiz_timeout"]);
+    expect(sent).toEqual([
+      { type: "guided_step_action", session_id: 4, action: "done", step_ord: 2 },
+    ]);
+  });
 });

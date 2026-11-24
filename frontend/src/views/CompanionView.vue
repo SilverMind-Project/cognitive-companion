@@ -67,6 +67,8 @@ import { wsClient } from "../services/WebSocketClient.js";
 import { getWidgets } from "../components/companion/WidgetRegistry.js";
 import KioskGate from "../components/companion/KioskGate.vue";
 import { useKioskMode } from "../composables/useKioskMode.js";
+import { useResidentGuidedSession } from "../composables/useResidentGuidedSession.js";
+import { api } from "../services/api.js";
 
 // Register built-in widgets
 import "../components/companion/index.js";
@@ -81,6 +83,7 @@ const alertType = ref("info");
 const connected = ref(false);
 const route = useRoute();
 const kiosk = useKioskMode({ route });
+const guided = useResidentGuidedSession({ ws: wsClient, api });
 
 // Interactive prompt state
 const interactivePromptVisible = ref(false);
@@ -134,6 +137,12 @@ function normalizeAlertType(type) {
 // Provide props to widgets based on their ID
 function getWidgetProps(widgetId) {
   switch (widgetId) {
+    case "guided-task":
+      return {
+        session: guided.state.session,
+        pendingAction: guided.state.pendingAction,
+        celebrating: guided.state.celebrating,
+      };
     case "voice":
       return { recording: recording.value, audioState: audioState.value };
     case "transcript":
@@ -170,6 +179,8 @@ function getWidgetProps(widgetId) {
 // Provide event handlers to widgets based on their ID
 function getWidgetEvents(widgetId) {
   switch (widgetId) {
+    case "guided-task":
+      return { action: guided.actions.submit };
     case "voice":
       return {
         "toggle-recording": toggleRecording,
@@ -347,6 +358,7 @@ onMounted(() => {
   // has tapped the mic button.  The backend holds the connection open
   // without starting a Gemini session until audio activity arrives.
   wsClient.connect();
+  guided.actions.mount();
 
   wsClient.on("onTranscript", (data) => {
     transcript.value.push({
@@ -437,6 +449,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  guided.actions.unmount();
   wsClient.disconnect();
   if (playbackContext) {
     void playbackContext.close();

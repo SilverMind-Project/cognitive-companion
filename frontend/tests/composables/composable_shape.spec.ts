@@ -4,6 +4,7 @@ import { defineComponent, isReadonly, isRef, ref } from "vue";
 import { mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useActivityTypeOptions } from "@/composables/useActivityTypeOptions.js";
 import { useAggregatorState } from "@/composables/useAggregatorState.js";
 import { useAttestedFaceAudit } from "@/composables/useAttestedFaceAudit";
 import { useCanvasPipeline } from "@/composables/useCanvasPipeline.js";
@@ -25,6 +26,7 @@ import { useInfoCardsAdmin } from "@/composables/useInfoCardsAdmin.js";
 import { useKnowledgeInteractions } from "@/composables/useKnowledgeInteractions.js";
 import { useQuizzesAdmin } from "@/composables/useQuizzesAdmin.js";
 import { useReIDReview } from "@/composables/useReIDReview.js";
+import { useResidentGuidedSession } from "@/composables/useResidentGuidedSession.js";
 import { useRoutineBuilder } from "@/composables/useRoutineBuilder.js";
 import { useVisitorReview } from "@/composables/useVisitorReview.js";
 import { useWearables } from "@/composables/useWearables";
@@ -69,6 +71,7 @@ function isReadonlyComputedRef(value: unknown): boolean {
  * every entry in `actions` a function and no aliased references.
  */
 const ENFORCED_SERVER_COMPOSABLES: Record<string, () => Record<string, unknown>> = {
+  "useActivityTypeOptions.js": () => useActivityTypeOptions() as unknown as Record<string, unknown>,
   "useAggregatorState.js": () => useAggregatorState() as unknown as Record<string, unknown>,
   "useAttestedFaceAudit.ts": () =>
     useAttestedFaceAudit(makeNotify()) as unknown as Record<string, unknown>,
@@ -108,6 +111,11 @@ const ENFORCED_SERVER_COMPOSABLES: Record<string, () => Record<string, unknown>>
   "useQuizzesAdmin.js": () =>
     useQuizzesAdmin({ notify: makeNotify() }) as unknown as Record<string, unknown>,
   "useReIDReview.js": () => useReIDReview(makeNotify()) as unknown as Record<string, unknown>,
+  "useResidentGuidedSession.js": () =>
+    useResidentGuidedSession({
+      ws: { isOpen: false, on: vi.fn(), off: vi.fn(), sendGuidedStepAction: vi.fn() },
+      api: { getResidentGuidedState: vi.fn().mockResolvedValue({ session: null }) },
+    }) as unknown as Record<string, unknown>,
   "useRoutineBuilder.js": () =>
     useRoutineBuilder({ notify: makeNotify() }) as unknown as Record<string, unknown>,
   "useVisitorReview.js": () => useVisitorReview(makeNotify()) as unknown as Record<string, unknown>,

@@ -20,57 +20,54 @@
       @click="openSettings"
     />
 
-    <v-dialog v-model="settingsDialog" max-width="520" persistent>
-      <v-card>
-        <v-card-title>Kiosk settings</v-card-title>
-        <v-card-text>
-          <v-form @submit.prevent="save">
-            <v-text-field
-              v-if="!state.settingsUnlocked"
-              v-model="pinEntry"
-              label="PIN"
-              type="password"
-              autocomplete="current-password"
-              :error-messages="pinError"
-              @keyup.enter="unlock"
-            />
+    <AppDialog
+      v-model="settingsDialog"
+      size="sm"
+      icon="mdi-cog-outline"
+      label="Kiosk"
+      title="Kiosk settings"
+      persistent
+      :confirm-label="state.settingsUnlocked ? 'Save' : 'Unlock'"
+      @confirm="state.settingsUnlocked ? save() : unlock()"
+    >
+      <v-form @submit.prevent="state.settingsUnlocked ? save() : unlock()">
+        <v-text-field
+          v-if="!state.settingsUnlocked"
+          v-model="pinEntry"
+          label="PIN"
+          type="password"
+          autocomplete="current-password"
+          :error-messages="pinError"
+          @keyup.enter="unlock"
+        />
 
-            <template v-else>
-              <v-switch v-model="form.kioskEnabled" label="Kiosk mode" />
-              <v-text-field v-model="form.surfaceId" label="Surface ID" />
-              <v-select
-                v-model="form.roomId"
-                label="Room"
-                :items="roomItems"
-                :loading="state.roomsLoading"
-                item-title="name"
-                item-value="id"
-                clearable
-              />
-              <v-text-field
-                v-model="form.pin"
-                label="Settings PIN"
-                type="password"
-                autocomplete="new-password"
-              />
-            </template>
-          </v-form>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="settingsDialog = false">Cancel</v-btn>
-          <v-btn v-if="!state.settingsUnlocked" color="primary" variant="flat" @click="unlock">
-            Unlock
-          </v-btn>
-          <v-btn v-else color="primary" variant="flat" @click="save">Save</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+        <template v-else>
+          <v-switch v-model="form.kioskEnabled" label="Kiosk mode" />
+          <v-text-field v-model="form.surfaceId" label="Surface ID" />
+          <v-select
+            v-model="form.roomId"
+            label="Room"
+            :items="roomItems"
+            :loading="state.roomsLoading"
+            item-title="name"
+            item-value="id"
+            clearable
+          />
+          <v-text-field
+            v-model="form.pin"
+            label="Settings PIN"
+            type="password"
+            autocomplete="new-password"
+          />
+        </template>
+      </v-form>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
 import { computed, reactive, ref } from "vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 
 const props = defineProps({
   state: {

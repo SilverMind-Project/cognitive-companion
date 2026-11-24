@@ -2904,6 +2904,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/guided-sessions/resident-state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Resident Guided State
+         * @description The companion tablet's hydration read: what a ``guided_session_state``
+         *     broadcast would show for the session in progress (none, when idle).
+         *
+         *     Its own token, because a tablet must not need ``guided_sessions:read``,
+         *     which exposes failure reasons and transcripts. No MCP twin: the agent reads
+         *     the same session through ``get_active_guided_step``.
+         */
+        get: operations["get_resident_guided_state"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/guided-sessions/{session_id}/advance": {
         parameters: {
             query?: never;
@@ -8408,6 +8433,44 @@ export interface components {
             /** Text */
             text: string;
         };
+        /**
+         * GuidedSessionStateEvent
+         * @description Resident-safe guided-session state for the companion tablet (``/ws/audio``).
+         *
+         *     Carries only what the resident's screen may show: no failure reasons,
+         *     transcript, escalation detail, or takeover links. ``prompt_text`` is the
+         *     step prompt rendered without the agent-only memory and preference context,
+         *     and is empty when no step is in progress.
+         */
+        GuidedSessionStateEvent: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Current Step Ord */
+            current_step_ord: number;
+            /** Person Id */
+            person_id: string;
+            /** Prompt Text */
+            prompt_text: string;
+            /** Routine Id */
+            routine_id: number;
+            /** Routine Name */
+            routine_name: string;
+            /** Session Id */
+            session_id: number;
+            /** Status */
+            status: string;
+            /** Total Steps */
+            total_steps: number;
+            /**
+             * Type
+             * @default guided_session_state
+             * @constant
+             */
+            type: "guided_session_state";
+        };
         /** GuidedSessionStepOut */
         GuidedSessionStepOut: {
             /** Completion Gate */
@@ -11132,6 +11195,15 @@ export interface components {
             /** From Step Label */
             from_step_label?: string | null;
         };
+        /**
+         * ResidentGuidedStateOut
+         * @description What the companion tablet shows on load or reconnect: the session with a
+         *     step in progress, or ``None`` (which clears a widget left over from a
+         *     session that ended while the tablet was away).
+         */
+        ResidentGuidedStateOut: {
+            session?: components["schemas"]["GuidedSessionStateEvent"] | null;
+        };
         /** ReviewCandidateDetailResponse */
         ReviewCandidateDetailResponse: {
             candidate: components["schemas"]["ReviewCandidateView"];
@@ -11984,9 +12056,7 @@ export interface components {
             /** Prompt Template */
             prompt_template: string;
             /** Skip Condition */
-            skip_condition?: {
-                [key: string]: unknown;
-            } | null;
+            skip_condition?: (components["schemas"]["SkipResponseSaysDone"] | components["schemas"]["SkipActivitySignal"] | components["schemas"]["SkipZonePresence"]) | null;
             /** Step Timeout S Override */
             step_timeout_s_override?: number | null;
             /** Zone Id */
@@ -12787,6 +12857,47 @@ export interface components {
             y_m: number;
             /** Z M */
             z_m: number;
+        };
+        /**
+         * SkipActivitySignal
+         * @description Skip on entry when this activity was recorded within the look-back window.
+         */
+        SkipActivitySignal: {
+            activity_type: components["schemas"]["ActivityTypeEnum"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "activity_signal";
+            /**
+             * Window Minutes
+             * @default 10
+             */
+            window_minutes: number;
+        };
+        /**
+         * SkipResponseSaysDone
+         * @description Skip when she says she had already done the step before being asked.
+         */
+        SkipResponseSaysDone: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "response_says_done";
+        };
+        /**
+         * SkipZonePresence
+         * @description Skip on entry when she is already in the zone (the step's zone when unset).
+         */
+        SkipZonePresence: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "zone_presence";
+            /** Zone Id */
+            zone_id?: number | null;
         };
         /** SourceInfo */
         SourceInfo: {
@@ -18733,6 +18844,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GuidedSessionListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_resident_guided_state: {
+        parameters: {
+            query?: {
+                person_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResidentGuidedStateOut"];
                 };
             };
             /** @description Validation Error */

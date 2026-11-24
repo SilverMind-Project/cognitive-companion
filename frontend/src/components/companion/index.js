@@ -14,6 +14,18 @@ import InteractivePromptDialog from "./InteractivePromptDialog.vue";
 import InfoCardDialog from "./InfoCardDialog.vue";
 import QuizDialog from "./QuizDialog.vue";
 import KnowledgeAnswerWidget from "./KnowledgeAnswerWidget.vue";
+import GuidedTaskWidget from "./GuidedTaskWidget.vue";
+
+// Above the voice widget: while a routine runs, its current step is the most
+// important thing on her screen.
+registerWidget({
+  id: "guided-task",
+  name: "Guided Routine",
+  icon: "mdi-format-list-checks",
+  component: GuidedTaskWidget,
+  position: "main",
+  priority: 0,
+});
 
 registerWidget({
   id: "voice",

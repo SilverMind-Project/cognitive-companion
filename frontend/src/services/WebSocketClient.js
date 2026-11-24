@@ -15,6 +15,9 @@ const INTERACTIVE_PROMPT_TYPE = "interactive_prompt";
 const INTERACTIVE_RESPONSE_TYPE = "interactive_response";
 const ENABLE_MICROPHONE_TYPE = "enable_microphone";
 const KNOWLEDGE_ANSWER_TYPE = "knowledge_answer";
+const GUIDED_SESSION_STATE_TYPE = "guided_session_state";
+const GUIDED_STEP_ACTION_TYPE = "guided_step_action";
+const GUIDED_STEP_ACTION_RESULT_TYPE = "guided_step_action_result";
 
 export class WebSocketClient {
   constructor(url) {
@@ -40,6 +43,8 @@ export class WebSocketClient {
       onInteractiveResponse: [],
       onEnableMicrophone: [],
       onKnowledgeAnswer: [],
+      onGuidedSessionState: [],
+      onGuidedStepActionResult: [],
     };
   }
 
@@ -112,6 +117,10 @@ export class WebSocketClient {
           this._notify("onEnableMicrophone", data);
         } else if (data.type === KNOWLEDGE_ANSWER_TYPE) {
           this._notify("onKnowledgeAnswer", data);
+        } else if (data.type === GUIDED_SESSION_STATE_TYPE) {
+          this._notify("onGuidedSessionState", data);
+        } else if (data.type === GUIDED_STEP_ACTION_RESULT_TYPE) {
+          this._notify("onGuidedStepActionResult", data);
         } else if (NOTIFICATION_TYPES.has(data.type)) {
           this._notify("onCommand", data);
         } else {
@@ -150,6 +159,25 @@ export class WebSocketClient {
       action: action,
       timestamp: new Date().toISOString(),
     });
+  }
+
+  /**
+   * A tap on the guided-task widget. `stepOrd` is the step the screen showed;
+   * the server ignores a "done" for any other step, so a screen that has not
+   * caught up can never complete a step she has not seen.
+   */
+  sendGuidedStepAction(sessionId, action, stepOrd) {
+    this._sendJson({
+      type: GUIDED_STEP_ACTION_TYPE,
+      session_id: sessionId,
+      action,
+      step_ord: stepOrd,
+    });
+  }
+
+  /** True when a message can be sent right now. */
+  get isOpen() {
+    return this.socket?.readyState === WebSocket.OPEN;
   }
 
   on(event, callback) {

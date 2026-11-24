@@ -44,6 +44,27 @@
         <template v-else>
           <v-switch v-model="form.kioskEnabled" label="Kiosk mode" />
           <v-text-field v-model="form.surfaceId" label="Surface ID" />
+          <div class="kiosk-surface-test">
+            <v-btn
+              variant="tonal"
+              prepend-icon="mdi-bell-ring-outline"
+              :disabled="!form.surfaceId.trim()"
+              :loading="state.surfaceTest?.status === 'running'"
+              data-test="kiosk-test-surface"
+              @click="$emit('test-surface', form.surfaceId)"
+            >
+              Test this screen
+            </v-btn>
+            <p
+              v-if="state.surfaceTest?.message"
+              class="kiosk-surface-test__result"
+              :class="`kiosk-surface-test__result--${state.surfaceTest.status}`"
+              data-test="kiosk-test-surface-result"
+              role="status"
+            >
+              {{ state.surfaceTest.message }}
+            </p>
+          </div>
           <v-select
             v-model="form.roomId"
             label="Room"
@@ -76,7 +97,13 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["begin", "unlock-settings", "save-settings", "load-rooms"]);
+const emit = defineEmits([
+  "begin",
+  "unlock-settings",
+  "save-settings",
+  "load-rooms",
+  "test-surface",
+]);
 
 const settingsDialog = ref(false);
 const pinEntry = ref("");
@@ -154,5 +181,24 @@ function save() {
   right: 24px;
   bottom: 24px;
   pointer-events: auto;
+}
+
+.kiosk-surface-test {
+  margin-bottom: 16px;
+}
+
+.kiosk-surface-test__result {
+  margin-top: 8px;
+  font-size: 0.875rem;
+  color: var(--cc-text-2);
+}
+
+.kiosk-surface-test__result--reached {
+  color: var(--cc-success);
+}
+
+.kiosk-surface-test__result--offline,
+.kiosk-surface-test__result--error {
+  color: var(--cc-warning);
 }
 </style>

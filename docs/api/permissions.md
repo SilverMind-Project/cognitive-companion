@@ -16,10 +16,10 @@ Closed D4 actions (14): `acknowledge`, `act`, `calibrate`, `correct`, `delete`, 
 
 | Metric | Value |
 | --- | --- |
-| Guarded HTTP routes | 364 |
+| Guarded HTTP routes | 365 |
 | Authenticated WebSocket routes | 3 |
-| Distinct route and WebSocket D4 tokens | 107 |
-| Configured roles (`roles:`) | 9 |
+| Distinct route and WebSocket D4 tokens | 108 |
+| Configured roles (`roles:`) | 10 |
 
 ## Role Token Sets (`config/auth.yaml` `roles:`)
 
@@ -27,385 +27,387 @@ Closed D4 actions (14): `acknowledge`, `act`, `calibrate`, `correct`, `delete`, 
 | --- | --- | --- |
 | `admin` | 29 | `*`, `activities.sessions:write`, `admin.config:write`, `cts.calibration:calibrate`, `cts.cameras:write`, `cts.identity:correct`, `cts.keyframes:write`, `cts.signals.suppressions:delete`, `cts.signals.suppressions:write`, `cts.signals:acknowledge`, `cts.signals:delete`, `gate_graphs:write`, `guided_sessions:takeover`, `ha:write`, `household:write`, `image:delete`, `image:write`, `medication:write`, `persons.location:write`, `persons:delete`, `persons:write`, `room_zones:write`, `rooms:write`, `routines:write`, `rules:execute`, `rules:write`, `sensors:write`, `wearables:write`, `workflows:execute` |
 | `operator` | 1 | `*` |
-| `caregiver_admin` | 65 | `activities:read`, `admin.channels:read`, `admin.config:read`, `admin:read`, `companion.audio:act`, `companion_surfaces:read`, `companion_surfaces:write`, `conversations:read`, `cts.analytics.heatmap:read`, `cts.bboxes:read`, `cts.bboxes:write`, `cts.calibration:read`, `cts.cameras.roster:read`, `cts.cameras:read`, `cts.gait.trend:read`, `cts.identity.corrections:correct`, `cts.identity.gallery:review`, `cts.identity:propose`, `cts.identity:read`, `cts.keyframes:read`, `cts.live:read`, `cts.presence:read`, `cts.reports.weekly:read`, `cts.signals.evidence:read`, `cts.signals:read`, `cts.transit_zones:write`, `cts:read`, `events:read`, `face_calibration:review`, `face_prototypes:read`, `face_prototypes:write`, `gate_graphs:read`, `guided_metrics:read`, `guided_sessions.resident_state:read`, `guided_sessions:read`, `ha:read`, `household:read`, `identity_readiness:read`, `identity_review:read`, `identity_targets:read`, `image:read`, `info_cards:read`, `interactive_responses:read`, `knowledge.documents:read`, `knowledge.interactions:read`, `knowledge.layouts:read`, `media:read`, `medication:read`, `occupancy:read`, `persons.location:read`, `persons:read`, `pipeline.events:read`, `pipeline.meta:read`, `pipeline.runs:read`, `quizzes:read`, `room_zones:read`, `rooms:read`, `routines:read`, `rules:read`, `sensors:read`, `signals.feed:read`, `visitors:review`, `wearables.teaching:write`, `wearables:read`, `workflows:read` |
-| `caregiver` | 64 | `activities:read`, `admin.channels:read`, `admin.config:read`, `admin:read`, `companion.audio:act`, `companion_surfaces:read`, `companion_surfaces:write`, `conversations:read`, `cts.analytics.heatmap:read`, `cts.bboxes:read`, `cts.calibration:read`, `cts.cameras.roster:read`, `cts.cameras:read`, `cts.gait.trend:read`, `cts.identity:read`, `cts.keyframes:read`, `cts.live:read`, `cts.presence.config:write`, `cts.presence:read`, `cts.signals.evidence:read`, `cts.signals:read`, `cts:read`, `events:read`, `face_prototypes:read`, `gate_graphs:read`, `guided_metrics:read`, `guided_sessions.resident_state:read`, `guided_sessions:read`, `ha:read`, `household:read`, `identity_readiness:read`, `identity_review:read`, `identity_targets:read`, `image:read`, `info_cards:delete`, `info_cards:read`, `info_cards:write`, `interactive_responses:read`, `knowledge.documents:delete`, `knowledge.documents:read`, `knowledge.documents:write`, `knowledge.interactions:read`, `knowledge.layouts:read`, `media:read`, `medication:read`, `occupancy:read`, `persons.enrollment:delete`, `persons.enrollment:write`, `persons.location:read`, `persons:read`, `pipeline.events:read`, `pipeline.meta:read`, `pipeline.runs:read`, `quizzes:delete`, `quizzes:read`, `quizzes:write`, `room_zones:read`, `rooms:read`, `routines:read`, `rules:read`, `sensors:read`, `signals.feed:read`, `wearables:read`, `workflows:read` |
+| `caregiver_admin` | 66 | `activities:read`, `admin.channels:read`, `admin.config:read`, `admin:read`, `companion.audio:act`, `companion_surfaces.test:execute`, `companion_surfaces:read`, `companion_surfaces:write`, `conversations:read`, `cts.analytics.heatmap:read`, `cts.bboxes:read`, `cts.bboxes:write`, `cts.calibration:read`, `cts.cameras.roster:read`, `cts.cameras:read`, `cts.gait.trend:read`, `cts.identity.corrections:correct`, `cts.identity.gallery:review`, `cts.identity:propose`, `cts.identity:read`, `cts.keyframes:read`, `cts.live:read`, `cts.presence:read`, `cts.reports.weekly:read`, `cts.signals.evidence:read`, `cts.signals:read`, `cts.transit_zones:write`, `cts:read`, `events:read`, `face_calibration:review`, `face_prototypes:read`, `face_prototypes:write`, `gate_graphs:read`, `guided_metrics:read`, `guided_sessions.resident_state:read`, `guided_sessions:read`, `ha:read`, `household:read`, `identity_readiness:read`, `identity_review:read`, `identity_targets:read`, `image:read`, `info_cards:read`, `interactive_responses:read`, `knowledge.documents:read`, `knowledge.interactions:read`, `knowledge.layouts:read`, `media:read`, `medication:read`, `occupancy:read`, `persons.location:read`, `persons:read`, `pipeline.events:read`, `pipeline.meta:read`, `pipeline.runs:read`, `quizzes:read`, `room_zones:read`, `rooms:read`, `routines:read`, `rules:read`, `sensors:read`, `signals.feed:read`, `visitors:review`, `wearables.teaching:write`, `wearables:read`, `workflows:read` |
+| `caregiver` | 65 | `activities:read`, `admin.channels:read`, `admin.config:read`, `admin:read`, `companion.audio:act`, `companion_surfaces.test:execute`, `companion_surfaces:read`, `companion_surfaces:write`, `conversations:read`, `cts.analytics.heatmap:read`, `cts.bboxes:read`, `cts.calibration:read`, `cts.cameras.roster:read`, `cts.cameras:read`, `cts.gait.trend:read`, `cts.identity:read`, `cts.keyframes:read`, `cts.live:read`, `cts.presence.config:write`, `cts.presence:read`, `cts.signals.evidence:read`, `cts.signals:read`, `cts:read`, `events:read`, `face_prototypes:read`, `gate_graphs:read`, `guided_metrics:read`, `guided_sessions.resident_state:read`, `guided_sessions:read`, `ha:read`, `household:read`, `identity_readiness:read`, `identity_review:read`, `identity_targets:read`, `image:read`, `info_cards:delete`, `info_cards:read`, `info_cards:write`, `interactive_responses:read`, `knowledge.documents:delete`, `knowledge.documents:read`, `knowledge.documents:write`, `knowledge.interactions:read`, `knowledge.layouts:read`, `media:read`, `medication:read`, `occupancy:read`, `persons.enrollment:delete`, `persons.enrollment:write`, `persons.location:read`, `persons:read`, `pipeline.events:read`, `pipeline.meta:read`, `pipeline.runs:read`, `quizzes:delete`, `quizzes:read`, `quizzes:write`, `room_zones:read`, `rooms:read`, `routines:read`, `rules:read`, `sensors:read`, `signals.feed:read`, `wearables:read`, `workflows:read` |
 | `mcp_readonly` | 32 | `activities:read`, `conversations:read`, `cts.analytics.heatmap:read`, `cts.gait.trend:read`, `cts.identity:read`, `cts.keyframes:read`, `cts.signals:read`, `cts:read`, `events:read`, `guided_metrics:read`, `guided_sessions:read`, `ha:read`, `identity_readiness:read`, `image:read`, `interactive_responses:read`, `knowledge.documents:read`, `knowledge.interactions:read`, `mcp.tools:read`, `media:read`, `medication:read`, `occupancy:read`, `persons.location:read`, `persons:read`, `pipeline.meta:read`, `quizzes:read`, `room_zones:read`, `rooms:read`, `rules:read`, `sensors:read`, `signals.feed:read`, `wearables:read`, `workflows:read` |
 | `mcp_rules_import` | 1 | `rules:import` |
 | `cts_ingress` | 5 | `cts.cameras.roster:read`, `household:read`, `persons.heights:read`, `rooms:read`, `wearables.site_config:read` |
 | `device_recamera` | 1 | `device.recamera:ingest` |
 | `device_reterminal` | 4 | `companion.audio:act`, `companion_surfaces:heartbeat`, `guided_sessions.resident_state:read`, `image:read` |
+| `companion_test_device` | 5 | `companion.audio:act`, `companion_surfaces.test:execute`, `companion_surfaces:heartbeat`, `guided_sessions.resident_state:read`, `image:read` |
 
 ## Full Route and WebSocket Access Matrix
 
 Roles carrying `*` (`admin`, `operator`) reach every route below; the table shows
 reachability across the remaining configured roles.
 
-| D4 token | Method | Path | `caregiver_admin` | `caregiver` | `mcp_readonly` | `mcp_rules_import` | `cts_ingress` | `device_recamera` | `device_reterminal` |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `activities.sessions:write` | `POST` | `/api/v1/activities/sessions/open` | . | . | . | . | . | . | . |
-| `activities.sessions:write` | `POST` | `/api/v1/activities/sessions/{session_id}/close` | . | . | . | . | . | . | . |
-| `activities:read` | `GET` | `/api/v1/activities` | Y | Y | Y | . | . | . | . |
-| `activities:read` | `GET` | `/api/v1/activities/reports/{person_id}/{date}` | Y | Y | Y | . | . | . | . |
-| `activities:read` | `GET` | `/api/v1/activities/reports/{person_id}/{date}/regenerate` | Y | Y | Y | . | . | . | . |
-| `activities:read` | `GET` | `/api/v1/activities/sessions/open` | Y | Y | Y | . | . | . | . |
-| `activities:read` | `GET` | `/api/v1/activities/timeline` | Y | Y | Y | . | . | . | . |
-| `admin.channels:read` | `GET` | `/api/v1/admin/notification-channels/audit` | Y | Y | . | . | . | . | . |
-| `admin.config:read` | `GET` | `/api/v1/admin/config/current` | Y | Y | . | . | . | . | . |
-| `admin.config:read` | `GET` | `/api/v1/admin/telegram/trigger-defaults` | Y | Y | . | . | . | . | . |
-| `admin.config:write` | `POST` | `/api/v1/admin/config/reload` | . | . | . | . | . | . | . |
-| `admin:read` | `GET` | `/api/v1/admin/cts-metrics` | Y | Y | . | . | . | . | . |
-| `admin:read` | `GET` | `/api/v1/admin/daily-living-health` | Y | Y | . | . | . | . | . |
-| `admin:read` | `GET` | `/api/v1/admin/health/llm-models` | Y | Y | . | . | . | . | . |
-| `admin:read` | `GET` | `/api/v1/admin/health/person-id` | Y | Y | . | . | . | . | . |
-| `admin:read` | `GET` | `/api/v1/admin/health/scene-analysis` | Y | Y | . | . | . | . | . |
-| `admin:read` | `GET` | `/api/v1/admin/health/semantic-memory` | Y | Y | . | . | . | . | . |
-| `admin:read` | `GET` | `/api/v1/admin/health/tracking-orchestrator` | Y | Y | . | . | . | . | . |
-| `admin:read` | `GET` | `/api/v1/admin/health/triton` | Y | Y | . | . | . | . | . |
-| `admin:read` | `GET` | `/api/v1/admin/health/tts` | Y | Y | . | . | . | . | . |
-| `admin:read` | `GET` | `/api/v1/admin/inference-telemetry` | Y | Y | . | . | . | . | . |
-| `companion.audio:act` | `WS` | `/ws/audio` | Y | Y | . | . | . | . | Y |
-| `companion_surfaces:heartbeat` | `POST` | `/api/v1/companion-surfaces/{surface_id}/heartbeat` | . | . | . | . | . | . | Y |
-| `companion_surfaces:read` | `GET` | `/api/v1/companion-surfaces` | Y | Y | . | . | . | . | . |
-| `companion_surfaces:write` | `POST` | `/api/v1/companion-surfaces` | Y | Y | . | . | . | . | . |
-| `companion_surfaces:write` | `PATCH` | `/api/v1/companion-surfaces/{surface_id}` | Y | Y | . | . | . | . | . |
-| `conversations:read` | `GET` | `/api/v1/conversations/recent` | Y | Y | Y | . | . | . | . |
-| `cts.analytics.heatmap:read` | `GET` | `/api/v1/cts/analytics/heatmap` | Y | Y | Y | . | . | . | . |
-| `cts.bboxes:read` | `GET` | `/api/v1/cts/identity/keyframes/{keyframe_id}/bboxes` | Y | Y | . | . | . | . | . |
-| `cts.bboxes:write` | `POST` | `/api/v1/cts/identity/bboxes/batch` | Y | . | . | . | . | . | . |
-| `cts.bboxes:write` | `PUT` | `/api/v1/cts/identity/bboxes/{annotation_id}/override` | Y | . | . | . | . | . | . |
-| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/auto/{camera_id}` | . | . | . | . | . | . | . |
-| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/floor_region/{camera_id}` | . | . | . | . | . | . | . |
-| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/homography` | . | . | . | . | . | . | . |
-| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/homography/preview` | . | . | . | . | . | . | . |
-| `cts.calibration:calibrate` | `DELETE` | `/api/v1/cts/calibration/homography/{camera_id}` | . | . | . | . | . | . | . |
-| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/privacy_zones` | . | . | . | . | . | . | . |
-| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/visibility_polygons/recompute` | . | . | . | . | . | . | . |
-| `cts.calibration:read` | `GET` | `/api/v1/cts/calibration/floor_region_default/{camera_id}` | Y | Y | . | . | . | . | . |
-| `cts.calibration:read` | `GET` | `/api/v1/cts/calibration/health` | Y | Y | . | . | . | . | . |
-| `cts.calibration:read` | `GET` | `/api/v1/cts/calibration/homography/{camera_id}` | Y | Y | . | . | . | . | . |
-| `cts.calibration:read` | `GET` | `/api/v1/cts/calibration/privacy_zones/{camera_id}` | Y | Y | . | . | . | . | . |
-| `cts.calibration:read` | `GET` | `/api/v1/cts/calibration/visibility_polygons` | Y | Y | . | . | . | . | . |
-| `cts.cameras.roster:read` | `GET` | `/api/v1/cts/cameras` | Y | Y | . | . | Y | . | . |
-| `cts.cameras.roster:read` | `GET` | `/api/v1/cts/overlap_groups` | Y | Y | . | . | Y | . | . |
-| `cts.cameras.roster:read` | `GET` | `/api/v1/cts/transit-zones` | Y | Y | . | . | Y | . | . |
-| `cts.cameras:read` | `GET` | `/api/v1/cts/cameras/{camera_id}` | Y | Y | . | . | . | . | . |
-| `cts.cameras:read` | `GET` | `/api/v1/cts/cameras/{camera_id}/health` | Y | Y | . | . | . | . | . |
-| `cts.cameras:read` | `GET` | `/api/v1/cts/cameras/{camera_id}/optics` | Y | Y | . | . | . | . | . |
-| `cts.cameras:read` | `GET` | `/api/v1/cts/cameras/{camera_id}/snapshot` | Y | Y | . | . | . | . | . |
-| `cts.cameras:read` | `GET` | `/api/v1/cts/diagnostics/calibration` | Y | Y | . | . | . | . | . |
-| `cts.cameras:read` | `GET` | `/api/v1/cts/frames/{key:path}` | Y | Y | . | . | . | . | . |
-| `cts.cameras:read` | `GET` | `/api/v1/cts/overlap_groups/suggested` | Y | Y | . | . | . | . | . |
-| `cts.cameras:read` | `GET` | `/api/v1/cts/topology/transitions` | Y | Y | . | . | . | . | . |
-| `cts.cameras:read` | `GET` | `/api/v1/cts/transit-zones/{zone_id}` | Y | Y | . | . | . | . | . |
-| `cts.cameras:write` | `POST` | `/api/v1/cts/cameras` | . | . | . | . | . | . | . |
-| `cts.cameras:write` | `POST` | `/api/v1/cts/cameras/optics-preview` | . | . | . | . | . | . | . |
-| `cts.cameras:write` | `POST` | `/api/v1/cts/cameras/test-connect` | . | . | . | . | . | . | . |
-| `cts.cameras:write` | `DELETE` | `/api/v1/cts/cameras/{camera_id}` | . | . | . | . | . | . | . |
-| `cts.cameras:write` | `PATCH` | `/api/v1/cts/cameras/{camera_id}` | . | . | . | . | . | . | . |
-| `cts.cameras:write` | `DELETE` | `/api/v1/cts/cameras/{camera_id}/marker` | . | . | . | . | . | . | . |
-| `cts.cameras:write` | `PUT` | `/api/v1/cts/cameras/{camera_id}/marker` | . | . | . | . | . | . | . |
-| `cts.cameras:write` | `POST` | `/api/v1/cts/cameras/{camera_id}/reload` | . | . | . | . | . | . | . |
-| `cts.cameras:write` | `POST` | `/api/v1/cts/overlap_groups` | . | . | . | . | . | . | . |
-| `cts.cameras:write` | `DELETE` | `/api/v1/cts/overlap_groups/{group_id}` | . | . | . | . | . | . | . |
-| `cts.gait.trend:read` | `GET` | `/api/v1/cts/gait/trend` | Y | Y | Y | . | . | . | . |
-| `cts.identity.corrections:correct` | `POST` | `/api/v1/cts/identity/corrections/apply` | Y | . | . | . | . | . | . |
-| `cts.identity.corrections:correct` | `POST` | `/api/v1/cts/identity/corrections/{correction_id}/compensate` | Y | . | . | . | . | . | . |
-| `cts.identity.gallery:review` | `GET` | `/api/v1/cts/identity/reid-review/candidates` | Y | . | . | . | . | . | . |
-| `cts.identity.gallery:review` | `GET` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}` | Y | . | . | . | . | . | . |
-| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/approve` | Y | . | . | . | . | . | . |
-| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/compensate` | Y | . | . | . | . | . | . |
-| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/demote` | Y | . | . | . | . | . | . |
-| `cts.identity.gallery:review` | `GET` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/events` | Y | . | . | . | . | . | . |
-| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/reject` | Y | . | . | . | . | . | . |
-| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/relabel` | Y | . | . | . | . | . | . |
-| `cts.identity.gallery:review` | `GET` | `/api/v1/cts/identity/reid-review/counts` | Y | . | . | . | . | . | . |
-| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/review` | Y | . | . | . | . | . | . |
-| `cts.identity:correct` | `DELETE` | `/api/v1/cts/identity/bboxes/{annotation_id}` | . | . | . | . | . | . | . |
-| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/batch_correct` | . | . | . | . | . | . | . |
-| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/batch_delete` | . | . | . | . | . | . | . |
-| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/batch_merge` | . | . | . | . | . | . | . |
-| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/merge` | . | . | . | . | . | . | . |
-| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/purge_unknown` | . | . | . | . | . | . | . |
-| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/{ph_id}/correct` | . | . | . | . | . | . | . |
-| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/{ph_id}/split` | . | . | . | . | . | . | . |
-| `cts.identity:propose` | `POST` | `/api/v1/cts/identity/corrections/propose` | Y | . | . | . | . | . | . |
-| `cts.identity:read` | `GET` | `/api/v1/cts/identity/corrections/jobs/{revision_id}` | Y | Y | Y | . | . | . | . |
-| `cts.identity:read` | `GET` | `/api/v1/cts/identity/identities` | Y | Y | Y | . | . | . | . |
-| `cts.identity:read` | `GET` | `/api/v1/cts/ph` | Y | Y | Y | . | . | . | . |
-| `cts.identity:read` | `GET` | `/api/v1/cts/ph/revisions` | Y | Y | Y | . | . | . | . |
-| `cts.identity:read` | `GET` | `/api/v1/cts/ph/{ph_id}` | Y | Y | Y | . | . | . | . |
-| `cts.identity:read` | `GET` | `/api/v1/cts/ph/{ph_id}/co_present` | Y | Y | Y | . | . | . | . |
-| `cts.identity:read` | `GET` | `/api/v1/cts/ph/{ph_id}/keyframes` | Y | Y | Y | . | . | . | . |
-| `cts.identity:read` | `GET` | `/api/v1/cts/ph/{ph_id}/observations` | Y | Y | Y | . | . | . | . |
-| `cts.identity:read` | `GET` | `/api/v1/cts/ph/{ph_id}/trail` | Y | Y | Y | . | . | . | . |
-| `cts.keyframes:read` | `GET` | `/api/v1/cts/keyframes` | Y | Y | Y | . | . | . | . |
-| `cts.keyframes:read` | `GET` | `/api/v1/cts/keyframes/{sample_id}` | Y | Y | Y | . | . | . | . |
-| `cts.keyframes:write` | `POST` | `/api/v1/cts/keyframes/{sample_id}/retain` | . | . | . | . | . | . | . |
-| `cts.live:read` | `WS` | `/ws/cts` | Y | Y | . | . | . | . | . |
-| `cts.presence.config:write` | `POST` | `/api/v1/cts/presence-config/reload` | . | Y | . | . | . | . | . |
-| `cts.presence:read` | `GET` | `/api/v1/cts/presence-config` | Y | Y | . | . | . | . | . |
-| `cts.presence:read` | `GET` | `/api/v1/cts/presence/currently_in` | Y | Y | . | . | . | . | . |
-| `cts.presence:read` | `GET` | `/api/v1/cts/presence/dwells/{person_id}` | Y | Y | . | . | . | . | . |
-| `cts.presence:read` | `GET` | `/api/v1/cts/presence/timeline/{person_id}` | Y | Y | . | . | . | . | . |
-| `cts.presence:read` | `GET` | `/api/v1/cts/presence/{person_id}` | Y | Y | . | . | . | . | . |
-| `cts.reports.weekly:read` | `POST` | `/api/v1/cts/reports/weekly` | Y | . | . | . | . | . | . |
-| `cts.signals.evidence:read` | `GET` | `/api/v1/cts/signals/explorer` | Y | Y | . | . | . | . | . |
-| `cts.signals.evidence:read` | `GET` | `/api/v1/cts/signals/{signal_id}/evidence` | Y | Y | . | . | . | . | . |
-| `cts.signals.suppressions:delete` | `DELETE` | `/api/v1/cts/dashboard/suppressions/{suppression_id}` | . | . | . | . | . | . | . |
-| `cts.signals.suppressions:write` | `POST` | `/api/v1/cts/dashboard/suppressions` | . | . | . | . | . | . | . |
-| `cts.signals:acknowledge` | `POST` | `/api/v1/cts/signals/{signal_id}/ack` | . | . | . | . | . | . | . |
-| `cts.signals:delete` | `DELETE` | `/api/v1/cts/signals/batch` | . | . | . | . | . | . | . |
-| `cts.signals:delete` | `DELETE` | `/api/v1/cts/signals/{signal_id}` | . | . | . | . | . | . | . |
-| `cts.signals:read` | `GET` | `/api/v1/cts/dashboard/dwell_summary` | Y | Y | Y | . | . | . | . |
-| `cts.signals:read` | `GET` | `/api/v1/cts/dashboard/overview` | Y | Y | Y | . | . | . | . |
-| `cts.signals:read` | `GET` | `/api/v1/cts/dashboard/signals` | Y | Y | Y | . | . | . | . |
-| `cts.signals:read` | `GET` | `/api/v1/cts/dashboard/trajectory` | Y | Y | Y | . | . | . | . |
-| `cts.signals:read` | `GET` | `/api/v1/cts/dashboard/unacknowledged-count` | Y | Y | Y | . | . | . | . |
-| `cts.signals:read` | `GET` | `/api/v1/cts/signals` | Y | Y | Y | . | . | . | . |
-| `cts.signals:read` | `GET` | `/api/v1/cts/signals/summary` | Y | Y | Y | . | . | . | . |
-| `cts.signals:read` | `GET` | `/api/v1/cts/signals/trend/{person_id}` | Y | Y | Y | . | . | . | . |
-| `cts.signals:read` | `GET` | `/api/v1/cts/signals/unacknowledged` | Y | Y | Y | . | . | . | . |
-| `cts.transit_zones:write` | `POST` | `/api/v1/cts/transit-zones` | Y | . | . | . | . | . | . |
-| `cts.transit_zones:write` | `DELETE` | `/api/v1/cts/transit-zones/{zone_id}` | Y | . | . | . | . | . | . |
-| `cts.transit_zones:write` | `PATCH` | `/api/v1/cts/transit-zones/{zone_id}` | Y | . | . | . | . | . | . |
-| `cts:read` | `GET` | `/api/v1/cts/features` | Y | Y | Y | . | . | . | . |
-| `cts:read` | `GET` | `/api/v1/cts/status` | Y | Y | Y | . | . | . | . |
-| `cts:read` | `GET` | `/api/v1/cts/trajectory/recent` | Y | Y | Y | . | . | . | . |
-| `device.recamera:ingest` | `POST` | `/api/v1/device/recamera` | . | . | . | . | . | Y | . |
-| `events:read` | `GET` | `/api/v1/events` | Y | Y | Y | . | . | . | . |
-| `events:read` | `GET` | `/api/v1/events/{event_id}` | Y | Y | Y | . | . | . | . |
-| `face_calibration:review` | `GET` | `/api/v1/face-calibration/attestations` | Y | . | . | . | . | . | . |
-| `face_calibration:review` | `GET` | `/api/v1/face-calibration/attestations/audit-sample` | Y | . | . | . | . | . | . |
-| `face_calibration:review` | `GET` | `/api/v1/face-calibration/attestations/audit-summary` | Y | . | . | . | . | . | . |
-| `face_calibration:review` | `POST` | `/api/v1/face-calibration/attestations/{candidate_id}/audit` | Y | . | . | . | . | . | . |
-| `face_calibration:review` | `GET` | `/api/v1/face-calibration/candidates` | Y | . | . | . | . | . | . |
-| `face_calibration:review` | `POST` | `/api/v1/face-calibration/candidates/review` | Y | . | . | . | . | . | . |
-| `face_calibration:review` | `DELETE` | `/api/v1/face-calibration/candidates/{candidate_id}` | Y | . | . | . | . | . | . |
-| `face_calibration:review` | `POST` | `/api/v1/face-calibration/candidates/{candidate_id}/label` | Y | . | . | . | . | . | . |
-| `face_calibration:review` | `POST` | `/api/v1/face-calibration/candidates/{candidate_id}/promote` | Y | . | . | . | . | . | . |
-| `face_calibration:review` | `POST` | `/api/v1/face-calibration/candidates/{candidate_id}/reject` | Y | . | . | . | . | . | . |
-| `face_calibration:review` | `GET` | `/api/v1/face-calibration/summary` | Y | . | . | . | . | . | . |
-| `face_prototypes:read` | `GET` | `/api/v1/persons/{person_id}/prototypes` | Y | Y | . | . | . | . | . |
-| `face_prototypes:write` | `POST` | `/api/v1/persons/{person_id}/prototypes/rebuild` | Y | . | . | . | . | . | . |
-| `face_prototypes:write` | `DELETE` | `/api/v1/persons/{person_id}/prototypes/{prototype_id}` | Y | . | . | . | . | . | . |
-| `gate_graphs:read` | `GET` | `/api/v1/gate-graphs` | Y | Y | . | . | . | . | . |
-| `gate_graphs:read` | `GET` | `/api/v1/gate-graphs/{rule_id}` | Y | Y | . | . | . | . | . |
-| `gate_graphs:read` | `GET` | `/api/v1/gate-presets` | Y | Y | . | . | . | . | . |
-| `gate_graphs:write` | `POST` | `/api/v1/gate-graphs` | . | . | . | . | . | . | . |
-| `gate_graphs:write` | `POST` | `/api/v1/gate-graphs/{rule_id}/test-run` | . | . | . | . | . | . | . |
-| `gate_graphs:write` | `POST` | `/api/v1/gate-graphs/{rule_id}/validate` | . | . | . | . | . | . | . |
-| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/abandonment` | Y | Y | Y | . | . | . | . |
-| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/attempts-per-step` | Y | Y | Y | . | . | . | . |
-| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/completion` | Y | Y | Y | . | . | . | . |
-| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/dashboard` | Y | Y | Y | . | . | . | . |
-| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/escalation-breakdown` | Y | Y | Y | . | . | . | . |
-| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/gate-cost-summary` | Y | Y | Y | . | . | . | . |
-| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/time-of-day` | Y | Y | Y | . | . | . | . |
-| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/time-to-complete` | Y | Y | Y | . | . | . | . |
-| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/vision-agreement` | Y | Y | Y | . | . | . | . |
-| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/watch-summary` | Y | Y | Y | . | . | . | . |
-| `guided_sessions.resident_state:read` | `GET` | `/api/v1/guided-sessions/resident-state` | Y | Y | . | . | . | . | Y |
-| `guided_sessions:read` | `GET` | `/api/v1/guided-sessions` | Y | Y | Y | . | . | . | . |
-| `guided_sessions:read` | `GET` | `/api/v1/guided-sessions/{session_id}/detail` | Y | Y | Y | . | . | . | . |
-| `guided_sessions:takeover` | `POST` | `/api/v1/guided-sessions/{session_id}/advance` | . | . | . | . | . | . | . |
-| `guided_sessions:takeover` | `POST` | `/api/v1/guided-sessions/{session_id}/complete` | . | . | . | . | . | . | . |
-| `guided_sessions:takeover` | `POST` | `/api/v1/guided-sessions/{session_id}/release` | . | . | . | . | . | . | . |
-| `guided_sessions:takeover` | `POST` | `/api/v1/guided-sessions/{session_id}/say` | . | . | . | . | . | . | . |
-| `guided_sessions:takeover` | `POST` | `/api/v1/guided-sessions/{session_id}/takeover` | . | . | . | . | . | . | . |
-| `ha:read` | `GET` | `/api/v1/ha/entities` | Y | Y | Y | . | . | . | . |
-| `ha:read` | `GET` | `/api/v1/ha/media-players` | Y | Y | Y | . | . | . | . |
-| `ha:write` | `POST` | `/api/v1/ha/sync/rooms` | . | . | . | . | . | . | . |
-| `ha:write` | `POST` | `/api/v1/ha/sync/sensors` | . | . | . | . | . | . | . |
-| `household:read` | `GET` | `/api/v1/household/floor-plan` | Y | Y | . | . | Y | . | . |
-| `household:write` | `POST` | `/api/v1/household/floor-plan` | . | . | . | . | . | . | . |
-| `identity_readiness:read` | `GET` | `/api/v1/identity/readiness` | Y | Y | Y | . | . | . | . |
-| `identity_review:read` | `GET` | `/api/v1/identity/review-vocabulary` | Y | Y | . | . | . | . | . |
-| `identity_targets:read` | `GET` | `/api/v1/identity/targets` | Y | Y | . | . | . | . | . |
-| `image:delete` | `DELETE` | `/api/v1/image/templates/{template_id}` | . | . | . | . | . | . | . |
-| `image:read` | `GET` | `/api/v1/image/active` | Y | Y | Y | . | . | . | Y |
-| `image:read` | `GET` | `/api/v1/image/fonts` | Y | Y | Y | . | . | . | Y |
-| `image:read` | `GET` | `/api/v1/image/states` | Y | Y | Y | . | . | . | Y |
-| `image:read` | `GET` | `/api/v1/image/templates` | Y | Y | Y | . | . | . | Y |
-| `image:read` | `GET` | `/api/v1/image/templates/{template_id}/preview` | Y | Y | Y | . | . | . | Y |
-| `image:write` | `POST` | `/api/v1/image/preview` | . | . | . | . | . | . | . |
-| `image:write` | `POST` | `/api/v1/image/preview-form` | . | . | . | . | . | . | . |
-| `image:write` | `POST` | `/api/v1/image/render` | . | . | . | . | . | . | . |
-| `image:write` | `POST` | `/api/v1/image/reset` | . | . | . | . | . | . | . |
-| `image:write` | `POST` | `/api/v1/image/templates` | . | . | . | . | . | . | . |
-| `image:write` | `PUT` | `/api/v1/image/templates/{template_id}` | . | . | . | . | . | . | . |
-| `image:write` | `PUT` | `/api/v1/image/templates/{template_id}/image` | . | . | . | . | . | . | . |
-| `info_cards:delete` | `DELETE` | `/api/v1/info-cards/{card_id}` | . | Y | . | . | . | . | . |
-| `info_cards:delete` | `DELETE` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | . | Y | . | . | . | . | . |
-| `info_cards:read` | `GET` | `/api/v1/info-cards` | Y | Y | . | . | . | . | . |
-| `info_cards:read` | `GET` | `/api/v1/info-cards/{card_id}` | Y | Y | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards` | . | Y | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards/suggest` | . | Y | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards/voice-instruction-suggest` | . | Y | . | . | . | . | . |
-| `info_cards:write` | `PATCH` | `/api/v1/info-cards/{card_id}` | . | Y | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/approve` | . | Y | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/archive` | . | Y | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/restore` | . | Y | . | . | . | . | . |
-| `info_cards:write` | `PATCH` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | . | Y | . | . | . | . | . |
-| `info_cards:write` | `PUT` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | . | Y | . | . | . | . | . |
-| `interactive_responses:read` | `GET` | `/api/v1/interactive-responses` | Y | Y | Y | . | . | . | . |
-| `knowledge.documents:delete` | `DELETE` | `/api/v1/knowledge/documents/{doc_id}` | . | Y | . | . | . | . | . |
-| `knowledge.documents:delete` | `DELETE` | `/api/v1/knowledge/documents/{doc_id}/images/{img_id}` | . | Y | . | . | . | . | . |
-| `knowledge.documents:read` | `GET` | `/api/v1/knowledge/documents` | Y | Y | Y | . | . | . | . |
-| `knowledge.documents:read` | `GET` | `/api/v1/knowledge/documents/{doc_id}` | Y | Y | Y | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents` | . | Y | . | . | . | . | . |
-| `knowledge.documents:write` | `PATCH` | `/api/v1/knowledge/documents/{doc_id}` | . | Y | . | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/approve` | . | Y | . | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/archive` | . | Y | . | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/images` | . | Y | . | . | . | . | . |
-| `knowledge.documents:write` | `PATCH` | `/api/v1/knowledge/documents/{doc_id}/images/{img_id}` | . | Y | . | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/reembed` | . | Y | . | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/restore` | . | Y | . | . | . | . | . |
-| `knowledge.interactions:read` | `GET` | `/api/v1/knowledge-interactions/info-card-deliveries` | Y | Y | Y | . | . | . | . |
-| `knowledge.interactions:read` | `GET` | `/api/v1/knowledge-interactions/queries` | Y | Y | Y | . | . | . | . |
-| `knowledge.interactions:read` | `GET` | `/api/v1/knowledge-interactions/quiz-sessions` | Y | Y | Y | . | . | . | . |
-| `knowledge.interactions:read` | `GET` | `/api/v1/knowledge-interactions/quiz-sessions/{session_id}` | Y | Y | Y | . | . | . | . |
-| `knowledge.interactions:read` | `GET` | `/api/v1/knowledge/analytics/tags` | Y | Y | Y | . | . | . | . |
-| `knowledge.layouts:read` | `GET` | `/api/v1/knowledge/layouts` | Y | Y | . | . | . | . | . |
-| `knowledge.layouts:read` | `GET` | `/api/v1/knowledge/layouts/{layout_id}` | Y | Y | . | . | . | . | . |
-| `knowledge.layouts:read` | `GET` | `/api/v1/knowledge/voice-defaults` | Y | Y | . | . | . | . | . |
-| `media:read` | `GET` | `/api/v1/media/aggregators` | Y | Y | Y | . | . | . | . |
-| `media:read` | `GET` | `/api/v1/media/buffer` | Y | Y | Y | . | . | . | . |
-| `medication:read` | `GET` | `/api/v1/persons/{person_id}/medication-schedule` | Y | Y | Y | . | . | . | . |
-| `medication:write` | `POST` | `/api/v1/persons/{person_id}/medication-schedule` | . | . | . | . | . | . | . |
-| `medication:write` | `DELETE` | `/api/v1/persons/{person_id}/medication-schedule/{entry_id}` | . | . | . | . | . | . | . |
-| `medication:write` | `PATCH` | `/api/v1/persons/{person_id}/medication-schedule/{entry_id}` | . | . | . | . | . | . | . |
-| `occupancy:read` | `GET` | `/api/v1/occupancy/` | Y | Y | Y | . | . | . | . |
-| `occupancy:read` | `GET` | `/api/v1/occupancy/history` | Y | Y | Y | . | . | . | . |
-| `persons.enrollment:delete` | `DELETE` | `/api/v1/persons/{person_id}/enrollment` | . | Y | . | . | . | . | . |
-| `persons.enrollment:write` | `POST` | `/api/v1/persons/{person_id}/enroll` | . | Y | . | . | . | . | . |
-| `persons.heights:read` | `GET` | `/api/v1/persons/heights` | . | . | . | . | Y | . | . |
-| `persons.location:read` | `GET` | `/api/v1/persons/locations` | Y | Y | Y | . | . | . | . |
-| `persons.location:read` | `GET` | `/api/v1/persons/{person_id}/dwell` | Y | Y | Y | . | . | . | . |
-| `persons.location:read` | `GET` | `/api/v1/persons/{person_id}/location` | Y | Y | Y | . | . | . | . |
-| `persons.location:read` | `GET` | `/api/v1/persons/{person_id}/presence-history` | Y | Y | Y | . | . | . | . |
-| `persons.location:read` | `GET` | `/api/v1/rooms/{room_id}/occupants` | Y | Y | Y | . | . | . | . |
-| `persons.location:write` | `POST` | `/api/v1/persons/{person_id}/location/override` | . | . | . | . | . | . | . |
-| `persons:delete` | `DELETE` | `/api/v1/persons/{person_id}` | . | . | . | . | . | . | . |
-| `persons:read` | `GET` | `/api/v1/persons` | Y | Y | Y | . | . | . | . |
-| `persons:read` | `GET` | `/api/v1/persons/enrolled` | Y | Y | Y | . | . | . | . |
-| `persons:read` | `GET` | `/api/v1/persons/roster-health` | Y | Y | Y | . | . | . | . |
-| `persons:read` | `GET` | `/api/v1/persons/{person_id}` | Y | Y | Y | . | . | . | . |
-| `persons:read` | `GET` | `/api/v1/persons/{person_id}/enrollment` | Y | Y | Y | . | . | . | . |
-| `persons:read` | `GET` | `/api/v1/persons/{person_id}/height-profile` | Y | Y | Y | . | . | . | . |
-| `persons:write` | `POST` | `/api/v1/persons` | . | . | . | . | . | . | . |
-| `persons:write` | `PATCH` | `/api/v1/persons/{person_id}` | . | . | . | . | . | . | . |
-| `pipeline.events:read` | `WS` | `/ws/pipeline` | Y | Y | . | . | . | . | . |
-| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/channel-types` | Y | Y | Y | . | . | . | . |
-| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/data-keys` | Y | Y | Y | . | . | . | . |
-| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/filter-types` | Y | Y | Y | . | . | . | . |
-| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/image-sources/sample` | Y | Y | Y | . | . | . | . |
-| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/llm-models` | Y | Y | Y | . | . | . | . |
-| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/step-types` | Y | Y | Y | . | . | . | . |
-| `pipeline.runs:read` | `GET` | `/api/v1/pipeline/ingest/activity` | Y | Y | . | . | . | . | . |
-| `pipeline.runs:read` | `GET` | `/api/v1/pipeline/runs` | Y | Y | . | . | . | . | . |
-| `pipeline.runs:read` | `GET` | `/api/v1/pipeline/runs/{execution_id}` | Y | Y | . | . | . | . | . |
-| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}` | . | Y | . | . | . | . | . |
-| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}/questions/{qid}` | . | Y | . | . | . | . | . |
-| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/image` | . | Y | . | . | . | . | . |
-| `quizzes:read` | `GET` | `/api/v1/quizzes` | Y | Y | Y | . | . | . | . |
-| `quizzes:read` | `GET` | `/api/v1/quizzes/{quiz_id}` | Y | Y | Y | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/suggest` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/voice-instruction-suggest` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `PATCH` | `/api/v1/quizzes/{quiz_id}` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/approve` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/archive` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `PUT` | `/api/v1/quizzes/{quiz_id}/questions` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions/reorder` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `PATCH` | `/api/v1/quizzes/{quiz_id}/questions/{qid}` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `PUT` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/image` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/regenerate` | . | Y | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/restore` | . | Y | . | . | . | . | . |
-| `room_zones:read` | `GET` | `/api/v1/persons/{person_id}/current-zone` | Y | Y | Y | . | . | . | . |
-| `room_zones:read` | `GET` | `/api/v1/rooms/{room_id}/zones` | Y | Y | Y | . | . | . | . |
-| `room_zones:write` | `POST` | `/api/v1/rooms/{room_id}/zones` | . | . | . | . | . | . | . |
-| `room_zones:write` | `DELETE` | `/api/v1/zones/{zone_id}` | . | . | . | . | . | . | . |
-| `room_zones:write` | `PATCH` | `/api/v1/zones/{zone_id}` | . | . | . | . | . | . | . |
-| `rooms:read` | `GET` | `/api/v1/rooms` | Y | Y | Y | . | Y | . | . |
-| `rooms:read` | `GET` | `/api/v1/rooms/{room_id}` | Y | Y | Y | . | Y | . | . |
-| `rooms:write` | `POST` | `/api/v1/rooms` | . | . | . | . | . | . | . |
-| `rooms:write` | `DELETE` | `/api/v1/rooms/{room_id}` | . | . | . | . | . | . | . |
-| `rooms:write` | `PUT` | `/api/v1/rooms/{room_id}` | . | . | . | . | . | . | . |
-| `routines:read` | `GET` | `/api/v1/routines` | Y | Y | . | . | . | . | . |
-| `routines:read` | `GET` | `/api/v1/routines/activity-type-options` | Y | Y | . | . | . | . | . |
-| `routines:read` | `GET` | `/api/v1/routines/language-options` | Y | Y | . | . | . | . | . |
-| `routines:read` | `GET` | `/api/v1/routines/{routine_id}` | Y | Y | . | . | . | . | . |
-| `routines:write` | `POST` | `/api/v1/routines` | . | . | . | . | . | . | . |
-| `routines:write` | `DELETE` | `/api/v1/routines/{routine_id}` | . | . | . | . | . | . | . |
-| `routines:write` | `PATCH` | `/api/v1/routines/{routine_id}` | . | . | . | . | . | . | . |
-| `routines:write` | `PUT` | `/api/v1/routines/{routine_id}/steps` | . | . | . | . | . | . | . |
-| `routines:write` | `POST` | `/api/v1/routines/{routine_id}/test-run` | . | . | . | . | . | . | . |
-| `rules:execute` | `POST` | `/api/v1/rules/{rule_id}/execute` | . | . | . | . | . | . | . |
-| `rules:import` | `POST` | `/api/v1/rules/import` | . | . | . | Y | . | . | . |
-| `rules:import` | `POST` | `/api/v1/rules/import/preview` | . | . | . | Y | . | . | . |
-| `rules:read` | `GET` | `/api/v1/rules` | Y | Y | Y | . | . | . | . |
-| `rules:read` | `GET` | `/api/v1/rules/cron-triggers` | Y | Y | Y | . | . | . | . |
-| `rules:read` | `GET` | `/api/v1/rules/cts-window-triggers` | Y | Y | Y | . | . | . | . |
-| `rules:read` | `GET` | `/api/v1/rules/{rule_id}` | Y | Y | Y | . | . | . | . |
-| `rules:read` | `GET` | `/api/v1/rules/{rule_id}/contexts` | Y | Y | Y | . | . | . | . |
-| `rules:read` | `GET` | `/api/v1/rules/{rule_id}/dependencies` | Y | Y | Y | . | . | . | . |
-| `rules:read` | `GET` | `/api/v1/rules/{rule_id}/edges` | Y | Y | Y | . | . | . | . |
-| `rules:read` | `GET` | `/api/v1/rules/{rule_id}/export` | Y | Y | Y | . | . | . | . |
-| `rules:read` | `GET` | `/api/v1/rules/{rule_id}/steps` | Y | Y | Y | . | . | . | . |
-| `rules:write` | `POST` | `/api/v1/pipeline/cron/preview` | . | . | . | . | . | . | . |
-| `rules:write` | `POST` | `/api/v1/rules` | . | . | . | . | . | . | . |
-| `rules:write` | `POST` | `/api/v1/rules/cron-triggers` | . | . | . | . | . | . | . |
-| `rules:write` | `DELETE` | `/api/v1/rules/cron-triggers/{ct_id}` | . | . | . | . | . | . | . |
-| `rules:write` | `PUT` | `/api/v1/rules/cron-triggers/{ct_id}` | . | . | . | . | . | . | . |
-| `rules:write` | `POST` | `/api/v1/rules/cts-window-triggers` | . | . | . | . | . | . | . |
-| `rules:write` | `DELETE` | `/api/v1/rules/cts-window-triggers/{ct_id}` | . | . | . | . | . | . | . |
-| `rules:write` | `PUT` | `/api/v1/rules/cts-window-triggers/{ct_id}` | . | . | . | . | . | . | . |
-| `rules:write` | `DELETE` | `/api/v1/rules/{rule_id}` | . | . | . | . | . | . | . |
-| `rules:write` | `PUT` | `/api/v1/rules/{rule_id}` | . | . | . | . | . | . | . |
-| `rules:write` | `POST` | `/api/v1/rules/{rule_id}/contexts` | . | . | . | . | . | . | . |
-| `rules:write` | `DELETE` | `/api/v1/rules/{rule_id}/contexts/{context_id}` | . | . | . | . | . | . | . |
-| `rules:write` | `POST` | `/api/v1/rules/{rule_id}/dependencies` | . | . | . | . | . | . | . |
-| `rules:write` | `DELETE` | `/api/v1/rules/{rule_id}/dependencies/{dep_id}` | . | . | . | . | . | . | . |
-| `rules:write` | `PUT` | `/api/v1/rules/{rule_id}/edges` | . | . | . | . | . | . | . |
-| `rules:write` | `POST` | `/api/v1/rules/{rule_id}/steps` | . | . | . | . | . | . | . |
-| `rules:write` | `PUT` | `/api/v1/rules/{rule_id}/steps/positions` | . | . | . | . | . | . | . |
-| `rules:write` | `DELETE` | `/api/v1/rules/{rule_id}/steps/{step_id:int}` | . | . | . | . | . | . | . |
-| `rules:write` | `PUT` | `/api/v1/rules/{rule_id}/steps/{step_id:int}` | . | . | . | . | . | . | . |
-| `rules:write` | `POST` | `/api/v1/rules/{rule_id}/validate` | . | . | . | . | . | . | . |
-| `rules:write` | `POST` | `/api/v1/webhooks/{rule_id}/generate-secret` | . | . | . | . | . | . | . |
-| `sensors:read` | `GET` | `/api/v1/sensors` | Y | Y | Y | . | . | . | . |
-| `sensors:read` | `GET` | `/api/v1/sensors/{sensor_id}` | Y | Y | Y | . | . | . | . |
-| `sensors:write` | `POST` | `/api/v1/sensors` | . | . | . | . | . | . | . |
-| `sensors:write` | `DELETE` | `/api/v1/sensors/{sensor_id}` | . | . | . | . | . | . | . |
-| `sensors:write` | `PUT` | `/api/v1/sensors/{sensor_id}` | . | . | . | . | . | . | . |
-| `signals.feed:read` | `GET` | `/api/v1/signals/feed` | Y | Y | Y | . | . | . | . |
-| `visitors:review` | `GET` | `/api/v1/visitors/clusters` | Y | . | . | . | . | . | . |
-| `visitors:review` | `POST` | `/api/v1/visitors/clusters/review` | Y | . | . | . | . | . | . |
-| `visitors:review` | `POST` | `/api/v1/visitors/clusters/{cluster_a}/merge/{cluster_b}` | Y | . | . | . | . | . | . |
-| `visitors:review` | `GET` | `/api/v1/visitors/clusters/{cluster_id}` | Y | . | . | . | . | . | . |
-| `visitors:review` | `POST` | `/api/v1/visitors/clusters/{cluster_id}/name` | Y | . | . | . | . | . | . |
-| `wearables.site_config:read` | `GET` | `/api/v1/wearables/site-config` | . | . | . | . | Y | . | . |
-| `wearables.teaching:write` | `POST` | `/api/v1/wearables/associations/{segment_id}/revoke` | Y | . | . | . | . | . | . |
-| `wearables.teaching:write` | `POST` | `/api/v1/wearables/tags/{tag_id}/resume-teaching` | Y | . | . | . | . | . | . |
-| `wearables:read` | `GET` | `/api/v1/wearables/assignments` | Y | Y | Y | . | . | . | . |
-| `wearables:read` | `GET` | `/api/v1/wearables/devices` | Y | Y | Y | . | . | . | . |
-| `wearables:read` | `GET` | `/api/v1/wearables/devices/{device_id}` | Y | Y | Y | . | . | . | . |
-| `wearables:read` | `GET` | `/api/v1/wearables/devices/{device_id}/associations` | Y | Y | Y | . | . | . | . |
-| `wearables:read` | `GET` | `/api/v1/wearables/devices/{device_id}/bindings` | Y | Y | Y | . | . | . | . |
-| `wearables:read` | `GET` | `/api/v1/wearables/devices/{device_id}/status` | Y | Y | Y | . | . | . | . |
-| `wearables:read` | `GET` | `/api/v1/wearables/nodes` | Y | Y | Y | . | . | . | . |
-| `wearables:read` | `POST` | `/api/v1/wearables/nodes/survey-check` | Y | Y | Y | . | . | . | . |
-| `wearables:read` | `GET` | `/api/v1/wearables/nodes/{node_id}` | Y | Y | Y | . | . | . | . |
-| `wearables:write` | `POST` | `/api/v1/wearables/devices` | . | . | . | . | . | . | . |
-| `wearables:write` | `PATCH` | `/api/v1/wearables/devices/{device_id}` | . | . | . | . | . | . | . |
-| `wearables:write` | `POST` | `/api/v1/wearables/devices/{device_id}/bind` | . | . | . | . | . | . | . |
-| `wearables:write` | `POST` | `/api/v1/wearables/devices/{device_id}/unbind` | . | . | . | . | . | . | . |
-| `wearables:write` | `POST` | `/api/v1/wearables/nodes` | . | . | . | . | . | . | . |
-| `wearables:write` | `DELETE` | `/api/v1/wearables/nodes/{node_id}` | . | . | . | . | . | . | . |
-| `wearables:write` | `PATCH` | `/api/v1/wearables/nodes/{node_id}` | . | . | . | . | . | . | . |
-| `workflows:execute` | `POST` | `/api/v1/workflows/{execution_id}/cancel` | . | . | . | . | . | . | . |
-| `workflows:execute` | `POST` | `/api/v1/workflows/{execution_id}/rerun` | . | . | . | . | . | . | . |
-| `workflows:read` | `GET` | `/api/v1/workflows` | Y | Y | Y | . | . | . | . |
-| `workflows:read` | `GET` | `/api/v1/workflows/{execution_id}` | Y | Y | Y | . | . | . | . |
-| `workflows:read` | `GET` | `/api/v1/workflows/{execution_id}/detail` | Y | Y | Y | . | . | . | . |
+| D4 token | Method | Path | `caregiver_admin` | `caregiver` | `mcp_readonly` | `mcp_rules_import` | `cts_ingress` | `device_recamera` | `device_reterminal` | `companion_test_device` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `activities.sessions:write` | `POST` | `/api/v1/activities/sessions/open` | . | . | . | . | . | . | . | . |
+| `activities.sessions:write` | `POST` | `/api/v1/activities/sessions/{session_id}/close` | . | . | . | . | . | . | . | . |
+| `activities:read` | `GET` | `/api/v1/activities` | Y | Y | Y | . | . | . | . | . |
+| `activities:read` | `GET` | `/api/v1/activities/reports/{person_id}/{date}` | Y | Y | Y | . | . | . | . | . |
+| `activities:read` | `GET` | `/api/v1/activities/reports/{person_id}/{date}/regenerate` | Y | Y | Y | . | . | . | . | . |
+| `activities:read` | `GET` | `/api/v1/activities/sessions/open` | Y | Y | Y | . | . | . | . | . |
+| `activities:read` | `GET` | `/api/v1/activities/timeline` | Y | Y | Y | . | . | . | . | . |
+| `admin.channels:read` | `GET` | `/api/v1/admin/notification-channels/audit` | Y | Y | . | . | . | . | . | . |
+| `admin.config:read` | `GET` | `/api/v1/admin/config/current` | Y | Y | . | . | . | . | . | . |
+| `admin.config:read` | `GET` | `/api/v1/admin/telegram/trigger-defaults` | Y | Y | . | . | . | . | . | . |
+| `admin.config:write` | `POST` | `/api/v1/admin/config/reload` | . | . | . | . | . | . | . | . |
+| `admin:read` | `GET` | `/api/v1/admin/cts-metrics` | Y | Y | . | . | . | . | . | . |
+| `admin:read` | `GET` | `/api/v1/admin/daily-living-health` | Y | Y | . | . | . | . | . | . |
+| `admin:read` | `GET` | `/api/v1/admin/health/llm-models` | Y | Y | . | . | . | . | . | . |
+| `admin:read` | `GET` | `/api/v1/admin/health/person-id` | Y | Y | . | . | . | . | . | . |
+| `admin:read` | `GET` | `/api/v1/admin/health/scene-analysis` | Y | Y | . | . | . | . | . | . |
+| `admin:read` | `GET` | `/api/v1/admin/health/semantic-memory` | Y | Y | . | . | . | . | . | . |
+| `admin:read` | `GET` | `/api/v1/admin/health/tracking-orchestrator` | Y | Y | . | . | . | . | . | . |
+| `admin:read` | `GET` | `/api/v1/admin/health/triton` | Y | Y | . | . | . | . | . | . |
+| `admin:read` | `GET` | `/api/v1/admin/health/tts` | Y | Y | . | . | . | . | . | . |
+| `admin:read` | `GET` | `/api/v1/admin/inference-telemetry` | Y | Y | . | . | . | . | . | . |
+| `companion.audio:act` | `WS` | `/ws/audio` | Y | Y | . | . | . | . | Y | Y |
+| `companion_surfaces.test:execute` | `POST` | `/api/v1/companion-surfaces/{surface_id}/test` | Y | Y | . | . | . | . | . | Y |
+| `companion_surfaces:heartbeat` | `POST` | `/api/v1/companion-surfaces/{surface_id}/heartbeat` | . | . | . | . | . | . | Y | Y |
+| `companion_surfaces:read` | `GET` | `/api/v1/companion-surfaces` | Y | Y | . | . | . | . | . | . |
+| `companion_surfaces:write` | `POST` | `/api/v1/companion-surfaces` | Y | Y | . | . | . | . | . | . |
+| `companion_surfaces:write` | `PATCH` | `/api/v1/companion-surfaces/{surface_id}` | Y | Y | . | . | . | . | . | . |
+| `conversations:read` | `GET` | `/api/v1/conversations/recent` | Y | Y | Y | . | . | . | . | . |
+| `cts.analytics.heatmap:read` | `GET` | `/api/v1/cts/analytics/heatmap` | Y | Y | Y | . | . | . | . | . |
+| `cts.bboxes:read` | `GET` | `/api/v1/cts/identity/keyframes/{keyframe_id}/bboxes` | Y | Y | . | . | . | . | . | . |
+| `cts.bboxes:write` | `POST` | `/api/v1/cts/identity/bboxes/batch` | Y | . | . | . | . | . | . | . |
+| `cts.bboxes:write` | `PUT` | `/api/v1/cts/identity/bboxes/{annotation_id}/override` | Y | . | . | . | . | . | . | . |
+| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/auto/{camera_id}` | . | . | . | . | . | . | . | . |
+| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/floor_region/{camera_id}` | . | . | . | . | . | . | . | . |
+| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/homography` | . | . | . | . | . | . | . | . |
+| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/homography/preview` | . | . | . | . | . | . | . | . |
+| `cts.calibration:calibrate` | `DELETE` | `/api/v1/cts/calibration/homography/{camera_id}` | . | . | . | . | . | . | . | . |
+| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/privacy_zones` | . | . | . | . | . | . | . | . |
+| `cts.calibration:calibrate` | `POST` | `/api/v1/cts/calibration/visibility_polygons/recompute` | . | . | . | . | . | . | . | . |
+| `cts.calibration:read` | `GET` | `/api/v1/cts/calibration/floor_region_default/{camera_id}` | Y | Y | . | . | . | . | . | . |
+| `cts.calibration:read` | `GET` | `/api/v1/cts/calibration/health` | Y | Y | . | . | . | . | . | . |
+| `cts.calibration:read` | `GET` | `/api/v1/cts/calibration/homography/{camera_id}` | Y | Y | . | . | . | . | . | . |
+| `cts.calibration:read` | `GET` | `/api/v1/cts/calibration/privacy_zones/{camera_id}` | Y | Y | . | . | . | . | . | . |
+| `cts.calibration:read` | `GET` | `/api/v1/cts/calibration/visibility_polygons` | Y | Y | . | . | . | . | . | . |
+| `cts.cameras.roster:read` | `GET` | `/api/v1/cts/cameras` | Y | Y | . | . | Y | . | . | . |
+| `cts.cameras.roster:read` | `GET` | `/api/v1/cts/overlap_groups` | Y | Y | . | . | Y | . | . | . |
+| `cts.cameras.roster:read` | `GET` | `/api/v1/cts/transit-zones` | Y | Y | . | . | Y | . | . | . |
+| `cts.cameras:read` | `GET` | `/api/v1/cts/cameras/{camera_id}` | Y | Y | . | . | . | . | . | . |
+| `cts.cameras:read` | `GET` | `/api/v1/cts/cameras/{camera_id}/health` | Y | Y | . | . | . | . | . | . |
+| `cts.cameras:read` | `GET` | `/api/v1/cts/cameras/{camera_id}/optics` | Y | Y | . | . | . | . | . | . |
+| `cts.cameras:read` | `GET` | `/api/v1/cts/cameras/{camera_id}/snapshot` | Y | Y | . | . | . | . | . | . |
+| `cts.cameras:read` | `GET` | `/api/v1/cts/diagnostics/calibration` | Y | Y | . | . | . | . | . | . |
+| `cts.cameras:read` | `GET` | `/api/v1/cts/frames/{key:path}` | Y | Y | . | . | . | . | . | . |
+| `cts.cameras:read` | `GET` | `/api/v1/cts/overlap_groups/suggested` | Y | Y | . | . | . | . | . | . |
+| `cts.cameras:read` | `GET` | `/api/v1/cts/topology/transitions` | Y | Y | . | . | . | . | . | . |
+| `cts.cameras:read` | `GET` | `/api/v1/cts/transit-zones/{zone_id}` | Y | Y | . | . | . | . | . | . |
+| `cts.cameras:write` | `POST` | `/api/v1/cts/cameras` | . | . | . | . | . | . | . | . |
+| `cts.cameras:write` | `POST` | `/api/v1/cts/cameras/optics-preview` | . | . | . | . | . | . | . | . |
+| `cts.cameras:write` | `POST` | `/api/v1/cts/cameras/test-connect` | . | . | . | . | . | . | . | . |
+| `cts.cameras:write` | `DELETE` | `/api/v1/cts/cameras/{camera_id}` | . | . | . | . | . | . | . | . |
+| `cts.cameras:write` | `PATCH` | `/api/v1/cts/cameras/{camera_id}` | . | . | . | . | . | . | . | . |
+| `cts.cameras:write` | `DELETE` | `/api/v1/cts/cameras/{camera_id}/marker` | . | . | . | . | . | . | . | . |
+| `cts.cameras:write` | `PUT` | `/api/v1/cts/cameras/{camera_id}/marker` | . | . | . | . | . | . | . | . |
+| `cts.cameras:write` | `POST` | `/api/v1/cts/cameras/{camera_id}/reload` | . | . | . | . | . | . | . | . |
+| `cts.cameras:write` | `POST` | `/api/v1/cts/overlap_groups` | . | . | . | . | . | . | . | . |
+| `cts.cameras:write` | `DELETE` | `/api/v1/cts/overlap_groups/{group_id}` | . | . | . | . | . | . | . | . |
+| `cts.gait.trend:read` | `GET` | `/api/v1/cts/gait/trend` | Y | Y | Y | . | . | . | . | . |
+| `cts.identity.corrections:correct` | `POST` | `/api/v1/cts/identity/corrections/apply` | Y | . | . | . | . | . | . | . |
+| `cts.identity.corrections:correct` | `POST` | `/api/v1/cts/identity/corrections/{correction_id}/compensate` | Y | . | . | . | . | . | . | . |
+| `cts.identity.gallery:review` | `GET` | `/api/v1/cts/identity/reid-review/candidates` | Y | . | . | . | . | . | . | . |
+| `cts.identity.gallery:review` | `GET` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}` | Y | . | . | . | . | . | . | . |
+| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/approve` | Y | . | . | . | . | . | . | . |
+| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/compensate` | Y | . | . | . | . | . | . | . |
+| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/demote` | Y | . | . | . | . | . | . | . |
+| `cts.identity.gallery:review` | `GET` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/events` | Y | . | . | . | . | . | . | . |
+| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/reject` | Y | . | . | . | . | . | . | . |
+| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/candidates/{candidate_id}/relabel` | Y | . | . | . | . | . | . | . |
+| `cts.identity.gallery:review` | `GET` | `/api/v1/cts/identity/reid-review/counts` | Y | . | . | . | . | . | . | . |
+| `cts.identity.gallery:review` | `POST` | `/api/v1/cts/identity/reid-review/review` | Y | . | . | . | . | . | . | . |
+| `cts.identity:correct` | `DELETE` | `/api/v1/cts/identity/bboxes/{annotation_id}` | . | . | . | . | . | . | . | . |
+| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/batch_correct` | . | . | . | . | . | . | . | . |
+| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/batch_delete` | . | . | . | . | . | . | . | . |
+| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/batch_merge` | . | . | . | . | . | . | . | . |
+| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/merge` | . | . | . | . | . | . | . | . |
+| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/purge_unknown` | . | . | . | . | . | . | . | . |
+| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/{ph_id}/correct` | . | . | . | . | . | . | . | . |
+| `cts.identity:correct` | `POST` | `/api/v1/cts/ph/{ph_id}/split` | . | . | . | . | . | . | . | . |
+| `cts.identity:propose` | `POST` | `/api/v1/cts/identity/corrections/propose` | Y | . | . | . | . | . | . | . |
+| `cts.identity:read` | `GET` | `/api/v1/cts/identity/corrections/jobs/{revision_id}` | Y | Y | Y | . | . | . | . | . |
+| `cts.identity:read` | `GET` | `/api/v1/cts/identity/identities` | Y | Y | Y | . | . | . | . | . |
+| `cts.identity:read` | `GET` | `/api/v1/cts/ph` | Y | Y | Y | . | . | . | . | . |
+| `cts.identity:read` | `GET` | `/api/v1/cts/ph/revisions` | Y | Y | Y | . | . | . | . | . |
+| `cts.identity:read` | `GET` | `/api/v1/cts/ph/{ph_id}` | Y | Y | Y | . | . | . | . | . |
+| `cts.identity:read` | `GET` | `/api/v1/cts/ph/{ph_id}/co_present` | Y | Y | Y | . | . | . | . | . |
+| `cts.identity:read` | `GET` | `/api/v1/cts/ph/{ph_id}/keyframes` | Y | Y | Y | . | . | . | . | . |
+| `cts.identity:read` | `GET` | `/api/v1/cts/ph/{ph_id}/observations` | Y | Y | Y | . | . | . | . | . |
+| `cts.identity:read` | `GET` | `/api/v1/cts/ph/{ph_id}/trail` | Y | Y | Y | . | . | . | . | . |
+| `cts.keyframes:read` | `GET` | `/api/v1/cts/keyframes` | Y | Y | Y | . | . | . | . | . |
+| `cts.keyframes:read` | `GET` | `/api/v1/cts/keyframes/{sample_id}` | Y | Y | Y | . | . | . | . | . |
+| `cts.keyframes:write` | `POST` | `/api/v1/cts/keyframes/{sample_id}/retain` | . | . | . | . | . | . | . | . |
+| `cts.live:read` | `WS` | `/ws/cts` | Y | Y | . | . | . | . | . | . |
+| `cts.presence.config:write` | `POST` | `/api/v1/cts/presence-config/reload` | . | Y | . | . | . | . | . | . |
+| `cts.presence:read` | `GET` | `/api/v1/cts/presence-config` | Y | Y | . | . | . | . | . | . |
+| `cts.presence:read` | `GET` | `/api/v1/cts/presence/currently_in` | Y | Y | . | . | . | . | . | . |
+| `cts.presence:read` | `GET` | `/api/v1/cts/presence/dwells/{person_id}` | Y | Y | . | . | . | . | . | . |
+| `cts.presence:read` | `GET` | `/api/v1/cts/presence/timeline/{person_id}` | Y | Y | . | . | . | . | . | . |
+| `cts.presence:read` | `GET` | `/api/v1/cts/presence/{person_id}` | Y | Y | . | . | . | . | . | . |
+| `cts.reports.weekly:read` | `POST` | `/api/v1/cts/reports/weekly` | Y | . | . | . | . | . | . | . |
+| `cts.signals.evidence:read` | `GET` | `/api/v1/cts/signals/explorer` | Y | Y | . | . | . | . | . | . |
+| `cts.signals.evidence:read` | `GET` | `/api/v1/cts/signals/{signal_id}/evidence` | Y | Y | . | . | . | . | . | . |
+| `cts.signals.suppressions:delete` | `DELETE` | `/api/v1/cts/dashboard/suppressions/{suppression_id}` | . | . | . | . | . | . | . | . |
+| `cts.signals.suppressions:write` | `POST` | `/api/v1/cts/dashboard/suppressions` | . | . | . | . | . | . | . | . |
+| `cts.signals:acknowledge` | `POST` | `/api/v1/cts/signals/{signal_id}/ack` | . | . | . | . | . | . | . | . |
+| `cts.signals:delete` | `DELETE` | `/api/v1/cts/signals/batch` | . | . | . | . | . | . | . | . |
+| `cts.signals:delete` | `DELETE` | `/api/v1/cts/signals/{signal_id}` | . | . | . | . | . | . | . | . |
+| `cts.signals:read` | `GET` | `/api/v1/cts/dashboard/dwell_summary` | Y | Y | Y | . | . | . | . | . |
+| `cts.signals:read` | `GET` | `/api/v1/cts/dashboard/overview` | Y | Y | Y | . | . | . | . | . |
+| `cts.signals:read` | `GET` | `/api/v1/cts/dashboard/signals` | Y | Y | Y | . | . | . | . | . |
+| `cts.signals:read` | `GET` | `/api/v1/cts/dashboard/trajectory` | Y | Y | Y | . | . | . | . | . |
+| `cts.signals:read` | `GET` | `/api/v1/cts/dashboard/unacknowledged-count` | Y | Y | Y | . | . | . | . | . |
+| `cts.signals:read` | `GET` | `/api/v1/cts/signals` | Y | Y | Y | . | . | . | . | . |
+| `cts.signals:read` | `GET` | `/api/v1/cts/signals/summary` | Y | Y | Y | . | . | . | . | . |
+| `cts.signals:read` | `GET` | `/api/v1/cts/signals/trend/{person_id}` | Y | Y | Y | . | . | . | . | . |
+| `cts.signals:read` | `GET` | `/api/v1/cts/signals/unacknowledged` | Y | Y | Y | . | . | . | . | . |
+| `cts.transit_zones:write` | `POST` | `/api/v1/cts/transit-zones` | Y | . | . | . | . | . | . | . |
+| `cts.transit_zones:write` | `DELETE` | `/api/v1/cts/transit-zones/{zone_id}` | Y | . | . | . | . | . | . | . |
+| `cts.transit_zones:write` | `PATCH` | `/api/v1/cts/transit-zones/{zone_id}` | Y | . | . | . | . | . | . | . |
+| `cts:read` | `GET` | `/api/v1/cts/features` | Y | Y | Y | . | . | . | . | . |
+| `cts:read` | `GET` | `/api/v1/cts/status` | Y | Y | Y | . | . | . | . | . |
+| `cts:read` | `GET` | `/api/v1/cts/trajectory/recent` | Y | Y | Y | . | . | . | . | . |
+| `device.recamera:ingest` | `POST` | `/api/v1/device/recamera` | . | . | . | . | . | Y | . | . |
+| `events:read` | `GET` | `/api/v1/events` | Y | Y | Y | . | . | . | . | . |
+| `events:read` | `GET` | `/api/v1/events/{event_id}` | Y | Y | Y | . | . | . | . | . |
+| `face_calibration:review` | `GET` | `/api/v1/face-calibration/attestations` | Y | . | . | . | . | . | . | . |
+| `face_calibration:review` | `GET` | `/api/v1/face-calibration/attestations/audit-sample` | Y | . | . | . | . | . | . | . |
+| `face_calibration:review` | `GET` | `/api/v1/face-calibration/attestations/audit-summary` | Y | . | . | . | . | . | . | . |
+| `face_calibration:review` | `POST` | `/api/v1/face-calibration/attestations/{candidate_id}/audit` | Y | . | . | . | . | . | . | . |
+| `face_calibration:review` | `GET` | `/api/v1/face-calibration/candidates` | Y | . | . | . | . | . | . | . |
+| `face_calibration:review` | `POST` | `/api/v1/face-calibration/candidates/review` | Y | . | . | . | . | . | . | . |
+| `face_calibration:review` | `DELETE` | `/api/v1/face-calibration/candidates/{candidate_id}` | Y | . | . | . | . | . | . | . |
+| `face_calibration:review` | `POST` | `/api/v1/face-calibration/candidates/{candidate_id}/label` | Y | . | . | . | . | . | . | . |
+| `face_calibration:review` | `POST` | `/api/v1/face-calibration/candidates/{candidate_id}/promote` | Y | . | . | . | . | . | . | . |
+| `face_calibration:review` | `POST` | `/api/v1/face-calibration/candidates/{candidate_id}/reject` | Y | . | . | . | . | . | . | . |
+| `face_calibration:review` | `GET` | `/api/v1/face-calibration/summary` | Y | . | . | . | . | . | . | . |
+| `face_prototypes:read` | `GET` | `/api/v1/persons/{person_id}/prototypes` | Y | Y | . | . | . | . | . | . |
+| `face_prototypes:write` | `POST` | `/api/v1/persons/{person_id}/prototypes/rebuild` | Y | . | . | . | . | . | . | . |
+| `face_prototypes:write` | `DELETE` | `/api/v1/persons/{person_id}/prototypes/{prototype_id}` | Y | . | . | . | . | . | . | . |
+| `gate_graphs:read` | `GET` | `/api/v1/gate-graphs` | Y | Y | . | . | . | . | . | . |
+| `gate_graphs:read` | `GET` | `/api/v1/gate-graphs/{rule_id}` | Y | Y | . | . | . | . | . | . |
+| `gate_graphs:read` | `GET` | `/api/v1/gate-presets` | Y | Y | . | . | . | . | . | . |
+| `gate_graphs:write` | `POST` | `/api/v1/gate-graphs` | . | . | . | . | . | . | . | . |
+| `gate_graphs:write` | `POST` | `/api/v1/gate-graphs/{rule_id}/test-run` | . | . | . | . | . | . | . | . |
+| `gate_graphs:write` | `POST` | `/api/v1/gate-graphs/{rule_id}/validate` | . | . | . | . | . | . | . | . |
+| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/abandonment` | Y | Y | Y | . | . | . | . | . |
+| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/attempts-per-step` | Y | Y | Y | . | . | . | . | . |
+| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/completion` | Y | Y | Y | . | . | . | . | . |
+| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/dashboard` | Y | Y | Y | . | . | . | . | . |
+| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/escalation-breakdown` | Y | Y | Y | . | . | . | . | . |
+| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/gate-cost-summary` | Y | Y | Y | . | . | . | . | . |
+| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/time-of-day` | Y | Y | Y | . | . | . | . | . |
+| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/time-to-complete` | Y | Y | Y | . | . | . | . | . |
+| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/vision-agreement` | Y | Y | Y | . | . | . | . | . |
+| `guided_metrics:read` | `GET` | `/api/v1/guided-metrics/watch-summary` | Y | Y | Y | . | . | . | . | . |
+| `guided_sessions.resident_state:read` | `GET` | `/api/v1/guided-sessions/resident-state` | Y | Y | . | . | . | . | Y | Y |
+| `guided_sessions:read` | `GET` | `/api/v1/guided-sessions` | Y | Y | Y | . | . | . | . | . |
+| `guided_sessions:read` | `GET` | `/api/v1/guided-sessions/{session_id}/detail` | Y | Y | Y | . | . | . | . | . |
+| `guided_sessions:takeover` | `POST` | `/api/v1/guided-sessions/{session_id}/advance` | . | . | . | . | . | . | . | . |
+| `guided_sessions:takeover` | `POST` | `/api/v1/guided-sessions/{session_id}/complete` | . | . | . | . | . | . | . | . |
+| `guided_sessions:takeover` | `POST` | `/api/v1/guided-sessions/{session_id}/release` | . | . | . | . | . | . | . | . |
+| `guided_sessions:takeover` | `POST` | `/api/v1/guided-sessions/{session_id}/say` | . | . | . | . | . | . | . | . |
+| `guided_sessions:takeover` | `POST` | `/api/v1/guided-sessions/{session_id}/takeover` | . | . | . | . | . | . | . | . |
+| `ha:read` | `GET` | `/api/v1/ha/entities` | Y | Y | Y | . | . | . | . | . |
+| `ha:read` | `GET` | `/api/v1/ha/media-players` | Y | Y | Y | . | . | . | . | . |
+| `ha:write` | `POST` | `/api/v1/ha/sync/rooms` | . | . | . | . | . | . | . | . |
+| `ha:write` | `POST` | `/api/v1/ha/sync/sensors` | . | . | . | . | . | . | . | . |
+| `household:read` | `GET` | `/api/v1/household/floor-plan` | Y | Y | . | . | Y | . | . | . |
+| `household:write` | `POST` | `/api/v1/household/floor-plan` | . | . | . | . | . | . | . | . |
+| `identity_readiness:read` | `GET` | `/api/v1/identity/readiness` | Y | Y | Y | . | . | . | . | . |
+| `identity_review:read` | `GET` | `/api/v1/identity/review-vocabulary` | Y | Y | . | . | . | . | . | . |
+| `identity_targets:read` | `GET` | `/api/v1/identity/targets` | Y | Y | . | . | . | . | . | . |
+| `image:delete` | `DELETE` | `/api/v1/image/templates/{template_id}` | . | . | . | . | . | . | . | . |
+| `image:read` | `GET` | `/api/v1/image/active` | Y | Y | Y | . | . | . | Y | Y |
+| `image:read` | `GET` | `/api/v1/image/fonts` | Y | Y | Y | . | . | . | Y | Y |
+| `image:read` | `GET` | `/api/v1/image/states` | Y | Y | Y | . | . | . | Y | Y |
+| `image:read` | `GET` | `/api/v1/image/templates` | Y | Y | Y | . | . | . | Y | Y |
+| `image:read` | `GET` | `/api/v1/image/templates/{template_id}/preview` | Y | Y | Y | . | . | . | Y | Y |
+| `image:write` | `POST` | `/api/v1/image/preview` | . | . | . | . | . | . | . | . |
+| `image:write` | `POST` | `/api/v1/image/preview-form` | . | . | . | . | . | . | . | . |
+| `image:write` | `POST` | `/api/v1/image/render` | . | . | . | . | . | . | . | . |
+| `image:write` | `POST` | `/api/v1/image/reset` | . | . | . | . | . | . | . | . |
+| `image:write` | `POST` | `/api/v1/image/templates` | . | . | . | . | . | . | . | . |
+| `image:write` | `PUT` | `/api/v1/image/templates/{template_id}` | . | . | . | . | . | . | . | . |
+| `image:write` | `PUT` | `/api/v1/image/templates/{template_id}/image` | . | . | . | . | . | . | . | . |
+| `info_cards:delete` | `DELETE` | `/api/v1/info-cards/{card_id}` | . | Y | . | . | . | . | . | . |
+| `info_cards:delete` | `DELETE` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | . | Y | . | . | . | . | . | . |
+| `info_cards:read` | `GET` | `/api/v1/info-cards` | Y | Y | . | . | . | . | . | . |
+| `info_cards:read` | `GET` | `/api/v1/info-cards/{card_id}` | Y | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards` | . | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards/suggest` | . | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards/voice-instruction-suggest` | . | Y | . | . | . | . | . | . |
+| `info_cards:write` | `PATCH` | `/api/v1/info-cards/{card_id}` | . | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/approve` | . | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/archive` | . | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/restore` | . | Y | . | . | . | . | . | . |
+| `info_cards:write` | `PATCH` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | . | Y | . | . | . | . | . | . |
+| `info_cards:write` | `PUT` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | . | Y | . | . | . | . | . | . |
+| `interactive_responses:read` | `GET` | `/api/v1/interactive-responses` | Y | Y | Y | . | . | . | . | . |
+| `knowledge.documents:delete` | `DELETE` | `/api/v1/knowledge/documents/{doc_id}` | . | Y | . | . | . | . | . | . |
+| `knowledge.documents:delete` | `DELETE` | `/api/v1/knowledge/documents/{doc_id}/images/{img_id}` | . | Y | . | . | . | . | . | . |
+| `knowledge.documents:read` | `GET` | `/api/v1/knowledge/documents` | Y | Y | Y | . | . | . | . | . |
+| `knowledge.documents:read` | `GET` | `/api/v1/knowledge/documents/{doc_id}` | Y | Y | Y | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents` | . | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `PATCH` | `/api/v1/knowledge/documents/{doc_id}` | . | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/approve` | . | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/archive` | . | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/images` | . | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `PATCH` | `/api/v1/knowledge/documents/{doc_id}/images/{img_id}` | . | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/reembed` | . | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/restore` | . | Y | . | . | . | . | . | . |
+| `knowledge.interactions:read` | `GET` | `/api/v1/knowledge-interactions/info-card-deliveries` | Y | Y | Y | . | . | . | . | . |
+| `knowledge.interactions:read` | `GET` | `/api/v1/knowledge-interactions/queries` | Y | Y | Y | . | . | . | . | . |
+| `knowledge.interactions:read` | `GET` | `/api/v1/knowledge-interactions/quiz-sessions` | Y | Y | Y | . | . | . | . | . |
+| `knowledge.interactions:read` | `GET` | `/api/v1/knowledge-interactions/quiz-sessions/{session_id}` | Y | Y | Y | . | . | . | . | . |
+| `knowledge.interactions:read` | `GET` | `/api/v1/knowledge/analytics/tags` | Y | Y | Y | . | . | . | . | . |
+| `knowledge.layouts:read` | `GET` | `/api/v1/knowledge/layouts` | Y | Y | . | . | . | . | . | . |
+| `knowledge.layouts:read` | `GET` | `/api/v1/knowledge/layouts/{layout_id}` | Y | Y | . | . | . | . | . | . |
+| `knowledge.layouts:read` | `GET` | `/api/v1/knowledge/voice-defaults` | Y | Y | . | . | . | . | . | . |
+| `media:read` | `GET` | `/api/v1/media/aggregators` | Y | Y | Y | . | . | . | . | . |
+| `media:read` | `GET` | `/api/v1/media/buffer` | Y | Y | Y | . | . | . | . | . |
+| `medication:read` | `GET` | `/api/v1/persons/{person_id}/medication-schedule` | Y | Y | Y | . | . | . | . | . |
+| `medication:write` | `POST` | `/api/v1/persons/{person_id}/medication-schedule` | . | . | . | . | . | . | . | . |
+| `medication:write` | `DELETE` | `/api/v1/persons/{person_id}/medication-schedule/{entry_id}` | . | . | . | . | . | . | . | . |
+| `medication:write` | `PATCH` | `/api/v1/persons/{person_id}/medication-schedule/{entry_id}` | . | . | . | . | . | . | . | . |
+| `occupancy:read` | `GET` | `/api/v1/occupancy/` | Y | Y | Y | . | . | . | . | . |
+| `occupancy:read` | `GET` | `/api/v1/occupancy/history` | Y | Y | Y | . | . | . | . | . |
+| `persons.enrollment:delete` | `DELETE` | `/api/v1/persons/{person_id}/enrollment` | . | Y | . | . | . | . | . | . |
+| `persons.enrollment:write` | `POST` | `/api/v1/persons/{person_id}/enroll` | . | Y | . | . | . | . | . | . |
+| `persons.heights:read` | `GET` | `/api/v1/persons/heights` | . | . | . | . | Y | . | . | . |
+| `persons.location:read` | `GET` | `/api/v1/persons/locations` | Y | Y | Y | . | . | . | . | . |
+| `persons.location:read` | `GET` | `/api/v1/persons/{person_id}/dwell` | Y | Y | Y | . | . | . | . | . |
+| `persons.location:read` | `GET` | `/api/v1/persons/{person_id}/location` | Y | Y | Y | . | . | . | . | . |
+| `persons.location:read` | `GET` | `/api/v1/persons/{person_id}/presence-history` | Y | Y | Y | . | . | . | . | . |
+| `persons.location:read` | `GET` | `/api/v1/rooms/{room_id}/occupants` | Y | Y | Y | . | . | . | . | . |
+| `persons.location:write` | `POST` | `/api/v1/persons/{person_id}/location/override` | . | . | . | . | . | . | . | . |
+| `persons:delete` | `DELETE` | `/api/v1/persons/{person_id}` | . | . | . | . | . | . | . | . |
+| `persons:read` | `GET` | `/api/v1/persons` | Y | Y | Y | . | . | . | . | . |
+| `persons:read` | `GET` | `/api/v1/persons/enrolled` | Y | Y | Y | . | . | . | . | . |
+| `persons:read` | `GET` | `/api/v1/persons/roster-health` | Y | Y | Y | . | . | . | . | . |
+| `persons:read` | `GET` | `/api/v1/persons/{person_id}` | Y | Y | Y | . | . | . | . | . |
+| `persons:read` | `GET` | `/api/v1/persons/{person_id}/enrollment` | Y | Y | Y | . | . | . | . | . |
+| `persons:read` | `GET` | `/api/v1/persons/{person_id}/height-profile` | Y | Y | Y | . | . | . | . | . |
+| `persons:write` | `POST` | `/api/v1/persons` | . | . | . | . | . | . | . | . |
+| `persons:write` | `PATCH` | `/api/v1/persons/{person_id}` | . | . | . | . | . | . | . | . |
+| `pipeline.events:read` | `WS` | `/ws/pipeline` | Y | Y | . | . | . | . | . | . |
+| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/channel-types` | Y | Y | Y | . | . | . | . | . |
+| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/data-keys` | Y | Y | Y | . | . | . | . | . |
+| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/filter-types` | Y | Y | Y | . | . | . | . | . |
+| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/image-sources/sample` | Y | Y | Y | . | . | . | . | . |
+| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/llm-models` | Y | Y | Y | . | . | . | . | . |
+| `pipeline.meta:read` | `GET` | `/api/v1/pipeline/step-types` | Y | Y | Y | . | . | . | . | . |
+| `pipeline.runs:read` | `GET` | `/api/v1/pipeline/ingest/activity` | Y | Y | . | . | . | . | . | . |
+| `pipeline.runs:read` | `GET` | `/api/v1/pipeline/runs` | Y | Y | . | . | . | . | . | . |
+| `pipeline.runs:read` | `GET` | `/api/v1/pipeline/runs/{execution_id}` | Y | Y | . | . | . | . | . | . |
+| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}` | . | Y | . | . | . | . | . | . |
+| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}/questions/{qid}` | . | Y | . | . | . | . | . | . |
+| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/image` | . | Y | . | . | . | . | . | . |
+| `quizzes:read` | `GET` | `/api/v1/quizzes` | Y | Y | Y | . | . | . | . | . |
+| `quizzes:read` | `GET` | `/api/v1/quizzes/{quiz_id}` | Y | Y | Y | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/suggest` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/voice-instruction-suggest` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `PATCH` | `/api/v1/quizzes/{quiz_id}` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/approve` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/archive` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `PUT` | `/api/v1/quizzes/{quiz_id}/questions` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions/reorder` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `PATCH` | `/api/v1/quizzes/{quiz_id}/questions/{qid}` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `PUT` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/image` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/regenerate` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/restore` | . | Y | . | . | . | . | . | . |
+| `room_zones:read` | `GET` | `/api/v1/persons/{person_id}/current-zone` | Y | Y | Y | . | . | . | . | . |
+| `room_zones:read` | `GET` | `/api/v1/rooms/{room_id}/zones` | Y | Y | Y | . | . | . | . | . |
+| `room_zones:write` | `POST` | `/api/v1/rooms/{room_id}/zones` | . | . | . | . | . | . | . | . |
+| `room_zones:write` | `DELETE` | `/api/v1/zones/{zone_id}` | . | . | . | . | . | . | . | . |
+| `room_zones:write` | `PATCH` | `/api/v1/zones/{zone_id}` | . | . | . | . | . | . | . | . |
+| `rooms:read` | `GET` | `/api/v1/rooms` | Y | Y | Y | . | Y | . | . | . |
+| `rooms:read` | `GET` | `/api/v1/rooms/{room_id}` | Y | Y | Y | . | Y | . | . | . |
+| `rooms:write` | `POST` | `/api/v1/rooms` | . | . | . | . | . | . | . | . |
+| `rooms:write` | `DELETE` | `/api/v1/rooms/{room_id}` | . | . | . | . | . | . | . | . |
+| `rooms:write` | `PUT` | `/api/v1/rooms/{room_id}` | . | . | . | . | . | . | . | . |
+| `routines:read` | `GET` | `/api/v1/routines` | Y | Y | . | . | . | . | . | . |
+| `routines:read` | `GET` | `/api/v1/routines/activity-type-options` | Y | Y | . | . | . | . | . | . |
+| `routines:read` | `GET` | `/api/v1/routines/language-options` | Y | Y | . | . | . | . | . | . |
+| `routines:read` | `GET` | `/api/v1/routines/{routine_id}` | Y | Y | . | . | . | . | . | . |
+| `routines:write` | `POST` | `/api/v1/routines` | . | . | . | . | . | . | . | . |
+| `routines:write` | `DELETE` | `/api/v1/routines/{routine_id}` | . | . | . | . | . | . | . | . |
+| `routines:write` | `PATCH` | `/api/v1/routines/{routine_id}` | . | . | . | . | . | . | . | . |
+| `routines:write` | `PUT` | `/api/v1/routines/{routine_id}/steps` | . | . | . | . | . | . | . | . |
+| `routines:write` | `POST` | `/api/v1/routines/{routine_id}/test-run` | . | . | . | . | . | . | . | . |
+| `rules:execute` | `POST` | `/api/v1/rules/{rule_id}/execute` | . | . | . | . | . | . | . | . |
+| `rules:import` | `POST` | `/api/v1/rules/import` | . | . | . | Y | . | . | . | . |
+| `rules:import` | `POST` | `/api/v1/rules/import/preview` | . | . | . | Y | . | . | . | . |
+| `rules:read` | `GET` | `/api/v1/rules` | Y | Y | Y | . | . | . | . | . |
+| `rules:read` | `GET` | `/api/v1/rules/cron-triggers` | Y | Y | Y | . | . | . | . | . |
+| `rules:read` | `GET` | `/api/v1/rules/cts-window-triggers` | Y | Y | Y | . | . | . | . | . |
+| `rules:read` | `GET` | `/api/v1/rules/{rule_id}` | Y | Y | Y | . | . | . | . | . |
+| `rules:read` | `GET` | `/api/v1/rules/{rule_id}/contexts` | Y | Y | Y | . | . | . | . | . |
+| `rules:read` | `GET` | `/api/v1/rules/{rule_id}/dependencies` | Y | Y | Y | . | . | . | . | . |
+| `rules:read` | `GET` | `/api/v1/rules/{rule_id}/edges` | Y | Y | Y | . | . | . | . | . |
+| `rules:read` | `GET` | `/api/v1/rules/{rule_id}/export` | Y | Y | Y | . | . | . | . | . |
+| `rules:read` | `GET` | `/api/v1/rules/{rule_id}/steps` | Y | Y | Y | . | . | . | . | . |
+| `rules:write` | `POST` | `/api/v1/pipeline/cron/preview` | . | . | . | . | . | . | . | . |
+| `rules:write` | `POST` | `/api/v1/rules` | . | . | . | . | . | . | . | . |
+| `rules:write` | `POST` | `/api/v1/rules/cron-triggers` | . | . | . | . | . | . | . | . |
+| `rules:write` | `DELETE` | `/api/v1/rules/cron-triggers/{ct_id}` | . | . | . | . | . | . | . | . |
+| `rules:write` | `PUT` | `/api/v1/rules/cron-triggers/{ct_id}` | . | . | . | . | . | . | . | . |
+| `rules:write` | `POST` | `/api/v1/rules/cts-window-triggers` | . | . | . | . | . | . | . | . |
+| `rules:write` | `DELETE` | `/api/v1/rules/cts-window-triggers/{ct_id}` | . | . | . | . | . | . | . | . |
+| `rules:write` | `PUT` | `/api/v1/rules/cts-window-triggers/{ct_id}` | . | . | . | . | . | . | . | . |
+| `rules:write` | `DELETE` | `/api/v1/rules/{rule_id}` | . | . | . | . | . | . | . | . |
+| `rules:write` | `PUT` | `/api/v1/rules/{rule_id}` | . | . | . | . | . | . | . | . |
+| `rules:write` | `POST` | `/api/v1/rules/{rule_id}/contexts` | . | . | . | . | . | . | . | . |
+| `rules:write` | `DELETE` | `/api/v1/rules/{rule_id}/contexts/{context_id}` | . | . | . | . | . | . | . | . |
+| `rules:write` | `POST` | `/api/v1/rules/{rule_id}/dependencies` | . | . | . | . | . | . | . | . |
+| `rules:write` | `DELETE` | `/api/v1/rules/{rule_id}/dependencies/{dep_id}` | . | . | . | . | . | . | . | . |
+| `rules:write` | `PUT` | `/api/v1/rules/{rule_id}/edges` | . | . | . | . | . | . | . | . |
+| `rules:write` | `POST` | `/api/v1/rules/{rule_id}/steps` | . | . | . | . | . | . | . | . |
+| `rules:write` | `PUT` | `/api/v1/rules/{rule_id}/steps/positions` | . | . | . | . | . | . | . | . |
+| `rules:write` | `DELETE` | `/api/v1/rules/{rule_id}/steps/{step_id:int}` | . | . | . | . | . | . | . | . |
+| `rules:write` | `PUT` | `/api/v1/rules/{rule_id}/steps/{step_id:int}` | . | . | . | . | . | . | . | . |
+| `rules:write` | `POST` | `/api/v1/rules/{rule_id}/validate` | . | . | . | . | . | . | . | . |
+| `rules:write` | `POST` | `/api/v1/webhooks/{rule_id}/generate-secret` | . | . | . | . | . | . | . | . |
+| `sensors:read` | `GET` | `/api/v1/sensors` | Y | Y | Y | . | . | . | . | . |
+| `sensors:read` | `GET` | `/api/v1/sensors/{sensor_id}` | Y | Y | Y | . | . | . | . | . |
+| `sensors:write` | `POST` | `/api/v1/sensors` | . | . | . | . | . | . | . | . |
+| `sensors:write` | `DELETE` | `/api/v1/sensors/{sensor_id}` | . | . | . | . | . | . | . | . |
+| `sensors:write` | `PUT` | `/api/v1/sensors/{sensor_id}` | . | . | . | . | . | . | . | . |
+| `signals.feed:read` | `GET` | `/api/v1/signals/feed` | Y | Y | Y | . | . | . | . | . |
+| `visitors:review` | `GET` | `/api/v1/visitors/clusters` | Y | . | . | . | . | . | . | . |
+| `visitors:review` | `POST` | `/api/v1/visitors/clusters/review` | Y | . | . | . | . | . | . | . |
+| `visitors:review` | `POST` | `/api/v1/visitors/clusters/{cluster_a}/merge/{cluster_b}` | Y | . | . | . | . | . | . | . |
+| `visitors:review` | `GET` | `/api/v1/visitors/clusters/{cluster_id}` | Y | . | . | . | . | . | . | . |
+| `visitors:review` | `POST` | `/api/v1/visitors/clusters/{cluster_id}/name` | Y | . | . | . | . | . | . | . |
+| `wearables.site_config:read` | `GET` | `/api/v1/wearables/site-config` | . | . | . | . | Y | . | . | . |
+| `wearables.teaching:write` | `POST` | `/api/v1/wearables/associations/{segment_id}/revoke` | Y | . | . | . | . | . | . | . |
+| `wearables.teaching:write` | `POST` | `/api/v1/wearables/tags/{tag_id}/resume-teaching` | Y | . | . | . | . | . | . | . |
+| `wearables:read` | `GET` | `/api/v1/wearables/assignments` | Y | Y | Y | . | . | . | . | . |
+| `wearables:read` | `GET` | `/api/v1/wearables/devices` | Y | Y | Y | . | . | . | . | . |
+| `wearables:read` | `GET` | `/api/v1/wearables/devices/{device_id}` | Y | Y | Y | . | . | . | . | . |
+| `wearables:read` | `GET` | `/api/v1/wearables/devices/{device_id}/associations` | Y | Y | Y | . | . | . | . | . |
+| `wearables:read` | `GET` | `/api/v1/wearables/devices/{device_id}/bindings` | Y | Y | Y | . | . | . | . | . |
+| `wearables:read` | `GET` | `/api/v1/wearables/devices/{device_id}/status` | Y | Y | Y | . | . | . | . | . |
+| `wearables:read` | `GET` | `/api/v1/wearables/nodes` | Y | Y | Y | . | . | . | . | . |
+| `wearables:read` | `POST` | `/api/v1/wearables/nodes/survey-check` | Y | Y | Y | . | . | . | . | . |
+| `wearables:read` | `GET` | `/api/v1/wearables/nodes/{node_id}` | Y | Y | Y | . | . | . | . | . |
+| `wearables:write` | `POST` | `/api/v1/wearables/devices` | . | . | . | . | . | . | . | . |
+| `wearables:write` | `PATCH` | `/api/v1/wearables/devices/{device_id}` | . | . | . | . | . | . | . | . |
+| `wearables:write` | `POST` | `/api/v1/wearables/devices/{device_id}/bind` | . | . | . | . | . | . | . | . |
+| `wearables:write` | `POST` | `/api/v1/wearables/devices/{device_id}/unbind` | . | . | . | . | . | . | . | . |
+| `wearables:write` | `POST` | `/api/v1/wearables/nodes` | . | . | . | . | . | . | . | . |
+| `wearables:write` | `DELETE` | `/api/v1/wearables/nodes/{node_id}` | . | . | . | . | . | . | . | . |
+| `wearables:write` | `PATCH` | `/api/v1/wearables/nodes/{node_id}` | . | . | . | . | . | . | . | . |
+| `workflows:execute` | `POST` | `/api/v1/workflows/{execution_id}/cancel` | . | . | . | . | . | . | . | . |
+| `workflows:execute` | `POST` | `/api/v1/workflows/{execution_id}/rerun` | . | . | . | . | . | . | . | . |
+| `workflows:read` | `GET` | `/api/v1/workflows` | Y | Y | Y | . | . | . | . | . |
+| `workflows:read` | `GET` | `/api/v1/workflows/{execution_id}` | Y | Y | Y | . | . | . | . | . |
+| `workflows:read` | `GET` | `/api/v1/workflows/{execution_id}/detail` | Y | Y | Y | . | . | . | . | . |

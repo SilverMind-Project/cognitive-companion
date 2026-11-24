@@ -29,6 +29,7 @@ _MUTATING_TOOL_TOKENS = {
     "import_rule_bundle": "rules:import",
     "acknowledge_dementia_signal": "cts.signals:acknowledge",
     "propose_identity_correction": "cts.identity:propose",
+    "run_companion_surface_test": "companion_surfaces.test:execute",
     "submit_user_response": "resident_session:act",
     "submit_quiz_answer": "resident_session:act",
     "complete_quiz_session": "resident_session:act",

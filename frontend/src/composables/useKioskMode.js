@@ -64,6 +64,8 @@ export function useKioskMode({
     heartbeatStatus: "idle",
     heartbeatError: "",
     wakeLockStatus: "idle",
+    // The last "Test this screen" result: idle, running, reached, offline, or error.
+    surfaceTest: { status: "idle", message: "" },
   });
 
   const routeKiosk = computed(() => route?.query?.kiosk === "1");
@@ -190,6 +192,34 @@ export function useKioskMode({
     }
   }
 
+  /**
+   * Ask the server to wake and chime the screen registered as `surfaceId` (the id
+   * being entered, before it is saved). If this screen lights up, the id, its
+   * registration, and this screen's socket binding are all right; "offline" means the
+   * server knows the surface but no screen is connected as it.
+   */
+  async function testSurface(surfaceId) {
+    const id = surfaceId?.trim() || "";
+    if (!id) return;
+    state.surfaceTest = { status: "running", message: "" };
+    try {
+      const result = await apiClient.runCompanionSurfaceTest(id);
+      state.surfaceTest =
+        result.reached > 0
+          ? {
+              status: "reached",
+              message: "Sent. The screen registered as this id should chime now.",
+            }
+          : {
+              status: "offline",
+              message:
+                "No screen is connected as this id. Save the id on the screen it belongs to, then test again.",
+            };
+    } catch (err) {
+      state.surfaceTest = { status: "error", message: err?.message || String(err) };
+    }
+  }
+
   function onVisibilityChange() {
     if (documentRef?.visibilityState === "visible" && isActive.value && state.started) {
       void acquireWakeLock();
@@ -230,6 +260,7 @@ export function useKioskMode({
       releaseWakeLock,
       startHeartbeat,
       stopHeartbeat,
+      testSurface,
     },
   };
 }

@@ -2973,6 +2973,50 @@
         "title": "CompanionSurfaceOut",
         "type": "object"
       },
+      "CompanionSurfaceTestIn": {
+        "additionalProperties": false,
+        "description": "Ask one screen to identify itself (wake, chime, a short lease).",
+        "properties": {
+          "microphone": {
+            "default": false,
+            "description": "Also open the screen's microphone for the lease, to check it listens.",
+            "title": "Microphone",
+            "type": "boolean"
+          }
+        },
+        "title": "CompanionSurfaceTestIn",
+        "type": "object"
+      },
+      "CompanionSurfaceTestOut": {
+        "additionalProperties": false,
+        "properties": {
+          "lease_seconds": {
+            "title": "Lease Seconds",
+            "type": "integer"
+          },
+          "microphone": {
+            "title": "Microphone",
+            "type": "boolean"
+          },
+          "reached": {
+            "description": "Live connections the command reached; 0 means offline.",
+            "title": "Reached",
+            "type": "integer"
+          },
+          "surface_id": {
+            "title": "Surface Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "surface_id",
+          "reached",
+          "microphone",
+          "lease_seconds"
+        ],
+        "title": "CompanionSurfaceTestOut",
+        "type": "object"
+      },
       "CompanionSurfaceUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -23063,6 +23107,71 @@
           }
         ],
         "summary": "Record Companion Surface Heartbeat",
+        "tags": [
+          "companion-surfaces"
+        ]
+      }
+    },
+    "/api/v1/companion-surfaces/{surface_id}/test": {
+      "post": {
+        "description": "Wake this one screen and chime, so a caregiver can see which screen it is.",
+        "operationId": "run_companion_surface_test",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "surface_id",
+            "required": true,
+            "schema": {
+              "title": "Surface Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CompanionSurfaceTestIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanionSurfaceTestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Run Companion Surface Test",
         "tags": [
           "companion-surfaces"
         ]

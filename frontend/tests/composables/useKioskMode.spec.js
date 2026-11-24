@@ -146,3 +146,62 @@ describe("useKioskMode", () => {
     wrapper.unmount();
   });
 });
+
+describe("useKioskMode screen test", () => {
+  function withTestResult(outcome) {
+    const apiClient = {
+      getRooms: vi.fn().mockResolvedValue([]),
+      recordCompanionSurfaceHeartbeat: vi.fn().mockResolvedValue({ status: "ok" }),
+      runCompanionSurfaceTest: outcome,
+    };
+    return { apiClient, ...mountComposable({ apiClient }) };
+  }
+
+  it("reports a screen the server reached", async () => {
+    const { apiClient, state, actions, wrapper } = withTestResult(
+      vi.fn().mockResolvedValue({ surface_id: "kitchen-tablet", reached: 1 }),
+    );
+
+    await actions.testSurface("  kitchen-tablet ");
+
+    expect(apiClient.runCompanionSurfaceTest).toHaveBeenCalledWith("kitchen-tablet");
+    expect(state.surfaceTest.status).toBe("reached");
+    wrapper.unmount();
+  });
+
+  it("reports a registered surface with no screen connected as offline", async () => {
+    const { state, actions, wrapper } = withTestResult(
+      vi.fn().mockResolvedValue({ surface_id: "kitchen-tablet", reached: 0 }),
+    );
+
+    await actions.testSurface("kitchen-tablet");
+
+    expect(state.surfaceTest.status).toBe("offline");
+    wrapper.unmount();
+  });
+
+  it("shows the server's refusal, such as an unknown surface", async () => {
+    const { state, actions, wrapper } = withTestResult(
+      vi.fn().mockRejectedValue(new Error("companion_surface 'nowhere' not found")),
+    );
+
+    await actions.testSurface("nowhere");
+
+    expect(state.surfaceTest).toEqual({
+      status: "error",
+      message: "companion_surface 'nowhere' not found",
+    });
+    wrapper.unmount();
+  });
+
+  it("does nothing without an id", async () => {
+    const outcome = vi.fn();
+    const { state, actions, wrapper } = withTestResult(outcome);
+
+    await actions.testSurface("   ");
+
+    expect(outcome).not.toHaveBeenCalled();
+    expect(state.surfaceTest.status).toBe("idle");
+    wrapper.unmount();
+  });
+});

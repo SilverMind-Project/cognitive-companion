@@ -29,7 +29,14 @@
         <v-icon start size="12">mdi-camera</v-icon>
         Camera active
       </v-chip>
-      <v-chip :color="connected ? 'success' : undefined" size="small" variant="tonal" class="mr-2">
+      <v-chip
+        :color="connected ? 'success' : undefined"
+        size="small"
+        variant="tonal"
+        class="mr-2"
+        data-test="connection-status"
+        :data-connected="connected ? 'true' : 'false'"
+      >
         <v-icon start size="12">{{ connected ? "mdi-wifi" : "mdi-wifi-off" }}</v-icon>
         {{ connected ? "Connected" : "Disconnected" }}
       </v-chip>
@@ -79,6 +86,7 @@
       @unlock-settings="kiosk.actions.unlockSettings"
       @save-settings="kiosk.actions.saveSettings"
       @load-rooms="kiosk.actions.loadRooms"
+      @test-surface="kiosk.actions.testSurface"
     />
   </v-app>
 </template>

@@ -78,6 +78,26 @@ class CompanionSurfaceListOut(BaseModel):
     total: int
 
 
+class CompanionSurfaceTestIn(BaseModel):
+    """Ask one screen to identify itself (wake, chime, a short lease)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    microphone: bool = Field(
+        default=False,
+        description="Also open the screen's microphone for the lease, to check it listens.",
+    )
+
+
+class CompanionSurfaceTestOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    surface_id: str
+    reached: int = Field(description="Live connections the command reached; 0 means offline.")
+    microphone: bool
+    lease_seconds: int
+
+
 class CompanionSurfaceHeartbeatOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -83,9 +83,10 @@ EXPECTED_TOOLS = {
     "get_identity_readiness",
     "get_wearable_assignments",
     "get_wearable_device_status",
+    "run_companion_surface_test",
 }
 
-EXPECTED_COUNT = 68
+EXPECTED_COUNT = 69
 
 
 # ---------------------------------------------------------------------------

@@ -2,23 +2,47 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from backend.core.exceptions import NotFoundError, ValidationError
+from backend.core.exceptions import ConflictError, NotFoundError, ValidationError
 from backend.core.logging import get_logger
 from backend.models.companion_surface import CompanionSurface
+from backend.services.companion_surface.hardware import engage_surface
+
+if TYPE_CHECKING:
+    from backend.websocket.connection_manager import ConnectionManager
 
 logger = get_logger(__name__)
 
 VALID_SURFACE_TYPES = frozenset({"fixed", "movable"})
 VALID_ROOM_SOURCES = frozenset({"caregiver", "cts_inferred"})
 VALID_KINDS = frozenset({"tablet", "speaker", "display", "tv"})
+
+# Long enough to walk to the screen and see it lit, short enough that a test never
+# holds a microphone open for longer than it takes to say a sentence.
+SURFACE_TEST_LEASE_SECONDS = 30
+SURFACE_TEST_REASON = "surface_test"
+
+
+@dataclass(frozen=True)
+class SurfaceTestResult:
+    """The outcome of :meth:`CompanionSurfaceService.run_surface_test`.
+
+    ``reached`` counts the surface's live connections the command was sent to; 0
+    means the screen is offline (a test never falls back to another screen).
+    """
+
+    surface_id: str
+    reached: int
+    microphone: bool
+    lease_seconds: int
 
 
 @dataclass(frozen=True)
@@ -78,10 +102,12 @@ class CompanionSurfaceService:
         *,
         db_factory: Callable[[], Session],
         person_location_service: Any = None,
+        ws_manager: ConnectionManager | None = None,
         time_fn: Callable[[], datetime] | None = None,
     ) -> None:
         self._db_factory = db_factory
         self._person_location_service = person_location_service
+        self._ws_manager = ws_manager
         self._time_fn = time_fn or (lambda: datetime.now(UTC))
 
     def set_person_location_service(self, person_location_service: Any) -> None:
@@ -294,6 +320,49 @@ class CompanionSurfaceService:
             db.commit()
         finally:
             db.close()
+
+    async def run_surface_test(
+        self, surface_id: str, *, microphone: bool = False, actor: str
+    ) -> SurfaceTestResult:
+        """Make one registered screen identify itself: wake it, chime, and hold it
+        awake (and, with ``microphone``, listening) for a short lease.
+
+        This is how a caregiver confirms which physical screen a surface id names,
+        and how the device harness exercises the server-to-device path. It addresses
+        exactly this surface: an offline screen reaches nothing rather than waking any
+        other screen. The lease has its own owner, so it never ends a delivery's lease.
+
+        Raises:
+            NotFoundError: no surface has this id.
+            ConflictError: the surface is disabled (it receives nothing).
+        """
+        surface = await asyncio.to_thread(self.get_surface, surface_id)
+        if surface is None:
+            raise NotFoundError("companion_surface", surface_id)
+        if not surface.is_enabled:
+            raise ConflictError(f"companion surface {surface_id} is disabled; enable it first")
+        reached = await engage_surface(
+            self._ws_manager,
+            surface_id,
+            owner=f"{SURFACE_TEST_REASON}:{surface_id}",
+            reason=SURFACE_TEST_REASON,
+            lease_seconds=SURFACE_TEST_LEASE_SECONDS,
+            microphone=microphone,
+            now=self._now(),
+        )
+        logger.info(
+            "companion_surface_tested",
+            surface_id=surface_id,
+            microphone=microphone,
+            reached=reached,
+            actor=actor,
+        )
+        return SurfaceTestResult(
+            surface_id=surface_id,
+            reached=reached,
+            microphone=microphone,
+            lease_seconds=SURFACE_TEST_LEASE_SECONDS,
+        )
 
     def _now(self) -> datetime:
         now = self._time_fn()

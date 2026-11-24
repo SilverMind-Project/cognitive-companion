@@ -158,3 +158,138 @@ def test_auth_yaml_covers_companion_surface_routes():
     assert "companion_surfaces:read" in roles["caregiver"]
     assert "companion_surfaces:write" in roles["caregiver"]
     assert "companion_surfaces:heartbeat" in roles["device_reterminal"]
+
+
+class _RecordingSocketManager:
+    """Records hardware commands; ``online`` surfaces count as reached."""
+
+    def __init__(self, online: set[str]) -> None:
+        self.online = online
+        self.commands: list = []
+
+    async def send_hardware_command(self, command) -> int:
+        self.commands.append(command)
+        return 1 if command.surface_id in self.online else 0
+
+
+def _test_client(db_factory, manager, auth: AuthContext | None) -> TestClient:
+    app = FastAPI()
+    register_exception_handlers(app)
+    svc = CompanionSurfaceService(db_factory=db_factory, ws_manager=manager)
+    app.include_router(companion_surfaces.router, prefix="/api/v1")
+    app.dependency_overrides[get_companion_surface_service] = lambda: svc
+    if auth is not None:
+        app.dependency_overrides[get_auth_context] = lambda: auth
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def _add_surface(db_session, surface_id: str, *, enabled: bool = True) -> None:
+    db_session.add(
+        CompanionSurface(
+            id=surface_id,
+            name=surface_id,
+            surface_type="fixed",
+            kind="tablet",
+            room_source="caregiver",
+            is_enabled=enabled,
+        )
+    )
+    db_session.commit()
+
+
+_CAREGIVER = AuthContext(key="c", name="Caregiver", roles=["caregiver"])
+
+
+def test_testing_a_surface_wakes_only_that_surface_with_a_short_screen_lease(
+    db_factory, db_session
+):
+    _add_surface(db_session, "kitchen-tablet")
+    manager = _RecordingSocketManager(online={"kitchen-tablet"})
+    client = _test_client(db_factory, manager, _CAREGIVER)
+
+    response = client.post("/api/v1/companion-surfaces/kitchen-tablet/test", json={})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "surface_id": "kitchen-tablet",
+        "reached": 1,
+        "microphone": False,
+        "lease_seconds": 30,
+    }
+    [command] = manager.commands
+    assert command.surface_id == "kitchen-tablet"
+    assert command.wake_screen is True
+    assert command.enable_microphone is False
+    assert command.enable_camera is False
+    assert command.lease_seconds == 30
+    # Its own lease owner, so a test never ends a delivery's lease on that screen.
+    assert command.lease_owner == "surface_test:kitchen-tablet"
+
+
+def test_testing_a_surface_can_open_its_microphone_for_the_lease(db_factory, db_session):
+    _add_surface(db_session, "kitchen-tablet")
+    manager = _RecordingSocketManager(online={"kitchen-tablet"})
+    client = _test_client(db_factory, manager, _CAREGIVER)
+
+    response = client.post(
+        "/api/v1/companion-surfaces/kitchen-tablet/test", json={"microphone": True}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["microphone"] is True
+    assert manager.commands[0].enable_microphone is True
+
+
+def test_testing_an_offline_surface_reports_it_and_reaches_no_other_screen(db_factory, db_session):
+    _add_surface(db_session, "kitchen-tablet")
+    manager = _RecordingSocketManager(online={"bedroom-tablet"})
+    client = _test_client(db_factory, manager, _CAREGIVER)
+
+    response = client.post("/api/v1/companion-surfaces/kitchen-tablet/test")
+
+    assert response.status_code == 200
+    assert response.json()["reached"] == 0
+    assert [c.surface_id for c in manager.commands] == ["kitchen-tablet"]
+
+
+def test_testing_an_unknown_surface_is_404_and_sends_nothing(db_factory):
+    manager = _RecordingSocketManager(online=set())
+    client = _test_client(db_factory, manager, _CAREGIVER)
+
+    response = client.post("/api/v1/companion-surfaces/nowhere/test", json={})
+
+    assert response.status_code == 404
+    assert manager.commands == []
+
+
+def test_testing_a_disabled_surface_is_409_and_sends_nothing(db_factory, db_session):
+    _add_surface(db_session, "old-tablet", enabled=False)
+    manager = _RecordingSocketManager(online={"old-tablet"})
+    client = _test_client(db_factory, manager, _CAREGIVER)
+
+    response = client.post("/api/v1/companion-surfaces/old-tablet/test", json={})
+
+    assert response.status_code == 409
+    assert manager.commands == []
+
+
+def test_testing_a_surface_needs_the_test_token(db_factory, db_session):
+    _add_surface(db_session, "kitchen-tablet")
+    manager = _RecordingSocketManager(online={"kitchen-tablet"})
+    # A companion screen's own key may connect and heartbeat, but not wake other screens.
+    screen = AuthContext(key="d", name="Kitchen screen", roles=["device_reterminal"])
+    client = _test_client(db_factory, manager, screen)
+
+    response = client.post("/api/v1/companion-surfaces/kitchen-tablet/test", json={})
+
+    assert response.status_code == 403
+    assert manager.commands == []
+
+
+def test_the_test_role_holds_exactly_a_screens_tokens_plus_testing():
+    auth = yaml.safe_load(Path("config/auth.yaml").read_text())
+    roles = auth["roles"]
+
+    assert set(roles["companion_test_device"]) == set(roles["device_reterminal"]) | {
+        "companion_surfaces.test:execute"
+    }

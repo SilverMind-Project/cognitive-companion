@@ -207,12 +207,14 @@ The app and the BFF may be served on separate origins. The frontend builds every
 
 | Parameter | Meaning |
 | --- | --- |
-| `surface_id` | The registered, enabled companion surface this screen is; it then receives its room's deliveries. Unknown or disabled: closed with 1008 `unknown_surface`. |
+| `surface_id` | The registered, enabled companion surface this screen is; it then receives its room's deliveries. Unknown or disabled: connects without room routing (logged). |
 | `platform` | `web`, `android_tablet`, or `android_tv` (logged). |
 
 Resident content for a surface goes only to that surface while it is connected, else to every companion screen. `surface_hardware_command` (`lease_owner`, `wake_screen`, `enable_microphone`, `enable_camera`, `volume_min_pct`, `attention_chime`, `lease_seconds`) goes only to its surface and is never broadcast. Leases are per `lease_owner` (one delivery): the device keeps the screen awake while any lease is live and the microphone (camera) open while any live lease asks for it; `lease_seconds: 0` ends only that owner's lease, and capture closes on the device when a lease runs out unrenewed. A `surface_id` that is unknown or disabled connects without room routing. A surface may send `surface_attention_state` (`face_present`, `head_yaw_deg`, `head_pitch_deg`, `timestamp`); any other field, such as an image, is rejected.
 
 `POST /companion-surfaces/{id}/heartbeat` also accepts `platform`, `mic_active`, `camera_active`, and `screen_awake`; an omitted field keeps its last value. `GET /guided-sessions/resident-state?surface_id=` shows a screen the routine the broadcast would send it. Surface kinds are `tablet`, `speaker`, `display`, and `tv`.
+
+`POST /companion-surfaces/{id}/test` (token `companion_surfaces.test:execute`; body `{"microphone": false}` optional) makes one registered screen identify itself: it wakes, chimes, and holds a 30-second lease of its own (`lease_owner` `surface_test:<id>`), listening too when `microphone` is true. It returns `{surface_id, reached, microphone, lease_seconds}`; `reached: 0` means no screen is connected as that surface, and the command never falls back to another screen. Unknown: 404; disabled: 409. MCP twin: `run_companion_surface_test`. The kiosk settings dialog's "Test this screen" button calls it.
 
 ## Media observability
 

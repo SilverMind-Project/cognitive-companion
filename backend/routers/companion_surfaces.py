@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
 
-from backend.core.auth import AuthContext, require_permission
+from backend.core.auth import AuthContext, actor_from_auth, require_permission
 from backend.routers.dependencies import get_companion_surface_service
 from backend.schemas.companion_surface import (
     CompanionSurfaceCreate,
@@ -12,6 +12,8 @@ from backend.schemas.companion_surface import (
     CompanionSurfaceHeartbeatOut,
     CompanionSurfaceListOut,
     CompanionSurfaceOut,
+    CompanionSurfaceTestIn,
+    CompanionSurfaceTestOut,
     CompanionSurfaceUpdate,
 )
 from backend.services.companion_surface import CompanionSurfaceService, SurfaceDeviceState
@@ -87,3 +89,24 @@ def record_companion_surface_heartbeat(
         ),
     )
     return CompanionSurfaceHeartbeatOut(status="ok")
+
+
+@router.post("/{surface_id}/test", response_model=CompanionSurfaceTestOut)
+async def run_companion_surface_test(
+    surface_id: str,
+    payload: CompanionSurfaceTestIn | None = None,
+    svc: CompanionSurfaceService = Depends(get_companion_surface_service),
+    auth: AuthContext = Depends(require_permission("companion_surfaces.test:execute")),
+) -> CompanionSurfaceTestOut:
+    """Wake this one screen and chime, so a caregiver can see which screen it is."""
+    result = await svc.run_surface_test(
+        surface_id,
+        microphone=(payload or CompanionSurfaceTestIn()).microphone,
+        actor=actor_from_auth(auth),
+    )
+    return CompanionSurfaceTestOut(
+        surface_id=result.surface_id,
+        reached=result.reached,
+        microphone=result.microphone,
+        lease_seconds=result.lease_seconds,
+    )

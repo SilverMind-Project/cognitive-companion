@@ -39,6 +39,12 @@ api_keys:
     roles:
       - "cts_ingress"
 
+  # The emulator or test device driven by scripts/ccwin; unset disables it.
+  - key: "${CC_COMPANION_TEST_API_KEY}"
+    name: "Companion emulator (ccwin)"
+    roles:
+      - "companion_test_device"
+
 device_keys:
   - key: "RCAM0001"
     name: "Kitchen reCamera"
@@ -115,6 +121,7 @@ roles:
     - "admin.config:read"
     - "admin:read"
     - "companion.audio:act"
+    - "companion_surfaces.test:execute"
     - "companion_surfaces:read"
     - "companion_surfaces:write"
     - "conversations:read"
@@ -182,6 +189,7 @@ roles:
     - "admin.config:read"
     - "admin:read"
     - "companion.audio:act"
+    - "companion_surfaces.test:execute"
     - "companion_surfaces:read"
     - "companion_surfaces:write"
     - "conversations:read"
@@ -291,6 +299,16 @@ roles:
 
   device_reterminal:
     - "companion.audio:act"
+    - "companion_surfaces:heartbeat"
+    - "guided_sessions.resident_state:read"
+    - "image:read"
+
+  # The Android device harness (scripts/ccwin test-instrumented): exactly what a
+  # companion screen holds, plus making a screen identify itself, so the harness can
+  # drive the server-to-device path against its own registered test surface.
+  companion_test_device:
+    - "companion.audio:act"
+    - "companion_surfaces.test:execute"
     - "companion_surfaces:heartbeat"
     - "guided_sessions.resident_state:read"
     - "image:read"

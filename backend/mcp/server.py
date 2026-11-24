@@ -36,6 +36,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from backend.core.auth import declare_internal_tokens, declare_tokens  # noqa: E402
 from backend.core.config import settings  # noqa: E402
+from backend.core.exceptions import AppError  # noqa: E402
 from backend.core.logging import get_logger  # noqa: E402
 from backend.integrations.person_id_client import PersonIDUpstreamError  # noqa: E402
 
@@ -2050,3 +2051,27 @@ async def get_wearable_device_status(tag_id: str) -> dict:
     except Exception as exc:
         logger.error("mcp_get_wearable_device_status_error", tag_id=tag_id, error=str(exc))
         return {"error": str(exc)}
+
+
+@_register(token="companion_surfaces.test:execute")
+async def run_companion_surface_test(surface_id: str, microphone: bool = False) -> dict:
+    """Make one registered companion screen identify itself: wake it, chime, and keep
+    it awake for a short lease (with ``microphone``, also listening for that lease).
+
+    Only that screen is addressed; an offline screen is reported, never substituted.
+    Returns {surface_id, reached, microphone, lease_seconds} (reached 0 means offline)
+    or {error}.
+    """
+    svc = _svc.companion_surfaces
+    if svc is None:
+        return {"error": "companion surfaces are not available"}
+    try:
+        result = await svc.run_surface_test(surface_id, microphone=microphone, actor="mcp")
+    except AppError as exc:
+        return {"error": exc.message}
+    return {
+        "surface_id": result.surface_id,
+        "reached": result.reached,
+        "microphone": result.microphone,
+        "lease_seconds": result.lease_seconds,
+    }

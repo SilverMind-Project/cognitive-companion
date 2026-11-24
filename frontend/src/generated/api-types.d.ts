@@ -554,6 +554,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/companion-surfaces/{surface_id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Companion Surface Test
+         * @description Wake this one screen and chime, so a caregiver can see which screen it is.
+         */
+        post: operations["run_companion_surface_test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations/recent": {
         parameters: {
             query?: never;
@@ -7091,6 +7111,32 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /**
+         * CompanionSurfaceTestIn
+         * @description Ask one screen to identify itself (wake, chime, a short lease).
+         */
+        CompanionSurfaceTestIn: {
+            /**
+             * Microphone
+             * @description Also open the screen's microphone for the lease, to check it listens.
+             * @default false
+             */
+            microphone: boolean;
+        };
+        /** CompanionSurfaceTestOut */
+        CompanionSurfaceTestOut: {
+            /** Lease Seconds */
+            lease_seconds: number;
+            /** Microphone */
+            microphone: boolean;
+            /**
+             * Reached
+             * @description Live connections the command reached; 0 means offline.
+             */
+            reached: number;
+            /** Surface Id */
+            surface_id: string;
         };
         /** CompanionSurfaceUpdate */
         CompanionSurfaceUpdate: {
@@ -14686,6 +14732,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompanionSurfaceHeartbeatOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_companion_surface_test: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                surface_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CompanionSurfaceTestIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionSurfaceTestOut"];
                 };
             };
             /** @description Validation Error */

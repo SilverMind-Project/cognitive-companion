@@ -54,3 +54,31 @@ describe("KioskGate settings", () => {
     expect(unlocked.emitted("save-settings")[0][0].surfaceId).toBe("kitchen-tablet");
   });
 });
+
+describe("KioskGate screen test", () => {
+  it("tests the surface id being entered and shows the result", async () => {
+    const unlocked = state(true);
+    unlocked.surfaceTest = { status: "offline", message: "No screen is connected as this id." };
+    const wrapper = mount(KioskGate, { props: { state: unlocked }, global: { stubs } });
+    await wrapper.find(".kiosk-settings-btn").trigger("click");
+
+    await wrapper.find('[data-test="kiosk-test-surface"]').trigger("click");
+
+    expect(wrapper.emitted("test-surface")[0]).toEqual(["kitchen-tablet"]);
+    const result = wrapper.find('[data-test="kiosk-test-surface-result"]');
+    expect(result.text()).toBe("No screen is connected as this id.");
+    expect(result.classes()).toContain("kiosk-surface-test__result--offline");
+  });
+
+  it("cannot test before a surface id is entered", async () => {
+    const unlocked = state(true);
+    unlocked.settings.surfaceId = "";
+    const wrapper = mount(KioskGate, { props: { state: unlocked }, global: { stubs } });
+    await wrapper.find(".kiosk-settings-btn").trigger("click");
+
+    const button = wrapper.find('[data-test="kiosk-test-surface"]');
+    expect(button.attributes("disabled")).toBeDefined();
+    await button.trigger("click");
+    expect(wrapper.emitted("test-surface")).toBeUndefined();
+  });
+});

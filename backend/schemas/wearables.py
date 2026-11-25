@@ -14,6 +14,15 @@ _UWB_HEX_RE = re.compile(r"^[0-9a-fA-F]{2}:[0-9a-fA-F]{2}$")
 _SAFE_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$")
 
 
+def _optional_slug(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not _SAFE_SLUG_RE.match(value):
+        raise ValueError("must contain only letters, digits, or . _ : @ / -")
+    return value
+
+
 def _validate_non_empty(value: str, field_name: str) -> str:
     stripped = value.strip()
     if not stripped:
@@ -29,6 +38,8 @@ class WearableDeviceCreate(BaseModel):
     label: str = Field(min_length=1, max_length=128)
     adapter_id: str = Field(min_length=1, max_length=128)
     hardware_key: str = Field(min_length=1, max_length=256)
+    # Shared by the logical tags of one radio (a dual-mode watch's BLE and UWB tags).
+    physical_device_id: str | None = Field(default=None, min_length=1, max_length=128)
 
     @field_validator("tag_id", "adapter_id")
     @classmethod
@@ -37,6 +48,11 @@ class WearableDeviceCreate(BaseModel):
         if not _SAFE_SLUG_RE.match(v):
             raise ValueError("must contain only letters, digits, or . _ : @ / -")
         return v
+
+    @field_validator("physical_device_id")
+    @classmethod
+    def _check_physical_slug(cls, v: str | None) -> str | None:
+        return _optional_slug(v)
 
     @field_validator("label", "hardware_key")
     @classmethod
@@ -51,7 +67,14 @@ class WearableDeviceUpdate(BaseModel):
     device_kind: DeviceKind | None = None
     adapter_id: str | None = Field(default=None, min_length=1, max_length=128)
     hardware_key: str | None = Field(default=None, min_length=1, max_length=256)
+    # Explicit null clears the link; omitting the field leaves it unchanged.
+    physical_device_id: str | None = Field(default=None, min_length=1, max_length=128)
     is_active: bool | None = None
+
+    @field_validator("physical_device_id")
+    @classmethod
+    def _check_physical_slug(cls, v: str | None) -> str | None:
+        return _optional_slug(v)
 
     @field_validator("adapter_id")
     @classmethod
@@ -95,6 +118,7 @@ class WearableDeviceOut(BaseModel):
     label: str
     adapter_id: str
     hardware_key: str
+    physical_device_id: str | None = None
     is_active: bool
     last_heard_at: datetime | None
     last_battery_fraction: float | None
@@ -143,6 +167,7 @@ class MemberWearableDeviceSummary(BaseModel):
     label: str
     device_kind: DeviceKind
     adapter_id: str
+    physical_device_id: str | None = None
     is_active: bool
     valid_from: datetime
     consent_recorded_by: str
@@ -420,6 +445,8 @@ class SiteConfigDeviceOut(BaseModel):
     hardware_key: str
     device_kind: DeviceKind
     is_active: bool
+    # Logical tags sharing this value are one radio; CTS treats them as one wearable.
+    physical_device_id: str | None = None
 
 
 class WearableSiteConfigOut(BaseModel):

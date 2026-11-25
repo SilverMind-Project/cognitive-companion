@@ -9667,6 +9667,8 @@ export interface components {
             last_battery_fraction: number | null;
             /** Last Heard At */
             last_heard_at: string | null;
+            /** Physical Device Id */
+            physical_device_id?: string | null;
             /** Tag Id */
             tag_id: string;
             /**
@@ -12902,6 +12904,8 @@ export interface components {
             hardware_key: string;
             /** Is Active */
             is_active: boolean;
+            /** Physical Device Id */
+            physical_device_id?: string | null;
             /** Tag Id */
             tag_id: string;
         };
@@ -13679,6 +13683,8 @@ export interface components {
             hardware_key: string;
             /** Label */
             label: string;
+            /** Physical Device Id */
+            physical_device_id?: string | null;
             /** Tag Id */
             tag_id: string;
         };
@@ -13715,6 +13721,8 @@ export interface components {
             last_battery_fraction: number | null;
             /** Last Heard At */
             last_heard_at: string | null;
+            /** Physical Device Id */
+            physical_device_id?: string | null;
             /** Tag Id */
             tag_id: string;
             /**
@@ -13768,6 +13776,8 @@ export interface components {
             is_active?: boolean | null;
             /** Label */
             label?: string | null;
+            /** Physical Device Id */
+            physical_device_id?: string | null;
         };
         /** WearableResumeTeachingResponse */
         WearableResumeTeachingResponse: {

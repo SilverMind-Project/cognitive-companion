@@ -31,6 +31,10 @@ class WearableDevice(Base, TimestampMixin):
     ``hardware_key`` is the opaque identifier observed on the air by ``adapter_id``
     (for example an iBeacon UUID/major/minor string or a UWB tag identifier) and is
     the only place a radio identifier is stored.
+
+    ``physical_device_id`` groups logical tags that are one radio (a dual-mode watch's
+    BLE and UWB tags). Tags in one group sit on different adapters and, while bound,
+    are bound to the same member. ``None`` means the tag is its own group.
     """
 
     __tablename__ = "wearable_devices"
@@ -57,6 +61,7 @@ class WearableDevice(Base, TimestampMixin):
     label: Mapped[str] = mapped_column(Text, nullable=False)
     adapter_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     hardware_key: Mapped[str] = mapped_column(Text, nullable=False)
+    physical_device_id: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=text("TRUE")
     )

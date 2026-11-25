@@ -8,8 +8,9 @@ from datetime import UTC, datetime
 
 from cts_contracts import DeviceKind
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from backend.core.exceptions import ConflictError, NotFoundError
+from backend.core.exceptions import ConflictError, NotFoundError, ValidationError
 from backend.core.logging import get_logger
 from backend.models.wearable import WearableBinding, WearableDevice
 from backend.schemas.wearables import (
@@ -63,6 +64,7 @@ def _device_out(
         label=device.label,
         adapter_id=device.adapter_id,
         hardware_key=device.hardware_key,
+        physical_device_id=device.physical_device_id,
         is_active=device.is_active,
         last_heard_at=device.last_heard_at,
         last_battery_fraction=device.last_battery_fraction,
@@ -70,6 +72,45 @@ def _device_out(
         created_at=device.created_at,
         updated_at=device.updated_at,
     )
+
+
+def check_physical_device_group(
+    repo: SqlAlchemyWearableRepository,
+    db: Session,
+    *,
+    device_id: uuid.UUID | None,
+    physical_device_id: str | None,
+    adapter_id: str,
+    member_id: str | None,
+) -> None:
+    """Enforce the invariants of tags that share one ``physical_device_id``.
+
+    A physical device has at most one logical tag per adapter, and every tag of the
+    device that is currently bound is bound to the same member: one radio cannot be on
+    two people. CTS relies on both when it keeps one association segment across the
+    tags. Sibling rows are locked so concurrent binds on two siblings serialize.
+    """
+    if physical_device_id is None:
+        return
+    siblings = [
+        d
+        for d in repo.list_devices_by_physical_id(db, physical_device_id, for_update=True)
+        if d.id != device_id
+    ]
+    if any(d.adapter_id == adapter_id for d in siblings):
+        raise ValidationError(
+            "A physical device has at most one logical tag per adapter; "
+            f"another tag of {physical_device_id!r} already uses adapter {adapter_id!r}"
+        )
+    if member_id is None:
+        return
+    for sibling in siblings:
+        binding = repo.active_binding_for_device(db, sibling.id)
+        if binding is not None and binding.member_id is not None and binding.member_id != member_id:
+            raise ConflictError(
+                f"Tag {sibling.tag_id!r} of the same physical device is bound to another member; "
+                "unbind it first"
+            )
 
 
 class WearableDeviceService:
@@ -113,6 +154,14 @@ class WearableDeviceService:
     def create_device(self, payload: WearableDeviceCreate, *, actor: str) -> WearableDeviceOut:
         now = self._clock()
         with self._repo.session() as db:
+            check_physical_device_group(
+                self._repo,
+                db,
+                device_id=None,
+                physical_device_id=payload.physical_device_id,
+                adapter_id=payload.adapter_id,
+                member_id=None,
+            )
             device = WearableDevice(
                 id=uuid.uuid4(),
                 tag_id=payload.tag_id,
@@ -120,6 +169,7 @@ class WearableDeviceService:
                 label=payload.label,
                 adapter_id=payload.adapter_id,
                 hardware_key=payload.hardware_key,
+                physical_device_id=payload.physical_device_id,
                 is_active=True,
                 created_at=now,
                 updated_at=now,
@@ -139,6 +189,7 @@ class WearableDeviceService:
                 tag_id=device.tag_id,
                 device_kind=device.device_kind,
                 adapter_id=device.adapter_id,
+                physical_device_id=device.physical_device_id,
                 actor=actor,
             )
             return _device_out(device, active_binding=None, member_names={})
@@ -152,10 +203,20 @@ class WearableDeviceService:
     ) -> WearableDeviceOut:
         now = self._clock()
         with self._repo.session() as db:
-            device = self._repo.get_device(db, device_id)
+            device = self._repo.get_device_for_update(db, device_id)
             if device is None:
                 raise NotFoundError("WearableDevice", str(device_id))
             updates = payload.model_dump(exclude_unset=True)
+            if "physical_device_id" in updates or "adapter_id" in updates:
+                binding = self._repo.active_binding_for_device(db, device.id)
+                check_physical_device_group(
+                    self._repo,
+                    db,
+                    device_id=device.id,
+                    physical_device_id=updates.get("physical_device_id", device.physical_device_id),
+                    adapter_id=updates.get("adapter_id") or device.adapter_id,
+                    member_id=binding.member_id if binding is not None else None,
+                )
             for key, value in updates.items():
                 if key == "device_kind" and isinstance(value, DeviceKind):
                     setattr(device, key, value.value)
@@ -177,6 +238,7 @@ class WearableDeviceService:
                 device_id=str(device.id),
                 tag_id=device.tag_id,
                 is_active=device.is_active,
+                physical_device_id=device.physical_device_id,
                 actor=actor,
             )
             return _device_out(device, active_binding=binding, member_names=member_names)

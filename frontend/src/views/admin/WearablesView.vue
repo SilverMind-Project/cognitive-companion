@@ -91,6 +91,13 @@
                 <td>{{ dev.label }}</td>
                 <td>
                   <code>{{ dev.tag_id }}</code>
+                  <div
+                    v-if="dev.physical_device_id"
+                    class="text-caption text-medium-emphasis"
+                    :data-test="`physical-device-${dev.tag_id}`"
+                  >
+                    Physical device {{ dev.physical_device_id }}
+                  </div>
                 </td>
                 <td>{{ dev.device_kind }}</td>
                 <td>{{ dev.adapter_id }}</td>
@@ -152,6 +159,13 @@
                 <td>{{ dev.label }}</td>
                 <td>
                   <code>{{ dev.tag_id }}</code>
+                  <div
+                    v-if="dev.physical_device_id"
+                    class="text-caption text-medium-emphasis"
+                    :data-test="`physical-device-${dev.tag_id}`"
+                  >
+                    Physical device {{ dev.physical_device_id }}
+                  </div>
                 </td>
                 <td>{{ dev.device_kind }}</td>
                 <td>{{ dev.adapter_id }}</td>
@@ -264,6 +278,15 @@
           persistent-hint
           data-test="new-device-hw-key"
         />
+        <v-text-field
+          v-model="newDevice.physical_device_id"
+          label="Physical device ID (optional)"
+          placeholder="watch-amma"
+          hint="Give the BLE and UWB tags of one dual-mode watch the same value, so tracking treats them as one wearable"
+          persistent-hint
+          class="mt-4"
+          data-test="new-device-physical-id"
+        />
       </div>
     </AppDialog>
 
@@ -346,6 +369,7 @@ const newDevice = reactive({
   device_kind: "ble_beacon" as "ble_beacon" | "watch" | "uwb_tag",
   adapter_id: "ble-home",
   hardware_key: "",
+  physical_device_id: "",
 });
 
 const canCreateDevice = computed(
@@ -362,6 +386,7 @@ function openAddDevice() {
   newDevice.device_kind = "ble_beacon";
   newDevice.adapter_id = "ble-home";
   newDevice.hardware_key = "";
+  newDevice.physical_device_id = "";
   showAddDevice.value = true;
 }
 
@@ -373,6 +398,7 @@ async function submitAddDevice() {
     device_kind: newDevice.device_kind,
     adapter_id: newDevice.adapter_id.trim(),
     hardware_key: newDevice.hardware_key.trim(),
+    physical_device_id: newDevice.physical_device_id.trim() || null,
   });
   showAddDevice.value = false;
 }
@@ -401,6 +427,7 @@ async function openBindingDialogFromMemberDevice(deviceId: string) {
     label: memberEntry.label,
     adapter_id: memberEntry.adapter_id,
     hardware_key: "",
+    physical_device_id: memberEntry.physical_device_id ?? null,
     is_active: memberEntry.is_active,
     last_heard_at: memberEntry.last_heard_at,
     last_battery_fraction: memberEntry.last_battery_fraction,

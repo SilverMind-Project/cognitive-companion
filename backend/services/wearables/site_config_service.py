@@ -110,6 +110,7 @@ class WearableSiteConfigService:
                     hardware_key=d.hardware_key,
                     device_kind=DeviceKind(d.device_kind),
                     is_active=d.is_active,
+                    physical_device_id=d.physical_device_id,
                 )
                 for d in devices
             ]

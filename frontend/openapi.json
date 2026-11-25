@@ -9940,6 +9940,17 @@
             ],
             "title": "Last Heard At"
           },
+          "physical_device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Physical Device Id"
+          },
           "tag_id": {
             "title": "Tag Id",
             "type": "string"
@@ -18895,6 +18906,17 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "physical_device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Physical Device Id"
+          },
           "tag_id": {
             "title": "Tag Id",
             "type": "string"
@@ -20782,6 +20804,19 @@
             "title": "Label",
             "type": "string"
           },
+          "physical_device_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Physical Device Id"
+          },
           "tag_id": {
             "maxLength": 128,
             "minLength": 1,
@@ -20884,6 +20919,17 @@
               }
             ],
             "title": "Last Heard At"
+          },
+          "physical_device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Physical Device Id"
           },
           "tag_id": {
             "title": "Tag Id",
@@ -21083,6 +21129,19 @@
               }
             ],
             "title": "Label"
+          },
+          "physical_device_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Physical Device Id"
           }
         },
         "title": "WearableDeviceUpdate",

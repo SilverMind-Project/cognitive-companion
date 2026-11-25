@@ -18,6 +18,9 @@ from backend.models.wearable import RfNode, WearableBinding, WearableDevice
 
 migration = importlib.import_module("backend.alembic.versions.0006_wearables_registry")
 migration_0008 = importlib.import_module("backend.alembic.versions.0008_rf_node_firmware_version")
+migration_0010 = importlib.import_module(
+    "backend.alembic.versions.0010_wearable_physical_device_id"
+)
 
 
 def _run(connection: Connection, step) -> None:
@@ -52,6 +55,31 @@ def test_0008_firmware_version_downgrade_and_upgrade_round_trip(db_engine) -> No
             outer.rollback()
 
 
+def test_0010_physical_device_id_downgrade_and_upgrade_round_trip(db_engine) -> None:
+    assert migration_0010.down_revision == "0009_companion_surface_device_state"
+    with db_engine.connect() as connection:
+        outer = connection.begin()
+        try:
+
+            def columns() -> set[str]:
+                return {c["name"] for c in inspect(connection).get_columns("wearable_devices")}
+
+            def indexes() -> set[str]:
+                return {i["name"] for i in inspect(connection).get_indexes("wearable_devices")}
+
+            assert "physical_device_id" in columns()
+            assert "ix_wearable_devices_physical_device_id" in indexes()
+
+            _run(connection, migration_0010.downgrade)
+            assert "physical_device_id" not in columns()
+            assert "ix_wearable_devices_physical_device_id" not in indexes()
+
+            _run(connection, migration_0010.upgrade)
+            assert "physical_device_id" in columns()
+        finally:
+            outer.rollback()
+
+
 def test_downgrade_and_upgrade_round_trip_wearables_registry(db_engine) -> None:
     with db_engine.connect() as connection:
         outer = connection.begin()
@@ -67,6 +95,7 @@ def test_downgrade_and_upgrade_round_trip_wearables_registry(db_engine) -> None:
             _run(connection, migration.upgrade)
             assert {"wearable_devices", "wearable_bindings", "rf_nodes"} <= _tables(connection)
             _run(connection, migration_0008.upgrade)
+            _run(connection, migration_0010.upgrade)
 
             # Verify DOUBLE PRECISION columns on rf_nodes (not float4/REAL).
             col_types = {

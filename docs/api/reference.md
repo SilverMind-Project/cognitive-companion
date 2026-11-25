@@ -401,10 +401,10 @@ Hardware-neutral registry of wearable tags, time-bounded consented member bindin
 | Method | Path | Permission | Description |
 | --- | --- | --- | --- |
 | `GET` | `/wearables/devices` | `wearables:read` | List registered wearable devices with optional `active_only` filter and current active binding |
-| `POST` | `/wearables/devices` | `wearables:manage` | Register a wearable device (`tag_id`, `device_kind`, `label`, `adapter_id`, `hardware_key`) |
-| `PATCH` | `/wearables/devices/{device_id}` | `wearables:manage` | Update device label, active flag, adapter ID, or hardware key |
+| `POST` | `/wearables/devices` | `wearables:manage` | Register a wearable device (`tag_id`, `device_kind`, `label`, `adapter_id`, `hardware_key`, optional `physical_device_id`) |
+| `PATCH` | `/wearables/devices/{device_id}` | `wearables:manage` | Update device label, active flag, adapter ID, hardware key, or `physical_device_id` (explicit `null` clears it) |
 | `GET` | `/wearables/devices/{device_id}/bindings` | `wearables:read` | List chronological binding history (`valid_from`, `valid_to`, consent attribution) for one device |
-| `POST` | `/wearables/devices/{device_id}/bind` | `wearables:manage` | Bind a device to an active household member; requires `consent_confirmed=true` and non-empty `consent_recorded_by`; closes any prior open binding on the device |
+| `POST` | `/wearables/devices/{device_id}/bind` | `wearables:manage` | Bind a device to an active household member; requires `consent_confirmed=true` and non-empty `consent_recorded_by`; refuses (409) when the device already has an open binding or another tag with the same `physical_device_id` is bound to a different member |
 | `POST` | `/wearables/devices/{device_id}/unbind` | `wearables:manage` | Close the device's open binding (`valid_to = now()`) |
 | `GET` | `/wearables/assignments` | `wearables:read` | Members grouped with all their currently bound devices (supporting multiple devices per member), plus unbound devices; shares one service call with MCP `get_wearable_assignments` |
 | `GET` | `/wearables/nodes` | `wearables:read` | List fixed RF nodes (BLE receivers, UWB anchors, dual-radio nodes) |
@@ -415,7 +415,7 @@ Hardware-neutral registry of wearable tags, time-bounded consented member bindin
 | `GET` | `/wearables/devices/{device_id}/associations` | `wearables:read` | List recent wearable-to-PH teaching segments for one device with taught counts (gallery rows, attested faces, live backfill ranges) and current tag teaching-hold status |
 | `POST` | `/wearables/associations/{segment_id}/revoke` | `wearables:revoke_teaching` | Caregiver-admin only (`actor_from_auth(auth)`): demote `auto_verified` gallery rows from this segment, revoke its attested face captures in person-id, compensate live inferred backfill ranges, and pause further teaching on the tag |
 | `POST` | `/wearables/tags/{tag_id}/resume-teaching` | `wearables:revoke_teaching` | Caregiver-admin only (`actor_from_auth(auth)`): clear an open teaching hold for a tag so future attested periods may teach again |
-| `GET` | `/wearables/site-config` | `wearables.site_config:read` | Live site configuration (active nodes, devices, and open bindings in metres on the active floor plan) polled by CTS `CCConfigSyncService` and RF ingress adapters; granted to `cts_ingress` and `admin`, denied to `caregiver` |
+| `GET` | `/wearables/site-config` | `wearables.site_config:read` | Live site configuration (active nodes, devices with their `physical_device_id`, and open bindings in metres on the active floor plan) polled by CTS `CCConfigSyncService` and RF ingress adapters; granted to `cts_ingress` and `admin`, denied to `caregiver` |
 
 Deleting a household member (`DELETE /persons/{person_id}`) closes any open wearable bindings for that member before removing the person row and preserves historical binding intervals with `member_id = null`.
 

@@ -123,6 +123,112 @@ def test_multiple_devices_per_member_and_dual_mode_watch_bindings(db_factory) ->
     assert by_tag == {"pw5-ble": "sriram", "pw5-uwb": "sriram"}
 
 
+def _watch_tag(
+    tag_id: str, adapter_id: str, physical_device_id: str | None
+) -> WearableDeviceCreate:
+    return WearableDeviceCreate(
+        tag_id=tag_id,
+        device_kind=DeviceKind.WATCH,
+        label=f"Watch ({tag_id})",
+        adapter_id=adapter_id,
+        hardware_key=f"hw-{tag_id}",
+        physical_device_id=physical_device_id,
+    )
+
+
+def test_physical_device_id_reaches_site_config_and_member_assignments(db_factory) -> None:
+    _seed_floor_plan_and_members(db_factory)
+    t0 = datetime(2026, 11, 25, 9, 0, tzinfo=UTC)
+    repo = SqlAlchemyWearableRepository(db_factory)
+    dev_svc = WearableDeviceService(repo, clock=lambda: t0)
+    bind_svc = WearableBindingService(repo, clock=lambda: t0)
+    site_svc = WearableSiteConfigService(repo, clock=lambda: t0)
+
+    ble = dev_svc.create_device(_watch_tag("pw5-ble", "ble-home", "watch-sriram"), actor="Admin")
+    uwb = dev_svc.create_device(_watch_tag("pw5-uwb", "uwb-watch", "watch-sriram"), actor="Admin")
+    band = dev_svc.create_device(_watch_tag("band-1", "ble-home", None), actor="Admin")
+    assert ble.physical_device_id == "watch-sriram"
+    assert band.physical_device_id is None
+
+    version_before = site_svc.build_site_config().version
+    bind_svc.bind(ble.id, "sriram", consent_recorded_by="Sriram", created_by="Admin", at=t0)
+    bind_svc.bind(uwb.id, "sriram", consent_recorded_by="Sriram", created_by="Admin", at=t0)
+
+    cfg = site_svc.build_site_config()
+    physical = {d.tag_id: d.physical_device_id for d in cfg.devices}
+    assert physical == {"band-1": None, "pw5-ble": "watch-sriram", "pw5-uwb": "watch-sriram"}
+    assert cfg.version != version_before
+
+    summaries = bind_svc.list_member_assignments().members[0].devices
+    assert {d.tag_id: d.physical_device_id for d in summaries} == {
+        "pw5-ble": "watch-sriram",
+        "pw5-uwb": "watch-sriram",
+    }
+
+
+def test_physical_device_tags_never_bind_to_two_members(db_factory) -> None:
+    _seed_floor_plan_and_members(db_factory)
+    t0 = datetime(2026, 11, 25, 9, 0, tzinfo=UTC)
+    repo = SqlAlchemyWearableRepository(db_factory)
+    dev_svc = WearableDeviceService(repo, clock=lambda: t0)
+    bind_svc = WearableBindingService(repo, clock=lambda: t0)
+
+    ble = dev_svc.create_device(_watch_tag("pw5-ble", "ble-home", "watch-1"), actor="Admin")
+    uwb = dev_svc.create_device(_watch_tag("pw5-uwb", "uwb-watch", "watch-1"), actor="Admin")
+    bind_svc.bind(ble.id, "sriram", consent_recorded_by="Sriram", created_by="Admin", at=t0)
+
+    # One radio cannot be on two people.
+    with pytest.raises(ConflictError):
+        bind_svc.bind(uwb.id, "amma", consent_recorded_by="Admin", created_by="Admin", at=t0)
+
+    # Once the sibling is unbound, the whole device may move to the other member.
+    bind_svc.unbind(ble.id, actor="Admin", at=t0 + timedelta(minutes=1))
+    bind_svc.bind(
+        uwb.id,
+        "amma",
+        consent_recorded_by="Admin",
+        created_by="Admin",
+        at=t0 + timedelta(minutes=2),
+    )
+
+    # Linking an already-bound tag into a group bound to someone else is refused too.
+    loose = dev_svc.create_device(_watch_tag("loose-ble", "ble-annex", None), actor="Admin")
+    bind_svc.bind(loose.id, "sriram", consent_recorded_by="Sriram", created_by="Admin", at=t0)
+    with pytest.raises(ConflictError):
+        dev_svc.update_device(
+            loose.id, WearableDeviceUpdate(physical_device_id="watch-1"), actor="Admin"
+        )
+
+
+def test_physical_device_has_one_tag_per_adapter_and_link_can_be_cleared(db_factory) -> None:
+    _seed_floor_plan_and_members(db_factory)
+    t0 = datetime(2026, 11, 25, 9, 0, tzinfo=UTC)
+    repo = SqlAlchemyWearableRepository(db_factory)
+    dev_svc = WearableDeviceService(repo, clock=lambda: t0)
+
+    ble = dev_svc.create_device(_watch_tag("pw5-ble", "ble-home", "watch-1"), actor="Admin")
+    with pytest.raises(ValidationError):
+        dev_svc.create_device(_watch_tag("pw5-ble-2", "ble-home", "watch-1"), actor="Admin")
+
+    uwb = dev_svc.create_device(_watch_tag("pw5-uwb", "uwb-watch", "watch-1"), actor="Admin")
+    # Moving the UWB tag onto the BLE adapter would give the device two BLE tags.
+    with pytest.raises(ValidationError):
+        dev_svc.update_device(uwb.id, WearableDeviceUpdate(adapter_id="ble-home"), actor="Admin")
+
+    cleared = dev_svc.update_device(
+        uwb.id, WearableDeviceUpdate(physical_device_id=None), actor="Admin"
+    )
+    assert cleared.physical_device_id is None
+    # Omitting the field leaves the link alone.
+    relabelled = dev_svc.update_device(ble.id, WearableDeviceUpdate(label="Watch"), actor="Admin")
+    assert relabelled.physical_device_id == "watch-1"
+
+
+def test_physical_device_id_rejects_unsafe_values() -> None:
+    with pytest.raises(ValueError, match="letters, digits"):
+        _watch_tag("pw5-ble", "ble-home", "watch 1; drop")
+
+
 def test_unbind_and_rebind_preserve_history_and_reject_overlap(db_factory) -> None:
     _seed_floor_plan_and_members(db_factory)
     t0 = datetime(2026, 11, 19, 8, 0, tzinfo=UTC)

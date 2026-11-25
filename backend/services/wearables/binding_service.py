@@ -19,7 +19,11 @@ from backend.schemas.wearables import (
     WearableAssignmentsOut,
     WearableBindingOut,
 )
-from backend.services.wearables.device_service import _binding_out, _device_out
+from backend.services.wearables.device_service import (
+    _binding_out,
+    _device_out,
+    check_physical_device_group,
+)
 from backend.services.wearables.repositories import SqlAlchemyWearableRepository
 
 logger = get_logger(__name__)
@@ -81,6 +85,14 @@ class WearableBindingService:
                 raise ConflictError(
                     "Wearable device already has an active binding; unbind it before re-binding"
                 )
+            check_physical_device_group(
+                self._repo,
+                db,
+                device_id=device.id,
+                physical_device_id=device.physical_device_id,
+                adapter_id=device.adapter_id,
+                member_id=member.id,
+            )
 
             binding = WearableBinding(
                 id=uuid.uuid4(),
@@ -209,6 +221,7 @@ class WearableBindingService:
                         label=device.label,
                         device_kind=DeviceKind(device.device_kind),
                         adapter_id=device.adapter_id,
+                        physical_device_id=device.physical_device_id,
                         is_active=device.is_active,
                         valid_from=binding.valid_from,
                         consent_recorded_by=binding.consent_recorded_by,

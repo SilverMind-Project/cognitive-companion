@@ -61,6 +61,7 @@ function makeWearablesStore() {
               label: "Pixel Watch 5 (BLE)",
               device_kind: "watch" as const,
               adapter_id: "ble-home",
+              physical_device_id: "watch-sriram",
               is_active: true,
               valid_from: "2026-11-19T09:00:00Z",
               consent_recorded_by: "Sriram",
@@ -73,6 +74,7 @@ function makeWearablesStore() {
               label: "Pixel Watch 5 (UWB)",
               device_kind: "watch" as const,
               adapter_id: "uwb-watch",
+              physical_device_id: "watch-sriram",
               is_active: true,
               valid_from: "2026-11-19T09:00:00Z",
               consent_recorded_by: "Sriram",
@@ -150,7 +152,8 @@ const commonStubs = {
     props: ["modelValue", "label"],
   },
   AppDialog: {
-    template: "<div v-if='modelValue'><slot /></div>",
+    template:
+      "<div v-if='modelValue'><slot /><button data-test='app-dialog-confirm' @click='$emit(\"confirm\")' /></div>",
     props: ["modelValue"],
   },
   CcSegmentedToggle: {
@@ -185,6 +188,41 @@ describe("WearablesView", () => {
 
     await wrapper.get("[data-test='quick-unbind-pw5-ble']").trigger("click");
     expect(store.actions.unbindDevice).toHaveBeenCalledWith("33333333-3333-3333-3333-333333333333");
+  });
+
+  it("shows the shared physical device of a dual-mode watch's tags", async () => {
+    const wrapper = mount(WearablesView, { global: { stubs: commonStubs } });
+    await flushPromises();
+
+    expect(wrapper.get("[data-test='physical-device-pw5-ble']").text()).toContain("watch-sriram");
+    expect(wrapper.get("[data-test='physical-device-pw5-uwb']").text()).toContain("watch-sriram");
+    expect(wrapper.find("[data-test='physical-device-grandma-clip-1']").exists()).toBe(false);
+  });
+
+  it("sends physical_device_id on create, and null when left blank", async () => {
+    const wrapper = mount(WearablesView, { global: { stubs: commonStubs } });
+    await flushPromises();
+    const store = wearablesMock.value as ReturnType<typeof makeWearablesStore>;
+
+    async function addDevice(tagId: string, physicalId: string) {
+      await wrapper.get("[data-test='add-device-btn']").trigger("click");
+      await wrapper.get("[data-test='new-device-label']").setValue(`Label ${tagId}`);
+      await wrapper.get("[data-test='new-device-tag-id']").setValue(tagId);
+      await wrapper.get("[data-test='new-device-hw-key']").setValue(`hw-${tagId}`);
+      await wrapper.get("[data-test='new-device-physical-id']").setValue(physicalId);
+      await wrapper.get("[data-test='app-dialog-confirm']").trigger("click");
+      await flushPromises();
+    }
+
+    await addDevice("pw5-ble", " watch-amma ");
+    expect(store.actions.addDevice).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tag_id: "pw5-ble", physical_device_id: "watch-amma" }),
+    );
+
+    await addDevice("band-1", "   ");
+    expect(store.actions.addDevice).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tag_id: "band-1", physical_device_id: null }),
+    );
   });
 });
 

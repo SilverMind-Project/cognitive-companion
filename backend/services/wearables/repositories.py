@@ -53,6 +53,24 @@ class SqlAlchemyWearableRepository:
         return db.scalar(stmt)
 
     @staticmethod
+    def list_devices_by_physical_id(
+        db: Session, physical_device_id: str, *, for_update: bool = False
+    ) -> list[WearableDevice]:
+        """Return every logical tag of one physical device, ordered by id.
+
+        With *for_update* the rows are locked in id order so two concurrent binds on
+        sibling tags serialize instead of both passing the same-member check.
+        """
+        stmt = (
+            select(WearableDevice)
+            .where(WearableDevice.physical_device_id == physical_device_id)
+            .order_by(WearableDevice.id)
+        )
+        if for_update:
+            stmt = stmt.with_for_update()
+        return list(db.scalars(stmt).all())
+
+    @staticmethod
     def list_bindings_for_device(db: Session, device_id: uuid.UUID) -> list[WearableBinding]:
         stmt = (
             select(WearableBinding)

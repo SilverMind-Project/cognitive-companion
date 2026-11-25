@@ -75,7 +75,7 @@
       "label": "tea_verdict",
       "step_type": "llm_call",
       "config": {
-        "model_id": "qwen-3.6-35b",
+        "model_id": "qwen-3.8-27b",
         "image_source": "none",
         "prompt": "The resident has been dwelling near the kitchen kettle counter. Scene caption: \"{{ steps.scene.outputs.scene_description }}\". Detected objects: {{ steps.scene.outputs.scene_detections }}. Region check: person present at the kettle counter = {{ steps.region_presence_1.outputs.in_region }}. (Room and current local time are already provided above.) Based only on this evidence, is she likely starting to make tea (approaching the kettle, reaching for it, filling it, or standing at the counter with kettle-related items nearby)? Respond with your honest best judgement; do not assume tea just because she is in the kitchen.",
         "response_format": "json_schema",

@@ -27,7 +27,7 @@ Closed D4 actions (14): `acknowledge`, `act`, `calibrate`, `correct`, `delete`, 
 | --- | --- | --- |
 | `admin` | 29 | `*`, `activities.sessions:write`, `admin.config:write`, `cts.calibration:calibrate`, `cts.cameras:write`, `cts.identity:correct`, `cts.keyframes:write`, `cts.signals.suppressions:delete`, `cts.signals.suppressions:write`, `cts.signals:acknowledge`, `cts.signals:delete`, `gate_graphs:write`, `guided_sessions:takeover`, `ha:write`, `household:write`, `image:delete`, `image:write`, `medication:write`, `persons.location:write`, `persons:delete`, `persons:write`, `room_zones:write`, `rooms:write`, `routines:write`, `rules:execute`, `rules:write`, `sensors:write`, `wearables:write`, `workflows:execute` |
 | `operator` | 1 | `*` |
-| `caregiver_admin` | 66 | `activities:read`, `admin.channels:read`, `admin.config:read`, `admin:read`, `companion.audio:act`, `companion_surfaces.test:execute`, `companion_surfaces:read`, `companion_surfaces:write`, `conversations:read`, `cts.analytics.heatmap:read`, `cts.bboxes:read`, `cts.bboxes:write`, `cts.calibration:read`, `cts.cameras.roster:read`, `cts.cameras:read`, `cts.gait.trend:read`, `cts.identity.corrections:correct`, `cts.identity.gallery:review`, `cts.identity:propose`, `cts.identity:read`, `cts.keyframes:read`, `cts.live:read`, `cts.presence:read`, `cts.reports.weekly:read`, `cts.signals.evidence:read`, `cts.signals:read`, `cts.transit_zones:write`, `cts:read`, `events:read`, `face_calibration:review`, `face_prototypes:read`, `face_prototypes:write`, `gate_graphs:read`, `guided_metrics:read`, `guided_sessions.resident_state:read`, `guided_sessions:read`, `ha:read`, `household:read`, `identity_readiness:read`, `identity_review:read`, `identity_targets:read`, `image:read`, `info_cards:read`, `interactive_responses:read`, `knowledge.documents:read`, `knowledge.interactions:read`, `knowledge.layouts:read`, `media:read`, `medication:read`, `occupancy:read`, `persons.location:read`, `persons:read`, `pipeline.events:read`, `pipeline.meta:read`, `pipeline.runs:read`, `quizzes:read`, `room_zones:read`, `rooms:read`, `routines:read`, `rules:read`, `sensors:read`, `signals.feed:read`, `visitors:review`, `wearables.teaching:write`, `wearables:read`, `workflows:read` |
+| `caregiver_admin` | 72 | `activities:read`, `admin.channels:read`, `admin.config:read`, `admin:read`, `companion.audio:act`, `companion_surfaces.test:execute`, `companion_surfaces:read`, `companion_surfaces:write`, `conversations:read`, `cts.analytics.heatmap:read`, `cts.bboxes:read`, `cts.bboxes:write`, `cts.calibration:read`, `cts.cameras.roster:read`, `cts.cameras:read`, `cts.gait.trend:read`, `cts.identity.corrections:correct`, `cts.identity.gallery:review`, `cts.identity:propose`, `cts.identity:read`, `cts.keyframes:read`, `cts.live:read`, `cts.presence:read`, `cts.reports.weekly:read`, `cts.signals.evidence:read`, `cts.signals:read`, `cts.transit_zones:write`, `cts:read`, `events:read`, `face_calibration:review`, `face_prototypes:read`, `face_prototypes:write`, `gate_graphs:read`, `guided_metrics:read`, `guided_sessions.resident_state:read`, `guided_sessions:read`, `ha:read`, `household:read`, `identity_readiness:read`, `identity_review:read`, `identity_targets:read`, `image:read`, `info_cards:delete`, `info_cards:read`, `info_cards:write`, `interactive_responses:read`, `knowledge.documents:delete`, `knowledge.documents:read`, `knowledge.documents:write`, `knowledge.interactions:read`, `knowledge.layouts:read`, `media:read`, `medication:read`, `occupancy:read`, `persons.location:read`, `persons:read`, `pipeline.events:read`, `pipeline.meta:read`, `pipeline.runs:read`, `quizzes:delete`, `quizzes:read`, `quizzes:write`, `room_zones:read`, `rooms:read`, `routines:read`, `rules:read`, `sensors:read`, `signals.feed:read`, `visitors:review`, `wearables.teaching:write`, `wearables:read`, `workflows:read` |
 | `caregiver` | 65 | `activities:read`, `admin.channels:read`, `admin.config:read`, `admin:read`, `companion.audio:act`, `companion_surfaces.test:execute`, `companion_surfaces:read`, `companion_surfaces:write`, `conversations:read`, `cts.analytics.heatmap:read`, `cts.bboxes:read`, `cts.calibration:read`, `cts.cameras.roster:read`, `cts.cameras:read`, `cts.gait.trend:read`, `cts.identity:read`, `cts.keyframes:read`, `cts.live:read`, `cts.presence.config:write`, `cts.presence:read`, `cts.signals.evidence:read`, `cts.signals:read`, `cts:read`, `events:read`, `face_prototypes:read`, `gate_graphs:read`, `guided_metrics:read`, `guided_sessions.resident_state:read`, `guided_sessions:read`, `ha:read`, `household:read`, `identity_readiness:read`, `identity_review:read`, `identity_targets:read`, `image:read`, `info_cards:delete`, `info_cards:read`, `info_cards:write`, `interactive_responses:read`, `knowledge.documents:delete`, `knowledge.documents:read`, `knowledge.documents:write`, `knowledge.interactions:read`, `knowledge.layouts:read`, `media:read`, `medication:read`, `occupancy:read`, `persons.enrollment:delete`, `persons.enrollment:write`, `persons.location:read`, `persons:read`, `pipeline.events:read`, `pipeline.meta:read`, `pipeline.runs:read`, `quizzes:delete`, `quizzes:read`, `quizzes:write`, `room_zones:read`, `rooms:read`, `routines:read`, `rules:read`, `sensors:read`, `signals.feed:read`, `wearables:read`, `workflows:read` |
 | `mcp_readonly` | 32 | `activities:read`, `conversations:read`, `cts.analytics.heatmap:read`, `cts.gait.trend:read`, `cts.identity:read`, `cts.keyframes:read`, `cts.signals:read`, `cts:read`, `events:read`, `guided_metrics:read`, `guided_sessions:read`, `ha:read`, `identity_readiness:read`, `image:read`, `interactive_responses:read`, `knowledge.documents:read`, `knowledge.interactions:read`, `mcp.tools:read`, `media:read`, `medication:read`, `occupancy:read`, `persons.location:read`, `persons:read`, `pipeline.meta:read`, `quizzes:read`, `room_zones:read`, `rooms:read`, `rules:read`, `sensors:read`, `signals.feed:read`, `wearables:read`, `workflows:read` |
 | `mcp_rules_import` | 1 | `rules:import` |
@@ -236,32 +236,32 @@ reachability across the remaining configured roles.
 | `image:write` | `POST` | `/api/v1/image/templates` | . | . | . | . | . | . | . | . |
 | `image:write` | `PUT` | `/api/v1/image/templates/{template_id}` | . | . | . | . | . | . | . | . |
 | `image:write` | `PUT` | `/api/v1/image/templates/{template_id}/image` | . | . | . | . | . | . | . | . |
-| `info_cards:delete` | `DELETE` | `/api/v1/info-cards/{card_id}` | . | Y | . | . | . | . | . | . |
-| `info_cards:delete` | `DELETE` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | . | Y | . | . | . | . | . | . |
+| `info_cards:delete` | `DELETE` | `/api/v1/info-cards/{card_id}` | Y | Y | . | . | . | . | . | . |
+| `info_cards:delete` | `DELETE` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | Y | Y | . | . | . | . | . | . |
 | `info_cards:read` | `GET` | `/api/v1/info-cards` | Y | Y | . | . | . | . | . | . |
 | `info_cards:read` | `GET` | `/api/v1/info-cards/{card_id}` | Y | Y | . | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards` | . | Y | . | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards/suggest` | . | Y | . | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards/voice-instruction-suggest` | . | Y | . | . | . | . | . | . |
-| `info_cards:write` | `PATCH` | `/api/v1/info-cards/{card_id}` | . | Y | . | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/approve` | . | Y | . | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/archive` | . | Y | . | . | . | . | . | . |
-| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/restore` | . | Y | . | . | . | . | . | . |
-| `info_cards:write` | `PATCH` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | . | Y | . | . | . | . | . | . |
-| `info_cards:write` | `PUT` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | . | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards` | Y | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards/suggest` | Y | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards/voice-instruction-suggest` | Y | Y | . | . | . | . | . | . |
+| `info_cards:write` | `PATCH` | `/api/v1/info-cards/{card_id}` | Y | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/approve` | Y | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/archive` | Y | Y | . | . | . | . | . | . |
+| `info_cards:write` | `POST` | `/api/v1/info-cards/{card_id}/restore` | Y | Y | . | . | . | . | . | . |
+| `info_cards:write` | `PATCH` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | Y | Y | . | . | . | . | . | . |
+| `info_cards:write` | `PUT` | `/api/v1/info-cards/{card_id}/slots/{slot_index}` | Y | Y | . | . | . | . | . | . |
 | `interactive_responses:read` | `GET` | `/api/v1/interactive-responses` | Y | Y | Y | . | . | . | . | . |
-| `knowledge.documents:delete` | `DELETE` | `/api/v1/knowledge/documents/{doc_id}` | . | Y | . | . | . | . | . | . |
-| `knowledge.documents:delete` | `DELETE` | `/api/v1/knowledge/documents/{doc_id}/images/{img_id}` | . | Y | . | . | . | . | . | . |
+| `knowledge.documents:delete` | `DELETE` | `/api/v1/knowledge/documents/{doc_id}` | Y | Y | . | . | . | . | . | . |
+| `knowledge.documents:delete` | `DELETE` | `/api/v1/knowledge/documents/{doc_id}/images/{img_id}` | Y | Y | . | . | . | . | . | . |
 | `knowledge.documents:read` | `GET` | `/api/v1/knowledge/documents` | Y | Y | Y | . | . | . | . | . |
 | `knowledge.documents:read` | `GET` | `/api/v1/knowledge/documents/{doc_id}` | Y | Y | Y | . | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents` | . | Y | . | . | . | . | . | . |
-| `knowledge.documents:write` | `PATCH` | `/api/v1/knowledge/documents/{doc_id}` | . | Y | . | . | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/approve` | . | Y | . | . | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/archive` | . | Y | . | . | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/images` | . | Y | . | . | . | . | . | . |
-| `knowledge.documents:write` | `PATCH` | `/api/v1/knowledge/documents/{doc_id}/images/{img_id}` | . | Y | . | . | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/reembed` | . | Y | . | . | . | . | . | . |
-| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/restore` | . | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents` | Y | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `PATCH` | `/api/v1/knowledge/documents/{doc_id}` | Y | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/approve` | Y | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/archive` | Y | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/images` | Y | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `PATCH` | `/api/v1/knowledge/documents/{doc_id}/images/{img_id}` | Y | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/reembed` | Y | Y | . | . | . | . | . | . |
+| `knowledge.documents:write` | `POST` | `/api/v1/knowledge/documents/{doc_id}/restore` | Y | Y | . | . | . | . | . | . |
 | `knowledge.interactions:read` | `GET` | `/api/v1/knowledge-interactions/info-card-deliveries` | Y | Y | Y | . | . | . | . | . |
 | `knowledge.interactions:read` | `GET` | `/api/v1/knowledge-interactions/queries` | Y | Y | Y | . | . | . | . | . |
 | `knowledge.interactions:read` | `GET` | `/api/v1/knowledge-interactions/quiz-sessions` | Y | Y | Y | . | . | . | . | . |
@@ -306,24 +306,24 @@ reachability across the remaining configured roles.
 | `pipeline.runs:read` | `GET` | `/api/v1/pipeline/ingest/activity` | Y | Y | . | . | . | . | . | . |
 | `pipeline.runs:read` | `GET` | `/api/v1/pipeline/runs` | Y | Y | . | . | . | . | . | . |
 | `pipeline.runs:read` | `GET` | `/api/v1/pipeline/runs/{execution_id}` | Y | Y | . | . | . | . | . | . |
-| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}` | . | Y | . | . | . | . | . | . |
-| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}/questions/{qid}` | . | Y | . | . | . | . | . | . |
-| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/image` | . | Y | . | . | . | . | . | . |
+| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}` | Y | Y | . | . | . | . | . | . |
+| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}/questions/{qid}` | Y | Y | . | . | . | . | . | . |
+| `quizzes:delete` | `DELETE` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/image` | Y | Y | . | . | . | . | . | . |
 | `quizzes:read` | `GET` | `/api/v1/quizzes` | Y | Y | Y | . | . | . | . | . |
 | `quizzes:read` | `GET` | `/api/v1/quizzes/{quiz_id}` | Y | Y | Y | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/suggest` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/voice-instruction-suggest` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `PATCH` | `/api/v1/quizzes/{quiz_id}` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/approve` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/archive` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `PUT` | `/api/v1/quizzes/{quiz_id}/questions` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions/reorder` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `PATCH` | `/api/v1/quizzes/{quiz_id}/questions/{qid}` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `PUT` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/image` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/regenerate` | . | Y | . | . | . | . | . | . |
-| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/restore` | . | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/suggest` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/voice-instruction-suggest` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `PATCH` | `/api/v1/quizzes/{quiz_id}` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/approve` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/archive` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `PUT` | `/api/v1/quizzes/{quiz_id}/questions` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions/reorder` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `PATCH` | `/api/v1/quizzes/{quiz_id}/questions/{qid}` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `PUT` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/image` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/questions/{qid}/regenerate` | Y | Y | . | . | . | . | . | . |
+| `quizzes:write` | `POST` | `/api/v1/quizzes/{quiz_id}/restore` | Y | Y | . | . | . | . | . | . |
 | `room_zones:read` | `GET` | `/api/v1/persons/{person_id}/current-zone` | Y | Y | Y | . | . | . | . | . |
 | `room_zones:read` | `GET` | `/api/v1/rooms/{room_id}/zones` | Y | Y | Y | . | . | . | . | . |
 | `room_zones:write` | `POST` | `/api/v1/rooms/{room_id}/zones` | . | . | . | . | . | . | . | . |

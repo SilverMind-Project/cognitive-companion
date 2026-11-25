@@ -86,7 +86,9 @@ export function useNativeCompanionHardware({
     const live = [...leases.values()];
     const microphone = live.some((lease) => lease.microphone);
     state.micLeased = microphone;
-    state.cameraActive = state.native && live.some((lease) => lease.camera);
+    if (!state.native || !live.some((lease) => lease.camera)) {
+      state.cameraActive = false;
+    }
     if (microphone && openMicrophone && !isRecording()) {
       leaseStartedCapture = true;
       await startCapture();
@@ -132,6 +134,11 @@ export function useNativeCompanionHardware({
     if (state.native) {
       const result = await callNative("applyCommand", command);
       if (result && typeof result.screenAwake === "boolean") state.screenAwake = result.screenAwake;
+      if (result && typeof result.cameraActive === "boolean") {
+        state.cameraActive = result.cameraActive;
+      } else {
+        state.cameraActive = [...leases.values()].some((lease) => lease.camera);
+      }
     }
     await reconciled;
   }

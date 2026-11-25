@@ -60,17 +60,15 @@ const remainingSeconds = ref(props.countdownSeconds);
 let animationFrameId = null;
 let timeoutDeadline = null;
 
-// Calculate timeout deadline using server timestamp to account for clock skew
+// Calculate timeout deadline in local client time, accounting for server/client clock skew
 function calculateDeadline() {
-  const serverTime = new Date(props.serverTimestamp).getTime();
   const clientTime = Date.now();
+  const serverTime = new Date(props.serverTimestamp).getTime();
+  if (!Number.isFinite(serverTime)) {
+    return clientTime + props.countdownSeconds * 1000;
+  }
   const skew = serverTime - clientTime;
-
-  // Deadline = server time + countdown seconds
-  timeoutDeadline = serverTime + props.countdownSeconds * 1000;
-
-  // Adjust for client clock
-  return timeoutDeadline - skew;
+  return serverTime + props.countdownSeconds * 1000 - skew;
 }
 
 // Format countdown as human-readable text
@@ -104,7 +102,7 @@ function updateCountdown() {
 
 function startCountdown() {
   stopCountdown();
-  calculateDeadline();
+  timeoutDeadline = calculateDeadline();
   updateCountdown();
 }
 
@@ -127,10 +125,10 @@ function handleEscalate() {
   emit("response", "escalate");
 }
 
-// Watch for visibility changes to start/stop countdown
+// Watch for visibility or new prompt arrivals to start/reset countdown
 watch(
-  () => props.visible,
-  (newVal) => {
+  () => [props.visible, props.serverTimestamp],
+  ([newVal]) => {
     if (newVal) {
       buttonsDisabled.value = false;
       remainingSeconds.value = props.countdownSeconds;

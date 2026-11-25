@@ -244,4 +244,15 @@ describe("useNativeCompanionHardware", () => {
 
     expect(h.stopCapture).toHaveBeenCalledOnce();
   });
+
+  it("reports cameraActive as false when the native bridge declines to start the camera", async () => {
+    const h = harness();
+    h.plugin.applyCommand.mockResolvedValue({ screenAwake: true, cameraActive: false });
+    await h.hardware.actions.mount();
+
+    await h.hardware.actions.applyCommand(COMMAND);
+
+    expect(h.hardware.state.cameraActive).toBe(false);
+    expect(h.hardware.actions.deviceState().camera_active).toBe(false);
+  });
 });

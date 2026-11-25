@@ -6,7 +6,7 @@
         <template #prepend>
           <v-icon color="primary" size="28">mdi-card-text-outline</v-icon>
         </template>
-        <v-card-title class="text-h5 font-weight-bold text-wrap" style="line-height: 1.3">
+        <v-card-title class="card-title font-weight-bold text-wrap">
           {{ title }}
         </v-card-title>
         <template #append>
@@ -50,7 +50,7 @@
             cover
             class="rounded-lg side-image"
           />
-          <p class="text-body-1 side-text">{{ body }}</p>
+          <p class="side-text">{{ body }}</p>
         </div>
 
         <!-- Layout: gallery_grid_2x2 -->
@@ -85,7 +85,7 @@
         </div>
 
         <!-- Body text (hidden for side_by_side since it renders inline) -->
-        <p v-if="layoutId !== 'side_by_side'" class="text-body-1 body-text">{{ body }}</p>
+        <p v-if="layoutId !== 'side_by_side'" class="body-text">{{ body }}</p>
       </v-card-text>
 
       <v-divider class="mx-4" />
@@ -175,11 +175,13 @@ function handleInfoCard(data) {
   startCountdown();
 
   // Notify the server that the card was displayed (viewed event)
-  wsClient._sendJson({
-    type: "info_card_dismiss",
-    delivery_id: data.delivery_id,
-    action: "viewed",
-  });
+  if (data.delivery_id != null) {
+    wsClient._sendJson({
+      type: "info_card_dismiss",
+      delivery_id: data.delivery_id,
+      action: "viewed",
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +198,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  wsClient.off("onStatus", onWsStatus);
   stopCountdown();
 });
 
@@ -206,6 +209,11 @@ defineExpose({ show: handleInfoCard });
 <style scoped>
 .info-card-dialog {
   border-radius: var(--cc-radius-lg);
+}
+
+.card-title {
+  font-size: 1.5rem;
+  line-height: 1.3;
 }
 
 /* single_hero layout */

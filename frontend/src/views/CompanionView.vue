@@ -459,7 +459,123 @@ watch(
   () => tv.actions.syncClass(),
 );
 
+const wsListeners = [
+  [
+    "onTranscript",
+    (data) => {
+      transcript.value.push({
+        source: data.source,
+        text: data.text,
+        timestamp: new Date().toISOString(),
+      });
+    },
+  ],
+  [
+    "onCommand",
+    (data) => {
+      alertMessage.value = data.message || "";
+      alertType.value = normalizeAlertType(data.type);
+      alertDialog.value = true;
+    },
+  ],
+  [
+    "onAudioBlob",
+    (buffer) => {
+      playPcmChunk(buffer);
+    },
+  ],
+  [
+    "onAnnouncement",
+    (data) => {
+      if (data.subtype === "stream_start") {
+        // Reset playback timeline so this announcement starts cleanly
+        const ctx = getPlaybackContext();
+        nextPlaybackTime = ctx.currentTime;
+        activePlaybackSources = 0;
+        announcementBuffer = [];
+        announcementBufferBytes = 0;
+        announcementSampleRate = data.sampleRate || 24000;
+      } else if (data.subtype === "pcm_chunk" && data.data) {
+        // Accumulate all chunks; playback starts on stream_end
+        announcementBuffer.push(data.data);
+        announcementBufferBytes += data.data.byteLength;
+      } else if (data.subtype === "stream_end") {
+        // Play the complete announcement as one contiguous buffer
+        flushAnnouncementBuffer();
+      } else if (data.subtype === "audio_url" && data.url) {
+        playAudioUrl(data.url);
+      }
+    },
+  ],
+  [
+    "onConnect",
+    () => {
+      connected.value = true;
+      kiosk.actions.onSocketConnect();
+    },
+  ],
+  [
+    "onDisconnect",
+    () => {
+      connected.value = false;
+      kiosk.actions.onSocketDisconnect();
+    },
+  ],
+  [
+    "onInteractivePrompt",
+    (data) => {
+      interactivePromptData.value = {
+        execution_id: data.execution_id,
+        step_id: data.step_id,
+        message: data.message || "",
+        title: data.title || "Question for You",
+        icon: data.icon || "mdi-message-question",
+        escalate_button_text: data.escalate_button_text || "I need help",
+        dismiss_button_text: data.dismiss_button_text || "I'm okay",
+        countdown_seconds: data.countdown_seconds || 30,
+        server_timestamp: data.server_timestamp || new Date().toISOString(),
+      };
+      interactivePromptVisible.value = true;
+    },
+  ],
+  [
+    "onEnableMicrophone",
+    () => {
+      // Auto-enable mic so the user can respond to a voice prompt from
+      // Gemini Live without manually tapping the microphone button.
+      if (!recording.value) {
+        void kiosk.actions.handleEnableMicrophone(startRecordingFromGesture);
+      }
+    },
+  ],
+  [
+    "onInteractiveResponse",
+    (_data) => {
+      // Close any open interactive prompt when response is received from another channel
+      if (interactivePromptVisible.value) {
+        interactivePromptVisible.value = false;
+      }
+    },
+  ],
+  [
+    "onKnowledgeAnswer",
+    (data) => {
+      knowledgeAnswerData.value = {
+        queryText: data.query_text || "",
+        answerText: data.answer_text || "",
+        sourceDocumentIds: data.source_document_ids || [],
+        serverTimestamp: data.server_timestamp || new Date().toISOString(),
+      };
+    },
+  ],
+];
+
 onMounted(async () => {
+  // Register socket listeners before connect() so a fast handshake never misses
+  // onConnect or early push messages while awaiting native kiosk setup.
+  for (const [event, handler] of wsListeners) {
+    wsClient.on(event, handler);
+  }
   // The shell is detected first so the socket names its platform from the start.
   await hardware.actions.mount();
   tv.actions.mount();
@@ -473,96 +589,12 @@ onMounted(async () => {
   if (hardware.state.native && kiosk.state.gateVisible) {
     await beginNativeKiosk();
   }
-
-  wsClient.on("onTranscript", (data) => {
-    transcript.value.push({
-      source: data.source,
-      text: data.text,
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  wsClient.on("onCommand", (data) => {
-    alertMessage.value = data.message || "";
-    alertType.value = normalizeAlertType(data.type);
-    alertDialog.value = true;
-  });
-
-  wsClient.on("onAudioBlob", (buffer) => {
-    playPcmChunk(buffer);
-  });
-
-  wsClient.on("onAnnouncement", (data) => {
-    if (data.subtype === "stream_start") {
-      // Reset playback timeline so this announcement starts cleanly
-      const ctx = getPlaybackContext();
-      nextPlaybackTime = ctx.currentTime;
-      activePlaybackSources = 0;
-      announcementBuffer = [];
-      announcementBufferBytes = 0;
-      announcementSampleRate = data.sampleRate || 24000;
-    } else if (data.subtype === "pcm_chunk" && data.data) {
-      // Accumulate all chunks; playback starts on stream_end
-      announcementBuffer.push(data.data);
-      announcementBufferBytes += data.data.byteLength;
-    } else if (data.subtype === "stream_end") {
-      // Play the complete announcement as one contiguous buffer
-      flushAnnouncementBuffer();
-    } else if (data.subtype === "audio_url" && data.url) {
-      playAudioUrl(data.url);
-    }
-  });
-
-  wsClient.on("onConnect", () => {
-    connected.value = true;
-    kiosk.actions.onSocketConnect();
-  });
-  wsClient.on("onDisconnect", () => {
-    connected.value = false;
-    kiosk.actions.onSocketDisconnect();
-  });
-
-  wsClient.on("onInteractivePrompt", (data) => {
-    interactivePromptData.value = {
-      execution_id: data.execution_id,
-      step_id: data.step_id,
-      message: data.message || "",
-      title: data.title || "Question for You",
-      icon: data.icon || "mdi-message-question",
-      escalate_button_text: data.escalate_button_text || "I need help",
-      dismiss_button_text: data.dismiss_button_text || "I'm okay",
-      countdown_seconds: data.countdown_seconds || 30,
-      server_timestamp: data.server_timestamp || new Date().toISOString(),
-    };
-    interactivePromptVisible.value = true;
-  });
-
-  wsClient.on("onEnableMicrophone", () => {
-    // Auto-enable mic so the user can respond to a voice prompt from
-    // Gemini Live without manually tapping the microphone button.
-    if (!recording.value) {
-      void kiosk.actions.handleEnableMicrophone(startRecordingFromGesture);
-    }
-  });
-
-  wsClient.on("onInteractiveResponse", (_data) => {
-    // Close any open interactive prompt when response is received from another channel
-    if (interactivePromptVisible.value) {
-      interactivePromptVisible.value = false;
-    }
-  });
-
-  wsClient.on("onKnowledgeAnswer", (data) => {
-    knowledgeAnswerData.value = {
-      queryText: data.query_text || "",
-      answerText: data.answer_text || "",
-      sourceDocumentIds: data.source_document_ids || [],
-      serverTimestamp: data.server_timestamp || new Date().toISOString(),
-    };
-  });
 });
 
 onUnmounted(() => {
+  for (const [event, handler] of wsListeners) {
+    wsClient.off(event, handler);
+  }
   hardware.actions.unmount();
   tv.actions.unmount();
   guided.actions.unmount();

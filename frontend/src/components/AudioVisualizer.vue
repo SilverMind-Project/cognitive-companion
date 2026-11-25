@@ -63,6 +63,7 @@ function _emitState(state) {
 // Bumped on every recording change so a slow `startMic` that finishes after the
 // recording was turned off again closes what it opened instead of keeping it.
 let captureGeneration = 0;
+let captureFailed = false;
 
 watch(
   () => props.recording,
@@ -265,13 +266,18 @@ async function startMic() {
     };
   } catch (err) {
     console.error("Mic error:", err);
-    stopMic();
+    stopMic(false);
+    captureFailed = true;
+    _emitState("idle");
     emit("capture-change", { live: false, error: err?.name || "Error" });
   }
 }
 
-function stopMic() {
-  if (mediaStream) emit("capture-change", { live: false, error: null });
+function stopMic(emitCleared = true) {
+  if (emitCleared && (mediaStream || captureFailed)) {
+    captureFailed = false;
+    emit("capture-change", { live: false, error: null });
+  }
   processor?.disconnect();
   highPassFilter?.disconnect();
   mediaStream?.getTracks().forEach((t) => t.stop());

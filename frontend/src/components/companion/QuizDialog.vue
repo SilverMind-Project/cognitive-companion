@@ -223,6 +223,8 @@ const numAnswered = ref(0);
 
 let advanceTimer = null;
 let introTimer = null;
+let completeDismissTimer = null;
+const COMPLETE_AUTO_DISMISS_MS = 45000;
 
 const isGentle = computed(() => interactionMode.value !== "standard");
 
@@ -251,7 +253,11 @@ function handleQuizQuestion(data) {
   if (screen.value === "intro" && voiceQuiz.value) {
     // The companion is already asking question 1 aloud; show the same question.
     startQuiz();
-  } else if (screen.value === "question" && advanceTimer === null && answerRecorded.value) {
+  } else if (
+    screen.value === "question" &&
+    advanceTimer === null &&
+    (answerRecorded.value || !questionText.value)
+  ) {
     loadNextQuestion();
   }
 }
@@ -282,13 +288,19 @@ function handleQuizComplete(data) {
 
   // quiz_complete follows the last quiz_answer_recorded immediately; hold the
   // feedback for the same beat so the last answer's reminder is still seen.
+  const showComplete = () => {
+    screen.value = "complete";
+    clearTimeout(completeDismissTimer);
+    // Hands-free TVs and bedside tablets must not stay blocked by a finished quiz.
+    completeDismissTimer = setTimeout(close, COMPLETE_AUTO_DISMISS_MS);
+  };
   if (answerRecorded.value) {
     advanceTimer = setTimeout(() => {
       advanceTimer = null;
-      screen.value = "complete";
+      showComplete();
     }, feedbackDwell());
   } else {
-    screen.value = "complete";
+    showComplete();
   }
 }
 
@@ -307,8 +319,10 @@ function feedbackDwell() {
 function clearTimers() {
   clearTimeout(advanceTimer);
   clearTimeout(introTimer);
+  clearTimeout(completeDismissTimer);
   advanceTimer = null;
   introTimer = null;
+  completeDismissTimer = null;
 }
 
 function resetState() {
@@ -500,7 +514,7 @@ defineExpose({ show: handleQuizStart });
 }
 
 .choice-btn {
-  min-height: 72px !important;
+  min-height: 72px;
   height: auto !important;
   border-radius: var(--cc-radius-md) !important;
   font-size: 1.375rem;

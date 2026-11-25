@@ -67,13 +67,18 @@ class CompanionHardwarePlugin : Plugin() {
             if (command.attentionChime != null && command.leaseSeconds > 0) playChime()
 
             applyState(lease.apply(command, System.currentTimeMillis()))
-            call.resolve(JSObject().put("screenAwake", isScreenAwake()))
+            call.resolve(
+                JSObject()
+                    .put("screenAwake", isScreenAwake())
+                    .put("cameraActive", camera?.isRunning == true),
+            )
         }
     }
 
     override fun handleOnDestroy() {
         main.removeCallbacks(expireLease)
-        camera?.stop()
+        camera?.close()
+        camera = null
         releaseWakeLock()
         super.handleOnDestroy()
     }

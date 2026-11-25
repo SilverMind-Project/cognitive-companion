@@ -4,6 +4,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 
 /**
  * Brings the companion back after a reboot with no one touching the device.
@@ -15,7 +16,12 @@ import android.content.Intent
 class BootCompletedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-        CompanionForegroundService.start(context)
+        try {
+            CompanionForegroundService.start(context)
+        } catch (e: IllegalStateException) {
+            // Android 12+ may restrict background FGS starts; still launch kiosk activity below.
+            Log.w("BootCompletedReceiver", "Foreground service start deferred at boot: ${e.message}")
+        }
         val dpm = context.getSystemService(DevicePolicyManager::class.java)
         if (dpm.isDeviceOwnerApp(context.packageName)) {
             context.startActivity(

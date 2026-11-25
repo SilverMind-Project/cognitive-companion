@@ -1,5 +1,6 @@
 package com.silvermind.companion
 
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
@@ -36,27 +37,49 @@ class FrontCameraAttentionAnalyzer(
     )
     private var provider: ProcessCameraProvider? = null
     private var analysis: ImageAnalysis? = null
+    private var active = false
     private var lastFrameMs = 0L
 
+    val isRunning: Boolean
+        get() = active
+
     fun start() {
-        if (analysis != null) return
+        if (active) return
+        active = true
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
-            val cameraProvider = future.get()
-            val useCase = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
-                .also { it.setAnalyzer(executor, ::analyse) }
-            cameraProvider.bindToLifecycle(owner, CameraSelector.DEFAULT_FRONT_CAMERA, useCase)
-            provider = cameraProvider
-            analysis = useCase
+            if (!active) return@addListener
+            try {
+                val cameraProvider = future.get()
+                if (!cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
+                    active = false
+                    return@addListener
+                }
+                val useCase = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                    .also { it.setAnalyzer(executor, ::analyse) }
+                cameraProvider.bindToLifecycle(owner, CameraSelector.DEFAULT_FRONT_CAMERA, useCase)
+                provider = cameraProvider
+                analysis = useCase
+            } catch (e: Exception) {
+                active = false
+                Log.w(TAG, "Front camera attention unavailable: ${e.message}")
+            }
         }, ContextCompat.getMainExecutor(context))
     }
 
     fun stop() {
+        active = false
         analysis?.let { provider?.unbind(it) }
         analysis = null
         tracker.reset()
+    }
+
+    fun close() {
+        stop()
+        detector.close()
+        executor.shutdown()
     }
 
     // ImageProxy.image is the only way to hand a CameraX frame to ML Kit without a copy;
@@ -86,6 +109,7 @@ class FrontCameraAttentionAnalyzer(
     }
 
     private companion object {
+        const val TAG = "FrontCameraAttention"
         const val FRAME_INTERVAL_MS = 1_000L
     }
 }

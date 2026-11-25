@@ -14,7 +14,7 @@
   <v-switch
     :model-value="modelValue.use_trigger_room"
     label="Use trigger room"
-    hint="When enabled, uses the trigger's room instead of the room ID above."
+    hint="When enabled and Room ID above is empty, falls back to the trigger's room."
     persistent-hint
     class="mb-4"
     @update:model-value="emit('update:modelValue', { ...modelValue, use_trigger_room: $event })"
@@ -29,7 +29,7 @@
     persistent-hint
     class="mb-4"
     @update:model-value="
-      emit('update:modelValue', { ...modelValue, since_minutes: Number($event) || 0 })
+      emit('update:modelValue', { ...modelValue, since_minutes: Math.max(1, Number($event) || 60) })
     "
   />
 
@@ -77,7 +77,9 @@
     hint="Maximum observations to return. Default: 5"
     persistent-hint
     class="mb-4"
-    @update:model-value="emit('update:modelValue', { ...modelValue, limit: Number($event) || 0 })"
+    @update:model-value="
+      emit('update:modelValue', { ...modelValue, limit: Math.max(1, Number($event) || 5) })
+    "
   />
 
   <v-text-field

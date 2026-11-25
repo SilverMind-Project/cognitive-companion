@@ -87,7 +87,6 @@
           density="compact"
           hide-details
           @update:model-value="updateChoice(ci, 'is_correct', $event, true)"
-          @change="emitChange"
         />
         <v-btn
           icon="mdi-close"

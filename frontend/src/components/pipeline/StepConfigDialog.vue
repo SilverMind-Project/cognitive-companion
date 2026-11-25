@@ -49,7 +49,7 @@
           :context-keys="contextKeys"
           :known-signal-kinds="knownSignalKinds"
           :severity-items="severityItems"
-          @update:model-value="Object.assign(cfg, $event)"
+          @update:model-value="updateCfg"
         />
       </KeepAlive>
     </template>
@@ -140,6 +140,13 @@ const emit = defineEmits(["update:modelValue", "save"]);
 const localStep = reactive({ step_type: "", label: "" });
 const cfg = reactive({});
 const activeTab = ref("general");
+
+function updateCfg(next) {
+  for (const key of Object.keys(cfg)) {
+    if (!(key in next)) delete cfg[key];
+  }
+  Object.assign(cfg, next);
+}
 const varSearch = ref("");
 const copiedToken = ref("");
 

@@ -15,7 +15,7 @@
       <v-spacer />
       <v-btn color="primary" :loading="saving" @click="save">Save</v-btn>
       <v-btn
-        v-if="document?.status !== 'approved'"
+        v-if="document?.status !== 'approved' && document?.status !== 'archived'"
         color="success"
         variant="tonal"
         @click="approve"

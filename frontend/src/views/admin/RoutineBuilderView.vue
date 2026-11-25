@@ -347,8 +347,17 @@ watch(
   },
 );
 
+function nullableInt(val) {
+  return val === "" || val === null || val === undefined ? null : Number(val);
+}
+
 async function saveRoutineSettings() {
-  await actions.saveRoutine({ ...routineEdit });
+  await actions.saveRoutine({
+    ...routineEdit,
+    step_timeout_s_override: nullableInt(routineEdit.step_timeout_s_override),
+    max_step_attempts_override: nullableInt(routineEdit.max_step_attempts_override),
+    resume_grace_s_override: nullableInt(routineEdit.resume_grace_s_override),
+  });
 }
 
 async function removeStep(idx) {

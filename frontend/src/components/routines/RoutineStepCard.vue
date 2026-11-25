@@ -104,12 +104,7 @@
         />
 
         <!-- Completion gate -->
-        <CompletionGateEditor
-          v-slot
-          v-model="localStep.completion_gate"
-          :room-id="roomId"
-          class="mt-2"
-        />
+        <CompletionGateEditor v-model="localStep.completion_gate" :room-id="roomId" class="mt-2" />
 
         <!-- Zone + Camera pickers -->
         <v-row class="mt-0">

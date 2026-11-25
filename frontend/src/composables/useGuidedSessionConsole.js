@@ -66,6 +66,7 @@ export function useGuidedSessionConsole(sessionId, { notify } = {}) {
         };
       }
       state.events = [
+        ...state.events,
         {
           id: Date.now(),
           at: data.at,
@@ -74,8 +75,7 @@ export function useGuidedSessionConsole(sessionId, { notify } = {}) {
           actor: data.actor,
           detail: data.detail,
         },
-        ...state.events,
-      ].slice(0, 50);
+      ].slice(-50);
       refreshSession();
     }
     if (data.type === "guided_escalation" && data.session_id === Number(sessionId)) {

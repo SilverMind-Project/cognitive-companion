@@ -105,7 +105,7 @@
         @node-double-click="onNodeDoubleClick"
       >
         <Background variant="dots" :gap="20" :size="1.35" color="var(--cc-pipeline-canvas-dot)" />
-        <Controls />
+        <Controls :fit-view-params="FIT_VIEW_OPTIONS" />
         <MiniMap
           :node-color="minimapNodeColor"
           :width="minimapSize.width"
@@ -169,7 +169,7 @@
 </template>
 
 <script setup>
-import { computed, markRaw, nextTick, reactive, ref } from "vue";
+import { computed, markRaw, nextTick, reactive, ref, watch } from "vue";
 import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
@@ -214,15 +214,25 @@ const { fitView, screenToFlowCoordinate, onNodesInitialized } = useVueFlow();
 // a freshly added step under the current viewport.
 const NODE_WIDTH = 280;
 const NODE_HEIGHT = 100;
+// Never zoom above 1:1 when fitting a small or single-step pipeline; without a
+// maxZoom cap VueFlow scales a lone step up to max-zoom (200%).
+const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1 };
 
-// Fit the view to content exactly once, the first time real nodes are measured.
-// VueFlow preserves the viewport across subsequent node/edge replacements as
-// long as it stays mounted, so we must not refit on every reload.
+// Fit the view to existing content once, on the initial load of a non-empty rule.
+// An empty rule starts at 1:1 zoom so adding the first step drops cleanly at the
+// current zoom instead of triggering an automatic refit.
 const hasFitInitial = ref(false);
+watch(
+  () => state.ready,
+  (ready) => {
+    if (ready && !state.nodes.length) hasFitInitial.value = true;
+  },
+  { immediate: true },
+);
 onNodesInitialized?.(() => {
   if (hasFitInitial.value || !state.nodes.length) return;
   hasFitInitial.value = true;
-  fitView({ padding: 0.2 });
+  fitView(FIT_VIEW_OPTIONS);
 });
 const {
   confirmDialog,
@@ -355,7 +365,7 @@ async function toggleStepEnabled(stepId) {
 }
 
 function fitToView() {
-  fitView({ padding: 0.2 });
+  fitView(FIT_VIEW_OPTIONS);
 }
 
 // Place a new step at the centre of the current viewport so it lands where the
@@ -382,12 +392,14 @@ async function autoArrange() {
   state.nodes = arranged;
   const saved = await actions.batchSavePositions(arranged);
   await nextTick();
-  fitView({ padding: 0.2 });
+  fitView(FIT_VIEW_OPTIONS);
   if (saved) emit("updated");
 }
 
 async function onStepSelected(stepType) {
   try {
+    // Keep the user's current zoom/pan when adding steps (including the first step).
+    hasFitInitial.value = true;
     const { x, y } = nextStepPosition();
     await api.addRuleStep(props.ruleId, {
       step_type: stepType,

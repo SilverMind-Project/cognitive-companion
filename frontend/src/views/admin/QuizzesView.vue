@@ -45,6 +45,7 @@
 
     <v-card class="glass-card">
       <v-data-table-server
+        :expanded="[...state.expandedRows]"
         :headers="headers"
         :items="state.quizzes"
         :loading="state.loading"
@@ -54,6 +55,7 @@
         :show-expand="true"
         item-value="id"
         @update:options="actions.onPageOptions"
+        @update:expanded="actions.setExpanded"
         @click:row="actions.toggleExpand"
       >
         <template #[`item.question_count`]="{ item }">
@@ -81,7 +83,7 @@
             @click.stop="openEditDialog(item)"
           />
           <v-btn
-            v-if="item.status !== 'approved'"
+            v-if="item.status !== 'approved' && item.status !== 'archived'"
             icon="mdi-check"
             size="small"
             variant="text"
@@ -112,8 +114,8 @@
           />
         </template>
 
-        <template #expanded-row="{ item }">
-          <td :colspan="headers.length" class="pa-4">
+        <template #expanded-row="{ columns, item }">
+          <td :colspan="columns?.length ?? headers.length + 1" class="pa-4">
             <v-divider class="mb-2" />
             <QuizQuestionEditorCard
               v-for="(q, idx) in state.expandedQuizzes[item.id]?.questions || []"
@@ -166,7 +168,7 @@
       :layouts="state.layouts"
       :document-options="state.documents"
       :llm-model-items="state.llmModelItems"
-      @saved="actions.fetchQuizzes()"
+      @saved="onFormSaved"
       @regenerate-question="onRegenerateInDialog"
     />
 
@@ -201,7 +203,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, nextTick, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { getQuiz } from "@/services/modules/quizzes";
 import { knowledgeStatusColor as statusColor } from "@/constants/knowledgeStatus.js";
@@ -268,11 +270,21 @@ async function openEditDialog(item) {
   }
 }
 
-function onSuggestedQuiz(payload) {
+async function onSuggestedQuiz(payload) {
   formMode.value = "create";
   editingQuiz.value = null;
   showFormDialog.value = true;
+  // Wait for QuizFormDialog's open watcher to run resetForm() before applying the suggestion.
+  await nextTick();
   formDialogRef.value?.applySuggestion(payload);
+}
+
+async function onFormSaved() {
+  if (editingQuiz.value?.id && state.expandedRows.has(editingQuiz.value.id)) {
+    await actions.refreshQuiz(editingQuiz.value.id);
+  } else {
+    await actions.fetchQuizzes();
+  }
 }
 
 async function onRegenerateInDialog({ index, question, modelId }) {

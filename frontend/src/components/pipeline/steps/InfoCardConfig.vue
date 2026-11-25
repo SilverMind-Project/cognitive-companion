@@ -115,6 +115,19 @@
       </v-col>
     </v-row>
 
+    <v-text-field
+      :model-value="modelValue.person_id"
+      label="Resident (optional)"
+      hint="Fills {{senior_name}} and targets her room's screen. Blank uses the person in the trigger or upstream steps. Supports {{template}} syntax."
+      persistent-hint
+      variant="outlined"
+      density="compact"
+      hide-details="auto"
+      rounded="lg"
+      class="mb-4"
+      @update:model-value="emit('update:modelValue', { ...modelValue, person_id: $event })"
+    />
+
     <template v-if="hasChannel('voice')">
       <div class="text-overline text-medium-emphasis mb-2">Voice instruction (optional)</div>
       <TemplateInput
@@ -150,6 +163,7 @@ export const stepDefaults = {
   channels: ["pwa"],
   pwa_dismiss_seconds: 60,
   eink_expiry_minutes: 30,
+  person_id: "",
   voice_instruction: "",
   trigger_cooloff: true,
 };
@@ -186,7 +200,7 @@ function hasChannel(name) {
 function toggleChannel(name, on) {
   const current = new Set(props.modelValue.channels || []);
   if (on) current.add(name);
-  else current.delete(name);
+  else if (current.size > 1) current.delete(name);
   // Preserve original ordering for stable diffs: pwa, eink, voice.
   const ordered = ["pwa", "eink", "voice"].filter((c) => current.has(c));
   emit("update:modelValue", { ...props.modelValue, channels: ordered });

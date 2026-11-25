@@ -157,20 +157,31 @@ export function useQuizzesAdmin({ notify } = {}) {
     await Promise.all([fetchExpandedQuiz(quizId), fetchQuizzes()]);
   }
 
+  async function setExpanded(ids) {
+    const nextRows = new Set(ids);
+    const prevRows = state.expandedRows;
+    const nextExpanded = { ...state.expandedQuizzes };
+    for (const oldId of prevRows) {
+      if (!nextRows.has(oldId)) delete nextExpanded[oldId];
+    }
+    state.expandedRows = nextRows;
+    state.expandedQuizzes = nextExpanded;
+    for (const id of nextRows) {
+      if (!prevRows.has(id) || !state.expandedQuizzes[id]) {
+        const detail = await fetchExpandedQuiz(id);
+        if (detail) await fetchDocumentImages(detail);
+      }
+    }
+  }
+
   async function toggleExpand(_event, { item }) {
     const nextRows = new Set(state.expandedRows);
     if (nextRows.has(item.id)) {
       nextRows.delete(item.id);
-      const nextExpanded = { ...state.expandedQuizzes };
-      delete nextExpanded[item.id];
-      state.expandedRows = nextRows;
-      state.expandedQuizzes = nextExpanded;
     } else {
       nextRows.add(item.id);
-      state.expandedRows = nextRows;
-      const detail = await fetchExpandedQuiz(item.id);
-      if (detail) await fetchDocumentImages(detail);
     }
+    await setExpanded([...nextRows]);
   }
 
   async function approveQuiz(item) {
@@ -327,6 +338,8 @@ export function useQuizzesAdmin({ notify } = {}) {
       fetchDocuments,
       fetchLLMModels,
       fetchExpandedQuiz,
+      refreshQuiz,
+      setExpanded,
       toggleExpand,
       approveQuiz,
       archiveQuiz,

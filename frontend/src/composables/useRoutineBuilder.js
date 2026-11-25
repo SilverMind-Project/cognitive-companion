@@ -57,7 +57,9 @@ export function useRoutineBuilder({ notify } = {}) {
     }
     state.saving = true;
     try {
-      const data = await api.replaceRoutineSteps(state.routine.id, state.steps);
+      // RoutineStepIn forbids extra fields; strip server-owned keys before PUT.
+      const payload = state.steps.map(({ id: _id, routine_id: _rid, ...rest }) => rest);
+      const data = await api.replaceRoutineSteps(state.routine.id, payload);
       state.steps = data.steps.map((s) => ({ ...s }));
       Object.assign(state.routine, data.routine);
       notify.success("Steps saved.");

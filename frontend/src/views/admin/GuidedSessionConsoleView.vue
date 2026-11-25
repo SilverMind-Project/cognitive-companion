@@ -229,7 +229,7 @@ const { state, actions } = useGuidedSessionConsole(props.id, { notify });
 const sayText = ref("");
 
 const canTakeover = computed(
-  () => state.session && ["escalated", "caregiver_takeover"].includes(state.session.status),
+  () => state.session && ["active", "waiting", "escalated"].includes(state.session.status),
 );
 
 const isInTakeover = computed(() => state.session?.status === "caregiver_takeover");

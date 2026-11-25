@@ -14,6 +14,7 @@
     "
     :confirm-label="isEdit ? undefined : 'Create'"
     :confirm-loading="submitting"
+    @update:model-value="$emit('update:modelValue', $event)"
     @cancel="close"
     @confirm="submit"
   >
@@ -180,6 +181,22 @@ watch(
     if (open) load();
   },
   { immediate: true },
+);
+
+watch(
+  () => form.document_id,
+  async (docId) => {
+    if (!props.modelValue || !isEdit.value) return;
+    if (!docId) {
+      documentImages.value = [];
+      return;
+    }
+    try {
+      documentImages.value = (await getKnowledgeDocument(docId)).images ?? [];
+    } catch (_) {
+      documentImages.value = [];
+    }
+  },
 );
 
 async function generate() {

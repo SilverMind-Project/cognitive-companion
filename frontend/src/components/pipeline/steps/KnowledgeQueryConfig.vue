@@ -54,6 +54,15 @@
       </v-col>
     </v-row>
 
+    <v-text-field
+      :model-value="modelValue.person_id"
+      label="Resident (optional)"
+      hint="Resident the question is about, for the query history. Blank uses the person in the trigger or upstream steps. Supports {{template}} syntax."
+      persistent-hint
+      class="mb-4"
+      @update:model-value="emit('update:modelValue', { ...modelValue, person_id: $event })"
+    />
+
     <v-switch
       :model-value="modelValue.log_interaction"
       label="Record in the Senior Knowledge Queries history"
@@ -77,6 +86,7 @@ import TemplateInput from "./_shared/TemplateInput.vue";
 export const stepDefaults = {
   query_text: "",
   tags: [],
+  person_id: "",
   log_interaction: false,
 };
 export const stepTabs = [];

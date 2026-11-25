@@ -349,7 +349,45 @@ describe("PipelineCanvas", () => {
     await flushPromises();
 
     expect(mocks.actions.batchSavePositions).toHaveBeenCalledWith(mocks.state.nodes);
-    expect(mocks.fitView).toHaveBeenCalledWith({ padding: 0.2 });
+    expect(mocks.fitView).toHaveBeenCalledWith({ padding: 0.2, maxZoom: 1 });
+  });
+
+  it("caps initial fitView at maxZoom 1 and never refits when adding steps to an empty rule", async () => {
+    let initCallback = null;
+    mocks.onNodesInitialized.mockImplementation((cb) => {
+      initCallback = cb;
+    });
+    seedState({ ready: true, nodes: [] });
+    const wrapper = mountCanvas();
+
+    await buttonWithText(wrapper, "Add Step").trigger("click");
+    await wrapper.find('[data-testid="select-step"]').trigger("click");
+    await flushPromises();
+    mocks.state.nodes = [{ id: "2", type: "step", position: { x: 0, y: 0 }, data: {} }];
+    initCallback?.();
+
+    expect(mocks.fitView).not.toHaveBeenCalled();
+  });
+
+  it("caps initial fitView at maxZoom 1 on a non-empty rule and does not refit on subsequent adds", async () => {
+    let initCallback = null;
+    mocks.onNodesInitialized.mockImplementation((cb) => {
+      initCallback = cb;
+    });
+    seedState({ ready: true });
+    const wrapper = mountCanvas();
+    initCallback?.();
+
+    expect(mocks.fitView).toHaveBeenCalledTimes(1);
+    expect(mocks.fitView).toHaveBeenCalledWith({ padding: 0.2, maxZoom: 1 });
+
+    mocks.fitView.mockClear();
+    await buttonWithText(wrapper, "Add Step").trigger("click");
+    await wrapper.find('[data-testid="select-step"]').trigger("click");
+    await flushPromises();
+    initCallback?.();
+
+    expect(mocks.fitView).not.toHaveBeenCalled();
   });
 
   it("shows context menu and toggles step enabled state", async () => {

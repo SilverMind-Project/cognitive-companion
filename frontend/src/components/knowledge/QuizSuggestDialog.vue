@@ -62,7 +62,7 @@
 
 <script setup>
 import { reactive, ref, watch } from "vue";
-import { api } from "@/services/api.js";
+import { suggestQuiz } from "@/services/modules/quizzes";
 import { useNotify } from "@/composables/useNotify.js";
 import AppDialog from "@/components/common/AppDialog.vue";
 import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
@@ -109,7 +109,7 @@ async function submitSuggest() {
   }
   generating.value = true;
   try {
-    const suggestion = await api.suggestQuiz(
+    const suggestion = await suggestQuiz(
       form.document_id,
       Number(form.numQuestions) || 5,
       form.mix,

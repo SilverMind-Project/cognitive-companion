@@ -76,7 +76,7 @@
             @click="editCard(item)"
           />
           <v-btn
-            v-if="item.status !== 'approved'"
+            v-if="item.status !== 'approved' && item.status !== 'archived'"
             icon="mdi-check"
             size="small"
             variant="text"

@@ -55,7 +55,7 @@
 
         <v-card class="glass-card">
           <v-data-table-server
-            v-model:expanded="expandedSessions"
+            :expanded="tab.name === 'sessions' ? expandedSessions : []"
             :headers="tab.headers"
             :items="state[tab.name].items"
             :items-length="state[tab.name].total"
@@ -65,7 +65,7 @@
             :show-expand="tab.name === 'sessions'"
             item-value="id"
             @update:options="(opts) => actions.onOptions(tab.name, opts)"
-            @update:expanded="onSessionsExpanded"
+            @update:expanded="(ids) => tab.name === 'sessions' && onSessionsExpanded(ids)"
           >
             <template v-for="key in tab.timeKeys" :key="key" #[`item.${key}`]="{ item }">
               {{ item[key] ? formatDateTime(item[key]) : "-" }}
@@ -80,7 +80,7 @@
               {{ (item.channels || []).join(", ") }}
             </template>
 
-            <template #expanded-row="{ columns, item }">
+            <template v-if="tab.name === 'sessions'" #expanded-row="{ columns, item }">
               <td :colspan="columns.length" class="pa-4">
                 <v-progress-circular
                   v-if="state.loadingSessionId === item.id"

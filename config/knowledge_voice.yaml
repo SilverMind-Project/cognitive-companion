@@ -72,3 +72,13 @@ guided_task_language_directive: >
 guided_task_auto_advance_prefix: >
   Acknowledge warmly that you can see the step is done, then give the next
   instruction.
+
+# Calm, localized in-home reminder routed through Gemini Live when hazard_active
+# fires during a guided routine. Caregiver diagnostic escalations stay strictly on
+# caregiver channels; this gives the resident a gentle safety nudge in her language.
+guided_task_hazard_reminder: >
+  A household safety check noticed something that needs attention right now
+  ({{ hazard_summary }}). Calmly and warmly reassure {{ resident_name }} in her
+  own language, gently invite her to pause and check it safely with you, and let
+  her know someone is checking in to help. Never alarm her, never read technical
+  details or links, and never say you are an AI or a system.

@@ -9,6 +9,7 @@ from cachetools import TTLCache
 from backend.core.config import Settings
 from backend.core.config import settings as default_settings
 from backend.core.logging import get_logger
+from backend.core.template import render_template
 from backend.services.companion_surface.hardware import capture_lease_seconds, engage_surface
 from backend.services.guided_task.language import compose_language_directive
 from backend.services.interactive_session.prompt_injection import inject_session_prompt
@@ -147,3 +148,65 @@ class AgentSessionVoice:
             step_ord=step.ord,
             is_retry=is_retry,
         )
+
+    async def speak_hazard_reminder(
+        self,
+        *,
+        session: Any,
+        routine: Any,
+        step: Any,
+        resident_name: str,
+        hazard_summary: str,
+    ) -> None:
+        """Deliver a calm, localized in-home safety reminder via Gemini Live.
+
+        Separate from caregiver diagnostic escalations (which stay strictly on
+        caregiver channels). Never speaks technical diagnostics or URLs.
+        """
+        template = self._voice.guided_task_hazard_reminder
+        if not template or self._ws_manager is None:
+            return
+        prompt = render_template(
+            template,
+            {
+                "resident_name": resident_name,
+                "hazard_summary": hazard_summary or "something in the room",
+            },
+        )
+        base_instruction = self._settings.get("llm.realtime.system_instruction", "")
+        voice_instruction = self._voice.compose(
+            step_type="guided_task",
+            base_instruction=base_instruction,
+            step_override=None,
+            resource_override=getattr(routine, "system_instruction_override", None) or None,
+            context={"resident_name": resident_name, "person_id": session.person_id},
+        )
+        directive = compose_language_directive(
+            self._settings, self._voice, getattr(routine, "language_override", None)
+        )
+        if directive:
+            voice_instruction = (
+                f"{voice_instruction}\n\n{directive}" if voice_instruction else directive
+            )
+        surface_id = getattr(session, "surface_id", None)
+        await engage_surface(
+            self._ws_manager,
+            surface_id,
+            owner=voice_owner_key(GUIDED_TASK_DELIVERY_TYPE, session.id),
+            reason="guided_task_hazard",
+            lease_seconds=capture_lease_seconds(
+                self._settings.get("guided_task.step_timeout_s", 300), settings=self._settings
+            ),
+            settings=self._settings,
+        )
+        await inject_session_prompt(
+            self._ws_manager,
+            prompt=prompt,
+            delivery_type=GUIDED_TASK_DELIVERY_TYPE,
+            session_id=session.id,
+            execution_id=session.execution_id,
+            voice_instruction=voice_instruction or None,
+            extra_metadata={"step_ord": step.ord, "hazard_reminder": True},
+            surface_id=surface_id,
+        )
+        logger.info("guided_hazard_reminder_spoken", session_id=session.id, step_ord=step.ord)

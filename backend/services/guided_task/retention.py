@@ -30,7 +30,17 @@ class Retention:
         transcript_sessions = 0
         conversation_manager = ctx.conversation_manager
         if conversation_manager is not None:
-            conversation_session_ids = ctx.store.list_prunable_conversation_session_ids(cutoff)
+            active_ids: set[int] = (
+                ctx.ws_manager.active_conversation_session_ids
+                if ctx.ws_manager is not None
+                and hasattr(ctx.ws_manager, "active_conversation_session_ids")
+                else set()
+            )
+            conversation_session_ids = [
+                cid
+                for cid in ctx.store.list_prunable_conversation_session_ids(cutoff)
+                if cid not in active_ids
+            ]
             # A conversation shared with the realtime companion may carry non-guided
             # turns too; pruning it once its linked guided session is 30+ days old
             # matches the existing global conversation TTL policy already bounding

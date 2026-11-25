@@ -47,65 +47,64 @@ class Watch:
         ctx = self._ctx
         tick_at = now or ctx.now()
         for session in ctx.store.list_live_sessions():
-            routine, steps = ctx.load_routine_steps(session.routine_id)
-            step = ctx.step_by_ord(steps, session.current_step_ord)
-            if session.status == "caregiver_takeover":
-                continue
-            if session.status == "escalated":
-                if (
-                    tick_at - session.last_activity_at
-                ).total_seconds() > self._escalation_grace_s():
-                    await self._abandon_escalated_unanswered(session, tick_at)
-                continue
+            try:
+                await self._tick_session(session, tick_at)
+            except Exception:
+                logger.exception("guided_watch_session_failed", session_id=session.id)
 
-            # Evaluate watch profile if enabled
-            advanced = False
-            if session.status in ("active", "waiting"):
-                try:
-                    advanced = await self._evaluate_watch(session, routine, steps, step, tick_at)
-                except Exception as e:
-                    logger.exception(
-                        "watch_tick_failed",
-                        session_id=session.id,
-                        step_ord=step.ord,
-                        error=str(e),
-                    )
-            if advanced:
-                continue
+    def _stale(self, session: GuidedSession) -> GuidedSession | None:
+        fresh = self._ctx.store.get_session(session.id)
+        if (
+            fresh is None
+            or fresh.status != session.status
+            or fresh.current_step_ord != session.current_step_ord
+        ):
+            return None
+        return fresh
 
-            policy = resolve_policy(routine, step, ctx.settings)
-            if session.status == "summoning":
-                # A summoning session has no step timeout; this is the only path
-                # that ends one whose recheck job was lost on restart.
-                idle_s = (tick_at - session.last_activity_at).total_seconds()
-                if idle_s > policy.resume_grace_s:
-                    await self._abandon_idle_summon(session, routine, steps, step, policy, tick_at)
-                continue
-            if session.status not in ("active", "waiting"):
-                continue
-
-            # The timeout ladder owns idleness for a step in progress. Its job
-            # lives only in the scheduler's memory, so a restart loses it; put it
-            # back rather than ending the session from here.
-            ctx.ensure_timeout(
-                session, routine, step, tick_at, finalize=self._runtime.on_step_timeout
+    async def _tick_session(self, session: GuidedSession, tick_at: datetime) -> None:
+        ctx = self._ctx
+        routine, steps = ctx.load_routine_steps(session.routine_id)
+        step = ctx.step_by_ord(steps, session.current_step_ord)
+        if session.status == "caregiver_takeover":
+            return
+        if session.status == "escalated":
+            if (tick_at - session.last_activity_at).total_seconds() > self._escalation_grace_s():
+                await self._abandon_escalated_unanswered(session, tick_at)
+            return
+        advanced = False
+        if session.status in ("active", "waiting"):
+            try:
+                advanced = await self._evaluate_watch(session, routine, steps, step, tick_at)
+            except Exception as e:
+                logger.exception(
+                    "watch_tick_failed", session_id=session.id, step_ord=step.ord, error=str(e)
+                )
+        if advanced:
+            return
+        policy = resolve_policy(routine, step, ctx.settings)
+        if session.status == "summoning":
+            if (tick_at - session.last_activity_at).total_seconds() > policy.resume_grace_s:
+                await self._abandon_idle_summon(session, routine, steps, step, policy, tick_at)
+            return
+        if session.status not in ("active", "waiting"):
+            return
+        ctx.ensure_timeout(session, routine, step, tick_at, finalize=self._runtime.on_step_timeout)
+        observations = await ctx.safety_watch.evaluate(session=session)
+        for cleared in (o for o in observations if o.get("cleared")):
+            ctx.store.add_event(
+                session_id=session.id,
+                at=tick_at,
+                kind="safety_condition_cleared",
+                step_ord=step.ord,
+                actor="system",
+                detail={"condition": cleared["condition"]},
             )
-
-            observations = await ctx.safety_watch.evaluate(session=session)
-            for cleared in (o for o in observations if o.get("cleared")):
-                ctx.store.add_event(
-                    session_id=session.id,
-                    at=tick_at,
-                    kind="safety_condition_cleared",
-                    step_ord=step.ord,
-                    actor="system",
-                    detail={"condition": cleared["condition"]},
-                )
-            safety_events = [o for o in observations if not o.get("cleared")]
-            if safety_events:
-                await self._escalate_safety(
-                    session, routine, steps, step, policy, safety_events, tick_at
-                )
+        safety_events = [o for o in observations if not o.get("cleared")]
+        if safety_events:
+            await self._escalate_safety(
+                session, routine, steps, step, policy, safety_events, tick_at
+            )
 
     async def _abandon_idle_summon(
         self,
@@ -116,23 +115,27 @@ class Watch:
         policy: Any,
         at: datetime,
     ) -> None:
-        decision = GuidedTaskStateMachine.decide(
-            self._ctx.session_view(session, steps),
-            self._ctx.step_view(step),
-            "resume",
-            policy,
-            at,
-        )
-        await self._runtime.apply_decision(
-            session=session,
-            routine=routine,
-            steps=steps,
-            decision=decision,
-            now=at,
-            event_kind="session_abandoned",
-            actor="system",
-            detail={"reason": decision.reason},
-        )
+        async with self._ctx.session_lock(session.id):
+            fresh = self._stale(session)
+            if fresh is None:
+                return
+            decision = GuidedTaskStateMachine.decide(
+                self._ctx.session_view(fresh, steps),
+                self._ctx.step_view(step),
+                "resume",
+                policy,
+                at,
+            )
+            await self._runtime.apply_decision(
+                session=fresh,
+                routine=routine,
+                steps=steps,
+                decision=decision,
+                now=at,
+                event_kind="session_abandoned",
+                actor="system",
+                detail={"reason": decision.reason},
+            )
 
     async def _escalate_safety(
         self,
@@ -150,59 +153,70 @@ class Watch:
         audit trail and so each one is de-duplicated until the step is re-armed;
         the primary one is written by ``apply_decision`` itself.
         """
-        primary = max(safety_events, key=lambda e: _SEVERITY_RANK.get(str(e.get("severity")), 0))
-        for secondary in safety_events:
-            if secondary is primary:
-                continue
-            self._ctx.store.add_event(
-                session_id=session.id,
-                at=at,
-                kind="safety_event",
-                step_ord=step.ord,
-                actor="system",
-                detail={**secondary, "coalesced_into": primary["condition"]},
+        async with self._ctx.session_lock(session.id):
+            fresh = self._stale(session)
+            if fresh is None:
+                return
+            primary = max(
+                safety_events, key=lambda e: _SEVERITY_RANK.get(str(e.get("severity")), 0)
             )
-        decision = GuidedTaskStateMachine.decide(
-            self._ctx.session_view(session, steps),
-            self._ctx.step_view(step),
-            "safety_event",
-            policy,
-            at,
-            evidence=primary,
-        )
-        await self._runtime.apply_decision(
-            session=session,
-            routine=routine,
-            steps=steps,
-            decision=decision,
-            now=at,
-            event_kind="safety_event",
-            actor="system",
-            detail=primary,
-        )
+            for secondary in safety_events:
+                if secondary is primary:
+                    continue
+                self._ctx.store.add_event(
+                    session_id=fresh.id,
+                    at=at,
+                    kind="safety_event",
+                    step_ord=step.ord,
+                    actor="system",
+                    detail={**secondary, "coalesced_into": primary["condition"]},
+                )
+            decision = GuidedTaskStateMachine.decide(
+                self._ctx.session_view(fresh, steps),
+                self._ctx.step_view(step),
+                "safety_event",
+                policy,
+                at,
+                evidence=primary,
+            )
+            await self._runtime.apply_decision(
+                session=fresh,
+                routine=routine,
+                steps=steps,
+                decision=decision,
+                now=at,
+                event_kind="safety_event",
+                actor="system",
+                detail=primary,
+            )
+            await self._presentation.maybe_speak_hazard_reminder(fresh, routine, step, primary)
 
     async def _abandon_escalated_unanswered(
         self,
         session: GuidedSession,
         at: datetime,
     ) -> None:
-        ctx = self._ctx
-        updated = await self._runtime.abandon(session.id, now=at, outcome="escalated_unanswered")
-        ctx.store.add_event(
-            session_id=session.id,
-            at=at,
-            kind="session_abandoned",
-            step_ord=session.current_step_ord,
-            actor="system",
-            detail={"outcome": "escalated_unanswered"},
-        )
-        await self._presentation.broadcast_session_update(
-            updated,
-            event_kind="session_abandoned",
-            actor="system",
-            detail={"outcome": "escalated_unanswered"},
-            at=at,
-        )
+        async with self._ctx.session_lock(session.id):
+            fresh = self._stale(session)
+            if fresh is None:
+                return
+            ctx = self._ctx
+            updated = await self._runtime.abandon(fresh.id, now=at, outcome="escalated_unanswered")
+            ctx.store.add_event(
+                session_id=fresh.id,
+                at=at,
+                kind="session_abandoned",
+                step_ord=fresh.current_step_ord,
+                actor="system",
+                detail={"outcome": "escalated_unanswered"},
+            )
+            await self._presentation.broadcast_session_update(
+                updated,
+                event_kind="session_abandoned",
+                actor="system",
+                detail={"outcome": "escalated_unanswered"},
+                at=at,
+            )
 
     def _escalation_grace_s(self) -> int:
         try:
@@ -446,31 +460,35 @@ class Watch:
                         break
 
                 if all_complete:
-                    decision = GuidedTaskStateMachine.decide(
-                        ctx.session_view(session, steps),
-                        ctx.step_view(step),
-                        "step_completed",
-                        resolve_policy(routine, step, ctx.settings),
-                        now,
-                    )
-                    speak_prefix = render_template(
-                        ctx.voice_instructions.guided_task_auto_advance_prefix, {}
-                    )
-                    await self._runtime.apply_decision(
-                        session=session,
-                        routine=routine,
-                        steps=steps,
-                        decision=decision,
-                        now=now,
-                        event_kind="step_completed",
-                        actor="orchestrator",
-                        detail={
-                            "completion_reason": "watch_auto_advance",
-                            "streak": auto_advance_k,
-                            "confidence": verdict.confidence,
-                        },
-                        speak_prefix=speak_prefix,
-                    )
+                    async with ctx.session_lock(session.id):
+                        fresh = self._stale(session)
+                        if fresh is None:
+                            return False
+                        decision = GuidedTaskStateMachine.decide(
+                            ctx.session_view(fresh, steps),
+                            ctx.step_view(step),
+                            "step_completed",
+                            resolve_policy(routine, step, ctx.settings),
+                            now,
+                        )
+                        speak_prefix = render_template(
+                            ctx.voice_instructions.guided_task_auto_advance_prefix, {}
+                        )
+                        await self._runtime.apply_decision(
+                            session=fresh,
+                            routine=routine,
+                            steps=steps,
+                            decision=decision,
+                            now=now,
+                            event_kind="step_completed",
+                            actor="orchestrator",
+                            detail={
+                                "completion_reason": "watch_auto_advance",
+                                "streak": auto_advance_k,
+                                "confidence": verdict.confidence,
+                            },
+                            speak_prefix=speak_prefix,
+                        )
                     logger.info(
                         "guided_watch_auto_advanced",
                         session_id=session.id,

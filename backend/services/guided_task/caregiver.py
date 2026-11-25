@@ -14,6 +14,7 @@ from backend.models.guided_task import GuidedSession, Routine
 from backend.schemas.guided_task import GuidedSessionOut
 from backend.services.guided_task.agent_voice import GUIDED_TASK_DELIVERY_TYPE
 from backend.services.guided_task.context import RuntimeContext
+from backend.services.guided_task.domain import TERMINAL_STATUSES
 from backend.services.guided_task.language import compose_language_directive
 from backend.services.guided_task.policy import resolve_policy
 from backend.services.guided_task.presentation import Presentation
@@ -78,7 +79,12 @@ class Caregiver:
         if conversation_manager is not None:
             conversation_session_id = session.conversation_session_id
             if conversation_session_id is None:
-                conversation_session_id = conversation_manager.create_session()
+                if ctx.ws_manager is not None:
+                    conversation_session_id = ctx.ws_manager.conversation_session_id(
+                        session.surface_id, create=True
+                    )
+                if conversation_session_id is None:
+                    conversation_session_id = conversation_manager.create_session()
                 session = ctx.link_conversation(
                     session, conversation_session_id, now=now, actor="system"
                 )
@@ -126,6 +132,8 @@ class Caregiver:
             now,
             evidence={"confirmed": True, "source": "caregiver"},
         )
+        if decision.kind == "wait":
+            return self._presentation.decision_descriptor(decision)
         ctx.store.add_event(
             session_id=session.id,
             at=now,
@@ -165,8 +173,6 @@ class Caregiver:
                 actor="caregiver",
                 detail={"source": "caregiver"},
             )
-        elif decision.kind == "wait":
-            return self._presentation.decision_descriptor(decision)
         updated = ctx.require_session(session.id)
         await self._presentation.broadcast_session_update(
             updated,
@@ -178,6 +184,9 @@ class Caregiver:
         return await self._presentation.advance_descriptor(session.id, routine, steps, decision)
 
     async def caregiver_complete(self, session_id: int) -> GuidedSessionOut:
+        session = self._ctx.require_session(session_id)
+        if session.status in TERMINAL_STATUSES:
+            raise ValidationError("Guided session is already finished")
         updated = await self._runtime.complete(session_id, "escalated_resolved", actor="caregiver")
         await self._presentation.broadcast_session_update(
             updated,
@@ -195,7 +204,10 @@ class Caregiver:
         if session.status != "caregiver_takeover":
             raise ValidationError("Guided session is not in caregiver takeover")
         entered_during_takeover = self._entered_during_takeover(session.id, step.ord)
-        updated = ctx.store.update_session(session.id, status="active", last_activity_at=now)
+        # Reset attempts so the resident gets a fresh retry ladder after caregiver coaching.
+        updated = ctx.store.update_session(
+            session.id, status="active", attempts=0, last_activity_at=now
+        )
         if updated is None:
             raise NotFoundError("Guided session", session.id)
         ctx.store.add_event(
@@ -264,6 +276,7 @@ class Caregiver:
             execution_id=session.execution_id,
             voice_instruction=voice_instruction or None,
             extra_metadata={"actor": "caregiver", "caregiver_text_hidden": True},
+            surface_id=getattr(session, "surface_id", None),
         )
 
     def _entered_during_takeover(self, session_id: int, step_ord: int) -> bool:

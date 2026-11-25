@@ -704,3 +704,43 @@ async def test_tick_records_a_cleared_condition_without_escalating(db_session, d
         .one()
     )
     assert row.detail == {"condition": "left_expected_room"}
+
+
+async def test_tick_speaks_calm_hazard_reminder_separately_from_caregiver_escalation(
+    db_session, db_factory
+) -> None:
+    routine_id = _seed_service_routine(db_session)
+    escalator = _RecordingEscalator()
+    reminders: list[tuple[int, str]] = []
+
+    class _HazardVoice:
+        async def speak_step(self, **_kwargs) -> None:
+            pass
+
+        async def speak_hazard_reminder(self, *, session, hazard_summary: str, **_kwargs) -> None:
+            reminders.append((session.id, hazard_summary))
+
+    safety = _FixedSafetyWatch(
+        [
+            {
+                "condition": "hazard_active",
+                "severity": "emergency",
+                "detail": {"reason": "stove burner still on"},
+            }
+        ]
+    )
+    clock = _Clock()
+    service = GuidedTaskService(
+        db_factory=db_factory,
+        escalator=escalator,
+        safety_watch=safety,
+        voice=_HazardVoice(),
+        settings=_settings(),
+        time_fn=clock,
+    )
+    session = await service.start(routine_id, "resident-1")
+
+    await service.tick(clock.now + timedelta(seconds=20))
+
+    assert escalator.calls == [(session.id, "hazard_active", True)]
+    assert reminders == [(session.id, "stove burner still on")]

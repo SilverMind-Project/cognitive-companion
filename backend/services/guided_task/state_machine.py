@@ -68,6 +68,8 @@ class GuidedTaskStateMachine:
             )
 
         if event == "timeout_tick":
+            if session.status in {"escalated", "caregiver_takeover"}:
+                return Decision.hold(session, "noop", f"{session.status}_paused")
             # Vision progress delays the ladder (no nagging a resident who is
             # visibly working) but never cancels it: once the step has used its
             # whole ladder budget, a caregiver is told instead.

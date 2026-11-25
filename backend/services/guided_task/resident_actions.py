@@ -18,6 +18,7 @@ from typing import Literal
 from backend.core.exceptions import NotFoundError
 from backend.core.logging import get_logger
 from backend.models.guided_task import GuidedSession
+from backend.observability.metrics import location_metrics as guided_metrics
 from backend.services.guided_task.context import RuntimeContext
 from backend.services.guided_task.domain import (
     STEP_IN_PROGRESS_STATUSES,
@@ -181,6 +182,8 @@ class ResidentActions:
                 session, event_kind="help_repeated", actor="resident", detail=detail, at=now
             )
             return {"acknowledged": True, "already_escalated": True}
+        ctx.cancel_timeout(session.id)
+        guided_metrics.guided_escalations_total.labels(kind="high").inc()
         ctx.store.update_session(session.id, status="escalated", last_activity_at=now)
         ctx.store.add_event(
             session_id=session.id,
@@ -198,7 +201,7 @@ class ResidentActions:
             ctx.require_session(session.id),
             event_kind="help_requested",
             actor="resident",
-            detail={"reason": help_reason},
+            detail=detail,
             at=updated.last_activity_at,
         )
         logger.info("guided_help_requested", session_id=session.id, step_ord=step.ord)

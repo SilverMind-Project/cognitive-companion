@@ -166,44 +166,45 @@ class Runtime:
         return await self._presentation.advance_descriptor(session.id, routine, steps, decision)
 
     async def on_step_timeout(self, session_id: int) -> Decision:
-        ctx = self._ctx
-        now = ctx.now()
-        session, routine, steps, step = ctx.load_runtime(session_id)
-        if session.status == "caregiver_takeover":
-            return Decision.hold(session, "noop", "caregiver_takeover_paused")
+        async with self._ctx.session_lock(session_id):
+            ctx = self._ctx
+            now = ctx.now()
+            session, routine, steps, step = ctx.load_runtime(session_id)
+            if session.status in {"caregiver_takeover", "escalated"}:
+                return Decision.hold(session, "noop", f"{session.status}_paused")
 
-        policy = resolve_policy(routine, step, ctx.settings)
-        progress_seen_at = ctx.progress_seen_at.get((session.id, step.ord))
-        decision = GuidedTaskStateMachine.decide(
-            ctx.session_view(session, steps),
-            ctx.step_view(step),
-            "timeout_tick",
-            policy,
-            now,
-            evidence={"progress_seen_at": progress_seen_at},
-        )
-        if decision.reason == "nag_suppressed" and progress_seen_at is not None:
-            logger.info(
-                "nag_suppressed",
-                session_id=session.id,
-                step_ord=step.ord,
-                progress_seen_at=progress_seen_at,
+            policy = resolve_policy(routine, step, ctx.settings)
+            progress_seen_at = ctx.progress_seen_at.get((session.id, step.ord))
+            decision = GuidedTaskStateMachine.decide(
+                ctx.session_view(session, steps),
+                ctx.step_view(step),
+                "timeout_tick",
+                policy,
+                now,
+                evidence={"progress_seen_at": progress_seen_at},
             )
-            ctx.schedule_timeout(
-                session, routine, step, progress_seen_at, finalize=self.on_step_timeout
+            if decision.reason == "nag_suppressed" and progress_seen_at is not None:
+                logger.info(
+                    "nag_suppressed",
+                    session_id=session.id,
+                    step_ord=step.ord,
+                    progress_seen_at=progress_seen_at,
+                )
+                ctx.schedule_timeout(
+                    session, routine, step, progress_seen_at, finalize=self.on_step_timeout
+                )
+                return decision
+            await self.apply_decision(
+                session=session,
+                routine=routine,
+                steps=steps,
+                decision=decision,
+                now=now,
+                event_kind="timeout",
+                actor="system",
+                detail={"reason": decision.reason},
             )
             return decision
-        await self.apply_decision(
-            session=session,
-            routine=routine,
-            steps=steps,
-            decision=decision,
-            now=now,
-            event_kind="timeout",
-            actor="system",
-            detail={"reason": decision.reason},
-        )
-        return decision
 
     async def complete(
         self,
@@ -226,6 +227,7 @@ class Runtime:
         )
         if updated is None:
             raise NotFoundError("Guided session", session_id)
+        ctx.cancel_timeout(session_id)
         ctx.evict_runtime_state(session_id)
         ctx.store.add_event(
             session_id=session_id,
@@ -243,6 +245,7 @@ class Runtime:
 
     async def abandon(self, session_id: int, *, now: datetime, outcome: str) -> GuidedSession:
         """Single funnel for every abandon route; mirrors ``complete()``."""
+        self._ctx.cancel_timeout(session_id)
         updated = self._ctx.mark_abandoned(session_id, now=now, outcome=outcome)
         await self._memory_bridge.on_session_terminal(updated)
         await self._presentation.release_resident(session_id)
@@ -319,6 +322,7 @@ class Runtime:
             return
 
         if decision.kind == "takeover":
+            ctx.cancel_timeout(session.id)
             guided_metrics.guided_takeovers_total.inc()
             ctx.store.update_session(
                 session.id,
@@ -415,6 +419,7 @@ class Runtime:
             return
 
         if decision.kind == "escalate":
+            ctx.cancel_timeout(session.id)
             guided_metrics.guided_escalations_total.labels(
                 kind="emergency" if decision.emergency else "high"
             ).inc()

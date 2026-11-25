@@ -138,19 +138,25 @@ class Summon:
         )
         return session
 
-    async def on_conversation_started(self, conversation_session_id: int) -> None:
+    async def on_conversation_started(
+        self, conversation_session_id: int, *, surface_id: str | None = None
+    ) -> None:
         """Best-effort hook called when a companion socket creates its conversation.
 
         A socket creates its ``conversation_sessions`` row on first activity, not on
-        connect. Any live guided session with no conversation yet is linked to it, so
-        escalation and detail reads see her actual turns. Invoked fire-and-forget from
-        the audio handler, so it never raises.
+        connect. Any live guided session for this surface (or unbound) with no
+        conversation yet is linked to it, so escalation and detail reads see her
+        actual turns. Invoked fire-and-forget from the audio handler, so it never raises.
         """
         ctx = self._ctx
         for session in ctx.store.list_live_sessions():
-            if session.status not in {"summoning", "active", "waiting"}:
-                continue
             if session.conversation_session_id is not None:
+                continue
+            if (
+                surface_id is not None
+                and session.surface_id is not None
+                and session.surface_id != surface_id
+            ):
                 continue
             try:
                 ctx.link_conversation(
@@ -242,52 +248,59 @@ class Summon:
         return landed
 
     async def summon_recheck(self, session_id: int, summon_timeout_s: int) -> None:
-        ctx = self._ctx
-        now = ctx.now()
-        session = ctx.store.get_session(session_id)
-        if session is None or session.status != "summoning":
-            return
-        routine, steps = ctx.load_routine_steps(session.routine_id)
-        if (now - session.started_at).total_seconds() > summon_timeout_s:
-            abandoned = await self._runtime.abandon(session.id, now=now, outcome="summon_timeout")
-            ctx.store.add_event(
-                session_id=session.id,
-                at=now,
-                kind="session_abandoned",
-                step_ord=None,
-                actor="system",
-                detail={"outcome": "summon_timeout"},
-            )
-            await self._presentation.broadcast_session_update(
-                abandoned,
-                event_kind="session_abandoned",
-                actor="system",
-                detail={"outcome": "summon_timeout"},
-                at=now,
-            )
-            logger.info("guided_summon_timeout", session_id=session.id, person_id=session.person_id)
-            return
+        async with self._ctx.session_lock(session_id):
+            ctx = self._ctx
+            now = ctx.now()
+            session = ctx.store.get_session(session_id)
+            if session is None or session.status != "summoning":
+                return
+            routine, steps = ctx.load_routine_steps(session.routine_id)
+            if (now - session.started_at).total_seconds() > summon_timeout_s:
+                abandoned = await self._runtime.abandon(
+                    session.id, now=now, outcome="summon_timeout"
+                )
+                ctx.store.add_event(
+                    session_id=session.id,
+                    at=now,
+                    kind="session_abandoned",
+                    step_ord=None,
+                    actor="system",
+                    detail={"outcome": "summon_timeout"},
+                )
+                await self._presentation.broadcast_session_update(
+                    abandoned,
+                    event_kind="session_abandoned",
+                    actor="system",
+                    detail={"outcome": "summon_timeout"},
+                    at=now,
+                )
+                logger.info(
+                    "guided_summon_timeout", session_id=session.id, person_id=session.person_id
+                )
+                return
 
-        location = await self._current_location(session.person_id)
-        surface_id = session.surface_id
-        if surface_id is None and location is not None and location.room_id is not None:
-            surfaces = self._surfaces_in_room(location.room_id)
-            if surfaces:
-                surface_id = surfaces[0].id
-                ctx.store.update_session(session.id, surface_id=surface_id, last_activity_at=now)
+            location = await self._current_location(session.person_id)
+            surface_id = session.surface_id
+            if surface_id is None and location is not None and location.room_id is not None:
+                surfaces = self._surfaces_in_room(location.room_id)
+                if surfaces:
+                    surface_id = surfaces[0].id
+                    ctx.store.update_session(
+                        session.id, surface_id=surface_id, last_activity_at=now
+                    )
 
-        if surface_id is not None and self._reaches_surface(surface_id):
-            await self._begin_session(session.id, routine=routine, steps=steps, now=now)
-            return
+            if surface_id is not None and self._reaches_surface(surface_id):
+                await self._begin_session(session.id, routine=routine, steps=steps, now=now)
+                return
 
-        if ctx.store.count_events(session_id=session.id, kind="summon_announced") <= 1:
-            await self.announce_summon(
-                session=session,
-                routine=routine,
-                room_name=self._location_room_name(location),
-                broad=surface_id is None,
-            )
-        self._schedule_summon_recheck(session.id, summon_timeout_s, now)
+            if ctx.store.count_events(session_id=session.id, kind="summon_announced") <= 1:
+                await self.announce_summon(
+                    session=session,
+                    routine=routine,
+                    room_name=self._location_room_name(location),
+                    broad=surface_id is None,
+                )
+            self._schedule_summon_recheck(session.id, summon_timeout_s, now)
 
     async def _current_location(self, person_id: str) -> Any | None:
         person_location = self._ctx.person_location_service

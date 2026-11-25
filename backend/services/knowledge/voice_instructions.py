@@ -34,6 +34,7 @@ class VoiceInstructionConfig:
     guided_task_default: str = ""
     guided_task_language_directive: str = ""
     guided_task_auto_advance_prefix: str = ""
+    guided_task_hazard_reminder: str = ""
 
     @classmethod
     def load(cls, path: str | Path) -> VoiceInstructionConfig:
@@ -57,6 +58,7 @@ class VoiceInstructionConfig:
             guided_task_default=raw.get("guided_task_default", "").strip(),
             guided_task_language_directive=raw.get("guided_task_language_directive", "").strip(),
             guided_task_auto_advance_prefix=raw.get("guided_task_auto_advance_prefix", "").strip(),
+            guided_task_hazard_reminder=raw.get("guided_task_hazard_reminder", "").strip(),
         )
         logger.info("voice_instructions_loaded", path=str(path))
         return config

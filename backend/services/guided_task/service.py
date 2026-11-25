@@ -236,8 +236,12 @@ class GuidedTaskService:
     async def on_session_opened(self) -> None:
         return await self._summon.on_session_opened()
 
-    async def on_conversation_started(self, conversation_session_id: int) -> None:
-        return await self._summon.on_conversation_started(conversation_session_id)
+    async def on_conversation_started(
+        self, conversation_session_id: int, *, surface_id: str | None = None
+    ) -> None:
+        return await self._summon.on_conversation_started(
+            conversation_session_id, surface_id=surface_id
+        )
 
     # ------------------------------------------------------------------
     # Session runtime
@@ -269,19 +273,23 @@ class GuidedTaskService:
         return await self._presentation.current_resident_state(person_id, surface_id=surface_id)
 
     async def repeat_step(self, session_id: int) -> dict:
-        return await self._resident_actions.repeat_step(session_id)
+        async with self._ctx.session_lock(session_id):
+            return await self._resident_actions.repeat_step(session_id)
 
     async def report_blocked(self, session_id: int, reason: str) -> dict:
-        return await self._resident_actions.report_blocked(session_id, reason)
+        async with self._ctx.session_lock(session_id):
+            return await self._resident_actions.report_blocked(session_id, reason)
 
     async def request_help(self, session_id: int, reason: str | None = None) -> dict:
-        return await self._resident_actions.request_help(session_id, reason)
+        async with self._ctx.session_lock(session_id):
+            return await self._resident_actions.request_help(session_id, reason)
 
     async def on_step_timeout(self, session_id: int) -> Decision:
         return await self._runtime.on_step_timeout(session_id)
 
     async def resume(self, session_id: int) -> Decision:
-        return await self._resident_actions.resume(session_id)
+        async with self._ctx.session_lock(session_id):
+            return await self._resident_actions.resume(session_id)
 
     async def complete(
         self,
@@ -290,7 +298,8 @@ class GuidedTaskService:
         *,
         actor: str = "system",
     ) -> GuidedSession:
-        return await self._runtime.complete(session_id, outcome, actor=actor)
+        async with self._ctx.session_lock(session_id):
+            return await self._runtime.complete(session_id, outcome, actor=actor)
 
     async def tick(self, now: datetime | None = None) -> None:
         return await self._watch.tick(now)
@@ -300,19 +309,24 @@ class GuidedTaskService:
     # ------------------------------------------------------------------
 
     async def begin_takeover(self, session_id: int) -> GuidedSessionOut:
-        return await self._caregiver.begin_takeover(session_id)
+        async with self._ctx.session_lock(session_id):
+            return await self._caregiver.begin_takeover(session_id)
 
     async def caregiver_say(self, session_id: int, text: str) -> GuidedSessionOut:
-        return await self._caregiver.caregiver_say(session_id, text)
+        async with self._ctx.session_lock(session_id):
+            return await self._caregiver.caregiver_say(session_id, text)
 
     async def caregiver_advance(self, session_id: int) -> dict:
-        return await self._caregiver.caregiver_advance(session_id)
+        async with self._ctx.session_lock(session_id):
+            return await self._caregiver.caregiver_advance(session_id)
 
     async def caregiver_complete(self, session_id: int) -> GuidedSessionOut:
-        return await self._caregiver.caregiver_complete(session_id)
+        async with self._ctx.session_lock(session_id):
+            return await self._caregiver.caregiver_complete(session_id)
 
     async def release_takeover(self, session_id: int) -> GuidedSessionOut:
-        return await self._caregiver.release_takeover(session_id)
+        async with self._ctx.session_lock(session_id):
+            return await self._caregiver.release_takeover(session_id)
 
     # ------------------------------------------------------------------
     # Presentation / reads

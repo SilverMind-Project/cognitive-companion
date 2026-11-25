@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from backend.core.config import Settings
-from backend.models.guided_task import GuidedSessionEvent, Routine, RoutineStep
+from backend.models.guided_task import GuidedSession, GuidedSessionEvent, Routine, RoutineStep
 from backend.models.person import HouseholdMember
 from backend.services.guided_task.service import GuidedTaskService
 from backend.tests.factories.companion_socket import CompanionSocketRouting
@@ -260,3 +260,37 @@ async def test_a_failing_broadcast_never_fails_the_transition(db_session, db_fac
     assert result["advanced"] is True
     db_session.expire_all()
     assert (await service.get_active_step(session.id))["step_ord"] == 1
+
+
+@pytest.mark.asyncio
+async def test_release_takeover_resets_attempts_and_overrun_clock(db_session, db_factory) -> None:
+    routine_id = _seed(db_session, steps=2)
+    clock = _Clock()
+    voice = _Voice()
+    service = _service(db_factory, clock, voice=voice)
+    session = await service.start(routine_id, "resident-1")
+
+    # Exhaust attempts to trigger escalation on step 0.
+    for _ in range(3):
+        clock.now += timedelta(seconds=120)
+        await service.on_step_timeout(session.id)
+    db_session.expire_all()
+    assert db_session.get(GuidedSession, session.id).status == "escalated"
+
+    clock.now += timedelta(seconds=30)
+    await service.begin_takeover(session.id)
+    clock.now += timedelta(seconds=60)
+    await service.release_takeover(session.id)
+
+    db_session.expire_all()
+    released = db_session.get(GuidedSession, session.id)
+    assert released.status == "active"
+    assert released.attempts == 0
+
+    # Next timeout retries cleanly rather than immediately re-escalating.
+    clock.now += timedelta(seconds=120)
+    await service.on_step_timeout(session.id)
+    db_session.expire_all()
+    after = db_session.get(GuidedSession, session.id)
+    assert after.status == "active"
+    assert after.attempts == 1

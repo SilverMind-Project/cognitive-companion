@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from backend.services.guided_task.domain import ResolvedPolicy, SessionView, StepView
 from backend.services.guided_task.state_machine import GuidedTaskStateMachine
 
@@ -236,3 +238,17 @@ def test_timeout_with_stale_progress_runs_the_ladder():
     )
 
     assert (decision.kind, decision.reason) == ("retry", "timeout_retry")
+
+
+@pytest.mark.parametrize("status", ["escalated", "caregiver_takeover"])
+def test_timeout_does_not_overwrite_escalated_or_takeover_session(status: str):
+    decision = GuidedTaskStateMachine.decide(
+        _session(status=status, attempts=0),
+        _step(),
+        "timeout_tick",
+        _policy(),
+        NOW,
+    )
+
+    assert decision.kind == "noop"
+    assert decision.next_status == status

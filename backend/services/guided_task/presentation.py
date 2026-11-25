@@ -151,6 +151,39 @@ class Presentation:
             is_retry=is_retry,
         )
 
+    async def maybe_speak_hazard_reminder(
+        self,
+        session: GuidedSession,
+        routine: Routine,
+        step: RoutineStep,
+        primary: dict[str, Any],
+    ) -> None:
+        """Speak a calm localized safety reminder via Gemini Live on ``hazard_active``."""
+        if primary.get("condition") != "hazard_active":
+            return
+        remind = getattr(self._ctx.voice, "speak_hazard_reminder", None)
+        if not callable(remind):
+            return
+        try:
+            raw_detail = primary.get("detail")
+            detail: dict[str, Any] = raw_detail if isinstance(raw_detail, dict) else {}
+            summary = str(
+                primary.get("reason")
+                or detail.get("reason")
+                or detail.get("hazard")
+                or primary.get("hazard")
+                or "a safety check"
+            )
+            await remind(
+                session=session,
+                routine=routine,
+                step=step,
+                resident_name=self._ctx.resident_name(session.person_id),
+                hazard_summary=summary,
+            )
+        except Exception:
+            logger.exception("guided_hazard_reminder_failed", session_id=session.id)
+
     async def release_resident(self, session_id: int) -> None:
         """Hand the resident's surface back once a session has ended.
 

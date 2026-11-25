@@ -210,6 +210,12 @@ class RuntimeContext:
             kind="step_entered",
             step_ord=session.current_step_ord,
         )
+        takeover_ended_at = self.store.latest_event_at(
+            session_id=session.id,
+            kind="takeover_ended",
+            step_ord=session.current_step_ord,
+        )
+        anchors = [t for t in (step_entered_at, takeover_ended_at) if t is not None]
         return SessionView(
             status=session.status,
             current_step_ord=session.current_step_ord,
@@ -217,7 +223,7 @@ class RuntimeContext:
             num_steps=len(steps),
             started_at=session.started_at,
             last_activity_at=session.last_activity_at,
-            step_entered_at=step_entered_at or session.started_at,
+            step_entered_at=max(anchors) if anchors else session.started_at,
         )
 
     def step_view(self, step: RoutineStep) -> StepView:
@@ -325,6 +331,19 @@ class RuntimeContext:
             args=[session.id],
         )
 
+    def cancel_timeout(self, session_id: int) -> None:
+        """Cancel any pending step-timeout job for ``session_id``."""
+        from types import SimpleNamespace
+
+        from backend.services.interactive_session.pipeline_link import cancel_session_timeout
+
+        scheduler = self.scheduler
+        if scheduler is not None and not hasattr(scheduler, "apscheduler"):
+            scheduler = SimpleNamespace(apscheduler=scheduler)
+        if scheduler is None or not hasattr(scheduler.apscheduler, "remove_job"):
+            return
+        cancel_session_timeout(scheduler, job_id=f"guided_session_timeout_{session_id}")
+
     def ensure_timeout(
         self,
         session: GuidedSession,
@@ -351,7 +370,13 @@ class RuntimeContext:
         if get_job is None or get_job(f"guided_session_timeout_{session.id}") is not None:
             return False
         timeout = timedelta(seconds=resolve_policy(routine, step, self.settings).step_timeout_s)
-        deadline = session.last_activity_at + timeout
+        progress_seen_at = self.progress_seen_at.get((session.id, step.ord))
+        anchor = (
+            max(session.last_activity_at, progress_seen_at)
+            if progress_seen_at is not None
+            else session.last_activity_at
+        )
+        deadline = anchor + timeout
         if deadline <= now < deadline + timedelta(seconds=_TIMEOUT_REARM_MARGIN_S):
             return False
         run_at = max(deadline, now)

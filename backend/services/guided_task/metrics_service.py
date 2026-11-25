@@ -258,7 +258,7 @@ class GuidedMetricsService:
                 .join(GuidedSession, GuidedSession.id == GuidedSessionEvent.session_id)
                 .where(
                     *self._session_filters(window),
-                    GuidedSessionEvent.kind.in_(("help_requested", "escalation")),
+                    GuidedSessionEvent.kind == "escalation",
                 )
                 .group_by("reason", "emergency")
                 .order_by("reason", "emergency")

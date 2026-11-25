@@ -11987,6 +11987,337 @@
         "title": "PipelineStepUpdate",
         "type": "object"
       },
+      "PositionSensorCreate": {
+        "additionalProperties": false,
+        "description": "Register a device-free position sensor (mmWave radar or room LiDAR).",
+        "properties": {
+          "calibration_residual_m": {
+            "default": 0.1,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Calibration Residual M",
+            "type": "number"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "modality": {
+            "$ref": "#/components/schemas/PositionSensorModality"
+          },
+          "room_id": {
+            "title": "Room Id",
+            "type": "integer"
+          },
+          "sensor_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Sensor Id",
+            "type": "string"
+          },
+          "x_norm": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X Norm",
+            "type": "number"
+          },
+          "y_norm": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y Norm",
+            "type": "number"
+          },
+          "yaw_deg": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 180.0,
+                "minimum": -180.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yaw Deg"
+          }
+        },
+        "required": [
+          "sensor_id",
+          "label",
+          "modality",
+          "room_id",
+          "x_norm",
+          "y_norm"
+        ],
+        "title": "PositionSensorCreate",
+        "type": "object"
+      },
+      "PositionSensorListOut": {
+        "properties": {
+          "floor_plan_ready": {
+            "title": "Floor Plan Ready",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PositionSensorOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "floor_plan_ready"
+        ],
+        "title": "PositionSensorListOut",
+        "type": "object"
+      },
+      "PositionSensorModality": {
+        "description": "What kind of device-free sensor a registered position sensor is.\n\nDisplay and inventory only: consumers branch on the reported covariance, never on\nthe modality, exactly as wearable consumers never branch on the radio.",
+        "enum": [
+          "mmwave_radar",
+          "lidar",
+          "other"
+        ],
+        "title": "PositionSensorModality",
+        "type": "string"
+      },
+      "PositionSensorOut": {
+        "properties": {
+          "calibration_residual_m": {
+            "title": "Calibration Residual M",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "modality": {
+            "$ref": "#/components/schemas/PositionSensorModality"
+          },
+          "room_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Id"
+          },
+          "room_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Name"
+          },
+          "sensor_id": {
+            "title": "Sensor Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "x_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X M"
+          },
+          "x_norm": {
+            "title": "X Norm",
+            "type": "number"
+          },
+          "y_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y M"
+          },
+          "y_norm": {
+            "title": "Y Norm",
+            "type": "number"
+          },
+          "yaw_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yaw Deg"
+          }
+        },
+        "required": [
+          "id",
+          "sensor_id",
+          "label",
+          "modality",
+          "room_id",
+          "x_norm",
+          "y_norm",
+          "yaw_deg",
+          "calibration_residual_m",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PositionSensorOut",
+        "type": "object"
+      },
+      "PositionSensorUpdate": {
+        "additionalProperties": false,
+        "description": "Partial update of a position sensor; ``sensor_id`` is immutable (gateways publish it).",
+        "properties": {
+          "calibration_residual_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calibration Residual M"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "modality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PositionSensorModality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "room_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Id"
+          },
+          "x_norm": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X Norm"
+          },
+          "y_norm": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Norm"
+          },
+          "yaw_deg": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 180.0,
+                "minimum": -180.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yaw Deg"
+          }
+        },
+        "title": "PositionSensorUpdate",
+        "type": "object"
+      },
       "PresenceConfigOut": {
         "description": "Sanitized view of the active presence fuser configuration.",
         "properties": {
@@ -19017,6 +19348,57 @@
         "title": "SiteConfigNodeOut",
         "type": "object"
       },
+      "SiteConfigPositionSensorOut": {
+        "description": "One active device-free position sensor, its mounting pose in metres on the floor plan.",
+        "properties": {
+          "calibration_residual_m": {
+            "title": "Calibration Residual M",
+            "type": "number"
+          },
+          "room_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Id"
+          },
+          "sensor_id": {
+            "title": "Sensor Id",
+            "type": "string"
+          },
+          "x_m": {
+            "title": "X M",
+            "type": "number"
+          },
+          "y_m": {
+            "title": "Y M",
+            "type": "number"
+          },
+          "yaw_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yaw Deg"
+          }
+        },
+        "required": [
+          "sensor_id",
+          "x_m",
+          "y_m",
+          "calibration_residual_m"
+        ],
+        "title": "SiteConfigPositionSensorOut",
+        "type": "object"
+      },
       "SkipActivitySignal": {
         "additionalProperties": false,
         "description": "Skip on entry when this activity was recorded within the look-back window.",
@@ -21279,6 +21661,13 @@
               "$ref": "#/components/schemas/SiteConfigNodeOut"
             },
             "title": "Nodes",
+            "type": "array"
+          },
+          "position_sensors": {
+            "items": {
+              "$ref": "#/components/schemas/SiteConfigPositionSensorOut"
+            },
+            "title": "Position Sensors",
             "type": "array"
           },
           "version": {
@@ -41436,6 +41825,246 @@
           }
         ],
         "summary": "Update Rf Node",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/position-sensors": {
+      "get": {
+        "description": "List registered device-free position sensors (mmWave radar and room LiDAR).",
+        "operationId": "list_position_sensors",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "active_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Active Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionSensorListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Position Sensors",
+        "tags": [
+          "wearables"
+        ]
+      },
+      "post": {
+        "description": "Register a position sensor, the room it covers, and its mounting pose.",
+        "operationId": "create_position_sensor",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PositionSensorCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionSensorOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Create Position Sensor",
+        "tags": [
+          "wearables"
+        ]
+      }
+    },
+    "/api/v1/wearables/position-sensors/{sensor_uuid}": {
+      "delete": {
+        "description": "Delete a position sensor; its tracks are dropped from the next site-config poll.",
+        "operationId": "delete_position_sensor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sensor_uuid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sensor Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Delete Position Sensor",
+        "tags": [
+          "wearables"
+        ]
+      },
+      "get": {
+        "description": "Fetch one registered position sensor.",
+        "operationId": "get_position_sensor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sensor_uuid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sensor Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionSensorOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Position Sensor",
+        "tags": [
+          "wearables"
+        ]
+      },
+      "patch": {
+        "description": "Update a position sensor's room, pose, calibration residual, or active flag.",
+        "operationId": "update_position_sensor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sensor_uuid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sensor Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PositionSensorUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionSensorOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Update Position Sensor",
         "tags": [
           "wearables"
         ]

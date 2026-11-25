@@ -103,10 +103,15 @@ def _det(
     }
 
 
-def _msg(detections: list[dict], *, camera_id: str = "cam-1") -> dict:
+def _msg(
+    detections: list[dict],
+    *,
+    camera_id: str = "cam-1",
+    room_name: str = "living_room",
+) -> dict:
     return {
         "event_time": datetime.now(UTC),
-        "room_name": "living_room",
+        "room_name": room_name,
         "camera_id": camera_id,
         "detections": detections,
     }
@@ -232,3 +237,99 @@ async def test_floorpoint_keyword_is_y_m_not_y():
     fp = FloorPoint(x_m=1.5, y_m=3.2)
     assert fp.x_m == 1.5
     assert fp.y_m == 3.2
+
+
+@pytest.mark.asyncio
+async def test_device_free_sensor_detection_is_placed_in_the_sensors_room():
+    """A radar track publishes under ``sensor:<id>``; its room comes from the sensor registry."""
+    svc = _make_location_service()
+    looked_up: list[str] = []
+
+    def sensor_room_id(source_id: str) -> int | None:
+        looked_up.append(source_id)
+        return {"sensor:radar-bathroom-1": 9}.get(source_id)
+
+    subscriber = WorldObservationSubscriber(
+        redis_url="redis://localhost:6379",
+        location_service=svc,
+        # A camera map entry under the sensor id must never be consulted.
+        camera_room_id_map={"cam-1": 1, "sensor:radar-bathroom-1": 1},
+        sensor_room_id=sensor_room_id,
+    )
+
+    await subscriber.handle(
+        _msg(
+            [
+                _det(
+                    ph_id="ph-aaa",
+                    identity_id="alice",
+                    calibrated=True,
+                    camera_id="sensor:radar-bathroom-1",
+                    room_name="Bathroom",
+                )
+            ],
+            camera_id="sensor:radar-bathroom-1",
+        )
+    )
+
+    loc = await svc.where_is("alice")
+    assert loc is not None
+    assert loc.room_id == 9
+    assert looked_up == ["sensor:radar-bathroom-1"]
+
+
+@pytest.mark.asyncio
+async def test_device_free_sensor_detection_uses_authoritative_cc_room_name():
+    """Sensor room_name comes from CC's registry even when the proto omits room_name."""
+    svc = _make_location_service()
+    occupancy = OccupancyReadModel()
+    subscriber = WorldObservationSubscriber(
+        redis_url="redis://localhost:6379",
+        location_service=svc,
+        occupancy=occupancy,
+        sensor_room=lambda source_id: {"sensor:radar-bathroom-1": (9, "Bathroom")}.get(source_id),
+    )
+
+    await subscriber.handle(
+        _msg(
+            [
+                _det(
+                    ph_id="ph-aaa",
+                    identity_id="alice",
+                    calibrated=True,
+                    camera_id="sensor:radar-bathroom-1",
+                    room_name="",
+                )
+            ],
+            camera_id="sensor:radar-bathroom-1",
+            room_name="",
+        )
+    )
+
+    records = await occupancy.get_occupancy()
+    assert len(records) == 1
+    assert records[0].room_id == 9
+    assert records[0].room_name == "Bathroom"
+    loc = await svc.where_is("alice")
+    assert loc is not None
+    assert loc.room_id == 9
+    assert loc.room_name == "Bathroom"
+
+
+@pytest.mark.asyncio
+async def test_unregistered_sensor_detection_is_skipped():
+    svc = _make_location_service()
+    subscriber = WorldObservationSubscriber(
+        redis_url="redis://localhost:6379",
+        location_service=svc,
+        sensor_room_id=lambda _source_id: None,
+    )
+
+    await subscriber.handle(
+        _msg(
+            [_det(ph_id="ph-aaa", identity_id="alice", calibrated=True, camera_id="sensor:gone")],
+            camera_id="sensor:gone",
+        )
+    )
+
+    assert await svc.where_is("alice") is None

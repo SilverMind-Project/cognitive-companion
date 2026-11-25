@@ -18,6 +18,8 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
+from cts_contracts import is_device_free_source
+
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import tracking_pb2
 from backend.schemas.cts_ph_ws import PHUpdateEvent
@@ -234,7 +236,12 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
 
         metrics.cts_events_persisted.labels(event_type=camera_id).inc()
 
-        if self._ws_manager is not None:
+        # A device-free position sensor (radar, LiDAR) has no frame: its events place
+        # people on the floor plan and drive rules, but never reach the camera live view
+        # or the image window buckets.
+        device_free = is_device_free_source(camera_id)
+
+        if self._ws_manager is not None and not device_free:
             try:
                 frame_url: str | None = None
                 minio_key = event.get("minio_key")
@@ -290,6 +297,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             except Exception:
                 logger.exception("cts_live_broadcast_error")
 
+        if self._ws_manager is not None:
             # broadcast PH updates from identity snapshots
             # Per-PH 200 ms debounce to avoid flooding the WebSocket bus.
             try:
@@ -324,14 +332,13 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             except Exception:
                 logger.exception("cts_ph_update_broadcast_error")
 
-            # delegate world snapshot to debounced publisher
+            # delegate world snapshot to debounced publisher (empty list clears stale camera entries)
             if self._snapshot_publisher is not None:
                 phs = self._build_ph_entries(event)
-                if phs:
-                    self._snapshot_publisher.mark_dirty(
-                        camera_id=event.get("camera_id", ""),
-                        ph_data_list=phs,
-                    )
+                self._snapshot_publisher.mark_dirty(
+                    camera_id=event.get("camera_id", ""),
+                    ph_data_list=phs,
+                )
 
         if self._pipeline is not None and touched:
             try:
@@ -348,7 +355,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             except Exception:
                 logger.exception("tracking_event_pipeline_fire_error")
 
-        if self._bucketizer is not None:
+        if self._bucketizer is not None and not device_free:
             try:
                 self._bucketizer.ingest(event)
             except Exception:
@@ -382,7 +389,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                     "posterior_top_prob": posterior_prob,
                     "room_id": None,
                     "room_name": event.get("room_name") or "",
-                    "room_has_camera": True,
+                    "room_has_camera": not is_device_free_source(event.get("camera_id", "")),
                     "floor_xy_m": [
                         det.get("floor_x") or 0.0,
                         det.get("floor_y") or 0.0,

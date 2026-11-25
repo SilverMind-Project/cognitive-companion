@@ -203,6 +203,20 @@
         </v-card>
       </div>
 
+      <!-- Position Sensors Tab -->
+      <PositionSensorsPanel
+        v-else-if="activeTab === 'sensors'"
+        :sensors="state.positionSensors"
+        :rooms="state.rooms"
+        :floor-plan-ready="state.floorPlanReady"
+        :floor-width-m="state.floorWidthM"
+        :floor-height-m="state.floorHeightM"
+        :saving="state.saving"
+        @create-sensor="handleCreateSensor"
+        @update-sensor="handleUpdateSensor"
+        @delete-sensor="confirmDeleteSensor"
+      />
+
       <!-- RF Nodes Tab -->
       <RfNodeFloorPlanCanvas
         v-else
@@ -327,12 +341,18 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import AppDialog from "@/components/common/AppDialog.vue";
 import CcSegmentedToggle from "@/components/common/CcSegmentedToggle.vue";
+import PositionSensorsPanel from "@/components/cts/wearables/PositionSensorsPanel.vue";
 import RfNodeFloorPlanCanvas from "@/components/cts/wearables/RfNodeFloorPlanCanvas.vue";
 import WearableBindingDialog from "@/components/cts/wearables/WearableBindingDialog.vue";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useWearables } from "@/composables/useWearables";
-import type { WearableBindingCreate, WearableDeviceOut } from "@/services/modules/wearables";
+import type {
+  PositionSensorCreate,
+  PositionSensorUpdate,
+  WearableBindingCreate,
+  WearableDeviceOut,
+} from "@/services/modules/wearables";
 import { useIdentityReviewStore } from "@/stores/identityReview";
 
 const { notify } = useNotify();
@@ -350,10 +370,11 @@ const {
 } = useConfirm();
 const { state, actions } = useWearables(notify);
 
-const activeTab = ref<"devices" | "nodes">("devices");
+const activeTab = ref<"devices" | "nodes" | "sensors">("devices");
 const tabOptions = [
   { value: "devices", label: "Devices & Bindings", icon: "mdi-watch-variant" },
   { value: "nodes", label: "RF Nodes & Placement", icon: "mdi-access-point-network" },
+  { value: "sensors", label: "Position Sensors", icon: "mdi-radar" },
 ];
 
 const deviceKindOptions = [
@@ -484,6 +505,24 @@ async function confirmDeleteNode(nodeId: string) {
   );
   if (!ok) return;
   await actions.removeNode(nodeId);
+}
+
+async function handleCreateSensor(body: PositionSensorCreate) {
+  await actions.addPositionSensor(body).catch(() => {});
+}
+
+async function handleUpdateSensor(sensorUuid: string, body: PositionSensorUpdate) {
+  await actions.patchPositionSensor(sensorUuid, body).catch(() => {});
+}
+
+async function confirmDeleteSensor(sensorUuid: string) {
+  const sensor = state.positionSensors.find((s) => s.id === sensorUuid);
+  const ok = await showConfirm(
+    `Remove position sensor ${sensor?.label || sensorUuid}?`,
+    "Its tracks are ignored from the next site-config poll, and people it was following are no longer placed in its room.",
+  );
+  if (!ok) return;
+  await actions.removePositionSensor(sensorUuid).catch(() => {});
 }
 
 onMounted(() => {

@@ -1,4 +1,4 @@
-"""Wearable device registry, time-bounded bindings, and fixed RF node models."""
+"""Wearable device registry, time-bounded bindings, fixed RF node, and position sensor models."""
 
 from __future__ import annotations
 
@@ -200,6 +200,65 @@ class RfNode(Base, TimestampMixin):
     uwb_address_hex: Mapped[str | None] = mapped_column(String(8), nullable=True)
     uwb_channel: Mapped[int | None] = mapped_column(Integer, nullable=True)
     uwb_preamble_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class PositionSensor(Base, TimestampMixin):
+    """Device-free anonymous position sensor (mmWave radar or room LiDAR).
+
+    The sensor reports anonymous floor-plane tracks on ``position.tracks``; it never
+    reports identity. ``sensor_id`` is the slug the sensor's gateway publishes under
+    (``cts_contracts.SENSOR_ID_PATTERN``). ``room_id`` is the room the sensor covers,
+    which Cognitive Companion uses for presence. ``x_norm``/``y_norm`` and ``yaw_deg``
+    are the mounting pose on the floor plan: rf-ingress needs the pose only for a
+    gateway that reports in the sensor's own frame. ``calibration_residual_m`` is the
+    sensor's systematic placement error, the floor below which tracking never lets the
+    sensor's measurements make a person's position more certain.
+    """
+
+    __tablename__ = "position_sensors"
+    __table_args__ = (
+        CheckConstraint(
+            "sensor_id ~ '^[a-z0-9][a-z0-9_.-]{0,63}$'",
+            name="ck_position_sensors_sensor_id",
+        ),
+        CheckConstraint(
+            "modality IN ('mmwave_radar', 'lidar', 'other')",
+            name="ck_position_sensors_modality",
+        ),
+        CheckConstraint("x_norm >= 0.0 AND x_norm <= 1.0", name="ck_position_sensors_x_norm"),
+        CheckConstraint("y_norm >= 0.0 AND y_norm <= 1.0", name="ck_position_sensors_y_norm"),
+        CheckConstraint(
+            "yaw_deg IS NULL OR (yaw_deg >= -180.0 AND yaw_deg < 180.0)",
+            name="ck_position_sensors_yaw_deg",
+        ),
+        CheckConstraint(
+            "calibration_residual_m > 0.0 AND calibration_residual_m <= 1.0",
+            name="ck_position_sensors_calibration_residual",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sensor_id: Mapped[str] = mapped_column(Text, unique=True, nullable=False, index=True)
+    label: Mapped[str] = mapped_column(Text, nullable=False)
+    modality: Mapped[str] = mapped_column(Text, nullable=False)
+    room_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("rooms.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    x_norm: Mapped[float] = mapped_column(Double, nullable=False)
+    y_norm: Mapped[float] = mapped_column(Double, nullable=False)
+    yaw_deg: Mapped[float | None] = mapped_column(Double, nullable=True)
+    calibration_residual_m: Mapped[float] = mapped_column(
+        Double, nullable=False, default=0.10, server_default=text("0.10")
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("TRUE")
+    )
     updated_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), nullable=False, server_default=func.now(), onupdate=func.now()
     )

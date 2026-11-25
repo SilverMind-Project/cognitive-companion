@@ -1,10 +1,12 @@
-"""N4: WorldSnapshotPublisher — debounced 5 Hz cts_world_snapshot broadcaster."""
+"""N4: WorldSnapshotPublisher: debounced 5 Hz cts_world_snapshot broadcaster."""
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import json
+import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -15,6 +17,7 @@ logger = get_logger(__name__)
 
 _DEBOUNCE_S = 0.200  # 5 Hz max
 _HEARTBEAT_S = 5.0  # heartbeat when idle
+_SOURCE_STALE_AFTER_S = 15.0
 
 # Two camera observations for the same identified person are considered
 # simultaneous (and eligible for position averaging) when their
@@ -38,9 +41,17 @@ def _average_observations(observations: list[dict[str, Any]]) -> dict[str, Any]:
     Uses the most recently observed entry as the base (identity metadata,
     posture, room, etc.) and replaces floor_xy_m with the mean of all
     calibrated positions.  Falls back to the base position when no
-    observation is calibrated.
+    observation is calibrated. When the newest entry is a posture-less
+    source (e.g. a device-free sensor), keep the newest camera posture.
     """
     base = max(observations, key=lambda o: o.get("last_observed_at") or "")
+    if base.get("posture") in (None, "", "unknown"):
+        with_posture = [o for o in observations if o.get("posture") not in (None, "", "unknown")]
+        if with_posture:
+            newest_posture = max(with_posture, key=lambda o: o.get("last_observed_at") or "")[
+                "posture"
+            ]
+            base = {**base, "posture": newest_posture}
     calibrated = [o for o in observations if not o.get("uncalibrated")]
     if len(calibrated) >= 2:
         avg_x = sum(o["floor_xy_m"][0] for o in calibrated) / len(calibrated)
@@ -54,13 +65,12 @@ def _average_observations(observations: list[dict[str, Any]]) -> dict[str, Any]:
 class WorldSnapshotPublisher:
     """Publish cts_world_snapshot at most at 5 Hz (200 ms debounce).
 
-    Internal state is a per-camera registry:
-        _camera_phs: {camera_id: {ph_id: ph_data}}
+    Internal state is a per-source registry:
+        _camera_phs: {source_id: {ph_id: ph_data}}
 
-    Each mark_dirty() call atomically replaces one camera's complete entry
-    set.  Because a tracking event is the authoritative snapshot of a single
-    camera at an instant, this naturally evicts PHs that have left the field
-    of view without needing a TTL.
+    Each mark_dirty() call atomically replaces one source's complete entry set,
+    and entries from sources silent past ``stale_after_s`` (such as a device-free
+    position sensor after the room empties) are pruned on each publish.
 
     At publish time _flatten_phs() produces exactly one dot per person:
 
@@ -82,20 +92,31 @@ class WorldSnapshotPublisher:
         person_location_service: object | None = None,
         debounce_s: float = _DEBOUNCE_S,
         heartbeat_s: float = _HEARTBEAT_S,
+        stale_after_s: float = _SOURCE_STALE_AFTER_S,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._ws_manager = ws_manager
         self._pls = person_location_service
         self._debounce_s = debounce_s
         self._heartbeat_s = heartbeat_s
-        # {camera_id: {ph_id: ph_data}} -- bounded by num_cameras x detections_per_frame
+        self._stale_after_s = stale_after_s
+        self._monotonic = monotonic
+        # {source_id: {ph_id: ph_data}} -- bounded by num_sources x detections_per_frame
         self._camera_phs: dict[str, dict[str, dict[str, Any]]] = {}
+        self._source_marked_at: dict[str, float] = {}
         self._dirty = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
         self._last_snapshot_id: str = ""
 
     def mark_dirty(self, camera_id: str, ph_data_list: list[dict[str, Any]]) -> None:
         """Replace camera_id's PH entries atomically and schedule a snapshot."""
-        self._camera_phs[camera_id] = {ph["ph_id"]: ph for ph in ph_data_list if ph.get("ph_id")}
+        entries = {ph["ph_id"]: ph for ph in ph_data_list if ph.get("ph_id")}
+        if entries:
+            self._camera_phs[camera_id] = entries
+            self._source_marked_at[camera_id] = self._monotonic()
+        else:
+            self._camera_phs.pop(camera_id, None)
+            self._source_marked_at.pop(camera_id, None)
         self._dirty.set()
 
     async def start(self) -> None:
@@ -123,7 +144,17 @@ class WorldSnapshotPublisher:
 
         Identified persons are grouped by identity_id; anonymous ones by ph_id.
         """
-        # Collect all current observations from every camera.
+        now_mono = self._monotonic()
+        stale_sources = [
+            source_id
+            for source_id, marked_at in self._source_marked_at.items()
+            if now_mono - marked_at > self._stale_after_s
+        ]
+        for source_id in stale_sources:
+            self._source_marked_at.pop(source_id, None)
+            self._camera_phs.pop(source_id, None)
+
+        # Collect all current observations from every active source.
         identified: dict[str, list[dict[str, Any]]] = {}  # identity_id → [ph_data, ...]
         anonymous: dict[str, dict[str, Any]] = {}  # ph_id → latest ph_data
 

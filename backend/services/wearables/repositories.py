@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend.models.household_settings import HouseholdSettings
 from backend.models.person import HouseholdMember
 from backend.models.room import Room
-from backend.models.wearable import RfNode, WearableBinding, WearableDevice
+from backend.models.wearable import PositionSensor, RfNode, WearableBinding, WearableDevice
 
 
 class WearableRepositoryProtocol(Protocol):
@@ -134,6 +134,17 @@ class SqlAlchemyWearableRepository:
     def get_node_by_anchor_id(db: Session, anchor_id: str) -> RfNode | None:
         stmt = select(RfNode).where(RfNode.anchor_id == anchor_id)
         return db.scalar(stmt)
+
+    @staticmethod
+    def list_position_sensors(db: Session, *, active_only: bool = False) -> list[PositionSensor]:
+        stmt = select(PositionSensor).order_by(PositionSensor.sensor_id)
+        if active_only:
+            stmt = stmt.where(PositionSensor.is_active.is_(True))
+        return list(db.scalars(stmt).all())
+
+    @staticmethod
+    def get_position_sensor(db: Session, sensor_uuid: uuid.UUID) -> PositionSensor | None:
+        return db.get(PositionSensor, sensor_uuid)
 
     @staticmethod
     def list_rooms_map(db: Session) -> dict[int, Room]:

@@ -122,6 +122,7 @@ async def wire_cts(
         person_location_service=person_location_service,
         occupancy_read_model=occupancy_read_model,
         orchestrator_client=getattr(app.state, "orchestrator_client", None),
+        position_sensor_service=app.state.position_sensor_service,
     )
     app.state.cts_runtime = cts_runtime
     # Give the pipeline executor access to the CTS frame buffer so the
@@ -211,6 +212,7 @@ def wire_identity_services(app: FastAPI) -> None:
     from backend.services.identity_targets import IdentityTargetsService
     from backend.services.visitors import VisitorAdminService, VisitorReviewAdapter
     from backend.services.wearables import (
+        PositionSensorService,
         RfNodeService,
         SqlAlchemyWearableRepository,
         WearableBindingService,
@@ -223,6 +225,7 @@ def wire_identity_services(app: FastAPI) -> None:
     app.state.wearable_device_service = WearableDeviceService(wearable_repo)
     app.state.wearable_binding_service = WearableBindingService(wearable_repo)
     app.state.rf_node_service = RfNodeService(wearable_repo, rf_ingress=app.state.rf_ingress_client)
+    app.state.position_sensor_service = PositionSensorService(wearable_repo)
     app.state.wearable_site_config_service = WearableSiteConfigService(wearable_repo)
     app.state.wearable_teaching_revocation_service = WearableTeachingRevocationService(
         wearable_repo, app.state.orchestrator_client

@@ -25,9 +25,11 @@ from backend.mcp.server import (
 )
 from backend.models.household_settings import HouseholdSettings
 from backend.models.person import HouseholdMember
+from backend.models.room import Room
 from backend.models.wearable import WearableBinding
 from backend.routers import persons, wearables
 from backend.services.wearables import (
+    PositionSensorService,
     RfNodeService,
     SqlAlchemyWearableRepository,
     WearableBindingService,
@@ -67,6 +69,7 @@ def wearable_client(db_factory, monkeypatch: pytest.MonkeyPatch):
     app.state.wearable_device_service = dev_svc
     app.state.wearable_binding_service = bind_svc
     app.state.rf_node_service = node_svc
+    app.state.position_sensor_service = PositionSensorService(repo)
     app.state.wearable_site_config_service = site_svc
     app.state.person_id_client = MagicMock(delete_member=AsyncMock(return_value=True))
     app.state.orchestrator_client = MagicMock(purge_gallery_identity=AsyncMock(return_value=True))
@@ -265,3 +268,77 @@ async def test_bind_consent_actor_mcp_parity_and_member_delete_cascade(
         headers={"X-API-Key": _INGRESS_KEY},
     ).json()
     assert site_cfg["bindings"] == []
+
+
+def test_position_sensor_endpoints_permissions_and_site_config(
+    wearable_client: TestClient, db_factory
+) -> None:
+    _seed(db_factory)
+    with db_factory() as db:
+        room = Room(name="Bathroom", floor_polygon=[[0.6, 0.0], [1.0, 0.0], [1.0, 1.0], [0.6, 1.0]])
+        db.add(room)
+        db.commit()
+        db.refresh(room)
+        room_id = room.id
+    body = {
+        "sensor_id": "radar-bathroom-1",
+        "label": "Bathroom radar",
+        "modality": "mmwave_radar",
+        "room_id": room_id,
+        "x_norm": 0.8,
+        "y_norm": 0.5,
+    }
+    denied = wearable_client.post(
+        "/api/v1/wearables/position-sensors",
+        json=body,
+        headers={"X-API-Key": _READONLY_MCP_KEY},
+    )
+    assert denied.status_code == 403
+
+    created = wearable_client.post(
+        "/api/v1/wearables/position-sensors", json=body, headers={"X-API-Key": _ADMIN_KEY}
+    )
+    assert created.status_code == 201, created.text
+    sensor = created.json()
+    assert sensor["x_m"] == pytest.approx(8.0)
+    assert sensor["calibration_residual_m"] == pytest.approx(0.10)
+    assert sensor["room_name"] == "Bathroom"
+
+    duplicate = wearable_client.post(
+        "/api/v1/wearables/position-sensors", json=body, headers={"X-API-Key": _ADMIN_KEY}
+    )
+    assert duplicate.status_code == 409
+
+    listed = wearable_client.get(
+        "/api/v1/wearables/position-sensors", headers={"X-API-Key": _CAREGIVER_KEY}
+    )
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 1
+
+    site = wearable_client.get("/api/v1/wearables/site-config", headers={"X-API-Key": _INGRESS_KEY})
+    assert site.status_code == 200
+    assert [s["sensor_id"] for s in site.json()["position_sensors"]] == ["radar-bathroom-1"]
+
+    patched = wearable_client.patch(
+        f"/api/v1/wearables/position-sensors/{sensor['id']}",
+        json={"yaw_deg": 90.0},
+        headers={"X-API-Key": _ADMIN_KEY},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["yaw_deg"] == pytest.approx(90.0)
+
+    null_patch = wearable_client.patch(
+        f"/api/v1/wearables/position-sensors/{sensor['id']}",
+        json={"x_norm": None},
+        headers={"X-API-Key": _ADMIN_KEY},
+    )
+    assert null_patch.status_code == 422
+
+    deleted = wearable_client.delete(
+        f"/api/v1/wearables/position-sensors/{sensor['id']}", headers={"X-API-Key": _ADMIN_KEY}
+    )
+    assert deleted.status_code == 204
+    missing = wearable_client.get(
+        f"/api/v1/wearables/position-sensors/{sensor['id']}", headers={"X-API-Key": _ADMIN_KEY}
+    )
+    assert missing.status_code == 404

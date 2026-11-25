@@ -248,6 +248,7 @@ Also assigns `container.presence` and `container.ha_state_cache` (both via
 | `wearable_device_service` | constructed (`get_session`, also set on MCP container) | same; wearable registry does not depend on tracking |
 | `wearable_binding_service` | constructed (`get_session`, also set on MCP container) | same |
 | `rf_node_service` | constructed (`get_session`) | same |
+| `position_sensor_service` | constructed (`get_session`) | same |
 | `wearable_site_config_service` | constructed (`get_session`, also passed to `IdentityReadinessService`) | same |
 | `wearable_teaching_revocation_service` | constructed (`get_session`, `orchestrator_client`) | constructed with `orchestrator=None` (routes answer 503) |
 | `identity_review_registry` | constructed (`identity_targets_service`) with the review adapters: visitors, face calibration, and ReID review (registered once `reid_review_service` exists) | visitors and face calibration only; ReID review decisions answer 503 |

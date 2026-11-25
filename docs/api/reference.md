@@ -394,9 +394,9 @@ Hardware-neutral camera profiles live on `/cts/cameras` (`role`, `face_id_enable
 | `POST` | `/cts/cameras/optics-preview` | `cts.cameras.read` | Stateless placement calculator preview for unsaved `horizontal_fov_deg` and `frame_natural_width` values |
 
 
-## Wearables and RF nodes
+## Wearables, RF nodes, and position sensors
 
-Hardware-neutral registry of wearable tags, time-bounded consented member bindings, fixed RF nodes on the household floor plan, and wearable teaching revocation. Endpoints use D4 permission tokens (`wearables:read`, `wearables:write`, `wearables.teaching:write`, `wearables.site_config:read`). Two read-only MCP tools (`get_wearable_assignments`, `get_wearable_device_status`) call the same service methods as the router and share `wearables:read`; mutations (including teaching revocation and resume) are BFF-only and never exposed as MCP tools.
+Hardware-neutral registry of wearable tags, time-bounded consented member bindings, fixed RF nodes, device-free position sensors (mmWave radar, room LiDAR) on the household floor plan, and wearable teaching revocation. Endpoints use D4 permission tokens (`wearables:read`, `wearables:write`, `wearables.teaching:write`, `wearables.site_config:read`). Two read-only MCP tools (`get_wearable_assignments`, `get_wearable_device_status`) call the same service methods as the router and share `wearables:read`; mutations (including teaching revocation and resume) are BFF-only and never exposed as MCP tools.
 
 | Method | Path | Permission | Description |
 | --- | --- | --- | --- |
@@ -415,7 +415,12 @@ Hardware-neutral registry of wearable tags, time-bounded consented member bindin
 | `GET` | `/wearables/devices/{device_id}/associations` | `wearables:read` | List recent wearable-to-PH teaching segments for one device with taught counts (gallery rows, attested faces, live backfill ranges) and current tag teaching-hold status |
 | `POST` | `/wearables/associations/{segment_id}/revoke` | `wearables:revoke_teaching` | Caregiver-admin only (`actor_from_auth(auth)`): demote `auto_verified` gallery rows from this segment, revoke its attested face captures in person-id, compensate live inferred backfill ranges, and pause further teaching on the tag |
 | `POST` | `/wearables/tags/{tag_id}/resume-teaching` | `wearables:revoke_teaching` | Caregiver-admin only (`actor_from_auth(auth)`): clear an open teaching hold for a tag so future attested periods may teach again |
-| `GET` | `/wearables/site-config` | `wearables.site_config:read` | Live site configuration (active nodes, devices with their `physical_device_id`, and open bindings in metres on the active floor plan) polled by CTS `CCConfigSyncService` and RF ingress adapters; granted to `cts_ingress` and `admin`, denied to `caregiver` |
+| `GET` | `/wearables/position-sensors` | `wearables:read` | List registered device-free position sensors (`sensor_id`, `label`, `modality`, `room_id`, floor coordinates, `yaw_deg`, `calibration_residual_m`, `is_active`) |
+| `POST` | `/wearables/position-sensors` | `wearables:write` | Register a device-free position sensor in metres on the calibrated floor plan (requires an existing room; 409 on duplicate `sensor_id`) |
+| `GET` | `/wearables/position-sensors/{sensor_uuid}` | `wearables:read` | Read one registered position sensor by UUID |
+| `PATCH` | `/wearables/position-sensors/{sensor_uuid}` | `wearables:write` | Update label, modality, room assignment, floor coordinates, `yaw_deg`, `calibration_residual_m`, or `is_active` (`sensor_id` immutable; explicit `room_id: null` rejected; `yaw_deg: null` clears yaw) |
+| `DELETE` | `/wearables/position-sensors/{sensor_uuid}` | `wearables:write` | Delete a device-free position sensor (204) |
+| `GET` | `/wearables/site-config` | `wearables.site_config:read` | Live site configuration (active nodes, devices with their `physical_device_id`, open bindings, and active `position_sensors[]` in metres on the active floor plan) polled by CTS `CCConfigSyncService` and RF ingress adapters; granted to `cts_ingress` and `admin`, denied to `caregiver` |
 
 Deleting a household member (`DELETE /persons/{person_id}`) closes any open wearable bindings for that member before removing the person row and preserves historical binding intervals with `member_id = null`.
 

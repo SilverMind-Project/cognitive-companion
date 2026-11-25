@@ -47,6 +47,11 @@ from backend.services.cts.tracking_event_subscriber import TrackingEventSubscrib
 from backend.services.cts.world_observation_subscriber import WorldObservationSubscriber
 from backend.services.cts.world_snapshot_publisher import WorldSnapshotPublisher
 from backend.services.occupancy.read_model import OccupancyReadModel
+from backend.services.wearables import (
+    PositionSensorRoomIndex,
+    PositionSensorService,
+    SqlAlchemyWearableRepository,
+)
 
 logger = get_logger(__name__)
 
@@ -103,6 +108,7 @@ class CTSRuntime:
         person_location_service: object | None = None,
         occupancy_read_model: OccupancyReadModel | None = None,
         orchestrator_client: object | None = None,
+        position_sensor_service: PositionSensorService | None = None,
     ) -> None:
         self._cfg = config
         self._db_factory = db_factory
@@ -153,6 +159,12 @@ class CTSRuntime:
         self._room_transition_subscriber: RoomTransitionSubscriber | None = None
         self._ph_continuation_subscriber: PHContinuationSubscriber | None = None
         if person_location_service is not None:
+            sensor_svc = position_sensor_service or (
+                PositionSensorService(SqlAlchemyWearableRepository(db_factory))
+                if db_factory is not None
+                else None
+            )
+            sensor_index = PositionSensorRoomIndex(sensor_svc) if sensor_svc is not None else None
             self._world_observation_subscriber = WorldObservationSubscriber(
                 redis_url=config.redis_url,
                 location_service=person_location_service,  # type: ignore[arg-type]
@@ -160,6 +172,7 @@ class CTSRuntime:
                 camera_room_name_map=camera_map,
                 occupancy=occupancy_read_model,
                 db_factory=db_factory,
+                sensor_room=sensor_index.room_for if sensor_index is not None else None,
             )
             self._room_transition_subscriber = RoomTransitionSubscriber(
                 redis_url=config.redis_url,

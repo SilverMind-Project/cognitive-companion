@@ -10,6 +10,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TypedDict
 
+from cts_contracts import is_device_free_source
 from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
@@ -56,6 +57,8 @@ class WorldObservationSubscriber(StreamConsumer[WorldObservationMessage]):
         occupancy: OccupancyReadModel | None = None,
         db_factory: Callable[[], Session] | None = None,
         config: ConsumerConfig | None = None,
+        sensor_room_id: Callable[[str], int | None] | None = None,
+        sensor_room: Callable[[str], tuple[int, str] | None] | None = None,
     ) -> None:
         super().__init__(
             config
@@ -71,6 +74,10 @@ class WorldObservationSubscriber(StreamConsumer[WorldObservationMessage]):
         self._camera_room_name_map = camera_room_name_map or {}
         self._occupancy = occupancy
         self._db_factory = db_factory
+        # Device-free position sensors publish under ``sensor:<id>`` and are placed by the
+        # room registered for the sensor, not by the camera map.
+        self._sensor_room_id = sensor_room_id
+        self._sensor_room = sensor_room
 
     def decode(self, message_id: bytes, fields: StreamFields) -> WorldObservationMessage | None:
         """Decode a tracking event proto and extract world-observation data."""
@@ -131,8 +138,8 @@ class WorldObservationSubscriber(StreamConsumer[WorldObservationMessage]):
             ensure_household_members(self._db_factory, identity_ids)
 
         for det in msg["detections"]:
-            room_id = self._camera_room_id_map.get(det["camera_id"])
-            if room_id is None:
+            room = self._room_for(det["camera_id"])
+            if room is None:
                 # Logged skip, not silent: a camera with no assigned room
                 # cannot contribute room presence (likely a config gap).
                 logger.warning(
@@ -142,11 +149,13 @@ class WorldObservationSubscriber(StreamConsumer[WorldObservationMessage]):
                 )
                 continue
 
-            room_name = (
-                det["room_name"]
-                or msg["room_name"]
-                or self._camera_room_name_map.get(det["camera_id"], "")
-            )
+            room_id, mapped_room_name = room
+            # For device-free sources, CC owns the sensor->room registry so its room_name
+            # stays authoritative even if CTS sent an empty or stale room_name.
+            if is_device_free_source(det["camera_id"]):
+                room_name = mapped_room_name or det["room_name"] or msg["room_name"]
+            else:
+                room_name = det["room_name"] or msg["room_name"] or mapped_room_name
 
             # Occupancy is recorded for EVERY hypothesis, identified or not,
             # and is independent of calibration.
@@ -189,6 +198,23 @@ class WorldObservationSubscriber(StreamConsumer[WorldObservationMessage]):
                 },
             )
         return True
+
+    def _room_for(self, source_id: str) -> tuple[int, str] | None:
+        if is_device_free_source(source_id):
+            if self._sensor_room is not None:
+                return self._sensor_room(source_id)
+            if self._sensor_room_id is not None:
+                rid = self._sensor_room_id(source_id)
+                return (rid, "") if rid is not None else None
+            return None
+        rid = self._camera_room_id_map.get(source_id)
+        if rid is None:
+            return None
+        return rid, self._camera_room_name_map.get(source_id, "")
+
+    def _room_id_for(self, source_id: str) -> int | None:
+        room = self._room_for(source_id)
+        return room[0] if room is not None else None
 
 
 def _get_bytes_field(fields: StreamFields, key: bytes) -> bytes | None:

@@ -1,4 +1,4 @@
-"""Pydantic v2 schemas for wearable devices, consented bindings, RF nodes, and site config."""
+"""Pydantic v2 schemas for wearable devices, bindings, RF nodes, position sensors, and site config."""
 
 from __future__ import annotations
 
@@ -7,7 +7,13 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from cts_contracts import DeviceKind, RangingTechnology, RfNodeRole
+from cts_contracts import (
+    SENSOR_ID_PATTERN,
+    DeviceKind,
+    PositionSensorModality,
+    RangingTechnology,
+    RfNodeRole,
+)
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _UWB_HEX_RE = re.compile(r"^[0-9a-fA-F]{2}:[0-9a-fA-F]{2}$")
@@ -382,6 +388,89 @@ class RfNodeListOut(BaseModel):
     floor_height_m: float | None
 
 
+def _check_sensor_id(value: str) -> str:
+    value = value.strip()
+    if not re.fullmatch(SENSOR_ID_PATTERN, value):
+        raise ValueError(
+            "must be 1 to 64 lowercase letters, digits, or . _ - starting with a letter or digit"
+        )
+    return value
+
+
+class PositionSensorCreate(BaseModel):
+    """Register a device-free position sensor (mmWave radar or room LiDAR)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sensor_id: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=128)
+    modality: PositionSensorModality
+    room_id: int
+    x_norm: float = Field(ge=0.0, le=1.0)
+    y_norm: float = Field(ge=0.0, le=1.0)
+    yaw_deg: float | None = Field(default=None, ge=-180.0, lt=180.0)
+    calibration_residual_m: float = Field(default=0.10, gt=0.0, le=1.0)
+    is_active: bool = True
+
+    @field_validator("sensor_id")
+    @classmethod
+    def _validate_sensor_id(cls, v: str) -> str:
+        return _check_sensor_id(v)
+
+    @field_validator("label")
+    @classmethod
+    def _check_label(cls, v: str) -> str:
+        return _validate_non_empty(v, "label")
+
+
+class PositionSensorUpdate(BaseModel):
+    """Partial update of a position sensor; ``sensor_id`` is immutable (gateways publish it)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str | None = Field(default=None, min_length=1, max_length=128)
+    modality: PositionSensorModality | None = None
+    room_id: int | None = None
+    x_norm: float | None = Field(default=None, ge=0.0, le=1.0)
+    y_norm: float | None = Field(default=None, ge=0.0, le=1.0)
+    yaw_deg: float | None = Field(default=None, ge=-180.0, lt=180.0)
+    calibration_residual_m: float | None = Field(default=None, gt=0.0, le=1.0)
+    is_active: bool | None = None
+
+    @field_validator("label")
+    @classmethod
+    def _check_label(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return _validate_non_empty(v, "label")
+
+
+class PositionSensorOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    sensor_id: str
+    label: str
+    modality: PositionSensorModality
+    room_id: int | None
+    room_name: str | None = None
+    x_norm: float
+    y_norm: float
+    x_m: float | None = None
+    y_m: float | None = None
+    yaw_deg: float | None
+    calibration_residual_m: float
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class PositionSensorListOut(BaseModel):
+    items: list[PositionSensorOut]
+    total: int = Field(ge=0)
+    floor_plan_ready: bool
+
+
 class SurveyDistanceMeasurement(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -449,11 +538,25 @@ class SiteConfigDeviceOut(BaseModel):
     physical_device_id: str | None = None
 
 
+class SiteConfigPositionSensorOut(BaseModel):
+    """One active device-free position sensor, its mounting pose in metres on the floor plan."""
+
+    sensor_id: str
+    room_id: str | None = None
+    x_m: float
+    y_m: float
+    # Null when the sensor's gateway reports in floor-plan coordinates and needs no pose.
+    yaw_deg: float | None = None
+    calibration_residual_m: float
+
+
 class WearableSiteConfigOut(BaseModel):
     floor_plan_id: str | None
     nodes: list[SiteConfigNodeOut]
     bindings: list[SiteConfigBindingOut]
     devices: list[SiteConfigDeviceOut]
+    # Active position sensors; empty without a floor-plan scale (metres are undefined).
+    position_sensors: list[SiteConfigPositionSensorOut] = Field(default_factory=list)
     version: str
 
 

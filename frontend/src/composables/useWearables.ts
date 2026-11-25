@@ -1,5 +1,5 @@
 /**
- * Composable owning state and actions for wearable devices, bindings, and RF nodes.
+ * Composable owning state and actions for wearable devices, bindings, RF nodes, and position sensors.
  */
 
 import { reactive } from "vue";
@@ -7,20 +7,27 @@ import { getRooms, type RoomOut } from "@/services/modules/rooms";
 import {
   bindWearableDevice,
   checkRfNodeSurvey,
+  createPositionSensor,
   createRfNode,
   createWearableDevice,
+  deletePositionSensor,
   deleteRfNode,
   getHouseholdFloorPlan,
   getWearableAssignments,
   listDeviceAssociations,
   listDeviceBindings,
+  listPositionSensors,
   listRfNodes,
   resumeWearableTagTeaching,
   revokeWearableAssociation,
   unbindWearableDevice,
+  updatePositionSensor,
   updateRfNode,
   updateWearableDevice,
   type FloorPlanOut,
+  type PositionSensorCreate,
+  type PositionSensorOut,
+  type PositionSensorUpdate,
   type RfNodeCreate,
   type RfNodeOut,
   type RfNodeSurveyCheckOut,
@@ -58,6 +65,7 @@ export function useWearables(notify?: NotifyFn) {
     error: null as string | null,
     assignments: null as WearableAssignmentsOut | null,
     nodes: [] as RfNodeOut[],
+    positionSensors: [] as PositionSensorOut[],
     floorPlanReady: false,
     floorPlanId: null as string | null,
     floorWidthM: null as number | null,
@@ -80,14 +88,16 @@ export function useWearables(notify?: NotifyFn) {
     state.error = null;
     state.forbidden = false;
     try {
-      const [assignments, nodesResp, floorPlan, rooms] = await Promise.all([
+      const [assignments, nodesResp, sensorsResp, floorPlan, rooms] = await Promise.all([
         getWearableAssignments(),
         listRfNodes(),
+        listPositionSensors(),
         getHouseholdFloorPlan().catch(() => null),
         getRooms().catch(() => []),
       ]);
       state.assignments = assignments;
       state.nodes = nodesResp.items;
+      state.positionSensors = sensorsResp.items;
       state.floorPlanReady = nodesResp.floor_plan_ready;
       state.floorPlanId = nodesResp.floor_plan_id;
       state.floorWidthM = nodesResp.floor_width_m;
@@ -284,6 +294,50 @@ export function useWearables(notify?: NotifyFn) {
     }
   }
 
+  async function addPositionSensor(body: PositionSensorCreate) {
+    state.saving = true;
+    try {
+      const created = await createPositionSensor(body);
+      notify?.(`Registered position sensor ${created.label}`);
+      await loadAll();
+      return created;
+    } catch (err) {
+      notify?.(errorMessage(err), "error");
+      throw err;
+    } finally {
+      state.saving = false;
+    }
+  }
+
+  async function patchPositionSensor(sensorUuid: string, body: PositionSensorUpdate) {
+    state.saving = true;
+    try {
+      const updated = await updatePositionSensor(sensorUuid, body);
+      notify?.(`Updated position sensor ${updated.label}`);
+      await loadAll();
+      return updated;
+    } catch (err) {
+      notify?.(errorMessage(err), "error");
+      throw err;
+    } finally {
+      state.saving = false;
+    }
+  }
+
+  async function removePositionSensor(sensorUuid: string) {
+    state.saving = true;
+    try {
+      await deletePositionSensor(sensorUuid);
+      notify?.("Removed position sensor");
+      await loadAll();
+    } catch (err) {
+      notify?.(errorMessage(err), "error");
+      throw err;
+    } finally {
+      state.saving = false;
+    }
+  }
+
   async function runSurveyCheck(body: RfNodeSurveyCheckRequest) {
     state.checkingSurvey = true;
     try {
@@ -316,6 +370,9 @@ export function useWearables(notify?: NotifyFn) {
       addNode,
       patchNode,
       removeNode,
+      addPositionSensor,
+      patchPositionSensor,
+      removePositionSensor,
       runSurveyCheck,
       clearSurvey,
     },

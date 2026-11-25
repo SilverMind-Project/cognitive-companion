@@ -14,6 +14,7 @@ from backend.schemas.wearables import (
     SiteConfigBindingOut,
     SiteConfigDeviceOut,
     SiteConfigNodeOut,
+    SiteConfigPositionSensorOut,
     WearableSiteConfigOut,
 )
 from backend.services.floor_plan_geometry import floor_plan_scale, norm_to_floor_m
@@ -54,8 +55,8 @@ class WearableSiteConfigService:
         """Build the site-config snapshot with metres from the shared floor-plan helper.
 
         ``version`` is a deterministic SHA-256 hash of the canonical JSON payload
-        (including ``floor_plan_id``, metres, bindings, and devices) so any scale,
-        node, device, or binding change yields a new version string.
+        (including ``floor_plan_id``, metres, bindings, devices, and position sensors) so
+        any scale, node, device, binding, or sensor change yields a new version string.
         """
         with self._repo.session() as db:
             settings = self._repo.get_household_settings(db)
@@ -80,6 +81,23 @@ class WearableSiteConfigService:
                             uwb_address_hex=node.uwb_address_hex,
                             uwb_channel=node.uwb_channel,
                             uwb_preamble_index=node.uwb_preamble_index,
+                        )
+                    )
+
+            sensors_out: list[SiteConfigPositionSensorOut] = []
+            if scale is not None:
+                for sensor in self._repo.list_position_sensors(db, active_only=True):
+                    if sensor.room_id is None:
+                        continue
+                    sx_m, sy_m = norm_to_floor_m(sensor.x_norm, sensor.y_norm, scale)
+                    sensors_out.append(
+                        SiteConfigPositionSensorOut(
+                            sensor_id=sensor.sensor_id,
+                            room_id=str(sensor.room_id),
+                            x_m=round(sx_m, 6),
+                            y_m=round(sy_m, 6),
+                            yaw_deg=sensor.yaw_deg,
+                            calibration_residual_m=float(sensor.calibration_residual_m),
                         )
                     )
 
@@ -122,6 +140,10 @@ class WearableSiteConfigService:
                 "bindings": [b.model_dump(mode="json") for b in bindings_out],
                 "devices": [d.model_dump(mode="json") for d in devices_out],
             }
+            # Hashed only when present, so a household without position sensors keeps its
+            # existing version and rf-ingress does not drop open epochs on this deploy.
+            if sensors_out:
+                canonical["position_sensors"] = [s.model_dump(mode="json") for s in sensors_out]
             digest = hashlib.sha256(
                 json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode("utf-8")
             ).hexdigest()[:16]
@@ -131,6 +153,7 @@ class WearableSiteConfigService:
                 nodes=nodes_out,
                 bindings=bindings_out,
                 devices=devices_out,
+                position_sensors=sensors_out,
                 version=f"sha256:{digest}",
             )
 

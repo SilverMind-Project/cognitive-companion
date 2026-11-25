@@ -73,6 +73,7 @@ if TYPE_CHECKING:
     from backend.services.signals.feed import SignalsFeedService
     from backend.services.visitors import VisitorAdminService
     from backend.services.wearables import (
+        PositionSensorService,
         RfNodeService,
         WearableBindingService,
         WearableDeviceService,
@@ -114,6 +115,7 @@ __all__ = [
     "get_orchestrator_client",
     "get_person_location_service",
     "get_ph_enrichment_service",
+    "get_position_sensor_service",
     "get_quiz_service",
     "get_realtime_provider",
     "get_rf_node_service",
@@ -246,6 +248,14 @@ def get_wearable_binding_service(request: Request) -> WearableBindingService:
     service: WearableBindingService | None = request.app.state.wearable_binding_service
     if service is None:
         raise _raise_503("wearable_binding_service", "Wearable binding service")
+    return service
+
+
+def get_position_sensor_service(request: Request) -> PositionSensorService:
+    """Return the lifespan-managed position sensor service (503 if unavailable)."""
+    service: PositionSensorService | None = request.app.state.position_sensor_service
+    if service is None:
+        raise _raise_503("position_sensor_service", "Position sensor service")
     return service
 
 

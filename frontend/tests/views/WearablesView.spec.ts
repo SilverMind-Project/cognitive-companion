@@ -88,6 +88,7 @@ function makeWearablesStore() {
       checked_at: "2026-11-19T10:00:00Z",
     },
     nodes: [],
+    positionSensors: [],
     floorPlanReady: false,
     floorPlanId: null,
     floorWidthM: null,
@@ -112,6 +113,9 @@ function makeWearablesStore() {
       addNode: vi.fn(),
       patchNode: vi.fn(),
       removeNode: vi.fn(),
+      addPositionSensor: vi.fn(),
+      patchPositionSensor: vi.fn(),
+      removePositionSensor: vi.fn(),
       runSurveyCheck: vi.fn(),
       clearSurvey: vi.fn(),
     },
@@ -167,6 +171,7 @@ const commonStubs = {
     props: ["modelValue", "label"],
   },
   RfNodeFloorPlanCanvas: { template: "<div data-test='rf-canvas-stub' />" },
+  PositionSensorsPanel: { template: "<div data-test='position-sensors-stub' />" },
 };
 
 beforeEach(() => {
@@ -223,6 +228,18 @@ describe("WearablesView", () => {
     expect(store.actions.addDevice).toHaveBeenLastCalledWith(
       expect.objectContaining({ tag_id: "band-1", physical_device_id: null }),
     );
+  });
+});
+
+describe("WearablesView position sensors tab", () => {
+  it("shows the position sensors panel on its tab", async () => {
+    const wrapper = mount(WearablesView, { global: { stubs: commonStubs } });
+    await flushPromises();
+    expect(wrapper.find("[data-test='position-sensors-stub']").exists()).toBe(false);
+    const tab = wrapper.findAll("button").find((b) => b.text() === "Position Sensors");
+    expect(tab).toBeDefined();
+    await tab!.trigger("click");
+    expect(wrapper.find("[data-test='position-sensors-stub']").exists()).toBe(true);
   });
 });
 

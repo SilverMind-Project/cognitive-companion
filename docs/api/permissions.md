@@ -16,7 +16,7 @@ Closed D4 actions (14): `acknowledge`, `act`, `calibrate`, `correct`, `delete`, 
 
 | Metric | Value |
 | --- | --- |
-| Guarded HTTP routes | 365 |
+| Guarded HTTP routes | 370 |
 | Authenticated WebSocket routes | 3 |
 | Distinct route and WebSocket D4 tokens | 108 |
 | Configured roles (`roles:`) | 10 |
@@ -399,6 +399,8 @@ reachability across the remaining configured roles.
 | `wearables:read` | `GET` | `/api/v1/wearables/nodes` | Y | Y | Y | . | . | . | . | . |
 | `wearables:read` | `POST` | `/api/v1/wearables/nodes/survey-check` | Y | Y | Y | . | . | . | . | . |
 | `wearables:read` | `GET` | `/api/v1/wearables/nodes/{node_id}` | Y | Y | Y | . | . | . | . | . |
+| `wearables:read` | `GET` | `/api/v1/wearables/position-sensors` | Y | Y | Y | . | . | . | . | . |
+| `wearables:read` | `GET` | `/api/v1/wearables/position-sensors/{sensor_uuid}` | Y | Y | Y | . | . | . | . | . |
 | `wearables:write` | `POST` | `/api/v1/wearables/devices` | . | . | . | . | . | . | . | . |
 | `wearables:write` | `PATCH` | `/api/v1/wearables/devices/{device_id}` | . | . | . | . | . | . | . | . |
 | `wearables:write` | `POST` | `/api/v1/wearables/devices/{device_id}/bind` | . | . | . | . | . | . | . | . |
@@ -406,6 +408,9 @@ reachability across the remaining configured roles.
 | `wearables:write` | `POST` | `/api/v1/wearables/nodes` | . | . | . | . | . | . | . | . |
 | `wearables:write` | `DELETE` | `/api/v1/wearables/nodes/{node_id}` | . | . | . | . | . | . | . | . |
 | `wearables:write` | `PATCH` | `/api/v1/wearables/nodes/{node_id}` | . | . | . | . | . | . | . | . |
+| `wearables:write` | `POST` | `/api/v1/wearables/position-sensors` | . | . | . | . | . | . | . | . |
+| `wearables:write` | `DELETE` | `/api/v1/wearables/position-sensors/{sensor_uuid}` | . | . | . | . | . | . | . | . |
+| `wearables:write` | `PATCH` | `/api/v1/wearables/position-sensors/{sensor_uuid}` | . | . | . | . | . | . | . | . |
 | `workflows:execute` | `POST` | `/api/v1/workflows/{execution_id}/cancel` | . | . | . | . | . | . | . | . |
 | `workflows:execute` | `POST` | `/api/v1/workflows/{execution_id}/rerun` | . | . | . | . | . | . | . | . |
 | `workflows:read` | `GET` | `/api/v1/workflows` | Y | Y | Y | . | . | . | . | . |

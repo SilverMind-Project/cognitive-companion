@@ -21,6 +21,7 @@ migration_0008 = importlib.import_module("backend.alembic.versions.0008_rf_node_
 migration_0010 = importlib.import_module(
     "backend.alembic.versions.0010_wearable_physical_device_id"
 )
+migration_0011 = importlib.import_module("backend.alembic.versions.0011_position_sensors")
 
 
 def _run(connection: Connection, step) -> None:
@@ -76,6 +77,64 @@ def test_0010_physical_device_id_downgrade_and_upgrade_round_trip(db_engine) -> 
 
             _run(connection, migration_0010.upgrade)
             assert "physical_device_id" in columns()
+        finally:
+            outer.rollback()
+
+
+def test_0011_position_sensors_downgrade_upgrade_and_constraints(db_engine) -> None:
+    assert migration_0011.down_revision == "0010_wearable_physical_device_id"
+    with db_engine.connect() as connection:
+        outer = connection.begin()
+        try:
+            assert "position_sensors" in _tables(connection)
+            _run(connection, migration_0011.downgrade)
+            assert "position_sensors" not in _tables(connection)
+            _run(connection, migration_0011.upgrade)
+            assert "position_sensors" in _tables(connection)
+            indexes = {i["name"] for i in inspect(connection).get_indexes("position_sensors")}
+            assert {"ix_position_sensors_sensor_id", "ix_position_sensors_room_id"} <= indexes
+            unique_constraints = inspect(connection).get_unique_constraints("position_sensors")
+            assert unique_constraints == []
+
+            insert = text(
+                "INSERT INTO position_sensors (id, sensor_id, label, modality, x_norm, y_norm) "
+                "VALUES (:id, :sensor_id, 'Radar', 'mmwave_radar', 0.5, 0.5)"
+            )
+            connection.execute(insert, {"id": uuid.uuid4(), "sensor_id": "radar-1"})
+            residual = connection.execute(
+                text("SELECT calibration_residual_m FROM position_sensors")
+            ).scalar_one()
+            assert residual == pytest.approx(0.10)
+            # DB CHECK constraints reject source separators, out-of-range yaw, bad residual, and unknown modality.
+            bad_rows = [
+                insert.text,
+            ]
+            _ = bad_rows
+            for sql, params in (
+                (
+                    insert.text,
+                    {"id": uuid.uuid4(), "sensor_id": "sensor:radar-2"},
+                ),
+                (
+                    "INSERT INTO position_sensors (id, sensor_id, label, modality, x_norm, y_norm, yaw_deg) "
+                    "VALUES (:id, 'radar-bad-yaw', 'Radar', 'mmwave_radar', 0.5, 0.5, 180.0)",
+                    {"id": uuid.uuid4()},
+                ),
+                (
+                    "INSERT INTO position_sensors (id, sensor_id, label, modality, x_norm, y_norm, calibration_residual_m) "
+                    "VALUES (:id, 'radar-bad-res', 'Radar', 'mmwave_radar', 0.5, 0.5, 0.0)",
+                    {"id": uuid.uuid4()},
+                ),
+                (
+                    "INSERT INTO position_sensors (id, sensor_id, label, modality, x_norm, y_norm) "
+                    "VALUES (:id, 'radar-bad-mod', 'Radar', 'sonar', 0.5, 0.5)",
+                    {"id": uuid.uuid4()},
+                ),
+            ):
+                savepoint = connection.begin_nested()
+                with pytest.raises(IntegrityError):
+                    connection.execute(text(sql), params)
+                savepoint.rollback()
         finally:
             outer.rollback()
 

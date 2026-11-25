@@ -5822,6 +5822,58 @@ export interface paths {
         patch: operations["update_rf_node"];
         trace?: never;
     };
+    "/api/v1/wearables/position-sensors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Position Sensors
+         * @description List registered device-free position sensors (mmWave radar and room LiDAR).
+         */
+        get: operations["list_position_sensors"];
+        put?: never;
+        /**
+         * Create Position Sensor
+         * @description Register a position sensor, the room it covers, and its mounting pose.
+         */
+        post: operations["create_position_sensor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wearables/position-sensors/{sensor_uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Position Sensor
+         * @description Fetch one registered position sensor.
+         */
+        get: operations["get_position_sensor"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Position Sensor
+         * @description Delete a position sensor; its tracks are dropped from the next site-config poll.
+         */
+        delete: operations["delete_position_sensor"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Position Sensor
+         * @description Update a position sensor's room, pose, calibration residual, or active flag.
+         */
+        patch: operations["update_position_sensor"];
+        trace?: never;
+    };
     "/api/v1/wearables/site-config": {
         parameters: {
             query?: never;
@@ -10397,6 +10449,115 @@ export interface components {
             step_type?: string | null;
         };
         /**
+         * PositionSensorCreate
+         * @description Register a device-free position sensor (mmWave radar or room LiDAR).
+         */
+        PositionSensorCreate: {
+            /**
+             * Calibration Residual M
+             * @default 0.1
+             */
+            calibration_residual_m: number;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Label */
+            label: string;
+            modality: components["schemas"]["PositionSensorModality"];
+            /** Room Id */
+            room_id: number;
+            /** Sensor Id */
+            sensor_id: string;
+            /** X Norm */
+            x_norm: number;
+            /** Y Norm */
+            y_norm: number;
+            /** Yaw Deg */
+            yaw_deg?: number | null;
+        };
+        /** PositionSensorListOut */
+        PositionSensorListOut: {
+            /** Floor Plan Ready */
+            floor_plan_ready: boolean;
+            /** Items */
+            items: components["schemas"]["PositionSensorOut"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * PositionSensorModality
+         * @description What kind of device-free sensor a registered position sensor is.
+         *
+         *     Display and inventory only: consumers branch on the reported covariance, never on
+         *     the modality, exactly as wearable consumers never branch on the radio.
+         * @enum {string}
+         */
+        PositionSensorModality: "mmwave_radar" | "lidar" | "other";
+        /** PositionSensorOut */
+        PositionSensorOut: {
+            /** Calibration Residual M */
+            calibration_residual_m: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Label */
+            label: string;
+            modality: components["schemas"]["PositionSensorModality"];
+            /** Room Id */
+            room_id: number | null;
+            /** Room Name */
+            room_name?: string | null;
+            /** Sensor Id */
+            sensor_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** X M */
+            x_m?: number | null;
+            /** X Norm */
+            x_norm: number;
+            /** Y M */
+            y_m?: number | null;
+            /** Y Norm */
+            y_norm: number;
+            /** Yaw Deg */
+            yaw_deg: number | null;
+        };
+        /**
+         * PositionSensorUpdate
+         * @description Partial update of a position sensor; ``sensor_id`` is immutable (gateways publish it).
+         */
+        PositionSensorUpdate: {
+            /** Calibration Residual M */
+            calibration_residual_m?: number | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Label */
+            label?: string | null;
+            modality?: components["schemas"]["PositionSensorModality"] | null;
+            /** Room Id */
+            room_id?: number | null;
+            /** X Norm */
+            x_norm?: number | null;
+            /** Y Norm */
+            y_norm?: number | null;
+            /** Yaw Deg */
+            yaw_deg?: number | null;
+        };
+        /**
          * PresenceConfigOut
          * @description Sanitized view of the active presence fuser configuration.
          */
@@ -12933,6 +13094,24 @@ export interface components {
             z_m: number;
         };
         /**
+         * SiteConfigPositionSensorOut
+         * @description One active device-free position sensor, its mounting pose in metres on the floor plan.
+         */
+        SiteConfigPositionSensorOut: {
+            /** Calibration Residual M */
+            calibration_residual_m: number;
+            /** Room Id */
+            room_id?: string | null;
+            /** Sensor Id */
+            sensor_id: string;
+            /** X M */
+            x_m: number;
+            /** Y M */
+            y_m: number;
+            /** Yaw Deg */
+            yaw_deg?: number | null;
+        };
+        /**
          * SkipActivitySignal
          * @description Skip on entry when this activity was recorded within the look-back window.
          */
@@ -13822,6 +14001,8 @@ export interface components {
             floor_plan_id: string | null;
             /** Nodes */
             nodes: components["schemas"]["SiteConfigNodeOut"][];
+            /** Position Sensors */
+            position_sensors?: components["schemas"]["SiteConfigPositionSensorOut"][];
             /** Version */
             version: string;
         };
@@ -25030,6 +25211,165 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RfNodeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_position_sensors: {
+        parameters: {
+            query?: {
+                active_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PositionSensorListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_position_sensor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PositionSensorCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PositionSensorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_position_sensor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sensor_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PositionSensorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_position_sensor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sensor_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_position_sensor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sensor_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PositionSensorUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PositionSensorOut"];
                 };
             };
             /** @description Validation Error */

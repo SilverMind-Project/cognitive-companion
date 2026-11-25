@@ -46,7 +46,7 @@ from backend.models.room_zone import RoomZone
 from backend.models.rule import Rule, RuleContext, RuleDependency
 from backend.models.sensor import Sensor
 from backend.models.transit_zone import TransitZone
-from backend.models.wearable import RfNode, WearableBinding, WearableDevice
+from backend.models.wearable import PositionSensor, RfNode, WearableBinding, WearableDevice
 
 __all__ = [
     "ActiveImageState",
@@ -82,6 +82,7 @@ __all__ = [
     "PersonActivity",
     "PipelineEdge",
     "PipelineStep",
+    "PositionSensor",
     "PresenceSegment",
     "Quiz",
     "QuizQuestion",

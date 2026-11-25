@@ -770,8 +770,8 @@ wheels = [
 
 [[package]]
 name = "cts-contracts"
-version = "0.4.0"
-source = { git = "https://github.com/SilverMind-Project/cts-contracts#c528068a8eef09a4a7f072b8bfd0ec5588349e3f" }
+version = "0.5.0"
+source = { git = "https://github.com/SilverMind-Project/cts-contracts#09ed59286603a8270e588fb7160df57ae0bf08a6" }
 dependencies = [
     { name = "pytest" },
 ]

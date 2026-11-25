@@ -252,3 +252,49 @@ class TestHandleWithBroadcast:
         # minio_key is always included so the frontend proxy path works independently
         # of whether MinIO presigned URLs are configured
         assert live_msg["minio_key"] == "frames/evt-1.jpg"
+
+
+@pytest.mark.asyncio
+async def test_device_free_event_skips_live_frame_and_buckets_but_updates_floor_plan():
+    """A radar event has no frame: no live-frame tile, no image bucket, but PH updates flow."""
+    broadcasts: list[dict] = []
+    ingested: list[dict] = []
+
+    class _StubWS:
+        async def broadcast(self, payload: dict) -> None:
+            broadcasts.append(payload)
+
+    class _StubBucketizer:
+        def ingest(self, event: dict) -> None:
+            ingested.append(event)
+
+    class _StubSnapshots:
+        def __init__(self) -> None:
+            self.marked: list[list[dict]] = []
+
+        def mark_dirty(self, *, camera_id: str, ph_data_list: list[dict]) -> None:
+            self.marked.append(ph_data_list)
+
+    snapshots = _StubSnapshots()
+    sub = TrackingEventSubscriber(
+        redis_url="redis://localhost:6379",
+        consumer_id="test",  # type: ignore[arg-type]
+        ws_manager=_StubWS(),  # type: ignore[arg-type]
+        minio_client=None,
+        bucketizer=_StubBucketizer(),  # type: ignore[arg-type]
+        snapshot_publisher=snapshots,  # type: ignore[arg-type]
+    )
+    proto = _make_event(camera_id="sensor:radar-bathroom-1", room="Bathroom")
+    proto.frame_ref.minio_key = ""
+    proto.detections[0].ClearField("bbox")
+    proto.detections[0].floor_x = 8.0
+    proto.detections[0].floor_y = 2.5
+    event = sub.decode(b"0-0", _proto_fields(proto))
+    assert event is not None
+    await sub.handle(event)
+
+    assert not any(m["type"] == "cts_live_frame" for m in broadcasts)
+    assert ingested == []
+    [entries] = snapshots.marked
+    assert entries[0]["room_has_camera"] is False
+    assert entries[0]["floor_xy_m"] == [pytest.approx(8.0), pytest.approx(2.5)]

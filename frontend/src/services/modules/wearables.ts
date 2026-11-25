@@ -1,5 +1,5 @@
 /**
- * Wearable device registry, consented bindings, and fixed RF node API client.
+ * Wearable device registry, consented bindings, fixed RF node, and position sensor API client.
  */
 
 import { client, unwrap } from "@/services/http";
@@ -18,6 +18,9 @@ export type RfNodeCreate = Schemas["RfNodeCreate"];
 export type RfNodeUpdate = Schemas["RfNodeUpdate"];
 export type RfNodeSurveyCheckRequest = Schemas["RfNodeSurveyCheckRequest"];
 export type RfNodeSurveyCheckOut = Schemas["RfNodeSurveyCheckOut"];
+export type PositionSensorOut = Schemas["PositionSensorOut"];
+export type PositionSensorCreate = Schemas["PositionSensorCreate"];
+export type PositionSensorUpdate = Schemas["PositionSensorUpdate"];
 export type FloorPlanOut = Schemas["FloorPlanOut"];
 export type WearableDeviceAssociationsOut = Schemas["WearableDeviceAssociationsOut"];
 
@@ -79,6 +82,31 @@ export const deleteRfNode = (nodeId: string) =>
 
 export const checkRfNodeSurvey = (body: RfNodeSurveyCheckRequest) =>
   unwrap(client.POST("/api/v1/wearables/nodes/survey-check", { body }));
+
+export const listPositionSensors = (activeOnly = false) =>
+  unwrap(
+    client.GET("/api/v1/wearables/position-sensors", {
+      params: { query: { active_only: activeOnly } },
+    }),
+  );
+
+export const createPositionSensor = (body: PositionSensorCreate) =>
+  unwrap(client.POST("/api/v1/wearables/position-sensors", { body }));
+
+export const updatePositionSensor = (sensorUuid: string, body: PositionSensorUpdate) =>
+  unwrap(
+    client.PATCH("/api/v1/wearables/position-sensors/{sensor_uuid}", {
+      params: { path: { sensor_uuid: sensorUuid } },
+      body,
+    }),
+  );
+
+export const deletePositionSensor = (sensorUuid: string) =>
+  unwrap(
+    client.DELETE("/api/v1/wearables/position-sensors/{sensor_uuid}", {
+      params: { path: { sensor_uuid: sensorUuid } },
+    }),
+  );
 
 export const getHouseholdFloorPlan = () => unwrap(client.GET("/api/v1/household/floor-plan", {}));
 

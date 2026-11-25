@@ -317,7 +317,7 @@ The primary CTS data paths are:
 | `cc.household_presence` | Outbound protobuf stream (`HouseholdPresence`, field `"presence"`) published by `HouseholdPresencePublisher` on change and every 60 s with fused `PresenceStatus`, fail-closed `roster_complete`, and `visitors_present` for CTS closed-world prior shaping |
 | Identity roster sync and purge | Automated `POST /internal/gallery/identities/sync` and `DELETE /internal/gallery/identities/{person_id}` calls keeping CTS `reid_gallery` and `IdentityResolver` aligned with the CC household roster |
 | Camera optics and calibration sync | `GET /api/v1/cts/cameras/{camera_id}/optics`, `POST /api/v1/cts/cameras/optics-preview`, and observed stream resolution sync from CTS `GET /internal/calibration/status` |
-| Wearable registry and RF node site-config | CC owns `wearable_devices`, `wearable_bindings`, and `rf_nodes` in PostgreSQL and serves `GET /api/v1/wearables/site-config` (metres on the active floor plan) to CTS `CCConfigSyncService` and RF ingress adapters |
+| Wearable registry, RF nodes, and position sensors site-config | CC owns `wearable_devices`, `wearable_bindings`, `rf_nodes`, and `position_sensors` in PostgreSQL and serves `GET /api/v1/wearables/site-config` (metres on the active floor plan) to CTS `CCConfigSyncService` and RF ingress adapters |
 | CTS routers | Camera admin, calibration, PH correction, ReID review queue, visitor clusters, identity readiness, wearables, presence, signals, trajectory, and dashboard endpoints |
 
 ### Person-Location Architecture

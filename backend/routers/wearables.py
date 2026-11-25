@@ -1,4 +1,4 @@
-"""Wearables BFF router: devices, consented bindings, RF nodes, and site-config."""
+"""Wearables BFF router: devices, consented bindings, RF nodes, position sensors, and site-config."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Response
 
 from backend.core.auth import AuthContext, actor_from_auth, require_permission
 from backend.routers.dependencies import (
+    get_position_sensor_service,
     get_rf_node_service,
     get_wearable_binding_service,
     get_wearable_device_service,
@@ -15,6 +16,10 @@ from backend.routers.dependencies import (
     get_wearable_teaching_revocation_service,
 )
 from backend.schemas.wearables import (
+    PositionSensorCreate,
+    PositionSensorListOut,
+    PositionSensorOut,
+    PositionSensorUpdate,
     RfNodeCreate,
     RfNodeListOut,
     RfNodeOut,
@@ -36,6 +41,7 @@ from backend.schemas.wearables import (
     WearableUnbindRequest,
 )
 from backend.services.wearables import (
+    PositionSensorService,
     RfNodeService,
     WearableBindingService,
     WearableDeviceService,
@@ -216,6 +222,58 @@ async def delete_rf_node(
 ) -> Response:
     """Delete a fixed RF node."""
     svc.delete_node(node_id, actor=actor_from_auth(auth))
+    return Response(status_code=204)
+
+
+@router.get("/position-sensors", response_model=PositionSensorListOut)
+async def list_position_sensors(
+    active_only: bool = Query(default=False),
+    svc: PositionSensorService = Depends(get_position_sensor_service),
+    _auth: AuthContext = Depends(require_permission("wearables:read")),
+) -> PositionSensorListOut:
+    """List registered device-free position sensors (mmWave radar and room LiDAR)."""
+    return svc.list_sensors(active_only=active_only)
+
+
+@router.post("/position-sensors", response_model=PositionSensorOut, status_code=201)
+async def create_position_sensor(
+    body: PositionSensorCreate,
+    svc: PositionSensorService = Depends(get_position_sensor_service),
+    auth: AuthContext = Depends(require_permission("wearables:write")),
+) -> PositionSensorOut:
+    """Register a position sensor, the room it covers, and its mounting pose."""
+    return svc.create_sensor(body, actor=actor_from_auth(auth))
+
+
+@router.get("/position-sensors/{sensor_uuid}", response_model=PositionSensorOut)
+async def get_position_sensor(
+    sensor_uuid: uuid.UUID,
+    svc: PositionSensorService = Depends(get_position_sensor_service),
+    _auth: AuthContext = Depends(require_permission("wearables:read")),
+) -> PositionSensorOut:
+    """Fetch one registered position sensor."""
+    return svc.get_sensor(sensor_uuid)
+
+
+@router.patch("/position-sensors/{sensor_uuid}", response_model=PositionSensorOut)
+async def update_position_sensor(
+    sensor_uuid: uuid.UUID,
+    body: PositionSensorUpdate,
+    svc: PositionSensorService = Depends(get_position_sensor_service),
+    auth: AuthContext = Depends(require_permission("wearables:write")),
+) -> PositionSensorOut:
+    """Update a position sensor's room, pose, calibration residual, or active flag."""
+    return svc.update_sensor(sensor_uuid, body, actor=actor_from_auth(auth))
+
+
+@router.delete("/position-sensors/{sensor_uuid}", status_code=204)
+async def delete_position_sensor(
+    sensor_uuid: uuid.UUID,
+    svc: PositionSensorService = Depends(get_position_sensor_service),
+    auth: AuthContext = Depends(require_permission("wearables:write")),
+) -> Response:
+    """Delete a position sensor; its tracks are dropped from the next site-config poll."""
+    svc.delete_sensor(sensor_uuid, actor=actor_from_auth(auth))
     return Response(status_code=204)
 
 

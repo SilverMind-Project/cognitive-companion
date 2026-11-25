@@ -121,6 +121,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "pipeline_executor",
         "pipeline_run_service",
         "pipeline_ws_manager",
+        "position_sensor_service",
         "presence",
         "quiz_service",
         "realtime_provider",

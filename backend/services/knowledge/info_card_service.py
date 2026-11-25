@@ -360,7 +360,10 @@ class InfoCardService(InfoCardSlotsMixin):
             db.close()
 
         if self._image_pipeline is not None:
-            await self._image_pipeline.purge_prefix(f"info_cards/{card_id}/")
+            try:
+                await self._image_pipeline.purge_prefix(f"info_cards/{card_id}/")
+            except Exception:  # noqa: BLE001 - DB delete already committed
+                logger.warning("info_card_purge_failed", card_id=card_id)
 
     def _card_out(
         self, card: InfoCard, slots: list[InfoCardImageSlot] | None = None

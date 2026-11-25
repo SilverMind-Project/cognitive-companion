@@ -38,6 +38,24 @@ def _question_image_key(quiz_id: int, qid: int) -> str:
     return f"quizzes/{quiz_id}/q{qid}"
 
 
+def quiz_approval_problems(questions: list[QuizQuestion]) -> list[str]:
+    """Reasons a quiz cannot be shown to the resident yet; empty when it is deliverable."""
+    if not questions:
+        return ["Cannot approve a quiz with 0 questions."]
+    problems: list[str] = []
+    for q in questions:
+        label = f"Question {q.ord + 1}"
+        if not (q.question_text or "").strip():
+            problems.append(f"{label} has no question text.")
+        if q.question_type == "multiple_choice":
+            choices = q.choices or []
+            if len(choices) < 2 or not any(c.get("is_correct") is True for c in choices):
+                problems.append(f"{label} must have at least 2 choices and 1 correct choice.")
+        elif q.question_type == "open_ended" and not (q.expected_answer or "").strip():
+            problems.append(f"Open-ended {label.lower()} must have a non-empty expected answer.")
+    return problems
+
+
 class QuizQuestionsMixin:
     """Question operations; question images live under ``quizzes/{quiz_id}/q{question_id}__``."""
 
@@ -49,7 +67,9 @@ class QuizQuestionsMixin:
     def add_question(self, quiz_id: int, question_data: dict[str, Any]) -> dict[str, Any]:
         db: Session = self._db_factory()
         try:
-            quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
+            quiz = db.execute(
+                select(Quiz).where(Quiz.id == quiz_id).with_for_update()
+            ).scalar_one_or_none()
             if quiz is None:
                 raise NotFoundError("Quiz", quiz_id)
 
@@ -107,9 +127,14 @@ class QuizQuestionsMixin:
                 elif hasattr(q, key):
                     setattr(q, key, val)
 
-            quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
+            quiz = db.execute(
+                select(Quiz).where(Quiz.id == quiz_id).with_for_update()
+            ).scalar_one_or_none()
             if quiz is not None:
                 if quiz.status == "approved":
+                    problems = quiz_approval_problems([q])
+                    if problems:
+                        raise ConflictError(" ".join(problems))
                     quiz.version += 1
                 quiz.updated_at = datetime.now(UTC)
 
@@ -132,6 +157,11 @@ class QuizQuestionsMixin:
         """
         db: Session = self._db_factory()
         try:
+            quiz = db.execute(
+                select(Quiz).where(Quiz.id == quiz_id).with_for_update()
+            ).scalar_one_or_none()
+            if quiz is None:
+                raise NotFoundError("Quiz", quiz_id)
             q = db.execute(
                 select(QuizQuestion).where(QuizQuestion.id == qid, QuizQuestion.quiz_id == quiz_id)
             ).scalar_one_or_none()
@@ -155,12 +185,13 @@ class QuizQuestionsMixin:
                 ) from exc
 
             remaining = self._load_questions(db, quiz_id)
+            if quiz.status == "approved":
+                problems = quiz_approval_problems(remaining)
+                if problems:
+                    raise ConflictError(" ".join(problems))
+                quiz.version += 1
             self._renumber(db, remaining, list(range(len(remaining))))
-            quiz = db.get(Quiz, quiz_id)
-            if quiz is not None:
-                if quiz.status == "approved":
-                    quiz.version += 1
-                quiz.updated_at = datetime.now(UTC)
+            quiz.updated_at = datetime.now(UTC)
             db.commit()
             stale = owned_object_names(image_slot, quiz_prefix(quiz_id)) - names_in_use(
                 (r.image_slot for r in remaining), quiz_prefix(quiz_id)
@@ -172,8 +203,11 @@ class QuizQuestionsMixin:
             db.close()
 
         if self._image_pipeline is not None:
-            await self._image_pipeline.purge_objects(stale)
-            await self._image_pipeline.purge_prefix(f"{_question_image_key(quiz_id, qid)}__")
+            try:
+                await self._image_pipeline.purge_objects(stale)
+                await self._image_pipeline.purge_prefix(f"{_question_image_key(quiz_id, qid)}__")
+            except Exception:  # noqa: BLE001 - DB delete already committed
+                logger.warning("quiz_question_purge_failed", quiz_id=quiz_id, question_id=qid)
 
     @staticmethod
     def _load_questions(db: Session, quiz_id: int) -> list[QuizQuestion]:

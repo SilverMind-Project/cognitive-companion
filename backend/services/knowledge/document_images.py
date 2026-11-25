@@ -46,15 +46,12 @@ class DocumentImagesMixin:
             ext = image_extension(content_type)
             # Determine next ord if not provided
             if ord is None:
-                max_ord = (
-                    db.execute(
-                        select(func.coalesce(func.max(KnowledgeDocumentImage.ord), -1)).where(
-                            KnowledgeDocumentImage.document_id == doc_id
-                        )
-                    ).scalar()
-                    or -1
-                )
-                ord = max_ord + 1
+                max_ord = db.execute(
+                    select(func.coalesce(func.max(KnowledgeDocumentImage.ord), -1)).where(
+                        KnowledgeDocumentImage.document_id == doc_id
+                    )
+                ).scalar()
+                ord = (max_ord if max_ord is not None else -1) + 1
 
             object_name = f"knowledge/{doc_id}/img-{ord}.{ext}"
             import io
@@ -88,13 +85,19 @@ class DocumentImagesMixin:
             db.close()
 
     def update_image(
-        self, img_id: int, alt_text: str | None = None, ord: int | None = None
+        self,
+        img_id: int,
+        alt_text: str | None = None,
+        ord: int | None = None,
+        *,
+        doc_id: int | None = None,
     ) -> KnowledgeDocumentImage:
         db: Session = self._db_factory()
         try:
-            img_row = db.execute(
-                select(KnowledgeDocumentImage).where(KnowledgeDocumentImage.id == img_id)
-            ).scalar_one_or_none()
+            stmt = select(KnowledgeDocumentImage).where(KnowledgeDocumentImage.id == img_id)
+            if doc_id is not None:
+                stmt = stmt.where(KnowledgeDocumentImage.document_id == doc_id)
+            img_row = db.execute(stmt).scalar_one_or_none()
             if img_row is None:
                 raise NotFoundError("Image", img_id)
             if alt_text is not None:
@@ -113,18 +116,19 @@ class DocumentImagesMixin:
         finally:
             db.close()
 
-    async def delete_image(self, img_id: int) -> None:
+    async def delete_image(self, img_id: int, *, doc_id: int | None = None) -> None:
         db: Session = self._db_factory()
         try:
-            img_row = db.execute(
-                select(KnowledgeDocumentImage).where(KnowledgeDocumentImage.id == img_id)
-            ).scalar_one_or_none()
+            stmt = select(KnowledgeDocumentImage).where(KnowledgeDocumentImage.id == img_id)
+            if doc_id is not None:
+                stmt = stmt.where(KnowledgeDocumentImage.document_id == doc_id)
+            img_row = db.execute(stmt).scalar_one_or_none()
             if img_row is None:
                 raise NotFoundError("Image", img_id)
             object_name = img_row.minio_object_name
             db.delete(img_row)
             db.commit()
-            # Purge after DB commit (per section 6.5.5 contract)
+            # Purge after DB commit so the DB state is authoritative even if MinIO fails.
             await self._minio.async_delete_object(object_name)
         except NotFoundError:
             db.rollback()

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
 
 from backend.services.knowledge.content_generation import (
     ContentGenerationService,
@@ -57,3 +61,27 @@ def test_parsed_quiz_draft_always_has_saveable_choice_ids() -> None:
     draft = svc._parse_quiz(response, "Family")
 
     assert [c["id"] for c in draft.questions[0].choices] == ["a", "b"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("raw_reply", "expected"),
+    [
+        ("correct", True),
+        ("Correct.", True),
+        ("Yes, correct!", True),
+        ("incorrect", False),
+        ("Incorrect. The resident said a different city.", False),
+        ("That answer is incorrect.", False),
+    ],
+)
+async def test_grade_open_ended_distinguishes_incorrect_from_correct(
+    raw_reply: str, expected: bool
+) -> None:
+    provider = SimpleNamespace(call=AsyncMock(return_value=raw_reply))
+    registry = SimpleNamespace(get_provider=lambda _model_id: provider)
+    svc = ContentGenerationService(db_factory=None, llm_model_registry=registry)  # type: ignore[arg-type]
+
+    result = await svc.grade_open_ended("Where does Priya live?", "Boston", "Seattle")
+
+    assert result is expected

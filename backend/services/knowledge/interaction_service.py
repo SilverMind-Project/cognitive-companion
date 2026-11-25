@@ -300,7 +300,7 @@ class KnowledgeInteractionService:
             )
             scores = {
                 tag: round(correct / total * 100, 1)
-                for tag, total, correct in db.execute(graded).tuples()
+                for tag, total, correct in db.execute(graded)
                 if total
             }
 
@@ -334,4 +334,4 @@ def _active_tag_counts(db: Session, model: type[KnowledgeDocument] | type[Quiz])
         .subquery()
     )
     stmt = select(row_tag.c.tag, func.count(row_tag.c.row_id)).group_by(row_tag.c.tag)
-    return dict(db.execute(stmt).tuples().all())
+    return {str(tag): int(count) for tag, count in db.execute(stmt).all()}

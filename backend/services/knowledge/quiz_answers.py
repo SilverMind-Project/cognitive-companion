@@ -18,13 +18,18 @@ from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
 from backend.models.knowledge import QuizQuestion, QuizResponse, QuizSession
-from backend.services.interactive_session import inject_session_prompt, voice_owner_key
+from backend.services.interactive_session import (
+    cancel_session_timeout,
+    inject_session_prompt,
+    voice_owner_key,
+)
 from backend.services.knowledge.delivery_context import DeliveryContextMixin
 from backend.services.knowledge.quiz_messages import (
     QUIZ_DELIVERY_TYPE,
     TERMINAL_QUIZ_STATUSES,
     AnswerTarget,
     question_descriptor,
+    quiz_timeout_job_id,
     spoken_question,
     tablet_answer_summary,
 )
@@ -38,6 +43,7 @@ class QuizAnswersMixin(DeliveryContextMixin):
     """Answer recording, grading, and next-question fanout for quiz sessions."""
 
     _content_gen: Any
+    _scheduler: Any
     _voice_sessions: set[int]
     complete_quiz_session: Callable[[int], Awaitable[dict[str, Any]]]
     _send_question_ws: Callable[
@@ -95,6 +101,10 @@ class QuizAnswersMixin(DeliveryContextMixin):
 
         total = checked.total
         completed = next_question is None
+        if completed:
+            # Cancel the timeout job before awaiting broadcasts so it cannot fire
+            # during the window before complete_quiz_session commits.
+            cancel_session_timeout(self._scheduler, job_id=quiz_timeout_job_id(session_id))
         result: dict[str, Any] = {
             "session_id": session_id,
             "question_ord": question_ord,

@@ -226,14 +226,26 @@ class InfoCardSlotsMixin:
     async def delete_slot(self, card_id: int, slot_index: int) -> None:
         db: Session = self._db_factory()
         try:
-            slot = db.execute(
-                select(InfoCardImageSlot).where(
-                    InfoCardImageSlot.info_card_id == card_id,
-                    InfoCardImageSlot.slot_index == slot_index,
-                )
+            card = db.execute(
+                select(InfoCard).where(InfoCard.id == card_id).with_for_update()
             ).scalar_one_or_none()
+            if card is None:
+                raise NotFoundError("Info card", card_id)
+            slots = list(
+                db.execute(
+                    select(InfoCardImageSlot).where(InfoCardImageSlot.info_card_id == card_id)
+                ).scalars()
+            )
+            slot = next((s for s in slots if s.slot_index == slot_index), None)
             if slot is None:
                 raise NotFoundError(f"Slot for info card {card_id}", slot_index)
+            if card.status == "approved":
+                spec = self._validate_layout(card.layout_id)
+                if len(slots) - 1 < spec.min_images:
+                    raise ValidationError(
+                        f"Approved layout {card.layout_id!r} requires at least "
+                        f"{spec.min_images} image(s); replace the slot or archive the card instead."
+                    )
             db.delete(slot)
             db.commit()
         except Exception:
@@ -243,7 +255,12 @@ class InfoCardSlotsMixin:
             db.close()
 
         if self._image_pipeline is not None:
-            await self._image_pipeline.purge_prefix(slot_prefix(card_id, slot_index))
+            try:
+                await self._image_pipeline.purge_prefix(slot_prefix(card_id, slot_index))
+            except Exception:  # noqa: BLE001 - DB delete already committed
+                logger.warning(
+                    "info_card_slot_purge_failed", card_id=card_id, slot_index=slot_index
+                )
 
     def _slot_out(self, slot: InfoCardImageSlot) -> dict[str, Any]:
         variants: dict[str, Any] = {}

@@ -153,6 +153,9 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
                         "delivery_id": delivery_id,
                         "execution_id": execution_id,
                         "info_card_id": card.id,
+                        # Voice-only cards have no PWA dismiss event, so release the
+                        # card persona automatically once Gemini finishes reading it.
+                        "release_after_turn": "pwa" not in channels,
                     },
                     surface_id=self._resident_surface(owner),
                 )
@@ -176,7 +179,8 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
         dismiss_seconds: int,
     ) -> None:
         image_slots: list[dict[str, Any]] = []
-        for slot in card.image_slots or []:
+        ordered_slots = sorted(card.image_slots or [], key=lambda s: s.slot_index)
+        for slot in ordered_slots:
             pwa_var = slot.variants.get("pwa", {}) if isinstance(slot.variants, dict) else {}
             object_name = pwa_var.get("object_name", slot.original_object_name)
             url = ""
@@ -222,7 +226,8 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
         try:
             eink_image_bytes: bytes | None = None
             # E-ink shows only the first slot's image.
-            for slot in (card.image_slots or [])[:1]:
+            ordered_slots = sorted(card.image_slots or [], key=lambda s: s.slot_index)
+            for slot in ordered_slots[:1]:
                 variants = slot.variants if isinstance(slot.variants, dict) else {}
                 eink_var = variants.get("eink", {})
                 object_name = eink_var.get("object_name") or slot.original_object_name
@@ -269,7 +274,7 @@ class KnowledgeDeliveryService(QuizDeliveryMixin):
                 delivery.viewed_at = now
             elif action in _CLOSING_CARD_ACTIONS:
                 delivery.dismissed_at = now
-                delivery.dismissed_by = "senior"
+                delivery.dismissed_by = "timeout" if action == "timeout" else "senior"
             db.commit()
             return delivery
         except Exception:

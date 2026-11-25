@@ -7,6 +7,7 @@ must approve before anything reaches the senior.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
@@ -193,7 +194,11 @@ class ContentGenerationService:
         )
         response = await provider.call(prompt)
         response_clean = response.strip().lower()
-        return response_clean.startswith("correct") or "correct" in response_clean[:20]
+        # Reject explicit "incorrect" before matching "correct": the substring
+        # "correct" appears inside "incorrect".
+        if re.search(r"\bincorrect\b", response_clean[:24]):
+            return False
+        return re.search(r"\bcorrect\b", response_clean[:24]) is not None
 
     # -- helpers ------------------------------------------------------------
 

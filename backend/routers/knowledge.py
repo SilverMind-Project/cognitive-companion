@@ -198,8 +198,7 @@ async def update_document_image(
     ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:write")),
 ) -> dict[str, Any]:
-    _ = doc_id
-    img_row = ingestion.update_image(img_id, **body.model_dump(exclude_none=True))
+    img_row = ingestion.update_image(img_id, doc_id=doc_id, **body.model_dump(exclude_none=True))
     return _add_presigned(img_row, request.app.state.minio_client)
 
 
@@ -210,8 +209,7 @@ async def delete_document_image(
     ingestion: KnowledgeIngestionService = Depends(get_knowledge_ingestion),
     _auth: None = Depends(require_permission("knowledge.documents:delete")),
 ) -> None:
-    _ = doc_id
-    await ingestion.delete_image(img_id)
+    await ingestion.delete_image(img_id, doc_id=doc_id)
 
 
 # -- serialisers ------------------------------------------------------------

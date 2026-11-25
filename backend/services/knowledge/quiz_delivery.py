@@ -199,7 +199,8 @@ class QuizDeliveryMixin(QuizAnswersMixin):
             context=context,
             directive=directive,
         )
-        opening = intro or f"Let's chat about {quiz.title}."
+        rendered_title = self._render(quiz.title, context)
+        opening = intro or f"Let's chat about {rendered_title}."
         prompt = f"{opening} There are {total} questions. {spoken_question(session_id, first, 0)}"
         try:
             # The senior answers aloud, so the tablet microphone must be live before
@@ -331,6 +332,11 @@ class QuizDeliveryMixin(QuizAnswersMixin):
                 select(QuizSession).where(QuizSession.id == session_id).with_for_update()
             ).scalar_one_or_none()
             if session is None or session.status in TERMINAL_QUIZ_STATUSES:
+                db.rollback()
+                return
+            question_order: list[int] = session.question_order or []
+            if question_order and session.current_question_ord >= len(question_order):
+                # The final answer was already committed and completion is in flight.
                 db.rollback()
                 return
             session.status = "timed_out"

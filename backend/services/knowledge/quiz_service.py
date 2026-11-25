@@ -24,7 +24,11 @@ from backend.services.knowledge.quiz_question_list import (
     QuizQuestionListMixin,
     apply_quiz_fields,
 )
-from backend.services.knowledge.quiz_questions import QuizQuestionsMixin, quiz_prefix
+from backend.services.knowledge.quiz_questions import (
+    QuizQuestionsMixin,
+    quiz_approval_problems,
+    quiz_prefix,
+)
 from backend.services.knowledge.references import (
     rule_ids_referencing,
 )
@@ -32,22 +36,7 @@ from backend.services.knowledge.references import (
 logger = get_logger(__name__)
 
 
-def _approval_problems(questions: list[QuizQuestion]) -> list[str]:
-    """Reasons a quiz cannot be shown to the resident yet; empty when it is deliverable."""
-    if not questions:
-        return ["Cannot approve a quiz with 0 questions."]
-    problems: list[str] = []
-    for q in questions:
-        label = f"Question {q.ord + 1}"
-        if not (q.question_text or "").strip():
-            problems.append(f"{label} has no question text.")
-        if q.question_type == "multiple_choice":
-            choices = q.choices or []
-            if len(choices) < 2 or not any(c.get("is_correct") is True for c in choices):
-                problems.append(f"{label} must have at least 2 choices and 1 correct choice.")
-        elif q.question_type == "open_ended" and not (q.expected_answer or "").strip():
-            problems.append(f"Open-ended {label.lower()} must have a non-empty expected answer.")
-    return problems
+_approval_problems = quiz_approval_problems
 
 
 class QuizService(QuizQuestionsMixin, QuizQuestionListMixin):
@@ -248,6 +237,8 @@ class QuizService(QuizQuestionsMixin, QuizQuestionListMixin):
             quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
             if quiz is None:
                 raise NotFoundError("Quiz", quiz_id)
+            if quiz.status == "archived":
+                raise ConflictError("Cannot approve an archived quiz; restore it first.")
             questions = self._load_questions(db, quiz_id)
             problems = _approval_problems(questions)
             if problems:
@@ -340,7 +331,10 @@ class QuizService(QuizQuestionsMixin, QuizQuestionListMixin):
             db.close()
 
         if self._image_pipeline is not None:
-            await self._image_pipeline.purge_prefix(quiz_prefix(quiz_id))
+            try:
+                await self._image_pipeline.purge_prefix(quiz_prefix(quiz_id))
+            except Exception:  # noqa: BLE001 - DB delete already committed
+                logger.warning("quiz_purge_failed", quiz_id=quiz_id)
 
     def _quiz_out(self, quiz: Quiz, questions: list[QuizQuestion] | None = None) -> dict[str, Any]:
         resolved_questions = (

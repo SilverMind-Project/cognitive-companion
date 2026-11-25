@@ -30,7 +30,11 @@ from backend.core.exceptions import (
 from backend.core.logging import get_logger
 from backend.models.knowledge import Quiz, QuizQuestion, QuizResponse
 from backend.services.knowledge.image_pipeline import ImagePipeline
-from backend.services.knowledge.quiz_questions import _question_image_key, quiz_prefix
+from backend.services.knowledge.quiz_questions import (
+    _question_image_key,
+    quiz_approval_problems,
+    quiz_prefix,
+)
 from backend.services.knowledge.references import names_in_use, owned_object_names
 
 # Logged under the quiz service's logger so existing log queries keep matching.
@@ -120,8 +124,13 @@ class QuizQuestionListMixin:
             else:
                 final = self._load_questions(db, quiz_id)
 
-            if quiz.status == "approved" and content_changed:
-                quiz.version += 1
+            if quiz.status == "approved":
+                if items is not None:
+                    problems = quiz_approval_problems(final)
+                    if problems:
+                        raise ConflictError(" ".join(problems))
+                if content_changed:
+                    quiz.version += 1
             quiz.updated_at = datetime.now(UTC)
             db.commit()
             for question in final:
@@ -138,9 +147,14 @@ class QuizQuestionListMixin:
             db.close()
 
         if self._image_pipeline is not None and removed_slots:
-            await self._image_pipeline.purge_objects(stale)
-            for qid in removed_slots:
-                await self._image_pipeline.purge_prefix(f"{_question_image_key(quiz_id, qid)}__")
+            try:
+                await self._image_pipeline.purge_objects(stale)
+                for qid in removed_slots:
+                    await self._image_pipeline.purge_prefix(
+                        f"{_question_image_key(quiz_id, qid)}__"
+                    )
+            except Exception:  # noqa: BLE001 - DB transaction already committed
+                logger.warning("quiz_question_list_purge_failed", quiz_id=quiz_id)
         if items is not None:
             logger.info(
                 "quiz_questions_replaced",

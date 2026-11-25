@@ -22,6 +22,10 @@
 #   avd-setup                  Create or repair the tablet and Google TV AVDs.
 #   adb <args>...              adb on the PC (connect ip:port is remembered for later calls).
 #   fetch [run-id|latest]      Copy a run folder back to artifacts/ccwin/<run-id>/.
+#   wear-build [--allow-dirty] [--probe]
+#                              Check out the continuous-tracking commit (only its Wear OS
+#                              projects) on the PC and assemble wear-companion's bleOnly
+#                              and dualMode debug APKs; --probe adds wear-uwb-probe's.
 #
 # Settings (scripts/ccwin.local.env, or the environment, which wins):
 #   CCWIN_HOST           The PC's ~/.ssh/config Host entry (required).
@@ -31,6 +35,8 @@
 #   CCWIN_TABLET_AVD     The tablet AVD name (required for test-instrumented tablet).
 #   CCWIN_TV_AVD         The Google TV AVD name (required for test-instrumented tv).
 #   CCWIN_WAIT_SECONDS   Wait this long for the PC's runner lock (default 0: fail at once).
+#   CCWIN_CTS_ROOT       The continuous-tracking checkout wear-build bundles (default:
+#                        ../continuous-tracking next to this repository).
 #   CC_COMPANION_URL     The https:// companion page the shell loads (required by sync).
 #   CCWIN_API_ORIGIN     The household BFF (default https://api.nanai.khoofia.com).
 #   CCWIN_SURFACE_ID     The test surface the device connects as (required for test-instrumented).
@@ -79,6 +85,7 @@ readonly REMOTE_BIN="${CCWIN_REMOTE_ROOT}\\bin"
 readonly REMOTE_ROOT_SCP="${CCWIN_REMOTE_ROOT//\\//}"
 readonly WORKSPACE='nanai'
 readonly REPO_NAME='cognitive-companion'
+readonly CTS_REPO_NAME='continuous-tracking'
 readonly CHECK_TASKS=':companion-core:test :app:lintDebug :app:testDebugUnitTest :app:assembleDebug'
 readonly INSTRUMENTED_TASKS=':app:connectedDebugAndroidTest'
 readonly CCWIN_API_ORIGIN="${CCWIN_API_ORIGIN:-https://api.nanai.khoofia.com}"
@@ -156,11 +163,12 @@ ps_quote() {
   printf "'%s'" "$value"
 }
 
+# HARNESS_REPO selects the repository checkout on the PC (default this one).
 run_remote_harness() {
   local command="$1"
   shift
   local line="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $(ps_quote "${REMOTE_BIN}\\ccwin-remote.ps1") ${command}"
-  line+=" -Root $(ps_quote "$CCWIN_REMOTE_ROOT") -Workspace ${WORKSPACE} -Repo ${REPO_NAME}"
+  line+=" -Root $(ps_quote "$CCWIN_REMOTE_ROOT") -Workspace ${WORKSPACE} -Repo ${HARNESS_REPO:-$REPO_NAME}"
   line+=" -WaitSeconds ${CCWIN_WAIT_SECONDS}"
   [[ -z "${CCWIN_TABLET_AVD:-}" ]] || line+=" -TabletAvd $(ps_quote "$CCWIN_TABLET_AVD")"
   [[ -z "${CCWIN_TV_AVD:-}" ]] || line+=" -TvAvd $(ps_quote "$CCWIN_TV_AVD")"
@@ -202,23 +210,24 @@ android_tree_fingerprint() {
   } | sha256sum | cut -d' ' -f1
 }
 
-# The commit to build: HEAD on a clean tree, or with --allow-dirty a snapshot commit of
-# the working tree made through a private index, so no branch, index, or stash changes.
+# The commit to build in repository $2 (default this one): HEAD on a clean tree, or
+# with --allow-dirty a snapshot commit of the working tree made through a private
+# index, so no branch, index, or stash changes.
 build_commit() {
-  local allow_dirty="$1"
-  if [[ -z "$(git -C "$REPO_ROOT" status --porcelain)" ]]; then
-    git -C "$REPO_ROOT" rev-parse HEAD
+  local allow_dirty="$1" repo="${2:-$REPO_ROOT}"
+  if [[ -z "$(git -C "$repo" status --porcelain)" ]]; then
+    git -C "$repo" rev-parse HEAD
     return
   fi
   [[ "$allow_dirty" == "1" ]] ||
-    die "$EXIT_USAGE" "the working tree has uncommitted changes; commit them or pass --allow-dirty to build a snapshot"
+    die "$EXIT_USAGE" "the working tree of $repo has uncommitted changes; commit them or pass --allow-dirty to build a snapshot"
   local index tree
   index="$(mktemp)"
-  GIT_INDEX_FILE="$index" git -C "$REPO_ROOT" read-tree HEAD
-  GIT_INDEX_FILE="$index" git -C "$REPO_ROOT" add -A
-  tree="$(GIT_INDEX_FILE="$index" git -C "$REPO_ROOT" write-tree)"
+  GIT_INDEX_FILE="$index" git -C "$repo" read-tree HEAD
+  GIT_INDEX_FILE="$index" git -C "$repo" add -A
+  tree="$(GIT_INDEX_FILE="$index" git -C "$repo" write-tree)"
   rm -f "$index"
-  git -C "$REPO_ROOT" commit-tree "$tree" -p HEAD -m "ccwin working-tree snapshot"
+  git -C "$repo" commit-tree "$tree" -p HEAD -m "ccwin working-tree snapshot"
 }
 
 cmd_doctor() {
@@ -291,6 +300,38 @@ EOF
   copy_to_remote "$REMOTE_ROOT_SCP/staging/$WORKSPACE/" "$stage/repo.bundle" "$stage/cap-android-deps.tar.gz" "$stage/sync-manifest.json"
   run_remote_harness sync -Commit "$commit"
   echo "ccwin: synced $commit (base $base, dirty $dirty)"
+}
+
+# Bundles one continuous-tracking commit, then on the PC checks out only its Wear OS
+# projects and assembles their APKs (the tasks are fixed in ccwin-remote.ps1).
+cmd_wear_build() {
+  local allow_dirty=0 projects='wear-companion'
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --allow-dirty) allow_dirty=1 ;;
+      --probe) projects+=',wear-uwb-probe' ;;
+      *) die "$EXIT_USAGE" "wear-build: unknown option '$1'" ;;
+    esac
+    shift
+  done
+  local cts_root="${CCWIN_CTS_ROOT:-$REPO_ROOT/../$CTS_REPO_NAME}"
+  [[ -d "$cts_root/wear-companion" ]] ||
+    die "$EXIT_USAGE" "no wear-companion project under $cts_root; set CCWIN_CTS_ROOT to the continuous-tracking checkout"
+  cts_root="$(cd "$cts_root" && pwd)"
+  local commit base dirty
+  base="$(git -C "$cts_root" rev-parse HEAD)"
+  commit="$(build_commit "$allow_dirty" "$cts_root")"
+  dirty=$([[ "$commit" == "$base" ]] && echo false || echo true)
+
+  local stage run_id
+  stage="$(mktemp -d)"
+  trap 'rm -rf "$stage"; trap - RETURN' RETURN
+  git -C "$cts_root" update-ref refs/ccwin/wear-build "$commit"
+  git -C "$cts_root" bundle create "$stage/cts-repo.bundle" refs/ccwin/wear-build 2>/dev/null
+  copy_to_remote "$REMOTE_ROOT_SCP/staging/$WORKSPACE/" "$stage/cts-repo.bundle"
+  run_id="$(new_run_id wear-build)"
+  echo "ccwin: run $run_id ($CTS_REPO_NAME $commit, base $base, dirty $dirty)"
+  HARNESS_REPO="$CTS_REPO_NAME" run_remote_harness wear-build -Commit "$commit" -RunId "$run_id" -Projects "$projects"
 }
 
 run_gradle() {
@@ -424,6 +465,7 @@ main() {
     avd-setup) run_remote_harness avd-setup ;;
     adb) cmd_adb "$@" ;;
     fetch) cmd_fetch "$@" ;;
+    wear-build) cmd_wear_build "$@" ;;
     *) die "$EXIT_USAGE" "unknown command '$command' (scripts/ccwin --help)" ;;
   esac
 }

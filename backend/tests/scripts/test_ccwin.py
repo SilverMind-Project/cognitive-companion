@@ -261,3 +261,73 @@ def test_the_environment_overrides_local_settings(harness):
     args = harness.log.read_text().splitlines()[0].split()
     assert "otherpc" in args
     assert "buildpc" not in args
+
+
+def _fake_cts_checkout(root: Path) -> Path:
+    """A committed continuous-tracking stand-in holding the Wear OS project folders."""
+    cts = root / "continuous-tracking"
+    (cts / "wear-companion").mkdir(parents=True)
+    (cts / "wear-companion" / "settings.gradle.kts").write_text("// wear-companion\n")
+    _git(cts, "init", "-q")
+    _git(cts, "add", "-A")
+    _git(cts, "commit", "-q", "-m", "wear")
+    return cts
+
+
+def test_wear_build_needs_a_continuous_tracking_checkout(harness, tmp_path):
+    result = harness("wear-build", CCWIN_CTS_ROOT=str(tmp_path / "missing"))
+
+    assert result.returncode == 64
+    assert "CCWIN_CTS_ROOT" in result.stderr
+    assert harness.log.read_text() == ""
+
+
+def test_wear_build_bundles_the_cts_commit_and_builds_only_wear_projects(harness, tmp_path):
+    cts = _fake_cts_checkout(tmp_path)
+    head = subprocess.run(
+        ["git", "-C", str(cts), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+    result = harness("wear-build", CCWIN_CTS_ROOT=str(cts))
+
+    assert result.returncode == 0, result.stderr
+    calls = harness.log.read_text().splitlines()
+    assert calls[0].startswith("scp ")
+    assert "cts-repo.bundle" in calls[0]
+    assert "C:/ccwin/staging/nanai/" in calls[0]
+    line = calls[1]
+    assert "ccwin-remote.ps1' wear-build" in line
+    assert "-Repo continuous-tracking" in line
+    assert f"'-Commit' '{head}'" in line
+    assert "'-Projects' 'wear-companion'" in line
+
+
+def test_wear_build_probe_flag_adds_the_uwb_probe(harness, tmp_path):
+    cts = _fake_cts_checkout(tmp_path)
+
+    harness("wear-build", "--probe", CCWIN_CTS_ROOT=str(cts))
+
+    assert "'-Projects' 'wear-companion,wear-uwb-probe'" in harness.log.read_text()
+
+
+def test_wear_build_refuses_uncommitted_cts_work_unless_asked_to_snapshot_it(harness, tmp_path):
+    cts = _fake_cts_checkout(tmp_path)
+    (cts / "wear-companion" / "Draft.kt").write_text("// not committed\n")
+
+    refused = harness("wear-build", CCWIN_CTS_ROOT=str(cts))
+    assert refused.returncode == 64
+    assert "--allow-dirty" in refused.stderr
+
+    snapshot = harness("wear-build", "--allow-dirty", CCWIN_CTS_ROOT=str(cts))
+    assert snapshot.returncode == 0, snapshot.stderr
+    assert "dirty true" in snapshot.stdout
+    status = subprocess.run(
+        ["git", "-C", str(cts), "status", "--porcelain"], capture_output=True, text=True, check=True
+    ).stdout
+    assert "Draft.kt" in status, "the snapshot must not stage or commit the working tree"
+
+
+def test_the_companion_commands_still_target_this_repository(harness):
+    harness("status")
+
+    assert "-Repo cognitive-companion" in harness.log.read_text()

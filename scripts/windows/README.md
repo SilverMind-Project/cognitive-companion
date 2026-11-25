@@ -44,6 +44,25 @@ part of `make check` or `make check-all`, which must pass with the PC off.
 `refs/ccwin/build`; no branch, index, or stash changes). Every run folder carries
 `sync-manifest.json` with the commit, its base, and whether it was a snapshot.
 
+## Wear OS APKs from continuous-tracking
+
+The sibling `continuous-tracking` repository's Wear OS projects have the same problem
+(no linux-arm64 Android build tools), so `ccwin` builds them too:
+
+```bash
+scripts/ccwin wear-build                 # wear-companion: lint + bleOnly and dualMode debug APKs
+scripts/ccwin wear-build --probe         # also wear-uwb-probe's debug APK
+scripts/ccwin wear-build --allow-dirty   # a snapshot of uncommitted continuous-tracking work
+scripts/ccwin fetch latest               # gradle-<project>.log, reports, and APKs per project
+```
+
+It bundles the `continuous-tracking` commit (`CCWIN_CTS_ROOT`, default
+`../continuous-tracking`; a snapshot goes to the private ref `refs/ccwin/wear-build`
+there), checks out only `wear-companion` and `wear-uwb-probe` under
+`<root>\repos\nanai\continuous-tracking` on the PC, and runs a fixed task list per
+project from `ccwin-remote.ps1`. Every requested project is built even when an earlier
+one fails. Run `scripts/ccwin install-remote` after changing `ccwin-remote.ps1`.
+
 ## How the PC is used
 
 - **One SSH call is one job.** Windows OpenSSH kills every process a session started

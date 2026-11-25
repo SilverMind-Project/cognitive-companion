@@ -24,7 +24,7 @@
 #>
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet('doctor', 'status', 'sync', 'gradle', 'test-instrumented', 'adb', 'avd-setup')]
+    [ValidateSet('doctor', 'status', 'sync', 'gradle', 'test-instrumented', 'adb', 'avd-setup', 'wear-build')]
     [string]$Command,
     [Parameter(Mandatory = $true)]
     [string]$Root,
@@ -33,6 +33,8 @@ param(
     [string]$Repo = 'cognitive-companion',
     [string]$Commit = '',
     [string]$Tasks = '',
+    # wear-build: comma-separated Wear OS projects of the continuous-tracking repository.
+    [string]$Projects = '',
     [ValidateSet('', 'tablet', 'tv')]
     [string]$Avd = '',
     [string]$Device = '',
@@ -64,6 +66,27 @@ $DeskHelperStatus = 'http://127.0.0.1:17420/status'
 $EmulatorPort = 5584
 $EmulatorSerial = "emulator-$EmulatorPort"
 $AvdNames = @{ tablet = $TabletAvd; tv = $TvAvd }
+
+# What `wear-build` assembles in each continuous-tracking Wear OS project, and the
+# outputs it keeps. Fixed here (not passed in) so the PC only ever runs these tasks.
+$WearTasks = @{
+    'wear-companion' = ':app:lintBleOnlyDebug :app:lintDualModeDebug :app:assembleBleOnlyDebug :app:assembleDualModeDebug'
+    'wear-uwb-probe' = ':app:assembleDebug'
+}
+$CompanionOutputs = @{
+    'app\build\reports'             = 'reports\app'
+    'app\build\test-results'        = 'test-results\app'
+    'app\build\outputs\apk'         = 'apk'
+    'app\build\outputs\androidTest-results' = 'androidTest-results'
+    'app\build\intermediates\lint_intermediate_text_report' = 'lint-text'
+    'companion-core\build\reports'      = 'reports\companion-core'
+    'companion-core\build\test-results' = 'test-results\companion-core'
+}
+$WearOutputs = @{
+    'app\build\reports'     = 'reports\app'
+    'app\build\outputs\apk' = 'apk'
+    'core\build\reports'    = 'reports\core'
+}
 
 $ExitJobFailed = 1
 $ExitUsage = 64
@@ -276,14 +299,20 @@ function Stop-Avd([System.Diagnostics.Process]$Process) {
 
 # --- gradle -------------------------------------------------------------------------
 
-function Invoke-Gradle([string]$TaskList, [string]$RunDir, [hashtable]$ExtraEnv = @{}) {
-    $log = Join-Path $RunDir 'gradle.log'
+function Invoke-Gradle(
+    [string]$TaskList,
+    [string]$RunDir,
+    [hashtable]$ExtraEnv = @{},
+    [string]$ProjectDir = $AndroidDir,
+    [string]$LogName = 'gradle.log'
+) {
+    $log = Join-Path $RunDir $LogName
     $saved = @{}
     foreach ($key in $ExtraEnv.Keys) {
         $saved[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
         [Environment]::SetEnvironmentVariable($key, $ExtraEnv[$key], 'Process')
     }
-    Push-Location $AndroidDir
+    Push-Location $ProjectDir
     try {
         # No daemon: the session's job object would kill it anyway, and a daemon left
         # from another project's Gradle version would only cost memory.
@@ -296,22 +325,19 @@ function Invoke-Gradle([string]$TaskList, [string]$RunDir, [hashtable]$ExtraEnv 
 
 # Copies every report and artifact a Gradle run may have produced, pass or fail, so a
 # failure can be read on Linux after `ccwin fetch`.
-function Save-GradleOutputs([string]$RunDir) {
+function Save-GradleOutputs(
+    [string]$RunDir,
+    [string]$ProjectDir = $AndroidDir,
+    [hashtable]$Sources = $CompanionOutputs,
+    [string]$Prefix = ''
+) {
     $manifest = Join-Path $StagingDir 'sync-manifest.json'
-    if (Test-Path $manifest) { Copy-Item $manifest (Join-Path $RunDir 'sync-manifest.json') -Force }
-    $sources = @{
-        'app\build\reports'             = 'reports\app'
-        'app\build\test-results'        = 'test-results\app'
-        'app\build\outputs\apk'         = 'apk'
-        'app\build\outputs\androidTest-results' = 'androidTest-results'
-        'app\build\intermediates\lint_intermediate_text_report' = 'lint-text'
-        'companion-core\build\reports'      = 'reports\companion-core'
-        'companion-core\build\test-results' = 'test-results\companion-core'
-    }
-    foreach ($relative in $sources.Keys) {
-        $from = Join-Path $AndroidDir $relative
+    if (-not $Prefix -and (Test-Path $manifest)) { Copy-Item $manifest (Join-Path $RunDir 'sync-manifest.json') -Force }
+    foreach ($relative in $Sources.Keys) {
+        $from = Join-Path $ProjectDir $relative
         if (Test-Path $from) {
-            $to = Join-Path $RunDir $sources[$relative]
+            $to = Join-Path $RunDir $Sources[$relative]
+            if ($Prefix) { $to = Join-Path (Join-Path $RunDir $Prefix) $Sources[$relative] }
             New-Item -ItemType Directory -Force -Path $to | Out-Null
             Copy-Item -Path (Join-Path $from '*') -Destination $to -Recurse -Force
         }
@@ -362,24 +388,18 @@ function Invoke-Status {
     if (Test-Path $LatestFile) { Write-Out "latest_run=$(Get-Content $LatestFile)" }
 }
 
-# Unpacks the bundle and the cap-sync outputs that `ccwin sync` staged, and checks out
-# exactly the commit it built. Only frontend/android is checked out (sparse): Gradle
-# needs nothing else, and it keeps the rest of the repository (and its Git LFS models)
-# off the PC.
-function Invoke-Sync {
-    Initialize-Toolchain
+# Checks out exactly $Commit from a staged git bundle into $RepoDir, sparse to the
+# given paths, so the rest of the repository (and its Git LFS models) stays off the PC.
+function Update-BundleCheckout([string]$Bundle, [string]$Ref, [string[]]$SparsePaths) {
     if ($Commit -notmatch '^[0-9a-f]{40}$') { Fail $ExitUsage "-Commit must be a full commit id (got '$Commit')" }
-    $bundle = Join-Path $StagingDir 'repo.bundle'
-    $deps = Join-Path $StagingDir 'cap-android-deps.tar.gz'
-    foreach ($path in $bundle, $deps) { if (-not (Test-Path $path)) { Fail $ExitHarness "missing staged file $path" } }
-
+    if (-not (Test-Path $Bundle)) { Fail $ExitHarness "missing staged file $Bundle" }
     if (-not (Test-Path (Join-Path $RepoDir '.git'))) {
         New-Item -ItemType Directory -Force -Path $RepoDir | Out-Null
         if ((Invoke-Native "git -C `"$RepoDir`" init --quiet") -ne 0) { Fail $ExitHarness 'git init failed' }
         $null = Invoke-Native "git -C `"$RepoDir`" config core.longpaths true"
-        $null = Invoke-Native "git -C `"$RepoDir`" sparse-checkout set --cone frontend/android"
     }
-    if ((Invoke-Native "git -C `"$RepoDir`" fetch --quiet --force `"$bundle`" +refs/ccwin/build:refs/ccwin/build") -ne 0) {
+    $null = Invoke-Native "git -C `"$RepoDir`" sparse-checkout set --cone $($SparsePaths -join ' ')"
+    if ((Invoke-Native "git -C `"$RepoDir`" fetch --quiet --force `"$Bundle`" +${Ref}:${Ref}") -ne 0) {
         Fail $ExitHarness 'git fetch from the bundle failed'
     }
     if ((Invoke-Native "git -C `"$RepoDir`" checkout --quiet --force --detach $Commit") -ne 0) {
@@ -387,6 +407,18 @@ function Invoke-Sync {
     }
     # Remove untracked, non-ignored leftovers; build outputs (ignored) stay for speed.
     $null = Invoke-Native "git -C `"$RepoDir`" clean -ffdq"
+    $head = (Get-NativeOutput "git -C `"$RepoDir`" rev-parse HEAD").Text
+    if ($head -ne $Commit) { Fail $ExitHarness "checkout is at $head, expected $Commit" }
+}
+
+# Unpacks the bundle and the cap-sync outputs that `ccwin sync` staged, and checks out
+# exactly the commit it built. Only frontend/android is checked out (sparse): Gradle
+# needs nothing else.
+function Invoke-Sync {
+    Initialize-Toolchain
+    $deps = Join-Path $StagingDir 'cap-android-deps.tar.gz'
+    if (-not (Test-Path $deps)) { Fail $ExitHarness "missing staged file $deps" }
+    Update-BundleCheckout (Join-Path $StagingDir 'repo.bundle') 'refs/ccwin/build' @('frontend/android')
 
     # The generated cap-sync outputs are replaced wholesale, so one that a later sync no
     # longer produces cannot linger.
@@ -396,9 +428,30 @@ function Invoke-Sync {
         if (Test-Path $path) { Remove-Item -Recurse -Force $path }
     }
     if ((Invoke-Native "tar -xzf `"$deps`" -C `"$frontend`"") -ne 0) { Fail $ExitHarness 'extracting the cap-sync outputs failed' }
-    $head = (Get-NativeOutput "git -C `"$RepoDir`" rev-parse HEAD").Text
-    if ($head -ne $Commit) { Fail $ExitHarness "checkout is at $head, expected $Commit" }
     Write-Out "synced $Workspace/$Repo at $Commit"
+}
+
+# Checks out the continuous-tracking commit that `ccwin wear-build` staged (only its
+# Wear OS projects) and assembles each requested project's debug APKs. Every project
+# is built even when an earlier one fails, so one run reports them all.
+function Invoke-WearBuild {
+    $requested = @($Projects -split ',' | Where-Object { $_ })
+    if (-not $requested) { Fail $ExitUsage 'missing -Projects' }
+    foreach ($project in $requested) {
+        if (-not $WearTasks.ContainsKey($project)) { Fail $ExitUsage "unknown Wear OS project '$project'" }
+    }
+    Initialize-Toolchain
+    Update-BundleCheckout (Join-Path $StagingDir 'cts-repo.bundle') 'refs/ccwin/wear-build' @($WearTasks.Keys | Sort-Object)
+    $runDir = New-RunDir
+    $failed = $false
+    foreach ($project in $requested) {
+        $projectDir = Join-Path $RepoDir $project
+        $code = Invoke-Gradle $WearTasks[$project] $runDir -ProjectDir $projectDir -LogName "gradle-$project.log"
+        Save-GradleOutputs $runDir -ProjectDir $projectDir -Sources $WearOutputs -Prefix $project
+        Write-Out "run=$RunId project=$project gradle_exit=$code"
+        if ($code -ne 0) { $failed = $true }
+    }
+    if ($failed) { exit $ExitJobFailed }
 }
 
 function Invoke-GradleCommand {
@@ -579,6 +632,7 @@ try {
         'test-instrumented' { Invoke-TestInstrumented }
         'adb' { Invoke-Adb }
         'avd-setup' { Invoke-AvdSetup }
+        'wear-build' { Invoke-WearBuild }
     }
 } catch {
     Write-Err "ERROR: $($_.Exception.Message)"

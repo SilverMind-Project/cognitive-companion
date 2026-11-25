@@ -39,7 +39,11 @@ from backend.schemas.guided_task_ws import GuidedStepActionIn, GuidedStepActionR
 from backend.schemas.interactive_response import InteractiveResponseMessage
 from backend.services.conversation_manager import ConversationManager
 from backend.services.interactive_response import InteractiveResponseService
-from backend.services.interactive_session.tagging import prefix_for_delivery, voice_owner_for
+from backend.services.interactive_session.tagging import (
+    active_tool_surface_id,
+    prefix_for_delivery,
+    voice_owner_for,
+)
 from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
 from backend.websocket.connection_manager import ConnectionManager, PromptItem
 
@@ -119,6 +123,7 @@ class AudioSessionHandler:
         # so an instruction release never cuts the companion off mid-sentence.
         self._model_turn_active = False
         self._sync_after_turn = False
+        self._release_owner_after_turn: str | None = None
         # Prompts that would change the instruction while a turn is still being spoken
         # (and any prompt queued behind them, to keep order). They wait for
         # turn_complete; ending the session at once would cut off what is being said.
@@ -278,7 +283,9 @@ class AudioSessionHandler:
                             elif kind == "wake":
                                 pass  # A turn finished; held prompts are now replayed.
                             elif kind == "sync_instruction":
-                                if self._current_voice_instruction != session_instruction:
+                                if self._turn_in_progress():
+                                    self._sync_after_turn = True
+                                elif self._current_voice_instruction != session_instruction:
                                     logger.info("ws_voice_instruction_released")
                                     return
                             elif kind == "prompt":
@@ -307,6 +314,12 @@ class AudioSessionHandler:
                                     text = f"{prefix} {text}"
                                 self._current_callback = callback
                                 self._is_orchestrator_turn = True
+                                self._release_owner_after_turn = (
+                                    voice_owner_for(metadata)
+                                    if isinstance(metadata, dict)
+                                    and metadata.get("release_after_turn")
+                                    else None
+                                )
                                 self._pending_prompt_text.append(text)
                                 await provider.send_text(session, text)
 
@@ -392,9 +405,6 @@ class AudioSessionHandler:
         # Turn complete
         if getattr(server_content, "turn_complete", False):
             self._model_turn_active = False
-            if self._sync_after_turn:
-                self._sync_after_turn = False
-                await self._client_to_backend.put(("sync_instruction", None))
             is_orchestrator = self._is_orchestrator_turn
             prompt_text = "".join(self._pending_prompt_text).strip()
             user_text = "".join(self._pending_user_text).strip()
@@ -474,10 +484,17 @@ class AudioSessionHandler:
             self._pending_assistant_text.clear()
             self._pending_prompt_text.clear()
             self._is_orchestrator_turn = False
+            if self._release_owner_after_turn is not None:
+                release_owner = self._release_owner_after_turn
+                self._release_owner_after_turn = None
+                await self.release_voice_instruction(release_owner)
             if self._held_prompts:
                 self._release_held_prompts()
                 # Wake the forward loop, which may be blocked on the empty queue.
                 await self._client_to_backend.put(("wake", None))
+            if self._sync_after_turn:
+                self._sync_after_turn = False
+                await self._client_to_backend.put(("sync_instruction", None))
 
     # ------------------------------------------------------------------
     # Tool call handling
@@ -498,7 +515,11 @@ class AudioSessionHandler:
                 tool=fc.name,
                 call_id=fc.id,
             )
-            result = await self.tool_adapter.execute_tool(fc.name, fc.args or {})
+            surface_token = active_tool_surface_id.set(self.surface_id)
+            try:
+                result = await self.tool_adapter.execute_tool(fc.name, fc.args or {})
+            finally:
+                active_tool_surface_id.reset(surface_token)
             responses.append(
                 {
                     "name": fc.name,
@@ -588,6 +609,7 @@ class AudioSessionHandler:
         """A session ended: no turn survives it, and held prompts go to the next one."""
         self._model_turn_active = False
         self._sync_after_turn = False
+        self._release_owner_after_turn = None
         self._is_orchestrator_turn = False
         self._release_held_prompts()
 
@@ -618,7 +640,9 @@ class AudioSessionHandler:
             guided_task_service = getattr(self.ws.app.state, "guided_task_service", None)
             if guided_task_service is not None:
                 asyncio.create_task(  # noqa: RUF006
-                    guided_task_service.on_conversation_started(self._session_id),
+                    guided_task_service.on_conversation_started(
+                        self._session_id, surface_id=self.surface_id
+                    ),
                     name="guided-on-conversation-started",
                 )
         return self._session_id
@@ -639,7 +663,7 @@ class AudioSessionHandler:
         self._current_voice_instruction = None
         self._voice_instruction_owner = None
         if self._backend_active:
-            if self._model_turn_active:
+            if self._turn_in_progress():
                 self._sync_after_turn = True
             else:
                 await self._client_to_backend.put(("sync_instruction", None))

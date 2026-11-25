@@ -102,15 +102,21 @@ async def test_ws_manager_falls_back_to_broadcast_when_target_surface_offline() 
     manager.register_audio_handler(shared)
 
     await manager.send_to_surface("hallway-tablet", {"type": "guided_session_state"})
+    await manager.send_to_surface("hallway-tablet", {"type": "enable_microphone"})
     await manager.send_backend_task("Fill the kettle.", surface_id="hallway-tablet")
 
     # Resident-safe content still reaches her on another screen...
     assert kitchen.of_type("guided_session_state")
     assert bedroom.of_type("guided_session_state")
+    # ...but microphone cues never open a mic in another room when a target surface is known.
+    assert kitchen.of_type("enable_microphone") == []
+    assert bedroom.of_type("enable_microphone") == []
     # ...and the prompt waits on the shared queue for whichever session is free.
     assert shared.prompts == []
     assert manager.prompt_queue.qsize() == 1
-    assert manager.reaches_surface("hallway-tablet") is True
+    # A known offline surface is not "reached": guided routines summon instead of speaking elsewhere.
+    assert manager.reaches_surface("hallway-tablet") is False
+    assert manager.reaches_surface(None) is True
 
 
 @pytest.mark.asyncio
@@ -135,7 +141,8 @@ async def test_a_surfaceless_connection_only_receives_house_wide_messages() -> N
 
     assert [p["type"] for p in browser.sent] == ["info_card"]
     assert manager.is_surface_connected("kitchen-tablet") is False
-    assert manager.reaches_surface("kitchen-tablet") is True
+    assert manager.reaches_surface("kitchen-tablet") is False
+    assert manager.reaches_surface(None) is True
 
 
 @pytest.mark.asyncio
@@ -201,3 +208,17 @@ async def test_a_conversation_is_created_only_when_a_routine_will_speak() -> Non
     # A routine about to speak on the kitchen screen: that screen creates its own.
     assert manager.conversation_session_id("kitchen", create=True) == 21
     assert bedroom.conversation_session_id is None
+
+
+@pytest.mark.asyncio
+async def test_idle_target_surface_does_not_steal_another_rooms_conversation() -> None:
+    manager = ConnectionManager()
+    kitchen = _AudioSession(created_id=21)
+    bedroom = _AudioSession(conversation_session_id=22, created_id=22)
+    manager.register_audio_handler(bedroom, surface_id="bedroom")
+    manager.register_audio_handler(kitchen, surface_id="kitchen")
+
+    assert manager.conversation_session_id("kitchen") is None
+    assert manager.conversation_session_id("kitchen", create=True) == 21
+    assert kitchen.conversation_session_id == 21
+    assert bedroom.conversation_session_id == 22

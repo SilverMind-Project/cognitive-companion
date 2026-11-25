@@ -268,6 +268,7 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     interactive_response_service = InteractiveResponseService(
         db_factory=get_session,
         scheduler=None,  # Injected later
+        ws_manager=app.state.ws_manager,
     )
     app.state.interactive_response_service = interactive_response_service
     container.interactive_response_service = interactive_response_service

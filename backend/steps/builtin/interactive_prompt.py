@@ -240,18 +240,21 @@ class InteractivePromptHandler(StepHandler):
 
         # The prompt, its microphone, and the screen wake go to the companion surface
         # in the resident's room when the pipeline names a person whose room has one.
-        # There is no explicit release: the lease is the countdown plus a margin.
-        surface_id = await resolve_surface_id(
-            services, resolve_person_id({}, pipeline_data, make_trigger_vars(trigger))
-        )
+        # Persona and lease are released when the resident responds or times out.
+        person_id = resolve_person_id({}, pipeline_data, make_trigger_vars(trigger))
+        surface_id = await resolve_surface_id(services, person_id)
+        prompt_ref = f"{execution.id}:{step.id}"
+        prompt_owner = f"interactive_prompt:{prompt_ref}"
         await engage_surface(
             services.ws_manager,
             surface_id,
-            owner=f"interactive_prompt:{execution.id}:{step.id}",
+            owner=prompt_owner,
             reason="interactive_prompt",
             lease_seconds=capture_lease_seconds(countdown_seconds),
             microphone=bool(rendered_voice_prompt),
         )
+        if services.interactive_response_service is not None:
+            services.interactive_response_service.track_surface(execution.id, step.id, surface_id)
 
         # Send interactive_prompt message via WebSocket for popup channel
         if rendered_popup_message:
@@ -307,6 +310,7 @@ class InteractivePromptHandler(StepHandler):
                     step_override=voice_instruction or None,
                     template_data=pipeline_data,
                     trigger_vars=make_trigger_vars(trigger),
+                    senior_id=person_id,
                 )
                 if services.knowledge_delivery is not None
                 else None
@@ -320,6 +324,8 @@ class InteractivePromptHandler(StepHandler):
                         callback=None,
                         voice_instruction=effective_voice_instruction,
                         metadata={
+                            "delivery_type": "interactive_prompt",
+                            "delivery_ref": prompt_ref,
                             "execution_id": execution.id,
                             "step_id": step.id,
                             "step_type": "interactive_prompt",
@@ -368,8 +374,12 @@ class InteractivePromptHandler(StepHandler):
                     step_id=step.id,
                 )
 
-        # If both channels failed to send, fail-safe with action="dismiss"
+        # If both channels failed to send, release surface and fail-safe with action="dismiss"
         if not popup_sent and not voice_sent:
+            if services.interactive_response_service is not None:
+                await services.interactive_response_service.release_prompt_resources(
+                    execution.id, step.id
+                )
             logger.error(
                 "interactive_prompt_all_channels_failed",
                 execution_id=execution.id,
@@ -406,6 +416,10 @@ class InteractivePromptHandler(StepHandler):
                     timeout_at=timeout_timestamp.isoformat(),
                 )
             except Exception as e:  # noqa: BLE001
+                if services.interactive_response_service is not None:
+                    await services.interactive_response_service.release_prompt_resources(
+                        execution.id, step.id
+                    )
                 logger.error(
                     "interactive_timeout_schedule_error",
                     execution_id=execution.id,
@@ -424,11 +438,12 @@ class InteractivePromptHandler(StepHandler):
                     data={output_key: pipeline_data[output_key]},
                 )
 
-        # Return StepResult with wait_until set to timeout timestamp
+        # Park past the timeout job so _handle_timeout records the synthetic response
+        # and schedules resume before the executor's fallback wake fires.
         return StepResult(
             success=True,
             data={},
-            wait_until=timeout_timestamp,
+            wait_until=timeout_timestamp + timedelta(seconds=60),
         )
 
     @staticmethod

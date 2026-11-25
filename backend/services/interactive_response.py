@@ -22,15 +22,18 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from cachetools import TTLCache
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
 from backend.models.interactive_response import InteractiveResponse
+from backend.services.companion_surface.hardware import release_surface
+from backend.services.interactive_session.tagging import voice_owner_key
 
 logger = get_logger(__name__)
 
@@ -44,6 +47,42 @@ class InteractiveResponseService:
 
     db_factory: Callable[[], Session]
     scheduler: Any  # Scheduler service for resume scheduling
+    ws_manager: Any = None
+    _prompt_surfaces: TTLCache[tuple[int, int], str | None] = field(
+        default_factory=lambda: TTLCache(maxsize=256, ttl=3600),
+        repr=False,
+    )
+
+    def track_surface(self, execution_id: int, step_id: int, surface_id: str | None) -> None:
+        """Remember which companion surface holds the capture lease for this prompt."""
+        self._prompt_surfaces[(execution_id, step_id)] = surface_id
+
+    async def release_prompt_resources(self, execution_id: int, step_id: int) -> None:
+        """Restore the companion persona and close the surface lease for this prompt."""
+        surface_id = self._prompt_surfaces.pop((execution_id, step_id), None)
+        if self.ws_manager is None:
+            return
+        owner = voice_owner_key("interactive_prompt", f"{execution_id}:{step_id}")
+        release_voice = getattr(self.ws_manager, "release_voice_instruction", None)
+        if callable(release_voice):
+            try:
+                await release_voice(owner)
+            except Exception:  # noqa: BLE001 - best-effort cleanup after response/timeout
+                logger.warning(
+                    "interactive_prompt_voice_release_failed",
+                    execution_id=execution_id,
+                    step_id=step_id,
+                )
+        try:
+            await release_surface(
+                self.ws_manager, surface_id, owner=owner, reason="interactive_prompt"
+            )
+        except Exception:  # noqa: BLE001 - best-effort cleanup after response/timeout
+            logger.warning(
+                "interactive_prompt_surface_release_failed",
+                execution_id=execution_id,
+                step_id=step_id,
+            )
 
     async def record_response(
         self,
@@ -123,6 +162,9 @@ class InteractiveResponseService:
             # Cancel the timeout job when a real (non-timeout) response arrives
             if channel != "timeout":
                 await self.cancel_pending_response(execution_id, step_id)
+
+            # Release the prompt's persona override and surface capture lease.
+            await self.release_prompt_resources(execution_id, step_id)
 
             # Schedule resume once the execution reaches "waiting" status
             await self._request_resume_when_waiting(execution_id)

@@ -1362,18 +1362,20 @@ async def query_knowledge_base(query: str) -> dict:
         latency_ms=latency_ms,
     )
 
-    # Broadcast popup to companion PWA
+    # Route popup to the asking surface when called from a voice session,
+    # falling back to broadcast only when no surface context is bound.
     if _svc.ws_manager and result.answered_via == "rag":
-        await _svc.ws_manager.broadcast(
-            {
-                "type": "knowledge_answer",
-                "query_id": query_id,
-                "query_text": result.query_text,
-                "answer_text": result.answer_text,
-                "source_document_ids": list(result.source_document_ids),
-                "server_timestamp": datetime.now(UTC).isoformat(),
-            }
-        )
+        from backend.services.interactive_session.tagging import active_tool_surface_id
+
+        payload = {
+            "type": "knowledge_answer",
+            "query_id": query_id,
+            "query_text": result.query_text,
+            "answer_text": result.answer_text,
+            "source_document_ids": list(result.source_document_ids),
+            "server_timestamp": datetime.now(UTC).isoformat(),
+        }
+        await _svc.ws_manager.send_to_surface(active_tool_surface_id.get(), payload)
 
     return {
         "answer": result.answer_text,

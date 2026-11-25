@@ -666,3 +666,41 @@ async def test_resume_not_scheduled_for_terminal_execution(
     )
 
     assert len(fake_scheduler.resume_calls) == 0
+
+
+@pytest.mark.asyncio
+async def test_record_response_releases_voice_persona_and_surface_lease(
+    db_factory,
+    fake_scheduler: FakeScheduler,
+    test_execution: WorkflowExecution,
+    test_step: PipelineStep,
+) -> None:
+    """Completing or timing out an interactive prompt releases its persona and surface lease."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    ws_manager = MagicMock()
+    ws_manager.release_voice_instruction = AsyncMock(return_value=True)
+    ws_manager.send_hardware_command = AsyncMock(return_value=True)
+    svc = InteractiveResponseService(
+        db_factory=db_factory,
+        scheduler=fake_scheduler,
+        ws_manager=ws_manager,
+    )
+    svc.track_surface(test_execution.id, test_step.id, "kitchen-tablet")
+
+    await svc.record_response(
+        execution_id=test_execution.id,
+        step_id=test_step.id,
+        channel="pwa_popup_text",
+        action="dismiss",
+        timestamp=datetime.now(UTC),
+        raw_response={},
+    )
+
+    owner = f"interactive_prompt:{test_execution.id}:{test_step.id}"
+    ws_manager.release_voice_instruction.assert_awaited_once_with(owner)
+    ws_manager.send_hardware_command.assert_awaited_once()
+    cmd = ws_manager.send_hardware_command.await_args.args[0]
+    assert cmd.surface_id == "kitchen-tablet"
+    assert cmd.lease_owner == owner
+    assert cmd.lease_seconds == 0

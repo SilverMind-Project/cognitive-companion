@@ -8,12 +8,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
-from backend.core.exceptions import ConflictError
+from backend.core.exceptions import ConflictError, ValidationError
 from backend.core.logging import get_logger
 from backend.models.guided_task import GuidedSession, Routine, RoutineStep
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.services.guided_task.policy import resolve_policy
 from backend.steps import StepRegistry
+from backend.steps._helpers import resolve_surface_id
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -160,14 +161,24 @@ class GuidedTaskStartStep(StepHandler):
             max_pipeline_park_s,
         )
 
+        surface_id = await resolve_surface_id(services, person_id)
         try:
             session = await services.guided_task.request_start(
                 routine_id,
                 person_id,
                 execution_id=execution.id,
+                surface_id=surface_id,
                 require_presence=require_presence,
                 summon_timeout_s=summon_timeout_s,
             )
+        except ValidationError as exc:
+            logger.warning(
+                "guided_task_start_rejected",
+                routine_id=routine_id,
+                person_id=person_id,
+                reason=exc.message,
+            )
+            return StepResult(success=False, data={"error": exc.message})
         except ConflictError:
             live_session = services.guided_task.get_live_session_for_person(person_id)
             logger.info(

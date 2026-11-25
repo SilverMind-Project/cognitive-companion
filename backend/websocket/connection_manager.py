@@ -169,31 +169,41 @@ class ConnectionManager:
     def reaches_surface(self, surface_id: str | None) -> bool:
         """Whether a delivery aimed at ``surface_id`` would reach a companion screen.
 
-        True when that surface is connected, or when it is not (or no surface was
-        chosen) and any companion connection is open, because resident-safe content
-        then falls back to every companion connection.
+        When a room's ``surface_id`` is known, returns True only while that surface
+        is connected so routines summon rather than speaking in another room. When
+        no surface was chosen (a household with no registered surfaces), falls back
+        to whether any companion connection is open.
         """
-        if surface_id is not None and self.is_surface_connected(surface_id):
-            return True
+        if surface_id is not None:
+            return self.is_surface_connected(surface_id)
         return self.has_connections
 
-    async def send_to_surface(self, surface_id: str | None, payload: dict[str, Any]) -> int:
-        """Send resident-safe content to one surface, or to every connection.
+    async def send_to_surface(
+        self,
+        surface_id: str | None,
+        payload: dict[str, Any],
+        *,
+        fallback_to_all: bool = True,
+    ) -> int:
+        """Send a message to one surface, or fall back to every connection.
 
-        Goes only to ``surface_id``'s connections when it has any; otherwise to every
-        connection, so a delivery whose surface is offline still reaches her on
-        another screen. Never use this for anything that opens a microphone or
-        camera without a prompt to answer: use :meth:`send_hardware_command`.
+        Goes only to ``surface_id``'s connections when it has any. Resident-safe
+        content falls back to every connection when the target surface is offline
+        (unless ``fallback_to_all`` is False). Microphone cues (``enable_microphone``)
+        never fall back to other rooms when ``surface_id`` is known; when
+        ``surface_id`` is None, messages reach every connected companion screen.
         Returns the number of connections it was sent to.
         """
+        allow_fallback = fallback_to_all and payload.get("type") != "enable_microphone"
         async with self._lock:
-            targets = (
-                [ws for ws, sid in self._surface_of.items() if sid == surface_id]
-                if surface_id is not None
-                else []
-            )
-            if not targets:
+            if surface_id is not None:
+                targets = [ws for ws, sid in self._surface_of.items() if sid == surface_id]
+                if not targets and allow_fallback:
+                    targets = list(self.active_connections)
+            else:
                 targets = list(self.active_connections)
+        if not targets:
+            return 0
         return await self._send_json_to(targets, self._as_message(payload))
 
     async def send_hardware_command(self, command: SurfaceHardwareCommand) -> int:
@@ -310,16 +320,27 @@ class ConnectionManager:
         the session that would speak creates one now if it has none.
         """
         handler = self._handler_for(surface_id)
-        if handler is not None and handler.conversation_session_id is not None:
-            return handler.conversation_session_id
+        if handler is not None:
+            if handler.conversation_session_id is not None:
+                return handler.conversation_session_id
+            return handler.ensure_conversation_session() if create else None
         for candidate in reversed(list(self._audio_handlers)):
             if candidate.conversation_session_id is not None:
                 return candidate.conversation_session_id
         if create:
-            speaker = handler or next(reversed(list(self._audio_handlers)), None)
+            speaker = next(reversed(list(self._audio_handlers)), None)
             if speaker is not None:
                 return speaker.ensure_conversation_session()
         return None
+
+    @property
+    def active_conversation_session_ids(self) -> set[int]:
+        """Conversation rows currently held open by connected companion sockets."""
+        return {
+            handler.conversation_session_id
+            for handler in list(self._audio_handlers)
+            if handler.conversation_session_id is not None
+        }
 
     async def release_voice_instruction(self, owner: str) -> bool:
         """Restore the base persona on any session whose instruction ``owner`` set.

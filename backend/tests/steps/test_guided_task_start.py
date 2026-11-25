@@ -118,6 +118,7 @@ async def test_starts_session_and_parks(db_factory, db_session):
             "routine_id": routine.id,
             "person_id": "person-1",
             "execution_id": 10,
+            "surface_id": None,
             "require_presence": True,
             "summon_timeout_s": 120,
         }

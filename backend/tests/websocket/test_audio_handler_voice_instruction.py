@@ -276,3 +276,23 @@ async def test_new_instruction_waits_for_the_turn_being_spoken() -> None:
         if call.args[0].get("type") == "transcript" and call.args[0].get("source") == "assistant"
     ]
     assert len(spoken) == 2, "the card's turn must complete before the session is replaced"
+
+
+@pytest.mark.asyncio
+async def test_release_after_turn_releases_persona_automatically() -> None:
+    """A voice-only info card sets release_after_turn so persona reverts after its turn."""
+    async with _Harness() as h:
+        await h.manager.send_backend_task(
+            prompt="Remember to drink some water.",
+            voice_instruction=f"{BASE}\n\nCARD",
+            metadata={
+                "delivery_type": "info_card",
+                "delivery_id": 11,
+                "release_after_turn": True,
+            },
+        )
+        await h.session_closed()
+
+        await h.prompt("How are you today?", None, owner_session=12)
+
+    assert [s.instruction for s in h.provider.sessions] == [f"{BASE}\n\nCARD", BASE]

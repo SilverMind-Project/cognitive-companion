@@ -106,7 +106,9 @@ async def test_interaction_tools_report_missing_service() -> None:
         mcp._svc.knowledge_interaction_service = original
 
 
-async def test_query_knowledge_base_broadcasts_the_logged_query_id() -> None:
+async def test_query_knowledge_base_routes_the_logged_query_id_to_asking_surface() -> None:
+    from backend.services.interactive_session.tagging import active_tool_surface_id
+
     answer = KnowledgeAnswer(
         query_text="Where does Priya live?",
         answer_text="Priya lives in Boston.",
@@ -119,13 +121,17 @@ async def test_query_knowledge_base_broadcasts_the_logged_query_id() -> None:
     query_svc.answer = AsyncMock(return_value=answer)
     query_svc.log_query.return_value = 42
     ws = MagicMock()
-    ws.broadcast = AsyncMock()
+    ws.send_to_surface = AsyncMock()
     originals = (mcp._svc.knowledge_query, mcp._svc.ws_manager)
     mcp._svc.knowledge_query, mcp._svc.ws_manager = query_svc, ws
+    token = active_tool_surface_id.set("kitchen-tablet")
     try:
         result = await mcp.query_knowledge_base("Where does Priya live?")
     finally:
+        active_tool_surface_id.reset(token)
         mcp._svc.knowledge_query, mcp._svc.ws_manager = originals
 
     assert result["found"] is True
-    assert ws.broadcast.await_args.args[0]["query_id"] == 42
+    surface_id, payload = ws.send_to_surface.await_args.args
+    assert surface_id == "kitchen-tablet"
+    assert payload["query_id"] == 42

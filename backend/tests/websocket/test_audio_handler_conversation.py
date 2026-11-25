@@ -68,7 +68,7 @@ async def test_the_conversation_is_created_once_and_linked_when_first_needed() -
 
     assert first == again == 41
     conversations.create_session.assert_called_once_with()
-    guided.on_conversation_started.assert_awaited_once_with(41)
+    guided.on_conversation_started.assert_awaited_once_with(41, surface_id=None)
 
 
 @pytest.mark.asyncio

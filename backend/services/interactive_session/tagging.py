@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextvars import ContextVar
 from typing import Any
+
+# Set by AudioSessionHandler while executing a voice tool call so MCP tools
+# (e.g. query_knowledge_base) can route screen payloads back to the asking surface.
+active_tool_surface_id: ContextVar[str | None] = ContextVar("active_tool_surface_id", default=None)
 
 _PREFIX_BUILDERS: dict[str, Callable[[int], str]] = {
     "quiz_start": lambda session_id: f"[quiz session {session_id}]",
@@ -26,11 +31,11 @@ def prefix_for_delivery(metadata: dict[str, Any] | None) -> str:
     return builder(int(session_id))
 
 
-def voice_owner_key(delivery_type: str, delivery_ref: int) -> str:
+def voice_owner_key(delivery_type: str, delivery_ref: int | str) -> str:
     """Identify the delivery that owns a realtime system instruction.
 
-    ``delivery_ref`` is the session id for an interactive session and the delivery id
-    for a one-shot delivery such as an info card.
+    ``delivery_ref`` is the session id for an interactive session, the delivery id
+    for an info card, or ``"{execution_id}:{step_id}"`` for an interactive prompt.
     """
     return f"{delivery_type}:{delivery_ref}"
 
@@ -43,6 +48,8 @@ def voice_owner_for(metadata: dict[str, Any] | None) -> str | None:
     delivery_ref = metadata.get("session_id")
     if delivery_ref is None:
         delivery_ref = metadata.get("delivery_id")
+    if delivery_ref is None:
+        delivery_ref = metadata.get("delivery_ref")
     if not delivery_type or delivery_ref is None:
         return None
-    return voice_owner_key(str(delivery_type), int(delivery_ref))
+    return voice_owner_key(str(delivery_type), delivery_ref)

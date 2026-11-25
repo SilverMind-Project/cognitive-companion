@@ -20,7 +20,7 @@ dependencies = [
     "python-multipart>=0.0.28",
     "python-telegram-bot>=21.0",
     "tenacity>=9.1.4",
-    "mcp[cli]>=1.30,<2",
+    "mcp[cli]>=1.30,<3",
     "opencv-python-headless>=4.9",
     "numpy>=2.0",
     "pyjwt>=2.15",
@@ -35,7 +35,7 @@ dependencies = [
     "langchain-text-splitters>=0.3",
     "pillow-heif>=1.0",
     # pgvector 0.5 changed asyncpg codec return types from ndarray to Vector.
-    "pgvector>=0.3,<0.5",
+    "pgvector>=0.3,<0.6",
     "triton-shared>=0.1.0",
     "cts-contracts>=0.5.0",
     "lark>=1.3.1",
@@ -62,7 +62,7 @@ dev = [
     "httpx2>=2.0.0",          # starlette 1.2+ TestClient transport
     "testcontainers[postgres]>=4.0",
     # import-linter >=2.12 rejects intentionally deleted modules in forbidden_modules.
-    "import-linter>=2.0.0,<2.12",
+    "import-linter>=2.0.0,<2.18",
     "deptry>=0.20",
 ]
 
